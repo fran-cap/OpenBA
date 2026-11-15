@@ -23,25 +23,13 @@
 // recurse, so a non-recursive lock self-deadlocks on the first nesting. Only
 // cross-thread calls actually serialize.
 //
-// WHY IT IS A SEPARATE TRANSLATION UNIT NOW
+// WHERE IT IS TAKEN
 //
-// It used to be a `CRITICAL_SECTION` private to `standalone/filename_runtime_
-// hook.cpp`, initialized inside `InstallFindOrLoadWatch()` and taken only by
-// the two byte-patch detour wrappers that function installs. That works exactly
-// as long as Runtime-x64.dll is present to patch. **At cutover there is no DLL
-// and no patch, so the fix disappears** — the installer prints
-//
-//     [FNHook] could not resolve ExternalFactory::FindOrLoad
-//     [FNHook] could not resolve External::Load
-//     [ResLoad] serialized: FindOrLoad=0 External::Load=0 …
-//
-// and the loader runs unserialized. Every DLL-less boot attempt has printed
-// those three lines (lane SYS2 §4.3 found it); it has not bitten yet only
-// because the ladder still dies below the phase where the second thread exists.
-//
-// So the lock cannot stay welded to the detour. It lives here, it initializes
-// itself on first use rather than at an install site that may never run, and
-// the two ported bodies take it directly when they land:
+// The lock lives here and initializes itself on first use, so it needs no install
+// site. `ExpandRelativePath` (src/engine/io/external_path.cpp), ext.find_fastpath and
+// ext.visit_replay take it; the ported `FindOrLoad` (src/engine/object/
+// external_compiled.cpp) and `External::Load` (src/engine/object/external_load.cpp)
+// bodies do not take it themselves. The form the rule below asks of them:
 //
 //     const External* RtObject_ExternalFactory_FindOrLoad(ExternalFactory* self,
 //                                                         const Filename* name) {
@@ -63,14 +51,13 @@
 //      over call sites is a lock with a hole in it the first time somebody adds
 //      a caller.
 //
-// Recursion makes "both" safe: a detoured DLL body under a ported caller takes
-// the same CS twice on one thread and proceeds.
+// Recursion makes "both" safe: a body that takes the lock under a caller that
+// holds it takes the same CS twice on one thread and proceeds.
 //
 // KILL SWITCH. `BANISHED_NO_FOL_LOCK=1` disables the serialization — read ONCE,
 // at first use, and cached, so the A/B is process-wide and cannot drift
-// mid-run. With it set, lock and unlock are no-ops and the detours are not
-// installed, which is the pre-fix behaviour (~33% menu crash) and exists only
-// for A/B measurement.
+// mid-run. With it set, lock and unlock are no-ops, which is the pre-fix
+// behaviour (~33% menu crash) and exists only for A/B measurement.
 //
 // PORTABILITY. This header is deliberately `<windows.h>`-free so that
 // `src/engine/` may include it (PLAN.md §4.1 decision 1). The implementation
@@ -97,8 +84,8 @@ void ResLoadLockRelease() RELEASE(ResLoad);
 // diagnostics only — never branch behaviour on it.
 bool ResLoadLockArmed();
 
-// RAII form. Use this in ported bodies; the manual pair is for the C-shaped
-// detour wrappers.
+// RAII form. Use this in ported bodies; the manual pair is for a walk that lets go
+// of the lock and takes it again mid-scope (src/ext/visit_replay/visit_replay.cpp).
 struct SCOPED_CAPABILITY ResLoadGuard {
     ResLoadGuard() ACQUIRE(ResLoad) { ResLoadLockAcquire(); }
     ~ResLoadGuard() RELEASE() { ResLoadLockRelease(); }

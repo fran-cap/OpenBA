@@ -123,7 +123,7 @@ void Pickup::Persist(IO::Stream& stream) {
 //   7. Stamp the citizen (+0x30 = work type id, +0x54 |= 4, +0xb0 = 0 lastErrand None, and
 //      +0x88 |= 0x20000 when the work targets the citizen's own workplace).
 //
-// Returns 0/1/2 as an int (never bool -- trampoline bug class #7): 1 = no work
+// Returns 0/1/2 as an int (never bool): 1 = no work
 // available (also the early-out when status != Unassigned), 2 = work dispatched OR the
 // citizen is full and must re-plan, 0 = nothing dispatched this tick.
 //
@@ -244,9 +244,7 @@ int Pickup::Execute(CitizenComponent** citizenRef, System::Time* time) {
     }
 
     const uint32_t tidRawMatDesc = RawMaterialDescription::TypeId();
-    // 0x1401c6be0 (Pickup's own cell) is UNREGISTERED -- Pickup_Tid's raw-.rdata read
-    // always failed and fell through to this same Pickup::TypeId() call, so calling
-    // it directly is not a behaviour change (ENDGAME B.3.9 D5 note).
+    // 0x1401c6be0 is Pickup's own cell: Pickup::TypeId().
     const uint32_t tidPickup     = Pickup::TypeId();
 
     // --- pile's RawMaterialComponent + its RawMaterialDescription ---------------
@@ -258,7 +256,7 @@ int Pickup::Execute(CitizenComponent** citizenRef, System::Time* time) {
     GameUpdateLoop* gw = GameUpdateLoop::_singleton;
     CitizenBehavior* townMgr = gw->m_citizenList;
     Map* map = gw->m_game;
-    // The map helpers (0x14009ccf0, 0x1400a00f0, 0x140008830) take the map as int*.
+    // The map helpers (0x14009ccf0, 0x1400a00f0, 0x140008830) are Map members.
     Map* grid = map;
 
     // --- citizen's free carry capacity -----------------------------------------
@@ -313,7 +311,7 @@ int Pickup::Execute(CitizenComponent** citizenRef, System::Time* time) {
 
     CitizenComponent* assignIBP = *citizenRef;
     if (!static_cast<char>(StepProgress(&assignIBP, static_cast<uint32_t>(selfAccess),
-                         static_cast<uint32_t>(citizenCell), time)))   // 0x1400f6ef0; the door read AL
+                         static_cast<uint32_t>(citizenCell), time)))   // 0x1400f6ef0; only AL is read
         return 0;
 
     // --- is there anywhere to drop it off? --------------------------------------
@@ -378,7 +376,7 @@ int Pickup::Execute(CitizenComponent** citizenRef, System::Time* time) {
             if (nRawMatIBP == nullptr) continue;
 
             ComponentDescription* nDesc = occIBP->_description;
-            if (!static_cast<char>(dstStorageIBP->CanAdd(nDesc, 1))) continue;   // 0x14012cd80; the door read AL
+            if (!static_cast<char>(dstStorageIBP->CanAdd(nDesc, 1))) continue;   // 0x14012cd80; only AL is read
 
             const int nAccess = grid->FindCell(nCell, citizenCell, PathBits::Access);
             if (nAccess < 0) continue;
@@ -490,7 +488,8 @@ int Pickup::Execute(CitizenComponent** citizenRef, System::Time* time) {
 // 1. If status == Unassigned, return false (no active work)
 // 2. If citizenIBP is null, return false
 // 3. Check if citizen's current profession matches citizenIBP's
-// 4. If different: cancel old work, re-run Slot4 for both entities
+// 4. If different: cancel old work, re-run Slot4 for the new citizen; return true
+//    when that answers 2, else re-run Slot4 for the stored citizen
 // 5. Return false (keep executing)
 // ============================================================
 int Pickup::Slot5(CitizenComponent** citizenSlot, System::Time* param3) {
@@ -611,7 +610,7 @@ Profession** Pickup::GetTarget(Profession** outPtr) {
 // ============================================================
 // Pickup::Slot11 / HasWorker (0x14002c000)
 // Returns true if citizenIBP is non-null (worker assigned).
-// 10 bytes, unhookable.
+// 10 bytes.
 // ============================================================
 int Pickup::GetPriority() {
     return citizenIBP.Get() != nullptr ? 1 : 0;

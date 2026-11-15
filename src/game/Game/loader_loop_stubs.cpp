@@ -1,7 +1,6 @@
 // src/game/Game/loader_loop_stubs.cpp
-// Standalone-only stub vtables for the exe's two LoaderLoop subclasses
-// (vtables @ 0x140158870 inner and @ 0x1401588d0 outer, used in this nesting
-// in the original GameMain).
+// Member bodies of the exe's two LoaderLoop subclasses (vtables @ 0x140158870
+// inner and @ 0x1401588d0 outer, used in this nesting in the original GameMain).
 //
 // LoaderLoop has 12 virtuals (UpdateLoop's full set, no CreateDialog).
 //
@@ -56,17 +55,11 @@ namespace {
 // (ThreadFunc -> Loader::Run -> UpdateLoop::LoadResources) that loads the loop's
 // "<GetResourceFilename>Resources.rsc" and recursively resolves its ENTIRE
 // dependency tree (FindOrLoad -> External::Load -> ExternalList::Serialize ->
-// zlib). For the inner loop that's "Game/GlobalResources.rsc", and in the
-// standalone's incomplete resource/FileSystem environment that recursive load
-// NEVER terminates — the thread pegs a full CPU core forever (the root cause of
-// the "menu 100% CPU"; verified non-terminating, ~1.5 cores for 600+ CPU-sec).
+// zlib). For the inner loop that's "Game/GlobalResources.rsc".
 //
-// BUT we can't simply skip it: boot DEPENDS on the Game/Global resources it
-// loads (skipping it crashes boot 6/6). So this stays ENABLED by default; the
-// real fix is to make the Game/Global load terminate (the standalone's resource
-// path-resolution/caching, tied to the disabled Modification::SetupFileSystem,
-// makes FindOrLoad never dedup -> endless re-load). Until then, the env var is
-// an opt-OUT purely for investigation (expect a boot crash with it set):
+// Boot DEPENDS on the Game/Global resources it loads (skipping it crashes boot
+// 6/6), so the load runs by default; the env var is an opt-OUT purely for
+// investigation (expect a boot crash with it set):
 //   BANISHED_SKIP_ENGINE_LOADER=1  -> skip Engine::Loader::Load
 bool SkipEngineLoader() {
     return Opt().skipEngineLoader;
@@ -81,8 +74,8 @@ bool SkipEngineLoader() {
 // (BANISHED_SYNC_ENGINE_LOADER), for two reasons that are both gone:
 //   - heap safety: the raw member Allocate/Free were once reachable without the
 //     allocator CS. Today every door into the free list is locked
-//     (src/engine/system/allocator.cpp hands out the composed stubs of
-//     src/diag/alloc_cutover_arm.cpp for ?Allocate@/?Free@, and MemAlloc/MemFree
+//     (src/diag/alloc_cutover_arm.cpp composes the raw Allocate/Free with the
+//     allocator critical section at self+0x640, and MemAlloc/MemFree
 //     lock themselves), which is retail's arrangement: its Allocate call sites
 //     are an inlined Enter(_singleton+0x640) / Allocate / Leave (operator new
 //     0x18000107d/94/9f, String::SetLength 0x1800c827f/9d/a8, MemAlloc

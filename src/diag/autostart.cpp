@@ -12,19 +12,19 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include "save/SaveLoad.h"   // -Iruntime/types: ENDGAME B.3.7 callers (K5)
+#include "save/SaveLoad.h"   // -Isrc/engine: ENDGAME B.3.7 callers (K5)
 
 // Captured by MainMenuDialog::OpenNewGame (src/game/Dialog/mainmenudialog.cpp).
 class NewGameDialog;    // Dialog/NewGameDialog.h
 extern "C" {
     NewGameDialog* g_StandaloneNewGameDialog = nullptr;
 }
-// Captured by MainMenuDialog_OpenLoad (src/game/Dialog/mainmenudialog.cpp; its local
+// Captured by MainMenuDialog::OpenLoad (src/game/Dialog/mainmenudialog.cpp; its local
 // declaration still spells the pointer void*: the same symbol, the stored value is the
 // dialog it creates).
 class SaveLoadDialog;   // Dialog/SaveLoadDialog.h
 SaveLoadDialog* g_StandaloneSaveLoadDialog = nullptr;
-// Captured by MainMenuDialog_OpenTutorial (same file, same void* local declaration).
+// Captured by MainMenuDialog::OpenTutorial (same file, same void* local declaration).
 // ScenarioDialog and TutorialDialog are ONE class -- the Tutorial button is the only
 // way to reach it.
 class ScenarioDialog;   // Dialog/ScenarioDialog.h
@@ -78,7 +78,7 @@ enum class Phase {
 //   <id>   click element id <id> on the most recently opened ModDialog
 //   d<id>  click element id <id> on the most recently opened ModDetailsDialog
 //   m<id>  click element id <id> on the MainMenuDialog (e.g. m7 re-opens Mods)
-// Only the mod dialogs are addressable for now; add a *_LastOpened() per
+// Only the mod dialogs and the MainMenuDialog are addressable; add a *_LastOpened() per
 // dialog type to extend it.
 char  s_menuClicks[256] = {0};
 char* s_menuClickCursor = nullptr;
@@ -119,7 +119,7 @@ constexpr int kNewGameTimeoutFrames = 600;   // ~10s at 60fps
 
 // Invoke a dialog's UI::DialogInstance::OnElementEvent (retail slot 8, +0x40)
 // as a synthetic button click: (element=null, msg, id). Every dialog driven
-// here (MainMenu / NewGame / SaveLoad / ModDetails / Mod) derives from
+// here (MainMenu / NewGame / SaveLoad / Scenario / ModDetails / Mod) derives from
 // UI::DialogInstance. The three trailing ints and userData were never set by
 // the old raw 4-argument call; the by-name call passes 0 / nullptr. The four
 // trailing arguments are the harness's choice: retail has no such caller.
@@ -406,7 +406,7 @@ void TickMenu(MenuDialogLoopT* menuDLT) {
         }
         SaveLoadDialog* d = dlg;
         // Wait for the list scan: refreshFlag (+0xBB) cleared AND saveCount
-        // (+0xC4) populated by SaveLoadDialog_Load's refresh pass.
+        // (+0xC4) populated by SaveLoadDialog::OnUpdate's refresh pass.
         int saveCount = d->saveCount;
         if (d->refreshFlag != 0 || saveCount <= 0) {
             if (s_newGameFrame > kNewGameTimeoutFrames) {

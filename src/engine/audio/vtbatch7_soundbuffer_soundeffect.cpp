@@ -10,7 +10,7 @@
 // ---------------------------------------------------------------------------
 // Audio::SoundBuffer — ??_7SoundBuffer@Audio@@6B@, 0x80 bytes
 // ---------------------------------------------------------------------------
-//   slot0 deleting dtor   0x18000bef0  src/engine/object/deleting_dtor.cpp
+//   slot0 deleting dtor   0x18000bef0  the compiler's, over ~SoundBuffer (batchc_audio_leaves.cpp)
 //   slot1 TypeName        0x18000b8b0  here
 //   slot2 Type            0x18000b890  here
 //   slot3 GetFileVersion  0x1800e0470  here (returns 0xa)
@@ -25,18 +25,18 @@
 //   +0x00 vtable = ??_7SoundBuffer@Audio@@6B@
 //   +0x08/+0x10/+0x18  External fields, zeroed
 //   +0x20 byte   _loopForever
-//   +0x21 byte   _streaming
-//   +0x24 float  _loopDurationSeconds
-//   +0x28 String _str1   (WRITER-confirmed by Serialize -- ctor zeroes it as a
+//   +0x21 byte   _streamed
+//   +0x24 float  _durationSeconds
+//   +0x28 String _wave   (WRITER-confirmed by Serialize -- ctor zeroes it as a
 //                         plain qword, Serialize is what proves it is a String)
-//   +0x30 String _str2
-//   +0x38 void*  _audioData
-//   +0x40 int32  _audioBytes
-//   +0x48 void*  _segmentTable   (ascending byte-offset boundaries, uint32[])
-//   +0x50 int32  _segmentBytes   (that table's BYTE length)
+//   +0x30 String _streamPath
+//   +0x38 void*  _data
+//   +0x40 int32  _length
+//   +0x48 void*  _wmaData        (ascending byte-offset boundaries, uint32[])
+//   +0x50 int32  _wmaLength      (that table's BYTE length)
 //   +0x54 uint8_t[0x2c] _format  (WAVEFORMATEX + trailing bytes; Serialize
 //                         streams exactly the first 0x28 of these 0x2c as raw
-//                         bytes -- kSbFormat's field breakdown in
+//                         bytes -- the WAVEFORMATEX field breakdown in
 //                         audio_play_platform.cpp names +0x54/+0x56/+0x58/
 //                         +0x60/+0x62 within this same window)
 // Total 0x80, matches the deleting dtor's measured elemSize.
@@ -44,7 +44,7 @@
 // ---------------------------------------------------------------------------
 // Audio::SoundEffect — ??_7SoundEffect@Audio@@6B@, 0x40 bytes
 // ---------------------------------------------------------------------------
-//   slot0 deleting dtor   0x180050820  src/engine/object/deleting_dtor.cpp
+//   slot0 deleting dtor   0x180050820  the compiler's, over ~SoundEffect (here)
 //   slot1 TypeName        0x180050340  here
 //   slot2 Type            0x180050320  here
 //   slot3 GetFileVersion  0x1800e0990  here (returns 3)
@@ -58,10 +58,10 @@
 // CompiledExternal step -- confirmed: only Base+External+SoundEffect stamps):
 //   +0x00 vtable = ??_7SoundEffect@Audio@@6B@
 //   +0x08/+0x10/+0x18  External fields, zeroed
-//   +0x20 float  _f20        default 1.0f  (ctor stores +0x20/+0x24 together
-//   +0x24 float  _f24        default 0.0f   as one qword immediate 0x3f800000)
-//   +0x28 int64  _offsetTicks
-//   +0x30 Array<T> _buffers  {data, size@+0x38, cap@+0x3c} -- Serialize hands
+//   +0x20 float  _radius      default 1.0f  (ctor stores +0x20/+0x24 together
+//   +0x24 float  _innerRadius default 0.0f   as one qword immediate 0x3f800000)
+//   +0x28 int64  _maxLength
+//   +0x30 Array<Sample> _samples  {data, size@+0x38, cap@+0x3c} -- Serialize hands
 //                            SetSize the address of +0x30 directly as the
 //                            Array<T>*, so size/cap are NOT a separate cache
 // Total 0x40.
@@ -71,18 +71,12 @@
 // faithful", which was true of batch 7 and is no longer true of this file. The
 // whole body, including the two-level sample/variant walk, is transcribed and
 // its evidence is set out above the function.
-// `Serialize`'s two nested-array helpers (0x180053190 SetSize,
-// 0x180053300 element loop) were NOT ported by batch 7; they are reached
-// through ResolveAddr (port registry first, DLL fallback), same reasoning as
-// the AnimationGroup SetSize calls in vtbatch7_animgroup_particlesystem.cpp.
-//
-// UPDATE (cutover closure batch D1, 2026-09-12): BOTH ARE NOW PORTED —
-// 0x180053190 as `kSpec_SfxBuffer18` in src/engine/collection/array.cpp, and
-// 0x180053300 at the bottom of THIS file. The ResolveAddr calls are unchanged
-// because the registry is consulted first; they now land on our bodies. The
+// `Serialize`'s two nested-array helpers are ported: 0x180053190 SetSize as
+// `kSpec_SfxBuffer18` in src/engine/collection/array.cpp, and 0x180053300, the
+// element loop, at the bottom of THIS file; Serialize calls both by name. The
 // element layouts the two ports settled are recorded with them:
-//   _buffers element  {float @+0x00, Array<Sample> @+0x08}      stride 0x18
-//   Sample   element  {ExternalPtr @+0x00, 3x float @+0x08..}   stride 0x18
+//   Sample  element  {float @+0x00, Array<Variant> @+0x08}     stride 0x18
+//   Variant element  {ExternalPtr @+0x00, 3x float @+0x08..}   stride 0x18
 //
 // ENDGAME B.3 step 7, block B4: both classes are REAL C++ classes now
 // (src/engine/audio/SoundBuffer.h, SoundEffect.h). The two anonymous-
@@ -92,22 +86,18 @@
 // `audioBytes` are `_data`/`_length`, `segmentTable`/`segmentBytes` are
 // `_wmaData`/`_wmaLength`; the SoundEffect's `f20`/`f24` are `_radius`/
 // `_innerRadius`, `offsetTicks` is `_maxLength` and the `buffer*` triple is
-// `_samples` (Array<Sample>). The slot bodies are the members below; every
-// registered door is a one-line QUALIFIED delegation, because a live object
-// wears the MINTED table whose slots resolve back to these doors.
+// `_samples` (Array<Sample>). The slot bodies are the members below.
 //
-// The by-address calls the move converted (RULE B7-11, hex literals checked
-// against standalone/rt_export_addrs.inc):
+// The calls, by name:
 //   0x1800c9930 `?Serialize@String@System@@` -> `System::String::Serialize`
 //   0x1800c7ad0 `?MemFree@MemoryAllocator@System@@` -> `rtcoll::MemFree`, the
-//               one allocator door PlatformSerialize's `rtcoll::MemAlloc`
-//               already uses (Collection.h's allocator banner: a heap must not
-//               be half-shimmed; same allocator on a normal run)
+//               allocator PlatformSerialize's `rtcoll::MemAlloc` also uses
 //   0x180053300 (unexported, this file's own body) -> a direct call
-// 0x180053190 / 0x180052e60 (the two SoundEffect Array SetSize bodies,
-// Collection code in array.cpp) and 0x180052a50 (the ExternalPtr<SoundBuffer>
-// serialize helper) stay by-address calls: unexported, not this block's, and
-// resolved per call with no cache.
+//   0x180053190 / 0x180052e60 (the two SoundEffect Array SetSize bodies,
+//               Collection code in array.cpp) -> `rtcoll::RtColl_ArraySetSize_180053190`
+//               / `rtcoll::RtColl_ArraySetSize_180052e60`
+//   0x180052a50 (the ExternalPtr<SoundBuffer> serialize helper) ->
+//               `Object::ExternalPtr<SoundBuffer>::Serialize`
 //
 // ENDGAME B.3.9 ENG (B39_RULES D1/D2): both classes are CONCRETE. Their real
 // constructors (the headers) hold the factory rows' stores, their DeletingDtor
@@ -318,9 +308,8 @@ void DecodeXwmaJob(const SoundBuffer& buf, XwmaJob& job) {
                  buf._wmaData, packetCount)) {
         job.opened = true;
         // Sized by the table's total; the RETURNED count is the PCM's length: a
-        // packet the decoder rejects yields nothing (Tornado.wav's last six,
-        // handins/XWMA.md A4.4 and known_port_issues row 1276), so Failed() is
-        // not fatal. TotalSamples is capped at what the packets can decode to
+        // packet the decoder rejects yields nothing, so Failed() is not fatal.
+        // TotalSamples is capped at what the packets can decode to
         // (review F-073: the table is untrusted).
         job.total = dec.TotalSamples();
         const uint64_t bytes = job.total * dec.Channels() * 2u;
@@ -511,9 +500,9 @@ Object::Base* SoundEffect::CreateInPlaceObject(void* place) {
 //
 // This body (a WRITER) reaches exactly those offsets with exactly those
 // strides, and it dereferences the variant's +0x00 as a SoundBuffer, reading
-// +0x20 and +0x24 — which this same file's SoundBuffer struct above already
-// pins as `loopForever` and `loopDurationSeconds` from a third direction (that
-// class's own ctor and Serialize). Three independent witnesses; nothing here is
+// +0x20 and +0x24 — which SoundBuffer.h already pins as `_loopForever` and
+// `_durationSeconds` from a third direction (that class's own ctor and
+// Serialize). Three independent witnesses; nothing here is
 // inferred from a shape.
 //
 // THE BODY, instruction for instruction:
@@ -652,17 +641,17 @@ SoundEffect::~SoundEffect() {
 }  // namespace Audio
 
 // ============================================================================
-// The `_buffers` element serialize walk   0x180053300   (batch D1)
+// The `_samples` element serialize walk   0x180053300   (batch D1)
 // ============================================================================
 // SoundEffect::Serialize above calls this directly (B.3.7). Element {float @+0x00,
-// Collection::Array<Sample> @+0x08}, stride 0x18:
+// Collection::Array<Variant> @+0x08}, stride 0x18:
 //
 //   18005333e  kScalarFloat  e+0x00
-//   180053344  n = e->samples._size   (e+0x10)
+//   180053344  n = e->variants._size   (e+0x10)
 //   18005335a  kScalarInt(&n)                     — a LOCAL, not the field
-//   180053360  if (reading) 0x180052e60(&e->samples, n)    SetSize
-//   180053379  p = e->samples._data   (e+0x08)
-//   180053390  per sample (stride 0x18):
+//   180053360  if (reading) 0x180052e60(&e->variants, n)    SetSize
+//   180053379  p = e->variants._data   (e+0x08)
+//   180053390  per variant (stride 0x18):
 //                 0x180052a50(p+0x00, ser)        ExternalPtr<SoundBuffer>
 //                 kScalarFloat p+0x08 / p+0x0c / p+0x10
 //

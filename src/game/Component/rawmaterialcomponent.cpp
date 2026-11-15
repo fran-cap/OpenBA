@@ -32,7 +32,7 @@
 #include "object/Internal.h"   // ENDGAME B.3.3 step 6B
 #include "system/Value.h"   // ENDGAME B.3.4b System caller batch
 #include "Component/exe_bodies.h"
-#include "Action/exe_bodies.h"      // ActHunt_MarkEntityRemoval_c2ea0
+#include "Action/exe_bodies.h"
 
 // The exe helpers this file calls, by retail address:
 //   0x140018020 Reimpl_ExternalPtr_Serialize_StringTable (ExternalPtr<Profession>, version >= 2)
@@ -101,8 +101,8 @@ void CitizenBehavior::RegisterRawMaterial(ComponentDescription* material) {
 }
 
 // B4 FORWARD: 5 outside callers (debugui.cpp, tradeui_checkout.cpp, starttown.cpp,
-// tradecomponent_dock.cpp, and this file's Startup, whose receiver comes from the
-// untyped GameUpdateLoop::m_citizenList).
+// tradecomponent_dock.cpp, and this file's Startup, whose receiver is
+// GameUpdateLoop::m_citizenList).
 
 // ============================================================
 // RawMaterialDescription::GetPickupCategory (0x140129480): the pickup work's
@@ -226,7 +226,7 @@ void RawMaterialComponent::OnAdded() {
     // Get pickup category from material flags
     uint32_t category = rawMatDesc->GetPickupCategory();
 
-    // Allocate pickup draw item (0x60 bytes)
+    // Allocate the Pickup work (0x60 bytes)
     void* pickupItem = System::MemoryAllocator::MemAlloc(0x60, 8);
 
     Pickup* pickupItemResult = nullptr;

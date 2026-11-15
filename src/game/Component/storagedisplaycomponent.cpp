@@ -5,18 +5,18 @@
 // on buildings (e.g. logs stacked outside a storage barn).
 //
 // Vtable at 0x14015a780. Six overrides:
-//   Shutdown  (0x140056970) — Component_Serialize + empty Serializer block
-//   Serialize (0x140056930) — RET 0 (3 bytes, unhookable no-op)
-//   Draw      (0x140056730) — grid-based layout of the piles
-//   OnCreate  (0x1400566b0) — remove the piles from the scene
+//   Persist   (0x140056970) — Component_Serialize + empty Serializer block
+//   Startup   (0x140056930) — RET 0 (3 bytes, no-op)
+//   OnAdded   (0x140056730) — grid-based layout of the piles
+//   OnRemove  (0x1400566b0) — remove the piles from the scene
 //   Update    (0x1400566a0 -> 0x1400563e0) — proportional pile allocation (Refresh)
-//   OnUpdate2 (0x140056940) — Draw + Update combined
+//   Slot11    (0x140056940) — OnAdded + Refresh combined
 //
 // Decompiled from Application-x64.exe using Ghidra.
 
 // graphics/*.h FIRST: they pull src/engine/volume/Volume.h, whose global-scope
 // `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()` once <windows.h> has
-// been seen through resolve.h.  ENDGAME B.3.5 caller batch I2.
+// been seen.  ENDGAME B.3.5 caller batch I2.
 #include "graphics/Scene.h"
 #include "Component/RawMaterialDescription.h"
 #include "Component/ModelDescription.h"
@@ -38,7 +38,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include "Object/factory_registration.h"   // ::Object::GetTypeIdByName (SA type-id fallback)
+#include "Object/factory_registration.h"
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch A
 #include <new>
 #include "Component/exe_bodies.h"
@@ -62,8 +62,8 @@ static uint32_t SDD_RawMatDescTypeId() {
 // Exe helpers, by retail address:
 //   0x140004680 FindComponent<MapComponent>
 //   0x14000ca10 StorageDisplayComponent::SetPileCount = Array<Pile>::SetSize (the header)
-//   0x14009f3e0 Reimpl_MapGetTerrainPos (CharacterComponent_impl_f3e0, map tile -> world;
-//               CALL @140056869 in StorageDisplayComponent::Draw)
+//   0x14009f3e0 Map::GetTerrainPos (map tile -> world;
+//               CALL @140056869 in StorageDisplayComponent::OnAdded)
 //   0x140006270 FindComponent<StorageComponent> (type DWORD_1401c7e78). Verified in the
 //               real Update disassembly at 0x1400563e0: the CALL at 0x140056432 targets
 //               0x140006270, NOT 0x140003050. (0x140003050 finds type 0x1401c8070 =
@@ -433,7 +433,7 @@ void StorageDisplayComponent::Update(const System::Time* /*time*/) {
 // ============================================================
 // StorageDisplayComponent::Slot11 (vtable slot [11], 0x140056940)
 // ============================================================
-// Calls vtable Draw then Refresh (display rebuild + content refresh).
+// Calls vtable OnAdded (slot 6) then Refresh (display rebuild + content refresh).
 //
 // Original disassembly:
 //   MOV RAX,[RCX]            ; vtable

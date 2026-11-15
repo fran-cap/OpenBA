@@ -11,10 +11,7 @@
 // line was written. No new Win32 API and no new import library.
 //
 // Its own file rather than an edit to `persistence.cpp` (Wave 4 lane C) purely
-// so two lanes are not editing one file while both are in flight. Registered
-// through `RtIoPersistenceStartupRegister()`, wired into `rt_io_port.cpp` with
-// its own switch `the old DLL-era switch` — it is on the process's single boot
-// path, so it must be A/B-able without giving up lane C's `Get`/`Set` family.
+// so two lanes were not editing one file while both were in flight.
 //
 // This file touches nothing under `src/engine/io/filesystem*`; lane FS owns
 // those. It CALLS `?GetSaveDirectory@FileSystem@IO@@` by name, which is a
@@ -40,8 +37,8 @@
 // out of `[RAX]`, where `RAX == RDX`. `Filename` and `String` are
 // layout-identical (src/engine/system/Filename.h), one pointer.
 //
-// The assignment at 0x1800b7f10 is `String::operator=` inlined, and it is
-// written out here rather than delegated because of its FIRST test:
+// The assignment at 0x1800b7f10 is `String::operator=` inlined, and it
+// matters because of its FIRST test:
 //
 //     CMP RCX,[RAX]   ; if the two String::data pointers are already EQUAL,
 //     JZ  skip        ; do nothing at all -- no release, no AddRef
@@ -51,32 +48,24 @@
 // the one line here that a "tidy" rewrite would drop.
 //
 // ---------------------------------------------------------------------------
-// THIS ROW CLOSES; ITS FIRST CALLEE DOES NOT
+// ITS TWO CALLEES
 // ---------------------------------------------------------------------------
-// Stated per the triage rule: porting this does NOT get past step 4. It moves
-// the fault to **`?ReadSettings@Persistence@IO@@QEAAXXZ`** (0x1800b84b0, ord
-// 3462, **256 instructions**), which is the registry reader. Behind that is
-// `?GetSaveDirectory@FileSystem@IO@@QEBA?AVFilename@System@@XZ` (0x1800acfd0,
-// ord 2886), which is lane FS's class.
-//
-// Both are reached by NAME, so each arrives as one `[RtUnresolved]` line rather
-// than an anonymous EXEC-of-0 — which is the whole value of closing this row
-// ahead of the wall.
+// `?ReadSettings@Persistence@IO@@QEAAXXZ` (0x1800b84b0, ord 3462) is in
+// persistence_settings.cpp; `?GetSaveDirectory@FileSystem@IO@@QEBA?AVFilename@
+// System@@XZ` (0x1800acfd0, ord 2886) is in filesystem.cpp. Both are called by
+// name.
 //
 // ---------------------------------------------------------------------------
 // ORACLE
 // ---------------------------------------------------------------------------
-// None. It runs once, from `Engine::Startup`; `ReadSettings` reads the Windows
-// registry into the object and a replay would do it twice. The shadow checks
-// the post-condition the assignment produced and this body did not compute:
-// `_savePath` holds the same `data` pointer the temporary did, with a refcount
-// that accounts for both. `the diff oracle` is the effectiveness control.
+// None. It runs once, from `Engine::Startup`; `ReadSettings` reads settings.cfg
+// (persistence_settings.cpp) into the object and a replay would do it twice.
 // ============================================================================
 
 #include <cstdint>
 #include <cstddef>
 #include <cstdio>
-#include <utility>    // std::move -- the pointer steal out of a POD out-param
+#include <utility>
 
 #include "io/Persistence.h"
 #include "io/FileSystem.h"   // ENDGAME B.3.9 IO: the class static
@@ -88,8 +77,7 @@
 namespace {
 
 // ?_singleton@FileSystem@IO@@0PEAV12@EA, ord 4811, retail 0x1801fc6a8.
-// Written by `??0FileSystem@IO@@QEAA@XZ`, which Wave 9 lane X ported; read here
-// through the PORT-AWARE door so it follows lane C2's mint at cutover.
+// Written by `??0FileSystem@IO@@QEAA@XZ`; read here as the class static.
 ::IO::FileSystem** FileSystemSingletonSlot() {
     return &::IO::FileSystem::_singleton;   // ENDGAME B.3.9 IO (D7): the class static.
 }
@@ -121,10 +109,8 @@ bool Persistence::Startup() {
     // GetSaveDirectory's by-value Filename is constructed straight into `tmp`
     // (its hidden return slot); with no slot `tmp` is the null Filename.
     // Retail dereferences FileSystem::_singleton without a check (0x1800b7f01
-    // is a bare `MOV RCX,[0x1801fc6a8]`). The DEREFERENCE stays unguarded. What
-    // is guarded is whether the SLOT EXISTS at all: with no DLL that variable
-    // exists only if the mint provides it. Our difference from retail, not a
-    // guard over retail's logic.
+    // is a bare `MOV RCX,[0x1801fc6a8]`). The DEREFERENCE stays unguarded. The
+    // `fsSlot` test is on the class static's address, which is never null.
     ::IO::FileSystem** const fsSlot = ::FileSystemSingletonSlot();
     System::Filename tmp = fsSlot ? (*fsSlot)->GetSaveDirectory() : System::Filename();
 

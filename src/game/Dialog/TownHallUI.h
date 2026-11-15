@@ -26,9 +26,9 @@
 // other Init bodies).
 //
 // B.4 Y GAMEB (behaviour:): the eleven owned containers are typed members.
-// The ctor (0x140081280) zeroes each one where its member ctor does; ~TownHallUI
-// has an empty body and the members are destroyed in reverse declaration order,
-// which is retail's descending-offset order above.
+// The ctor (0x140081280) zeroes each one where its member ctor does; ~TownHallUI's
+// body only calls the ext.storage_metrics seam, and the members are destroyed in
+// reverse declaration order, which is retail's descending-offset order above.
 // ============================================================================
 
 #include <cstdint>
@@ -178,10 +178,10 @@ public:
 
     TownHallUI() = default;                              // 0x140081280 (create 0x140014660)
 
-    // 0x1400146b0 minus the free; ~TownHallUI is 0x1400810d0. The body is empty:
-    // the owned containers are members, destroyed in reverse declaration order
-    // (+0x1d8, +0x1c8, +0x138, +0x118, +0xf0, +0xd0 / +0xe0, +0xb0 / +0xc0, +0x50,
-    // +0x40: retail's order), then ~DialogController -> ~Internal.
+    // 0x1400146b0 minus the free; ~TownHallUI is 0x1400810d0. The body only calls the
+    // ext.storage_metrics seam: the owned containers are members, destroyed in reverse
+    // declaration order (+0x1d8, +0x1c8, +0x138, +0x118, +0xf0, +0xd0 / +0xe0, +0xb0 /
+    // +0xc0, +0x50, +0x40: retail's order), then ~DialogController -> ~Internal.
     ~TownHallUI() override;                                       // [0] 0x1400146b0
     void OnCreated() override;   // [4] 0x140081000
     void OnUpdateLayout() override;   // [7] 0x14007d550

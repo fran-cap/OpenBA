@@ -27,16 +27,14 @@
 // It is called from ImageBufferData slots 1, 2 and 3, and the matching *remove*
 // lives inside ~ImageBufferData (0x180002430) — i.e. three of the four call
 // sites are in this file. So it is implemented here to keep these slots
-// self-contained. **Lane L6 owns DeviceData and will need exactly this helper**
-// (DeviceData slot 0 frees the array at teardown); when L6 lands, hoist
-// TrackImageBuffer into the DeviceData translation unit and have this file call
-// it instead. Until then there is one copy and it is here.
+// self-contained; DeviceData slot 0 (~DeviceData, devicedata.cpp) only frees the
+// array at teardown. There is one copy and it is here.
 //
 // Note that the *remove* in ~ImageBufferData is a **stable shift-erase**, not a
-// swap-remove — src/render/dx11/README.md and decomp/videodx11.md both say "swap-remove",
-// which is wrong. 0x1800024c8-0x1800024ee shifts every later element down by one
-// (`MOV RCX,[R8+8]; MOV [R8],RCX`) and only then decrements the count. Corrected
-// here; the two docs still carry the old wording.
+// swap-remove — src/render/dx11/README.md says "swap-removed", which is wrong
+// (decomp/videodx11.md has it right). 0x1800024c8-0x1800024ee shifts every
+// later element down by one (`MOV RCX,[R8+8]; MOV [R8],RCX`) and only then
+// decrements the count.
 //
 // Membership differs between the two sites and that asymmetry is real:
 //   ~ImageBufferData (remove):  IsGenerated() || (flags & 0x70) || IsRendered()
@@ -137,10 +135,10 @@
 //   * the meaning of the 16-byte level descriptors slot 3 receives (only the
 //     leading pointer is read).
 //
-// See ../README.md for the seam, and ../types/VideoDX11Data.h for the layout.
+// See README.md for the seam, and VideoDX11Data.h for the layout.
 //
 // B5 RES (the dx11 seam): `VideoDX11::ImageBufferData` is a real C++ subclass
-// of `Video::ImageBufferData` (../types/VideoDX11Data.h); the seven slots are
+// of `Video::ImageBufferData` (VideoDX11Data.h); the seven slots are
 // members declared `override` and the compiler builds the vtable. The field map
 // above is read through the NAMED members of the real `Video::ImageBuffer`
 // (`_owner`, typed) — the `IbI32` / `IbU32` / `IbSet` raw-offset accessors are
@@ -218,8 +216,8 @@ const int kFormatBytes[8]  = {    8,   16,   16,    1,    1,    4,    4,    4 };
 // 0x180002300 — DeviceData::TrackImageBuffer(Video::ImageBuffer*)
 //
 // Add-if-absent into DeviceData+0x60 {data, count, capacity}, stride 8, x3
-// growth. NOTE FOR LANE L6: this belongs to DeviceData; hoist it when
-// DeviceData lands (see the header comment).
+// growth. Retail's is a DeviceData method; here it is a file-local helper
+// (see the header comment).
 // ============================================================
 void TrackImageBuffer(DeviceData* dd, ::Video::ImageBuffer* imageBuffer) {
     // B5 DEV-A: DeviceData::trackedImages is typed `Video::ImageBuffer**` now

@@ -8,14 +8,14 @@
 //
 // Vtable (10 slots):
 //   [0] +0x00 ScalarDtor    = 0x140022ee0
-//   [1] +0x08 VectorDtor    = 0x140022e60 (returns type ptr, unhookable)
-//   [2] +0x10 BaseDtor      = 0x140022e50 (returns TypeInfo, unhookable)
+//   [1] +0x08 TypeName      = 0x140022e60
+//   [2] +0x10 Type          = 0x140022e50
 //   [3] +0x18 Serialize     = 0x1400ca870
-//   [4] +0x20 AbstractImpl  = 0x1400ca7f0  (DISABLED: RIP-relative MOV)
+//   [4] +0x20 AbstractImpl  = 0x1400ca7f0
 //   [5] +0x28 Execute       = 0x1400c4a90  (base Action, returns 0)
 //   [6] +0x30 Enter         = 0x1400c4b90  (base Action, void nop)
 //   [7] +0x38 Exit          = 0x1400c4ba0  (base Action, void nop)
-//   [8] +0x40 CheckEntity   = 0x1400ca760  (DISABLED: RIP-relative CALL)
+//   [8] +0x40 CheckEntity   = 0x1400ca760
 //   [9] +0x48 GetTarget     = 0x1400ca720
 //
 // Decompiled from Application-x64.exe using Ghidra.
@@ -23,7 +23,7 @@
 #include "RemoveAnimal.h"
 #include "object/TypeInfo.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
-#include "Action/exe_bodies.h"   // MarkEntityForRemoval, the 0x140003110 forwarder
+#include "Action/exe_bodies.h"
 #include "Component/AnimalComponent.h"
 #include "Entity/ComponentEntity.h"
 #include "Entity/EntityList.h"
@@ -75,7 +75,7 @@ void RemoveAnimal::Persist(IO::Stream& stream) {
 }
 
 // ============================================================
-// Slot 4: AbstractImpl (0x1400ca7f0) -- DISABLED hook (RIP-relative MOV in prologue)
+// Slot 4: AbstractImpl (0x1400ca7f0)
 // Marks the animal entity at +0x20 for removal, queues it on the removal list.
 // Returns 0 (action complete).
 // ============================================================
@@ -115,7 +115,7 @@ int  RemoveAnimal::AbstractImpl(ActionStack* actionStack) {
 }
 
 // ============================================================
-// Slot 8: CheckEntity (0x1400ca760) -- DISABLED hook (RIP-relative CALL in prologue)
+// Slot 8: CheckEntity (0x1400ca760)
 // Clears the "in use" bit (bit 20) of the animal's AnimalComponent flags.
 // If the low 16 bits of flags changed, notifies the owning entity.
 // ============================================================

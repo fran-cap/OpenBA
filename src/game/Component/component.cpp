@@ -55,11 +55,6 @@ void Component::Persist(IO::Stream& stream) {
     ::Object::SerializeExternal<Description>(ser, _description);   // 0x140031d10 (B8 RT2)
 }
 
-// 0x1401189b0 door: reached by address from 52 sites (fn tables, the inert
-// component factories, the *_serialize.cpp bodies), registered in
-// standalone/reg_component_economy.cpp. A qualified (non-virtual) call, so a
-// hand-built receiver runs the same body.
-
 
 // [4]-[15]: retail's shared no-op bodies (`RET`; [13] `XOR EAX,EAX; RET`).
 void     Component::Startup() {}                                   // 0x140118a50

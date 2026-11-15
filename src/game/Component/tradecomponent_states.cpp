@@ -2,11 +2,9 @@
 // TradeComponent's controller state machine — the thing that makes a trading post
 // drive itself instead of waiting for the player to poke the work toggle.
 //
-// tradecomponent.cpp deliberately left the controller sub-object inert:
-//   "DELIBERATELY NOT applied: +0x88 (the controller sub-object's own vtable) and
-//    +0xa0 (its self back-pointer). ... They stay inert until someone ports the
-//    controller."
-// This file is that port. Node offset 0x88 and default state 2 are not guesses —
+// The controller sub-object is TradeComponent::_controller (TradeComponent.h), the member at
+// +0x88 with its back-pointer at +0xa0; this file builds its state table. Node offset 0x88
+// and default state 2 are not guesses —
 // TradeComponent's retail vtable 0x14015acd0 holds slot 16 = 0x1400026c0
 // (`MOV EAX,2; RET`) and slot 17 = 0x14000dba0 (`LEA RAX,[RCX+0x88]; RET`).
 //
@@ -43,31 +41,12 @@
 //     event 0xa  b240  player dismissed the merchant -> 2 (inline SM tick)
 //   every state carries transition 3 -> b160, the shared teardown.
 //
-// ── WHAT IS PORTED HERE, AND WHAT IS NOT ─────────────────────────────────────────
-// This is layer 1 of the wave: the table, the node wiring, and the state-2 self-drive
-// path. Ported and wired: abd0, aa50, a780, a9c0, plus the leaves abd0 needs
-// (0x14005b450 timer arm, 0x14005b4f0 tier pick, 0x1400f6ea0 TradeWork ctor).
-//
-// NOT ported, and therefore registered as NULL handlers (which the dispatcher treats
-// as a graceful no-op, exactly as retail treats an unregistered slot):
-//   0x14005aa60  state-2 per-frame merchant spawn — blocked on 0x1400456e0, the river
-//                route builder (~1.5 KB, two 4096-int stack maps). Without it a boat
-//                can be created but not routed, so the whole spawn is held back rather
-//                than half-done.
-//   0x14005b160  shared teardown — also calls 0x1400456e0 (with a null ref, its
-//                "release the boat" branch).
-//   0x14005b240  dismiss event — retail inlines the whole of StateMachine::Tick here.
-//   (0x14005a850, the dock event-log line, WAS in this list — ported 2026-08-22 once the
-//    boat state machine gave it a caller; it reuses eventlog.cpp's AddEvent.)
-//
-// So with this layer alone the machine runs, sits in state 2, and re-posts trade work
-// on its own; it does not yet advance to 0x12/0x13. That is a real behaviour change
-// (today NOTHING posts trade work except the player clicking the toggle) and a
-// deliberately visible stopping point, not a silent partial.
-//
-// GATED: BANISHED_LIVE_TRADE_CTRL. GRADUATED 2026-08-22 into the default-on table, so it is
-// now a KILL-SWITCH (=0), not an opt-in. Proven end to end: timer -> merchant spawn ->
-// route -> dock -> manifest -> auto-trade delivering goods.
+// ── WHAT IS PORTED HERE ──────────────────────────────────────────────────────────
+// The table, the node wiring and the handlers: abd0, aa60, aa50, a850, a9c0, a780,
+// b240 and b160, plus the leaves abd0 needs (0x14005b450 timer arm, 0x14005b4f0 tier
+// pick, 0x1400f6ea0 TradeWork ctor). a850 reuses eventlog.cpp's AddEvent; a800 and
+// a6d0 are in tradecomponent_dock.cpp. The machine runs end to end: timer -> merchant
+// spawn -> route -> dock -> manifest -> auto-trade.
 
 #include "Component/controller_state_table.h"
 #include "Component/TradeComponent.h"
@@ -149,7 +128,6 @@ void TradeCtrlReport(const TradeComponent* comp, bool tried, const void* work, b
 // of the first tier whose threshold (+0x00) is above the town's current population
 // figure at *(gameWorld+0xf0)+0xa8; if none is, the last tier. A negative population
 // short-circuits to the current index, which is retail's behaviour on an unbuilt town.
-// LEFT: the town manager (GameUpdateLoop::m_citizenList) is void* (GAME-a).
 int TradeComponent::PickMerchantTier() {
     TradeDescription* desc = TradeDesc(this);
 
@@ -205,9 +183,7 @@ void TradeComponent::ArmMerchantTimer() {
 // ============================================================
 // THE self-drive step. On entering idle: if the scheduler is not already holding a
 // work slot and the workplace is accepting, allocate a TradeWork and post it. Then
-// arm the merchant countdown. Today nothing does this without the player clicking
-// the work toggle (TradeComponent::Command), which is why a post that has never been
-// toggled never fetches anything.
+// arm the merchant countdown.
 //
 // Returns 0 in AL — retail's tail is `CALL 0x14005b450; XOR AL,AL; RET`.
 char TradeComponent::EnterIdle() {
@@ -325,7 +301,7 @@ char TradeComponent::OnMerchantLost(StateMachine* sm) {
 // ============================================================
 // Retail inlines the whole of StateMachine::Tick after the request, which is why
 // the body is ~90 decompiled lines for what is a two-step handler. Read against
-// our own StateMachine::Tick (statemachinecomponent.cpp) the inlined
+// our own StateMachine::Tick (statemachine_tick.cpp) the inlined
 // loop matches EXACTLY, with time = System::Time(0.0), param3 = 0 (it dispatches
 // node slot +0x30, not +0x38) and param4 = 1 (the `bVar2 = true` that is cleared
 // after one pass). So retail 0x14005b240 is, in full:
@@ -337,7 +313,7 @@ char TradeComponent::OnMerchantLost(StateMachine* sm) {
 //   StateMachine_Tick(sm, Time(0), 0, 1);                   // run it NOW, not next frame
 //   return 1;
 //
-// RequestStateTransition (controller_state_table.h:317) already replicates the
+// RequestStateTransition (controller_state_table.h) already replicates the
 // first four lines including the nested drain tick and the node re-read, so the
 // only thing this handler adds over its 0xb sibling is the immediate tick — which
 // is the point: dismissing a merchant has to take effect on the click, not on the
@@ -391,9 +367,6 @@ char TradeComponent::TickIdle(StateMachine* smV, const System::Time* deltaTime) 
     ComponentDescription* tmpl = desc->_merchantTemplate;
     GameUpdateLoop::_singleton->m_entityList->RegisterEntity(&regIBP,
                                                             static_cast<int>(tmpl->_category));
-
-    // OUTCOME, not intent: the route point count is the only thing that says the boat can
-    // actually sail. "A boat was allocated" and "a boat has a route" are different claims.
 
     // Retail ticks the machine once first when it has no current state yet
     // (`if (*(char*)(sm+9) < 0)` at 14005ab6a), then requests 0x12.

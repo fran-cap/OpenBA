@@ -20,19 +20,19 @@
 //
 // Field layout (0x40 bytes):
 //   +0x00-0x1F: Action base (vtable, Internal base, entity ptr, status byte)
-//   +0x20: uint8_t  flag          (bool: if set, create raw material on drop failure)
+//   +0x20: uint8_t  flag          (bool: if set, search for another storage when full)
 //   +0x24: int32_t  count         (max count to drop, -1 = unlimited)
 //   +0x28: void*    resourceType  (InternalBasePtr, ExternalPtr to resource description)
-//   +0x30: void*    targetStorage (InternalBasePtr, storage entity to drop into)
-//   +0x38: void*    sourceEntity  (InternalBasePtr, source entity carrying resources)
+//   +0x30: void*    citizen       (InternalBasePtr, the citizen carrying the resources)
+//   +0x38: void*    destination   (InternalBasePtr, the entity to drop into)
 //
 // Decompiled from Application-x64.exe using Ghidra.
 
 #include "DropOffRawMaterial.h"
 #include "object/TypeInfo.h"
 #include "Component/StorageComponent.h"
-#include "Action/exe_bodies.h"        // DropOffExec 0x1400c7620, SpillAllStorage 0x1400c7570
-#include "Game/exe_bodies.h"          // Reimpl_ExternalPtr_Serialize_StringTable
+#include "Action/exe_bodies.h"
+#include "Game/exe_bodies.h"
 #include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch C
 #include <cstdio>
@@ -46,11 +46,11 @@
 
 // ============================================================
 // Helpers, called by name (B3R)
-//   0x140002340 Reimpl_ExternalPtr_Serialize_StringTable -- ExternalPtr serialize (resource
+//   0x140002340 ::Object::SerializeExternal -- ExternalPtr serialize (resource
 //               type at +0x28)
-//   0x1400c7620 Pf_DropOffExec_7620 (DropOffRawMaterial_Serialize_sub_7620) -- the resource
+//   0x1400c7620 DropOffRawMaterial::Deposit -- the resource
 //               transfer sub-helper (self, actionStack, storageIBP, resourceType)
-//   0x1400c7570 Pf_SpillAllStorage_7570 (Entity_impl_7570) -- drop off ALL inventory items
+//   0x1400c7570 DropOffRawMaterial::SpillAllStorage -- drop off ALL inventory items
 //               (called when +0x38 is null; slot 8 is a JMP to it)
 //
 // ENDGAME B.3.9 CB: retail reads this record field ONLY in the class's own TypeName
@@ -60,7 +60,7 @@
 
 // ============================================================
 // Serialize (0x1400c7b10)
-// Serializes: status(+0x18), storage(+0x30), source(+0x38), resource(+0x28), flag(+0x20), count(+0x24)
+// Serializes: status(+0x18), citizen(+0x30), destination(+0x38), resource(+0x28), flag(+0x20), count(+0x24)
 // ============================================================
 void DropOffRawMaterial::Persist(IO::Stream& stream) {
     Action::Persist(stream);   // inlined in retail: Serializer(stream, 0), status +0x18
@@ -96,10 +96,10 @@ void DropOffRawMaterial::Persist(IO::Stream& stream) {
 // AbstractImpl (0x1400c7300) — slot 4
 // Complex resource transfer logic.
 // If the destination (+0x38) is null: drops all inventory via SpillAllStorage (0x1400c7570).
-// If resource type (+0x28) is specified: transfer that one type via DropOffExec (0x1400c7620).
+// If resource type (+0x28) is specified: transfer that one type via Deposit (0x1400c7620).
 // If resource type is null: enumerate every stack in the citizen's own storage, build an
-//   array, transfer each via DropOffExec.
-// Returns 1 (needs more work) or 2 (action pushed, e.g. MoveTo for full storage).
+//   array, transfer each via Deposit.
+// Returns 2 when a Deposit found no other storage and dropped the load on the ground, else 1.
 // ============================================================
 int  DropOffRawMaterial::AbstractImpl(ActionStack* actionStack) {
     ActionStack* stack = actionStack;

@@ -6,11 +6,9 @@
 //   so the unit host links it without this file's ~SoundBuffer, review S-027.)
 // ============================================================================
 //
-// The two halves of "a sound buffer goes away": the destructor, and the device
-// callback it opens with. `??1SoundBuffer@` was a row in
-// src/engine/object/deleting_dtor.cpp's table (0x18000bef0 -> 0x1800e03b0,
-// elemSize 0x80) reaching the DLL's body; that row now lands here, which is the
-// intent (ResolveAddr is registry-first).
+// The destructor half of "a sound buffer goes away" (retail's slot-0 vector
+// deleting destructor 0x18000bef0 calls it, elemSize 0x80); the device callback
+// it opens with is in audio_device_buffer_deleted.cpp.
 //
 // Read from the shipped retail DLL's DISASSEMBLY; the export name read back
 // out of the export directory by VA with pefile.
@@ -59,7 +57,7 @@ void MemFree(void* p) { System::MemoryAllocator::MemFree(p); }
 // ENDGAME B.3.9 ENG: the class's REAL destructor now (the door retired with
 // the minted table and its RT_DELDTOR row). The entry restamp is the
 // compiler's; so are the two String releases -- member destruction in reverse
-// declaration order is `_streamPath` (+0x30) then `_string28` (+0x28),
+// declaration order is `_streamPath` (+0x30) then `_wave` (+0x28),
 // retail's descending order -- and the ~CompiledExternal restamp + ~External
 // tail.
 // ############################################################################

@@ -116,7 +116,7 @@ struct CaptureEntry {
     // AddScissor's / AddSprite's stack locals, whose name retail zeroes first
     // and releases as the last act of the body (0x1800d8fc2, AddSprite's
     // tail): this member's ctor and dtor.
-    System::String name;  // +0x08  see THE DANGLING NAME above
+    System::String name;  // +0x08  see `Entry::name` IS OWNED BY THE ARRAY above
     int32_t x1;           // +0x10
     int32_t y1;           // +0x14
     int32_t x2;           // +0x18
@@ -219,7 +219,7 @@ public:
     // ---- exported, NOT PORTED, no caller: declared, deliberately undefined --
     SpriteCapture(const SpriteCapture& src);            // 0x18003cb50
     SpriteCapture& operator=(const SpriteCapture& src); // 0x18003cc20
-    // 0x18003c800 — the minted record's type id (spritecapture_class.cpp).
+    // 0x18003c800 — the type id; the record is the class's own (DEFINE_TYPE, spritecapture_class.cpp).
     // Placement is spelt `::new (p) SpriteCapture()` (B9-5): these stay undefined.
     static void* operator new(std::size_t bytes);              // 0x18003c820
     static void* operator new(std::size_t bytes, void* place); // 0x18003c890
@@ -239,7 +239,7 @@ public:
     }
 
 public:
-    // ---- the 0x38 bytes SpriteCapture adds (public: the doors reach them) --
+    // ---- the 0x38 bytes SpriteCapture adds (public) ------------------------
     // B4 X7-RT (`behaviour:`): typed members. Retail's ~SpriteCapture
     // 0x1800d91b0 calls ~Array on +0x40 (0x1800d91d4, 0x180037310), +0x30
     // (0x1800d91de, 0x18003e4a0: releases each entry's name) and +0x20
@@ -286,11 +286,11 @@ static_assert(offsetof(SpriteCapture, _sheets) == sizeof(Object::External),
 
 }  // namespace UI
 
-// ==== B3R W0-P0c: Runtime bodies reached by retail address ====
-// ENDGAME B.3R (B3R_RULES R5): each body below is registered at the retail
-// address in its trailing comment and read through the registry today. It is
-// declared here, copied from its definition (linkage, namespace, types), so the
-// reader can call it by name. Nothing calls it through this declaration yet.
+// ==== B3R W0-P0c: Runtime bodies declared by name ====
+// ENDGAME B.3R (B3R_RULES R5): each body below is declared here, copied from its
+// definition (linkage, namespace, types), so a caller can call it by name; the
+// trailing comment is its retail address. SpriteCapture::Serialize
+// (spritecapture_class.cpp) calls it through this declaration.
 
 // ---- ui/spritecapture_class.cpp
 namespace IO { class Serializer; }

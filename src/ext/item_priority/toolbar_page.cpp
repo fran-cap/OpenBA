@@ -4,7 +4,7 @@
 // docs/extensions/handins/ITEMPRIO.md, src/ext/toolbar/toolbar.h. The town ranks the items its citizens fetch
 // from a storage, per category: a tab strip chooses the category (tools, fuel, clothing, health), and the
 // showing tab's list shows the items of that category, one cell each: a check box (ranked or not), the item's
-// icon and name, its place in the ranking, and Top / Up / Down. Checking an item ranks it at the bottom, unchecking removes
+// icon and name, its place in the ranking, and Top / Up / Down / Never. Checking an item ranks it at the bottom, unchecking removes
 // it; Up / Down move a ranked item past its neighbour, Top to the front. Every change applies at once (live: no Apply). Ranked
 // items come first, in rank order, then the rest by name. A "Show all items" check box under the list is off
 // by default (the items the town has made or stored, and the ranked ones) and is the player's choice for the

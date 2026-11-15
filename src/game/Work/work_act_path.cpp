@@ -41,18 +41,18 @@
 // ============================================================
 // Sub-callees, called by name (B3R)
 // ============================================================
-// Every exe sub-callee is one of our own bodies (Action/, Work/ exe_bodies.h):
-//   0x1400c5400 TaskListCleanup                     WorkBase_TaskListCleanup_c5400 (0xbf7f3)
-//   0x1400c54e0 TaskListAppend                      Pf_ActStackPush_54e0 (0xbf9f5 etc.)
-//   0x1400c29a0 Entity_impl_29a0 (heading, XMM0)    ActChild_Entity29a0_c29a0
-//   0x1400012d0 Entity_FindComponent_Family         ActMv_FindComponentFamily_12d0
-//   0x1400cb1d0 SendComponentMessage copy-ctor      Pf_SendComponentMessageCopyCtor_b1d0
-//   0x1400c5da0 CompleteTask copy-ctor              Pf_CompleteTaskCopyCtor_5da0
-//   0x140042890 ShowTool ctor (R8D=toolType)        ActChild_ShowToolCtor_42890
-//   0x1400c7cd0 DropOffRawMaterial copy-ctor        ActChild_DropOffRawCopyCtor_c7cd0
-//   0x1400ca520 PickupStoredRawMaterial copy-ctor   ActChild_PickupStoredCopyCtor_ca520
-//   0x1400c9720 PerformWork_Action_Ctor7            Pf_PerformWorkCtor7_9720
-//   0x1400c9170 MoveTo ctor                         Pf_MoveToCtor_9170
+// Every exe sub-callee is one of our own bodies (Action/, Entity/ headers):
+//   0x1400c5400 TaskListCleanup                     ActionStack::Clear (0xbf7f3)
+//   0x1400c54e0 TaskListAppend                      ActionStackPush (0xbf9f5 etc.)
+//   0x1400c29a0 Entity_impl_29a0 (heading, XMM0)    HeadingToward
+//   0x1400012d0 Entity_FindComponent_Family         ComponentEntity::FindComponent<CharacterComponent>
+//   0x1400cb1d0 SendComponentMessage copy-ctor      SendComponentMessage::SendComponentMessage
+//   0x1400c5da0 CompleteTask copy-ctor              CompleteTask::CompleteTask
+//   0x140042890 ShowTool ctor (R8D=toolType)        ShowTool::ShowTool
+//   0x1400c7cd0 DropOffRawMaterial copy-ctor        DropOffRawMaterial::DropOffRawMaterial
+//   0x1400ca520 PickupStoredRawMaterial copy-ctor   PickupStoredRawMaterial::PickupStoredRawMaterial
+//   0x1400c9720 PerformWork_Action_Ctor7            PerformWork::PerformWork
+//   0x1400c9170 MoveTo ctor                         MoveTo::MoveTo
 // Dispatch slots:
 //   0x140152b60 MemAlloc             -> System::MemoryAllocator::MemAlloc
 //   0x140152a90 InternalBasePtr ctor -> placement-new Object::InternalBasePtr

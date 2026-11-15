@@ -1,5 +1,5 @@
 // ============================================================================
-// src/ext/sharp_ui/sharp_ui.h -- ext.sharp_ui (class A, default OFF)
+// src/ext/sharp_ui/sharp_ui.h -- ext.sharp_ui (class A, default ON)
 // ============================================================================
 // NOT RETAIL. "Sharp UI scaling": crisp text at any UI scale. The Options
 // slider means what it always meant (_uiScale = slider / 100 on every path,

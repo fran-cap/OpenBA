@@ -14,7 +14,7 @@
 //       ext.phone_menu, which asks Scale first); the rest of the
 //       UI keeps the UI scale. The toolbar's tooltips, sub-toolbars and event notices are put back
 //       where they belong in the global units (Place);
-//   (c) the right-hand strip above the bar stays free for the later touch_pointer action bar;
+//   (c) the right-hand strip above the bar stays free for ext.touch_pointer's action bar;
 //       the camera hold (Hold) is callable from it (last device wins).
 // Default OFF on a desktop; the Android first run switches it on (src/platform/android/
 // app_android.cpp). Live: every hook reads the row each time. Under the faithful profile the
@@ -31,12 +31,14 @@ namespace TouchMode {
 
 // The toolbar's own scale k for `dialog` (the toolbar, a sub-toolbar), 1.0 for any other dialog or
 // with the row off. ext.phone_menu's UI::UserInterface::_extDialogScale function asks this first
-// (phone_menu.h DialogScale; the seam is null under the faithful profile).
+// (phone_menu.cpp DialogScale; the seam is null under the faithful profile).
 float Scale(const UI::DialogInstance* dialog);
 
 // ext.phone_menu's place function (UI::UserInterface::_extDialogPlace), first: true when this row
 // placed the dialog (the toolbar, a sub-toolbar, a toolbar tooltip, the event notices, the
-// cluster), so phone_menu's own rule is skipped for it. False with the row off.
+// cluster, the corner camera buttons) or when TouchPointer::Place, asked first whatever this row's
+// state, placed ext.touch_pointer's action bar or aim marker, so phone_menu's own rule is skipped for
+// it. Otherwise false with the row off.
 bool Place(int32_t point, const UI::DialogInstance* dialog, int32_t width, int32_t height, int32_t* rect);
 
 // The cluster's cell (layout units of the game's UI) at ext.touch_mode_pad_scale, 0 before the first
@@ -63,7 +65,7 @@ bool Shown();
 // limit is touch_math.h NearZoomLimit (ext.touch_mode_zoom_min).
 void CameraInput(float dt, float& yaw, float& panX, float& panY, int& zoomDir, float& panGain, float& heldZoom);
 
-// The camera hold of a source: the cluster's pad (Pad) or the later touch_pointer extension's
+// The camera hold of a source: the cluster's pad (Pad) or ext.touch_pointer's
 // fingers (Fingers). `rotate` -1 left / +1 right, `zoom` +1 in / -1 out (the Pad: held, a constant rate),
 // `zoomSteps` continuous steps (a pinch). The source that changed last wins; keys and
 // the real mouse are never overridden (they keep working through retail's lines).

@@ -1,19 +1,8 @@
 // src/game/Player/tool_base_edit2.cpp
-// Player registration wave, round 2c — batch "edit2" (edittool.cpp deep tier).
-//
-// Target addrs (both resolved from src/game/Player/edittool.cpp):
-//   0x1400fcc90  Entity_impl_cc90  — fallback positioning when entity rect fails
-//   0x140100380  Entity_impl_0380  — entity screen bounding-rectangle
-//
-// VERDICT (2026-06-19): BOTH DEFERRED. No bodies are provided and nothing is
-// registered (see standalone/reg_player_edit2.cpp, an empty registrar). Each
-// pulls in an unregistered, hard-to-port closure; a half-null / wrong-ABI port of
-// a function that is DORMANT on the autostart path is undetectable silent
-// corruption — strictly worse than the safe no-op of leaving the call site skipped.
-//
-// The closure analysis below is the verified starting point for the dedicated
-// sub-wave that will land these (it needs the EdgeMesh tessellation chain and the
-// Math dispatch-slot family registered first).
+// Retail closure notes for two edittool.cpp callees. No code is emitted in this file;
+// both are ported and called by name:
+//   0x1400fcc90  EditTool::CloseInfoDialog            (edittool.cpp)
+//   0x140100380  PlayerScreenRect_EntityRect_0380     (tool_base_screenrect.cpp)
 //
 // ============================================================================
 // 0x1400fcc90  Entity_impl_cc90  — DEFER (render-mesh closure)
@@ -49,10 +38,6 @@
 //                                                Graphics::EdgeMesh::* + Volume::Box::*
 //                                                export set]
 //
-//   => DEFER. Registering cc90 would fire the c4a0 render rebuild whose b930
-//      tessellation closure (b440/b10e0) is unregistered → builds a half-populated
-//      EdgeMesh against the live Scene. Must be its own careful render sub-wave;
-//      register bottom-up: b440, b10e0, 7080 -> b930 -> c4a0 -> cb40 -> cc90.
 //
 // ============================================================================
 // 0x140100380  Entity_impl_0380  — DEFER (15 unregistered Math dispatch slots)
@@ -87,12 +72,3 @@
 //              (Math::Transform3::Transform3/Inverse/AsMatrix, Math::Matrix::operator*,
 //               Math::Matrix::operator*(Vector4))
 //
-//   => DEFER. The exe-code closure is portable, but the value-returning Math ABI
-//      surface is 15 unregistered dispatch slots (RCX=this, RDX=&retbuf for the
-//      >8-byte returns). A wrong ABI on any one = silent corruption on a dormant
-//      path the A/B test cannot catch. This needs its own Math-slot sub-wave:
-//      first RegisterDispatchSlot each slot -> its Runtime export (or add fn_*
-//      exports + rewrite the bodies to call them), then port ec70 (trivial),
-//      098210, fe960, and finally 0380.
-//
-// No code is emitted in this file — it is documentation only for the deferred set.

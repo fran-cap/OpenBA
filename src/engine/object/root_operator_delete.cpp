@@ -11,8 +11,8 @@
 // class's `operator delete`. Retail's slot-0 bodies free with
 // `?MemFree@MemoryAllocator@System@@SAXPEAX@Z` (0x1800c7ad0) on `flags & 1` —
 // every one of them, whatever the spelling (INVENTORY_A §3) — and so does every
-// retail `??3X@Ns@@SAXPEAX@Z` (proved for 88 classes in
-// class_operator_delete.cpp / ui_operator_delete.cpp). Without these members
+// retail `??3X@Ns@@SAXPEAX@Z` (proved for 88 classes, the UI ones in
+// ui_operator_delete.cpp). Without these members
 // D0 would call the GLOBAL `::operator delete`, i.e. the CRT `free()`, on
 // MemoryAllocator arena storage: silent heap corruption. A class-scope
 // `operator delete` is inherited, so one per root covers the tree; a class that
@@ -22,9 +22,9 @@
 //
 // REGISTRY-FREE by construction, like internal_class.cpp: the product arm calls
 // `System::MemoryAllocator::MemFree` directly (B3R W0-A0; it went through
-// `Object::detail::InternalMemFree`, which is that call), and `make unit` links
-// this file (tests/unit/sources.mk) with the host arm, `std::free` — the same
-// split internal_class.cpp has.
+// `Object::detail::InternalMemFree`, which is that call), and the unit build
+// links this file (tests/unit/sources.cmake) with the host arm, `std::free` — the
+// same split internal_class.cpp has.
 // ============================================================================
 
 #include <cstdlib>

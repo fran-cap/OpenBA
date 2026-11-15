@@ -44,10 +44,6 @@
 //   both really do return their RDX out-param in RAX (`MOV RAX,RSI` @0x14002ac2f,
 //   `MOV RAX,RDI` @0x14002aa68).  Callers that ignore it are fine, but the signature
 //   must keep it (trap #4).
-// * The existing 2-parameter typedef for 0x14002a9f0 in marketwork.cpp
-//   (`MW_MarketBST_InsertData_t`, void(void*,void*)) is WRONG on both arity and return.
-//   The disassembly uses RCX, RDX, R8 and R9 — four parameters (trap #3).  That typedef
-//   is the lead's to fix; this file exports the true signature.
 //
 // ---------------------------------------------------------------------------
 // Runtime primitives
@@ -155,10 +151,9 @@ extern "C" MarketWork::ClaimNode* MarketBst_ae50(MarketWork::ClaimTree* unused, 
 //   ac2f  MOV RAX,RSI                ; return out
 //
 // Note both CheckPtr calls are unconditional in retail and are made on the tree node
-// itself (its first 8 bytes ARE the InternalBasePtr) and on the source key.  They are
-// kept; CheckPtr is a no-op in retail but the call is part of the shape.
-// (The Set container is two raw fields of MarketWork: `tree` is the root field and the
-// count is the int32 8 bytes on: LEFT.)
+// itself (its first 8 bytes ARE the InternalBasePtr) and on the source key.  CheckPtr
+// is a bare RET (object/Internal.h) and the port does not call it.
+// (`tree` is MarketWork's ClaimTree header {root +0x00, count +0x08}.)
 extern "C" MarketWork::ClaimNode** MarketBst_ab60(MarketWork::ClaimTree* tree,
                                                   MarketWork::ClaimNode** out,
                                                   MarketWork::Claim* src) {
@@ -198,8 +193,8 @@ extern "C" MarketWork::ClaimNode** MarketBst_ab60(MarketWork::ClaimTree* tree,
         }
 
         srcKey = src->citizen.Get();                             // abbb — re-read AFTER
-                                                           // CheckPtr, which may
-                                                           // have resolved the ref
+                                                           // retail's CheckPtr
+                                                           // (a bare RET)
         curKey = cur->element.citizen.Get();                     // abbe (CMP [RDI],RAX)
 
         if (curKey >= srcKey) {                            // abc1 JNC — key present
@@ -232,7 +227,7 @@ extern "C" MarketWork::ClaimNode** MarketBst_ab60(MarketWork::ClaimTree* tree,
 //                                                InternalPtr* key [R8], Array* vec [R9])
 //
 // Ghidra's `MarketWork_sub_a9f0(longlong*, undefined8*, undefined8*, longlong*)` is the
-// correct arity; the `MW_MarketBST_InsertData_t` typedef in marketwork.cpp is not.
+// correct arity.
 //
 // Stack frame (R11 == RSP+0x48 after `MOV R11,RSP; PUSH RDI; SUB RSP,0x40`):
 //   [R11-0x20] == [RSP+0x28]  tmp.key

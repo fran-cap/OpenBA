@@ -1,5 +1,5 @@
 // tests/unit/ext_drain_split_test.cpp -- ext.drain_split (class B, HITCH_DRAINSPLIT.md):
-//   the registry row (class B, format 1, default off, locked for the game, the pseudo-mod
+//   the registry row (class B, format 1, default on, locked for the game, the pseudo-mod
 //   ext:drain_split) and the owed AssignCitizens' bookkeeping: off owes nothing; on, a drain owes
 //   one AssignCitizens that waits out the drain's frame and runs in the next frame's first tick,
 //   or at once when the path-graph branch is due; a second drain while one is owed is refused

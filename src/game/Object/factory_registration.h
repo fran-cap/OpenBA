@@ -31,7 +31,7 @@ Base* AbstractTypeFactory(const char* typeName);
 // The exe records (one per DEFINE_EXE_TYPE expansion), as the linker collected
 // them in `.data$exetype_b`. Walks the section, not the chain, so it is valid
 // from CRT init on; `typeId` is the CRC only after Object::Factory::Startup.
-// Diagnostics and route code only (standalone/dlgctrl_route.cpp).
+// Diagnostics only; nothing in the tree calls it.
 typedef void (*ExeTypeInfoVisitFn)(const BaseTypeInfo& info, void* ctx);
 void ForEachExeTypeInfo(ExeTypeInfoVisitFn fn, void* ctx);
 
@@ -58,11 +58,8 @@ const char* GetTypeNameById(uint32_t typeId);
 // Type-derivation test over the Factory tree (Factory::IsDerivedFrom's parent
 // links, which Startup's second pass built): true when the type `typeId` is
 // `ancestorId` or derives from it. false for 0 / 0xFFFFFFFF and for an id the
-// tree does not hold (where Factory::IsDerivedFrom itself would fault) — e.g.
-// the StateMachineComponent controller scan replicating retail 0x14012b6a0's
-// IsDerivedFrom(comp, ControllerComponent). ENDGAME B.3.9 close: was
-// IsTypeDerivedFromByName(typeId, "ControllerComponent"); its one caller passes
-// ControllerComponent::TypeId() now (the same ~CRC32 id the name lookup found).
+// tree does not hold (where Factory::IsDerivedFrom itself would fault). Nothing
+// in the tree calls it.
 bool IsTypeDerivedFrom(uint32_t typeId, uint32_t ancestorId);
 
 }  // namespace Object

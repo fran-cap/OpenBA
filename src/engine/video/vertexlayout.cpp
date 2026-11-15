@@ -33,11 +33,7 @@
 // from the real `Object::CompiledExternal`. This file's anonymous-namespace
 // `struct VertexLayout` / `struct VertexElement` — one of the two partial,
 // private views block A's header replaced — ARE DELETED. Each body below is a
-// member, defined in the `namespace Video` block at the bottom (B34_BRIEFS A.2),
-// and each registered DOOR is a one-line QUALIFIED non-virtual delegation through
-// a `reinterpret_cast` bridge, qualified because a live VertexLayout wears the
-// MINTED `??_7VertexLayout@Video@@6B@` whose slots resolve back to these doors
-// (B34_BRIEFS A.1).
+// member, defined in the `namespace Video` block at the bottom (B34_BRIEFS A.2).
 //
 // *** THE FIELD NAMES CHANGED AND THE WIRE DID NOT. ***
 // Block A PROVED from retail that this file's `VertexElement` map was wrong in
@@ -67,8 +63,7 @@
 //     0x1800bc950 is (spelling 3);
 //   * `RtAddr<ElemSerFn>(0x1800563c0)(...)` — Serialize reached its OWN registered
 //     element loop by going out to the registry and back; it calls it directly
-//     (spelling 4). The registration at that address is UNCHANGED.
-// The ctor door stays a ctor door (B4b-2: it writes the MINTED vptr).
+//     (spelling 4).
 //
 // Layout (sizeof 0x48) and every offset's evidence: src/engine/video/VertexLayout.h.
 //
@@ -101,7 +96,7 @@ using Video::VertexLayout;
 // ============================================================================
 // 0x1800563c0 — the per-element loop: (Serializer*, int count, Element* data)
 //
-// UNEXPORTED in retail and registered BY ADDRESS only, so it is not a member of
+// UNEXPORTED in retail, so it is not a member of
 // anything: it stays a file-scope function, typed with the real
 // `Video::VertexLayout::Element`. `Serialize` below calls it DIRECTLY. B.4
 // (R-VIDEO): its one caller is this file, so it has internal linkage now.
@@ -182,9 +177,9 @@ void VertexLayout::Destruct() { this->~VertexLayout(); }
 // ??_7CompiledExternal, tail-JMP ~External. The stamps are the compiler's (entry
 // to each destructor of the chain) and the tail-JMP is the chain itself.
 //
-// The two array teardowns call the REGISTERED retail bodies, which end in
+// The two array teardowns call the ported retail bodies, which end in
 // `ArrayDtorImpl` and zero `_data`/`_size`/`_capacity`
-// (src/engine/collection/array.cpp:225), so the compiler-emitted `~Array<T>` that
+// (src/engine/collection/Collection.h), so the compiler-emitted `~Array<T>` that
 // runs after this body sees an empty header and frees nothing. Each half runs
 // exactly once — the same decomposition `Object::External::~External` uses for
 // `_refs`.
@@ -230,8 +225,6 @@ void VertexLayout::PlatformDestruct() {
 
 // slot 5 — ?Serialize@VertexLayout@Video@@UEAA_NAEAVStream@IO@@@Z (0x1800f5e70)
 bool VertexLayout::Serialize(IO::Stream& streamv) {
-    // LEFT (B.4 R-VIDEO): the slot is `Serialize(IO::Stream&)`; the override
-    // keeps `External`'s `void*` parameter (R-OBJ's declaration).
     IO::Stream& stream = streamv;
     IO::Serializer ser(stream, 0);
     IO::ReaderWriter* rw = ser._readerWriter;

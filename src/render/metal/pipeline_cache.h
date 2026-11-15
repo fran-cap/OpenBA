@@ -4,8 +4,8 @@
 // compile them on background threads before the first frame asks. File shape: a property list
 // {version: kPipelineFileVersion, records: {descriptor-json: descriptor}}. It is read once on first use and written
 // once, at shutdown (FlushPipelineRecords), never on the render thread when a pipeline is created. A file of another
-// version, a file bigger than kPipelineFileMaxBytes or one holding more than kPipelineRecordCap records is not
-// trusted: the extra records are dropped (stale ones first), the rest of the cache simply rebuilds.
+// version or bigger than kPipelineFileMaxBytes is ignored, and records past kPipelineRecordCap are not loaded; what is
+// not loaded simply rebuilds.
 constexpr int kPipelineFileVersion = 2;
 constexpr unsigned long long kPipelineFileMaxBytes = 8ull * 1024 * 1024;
 constexpr NSUInteger kPipelineRecordCap = 4096;

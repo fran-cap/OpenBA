@@ -13,12 +13,10 @@
 //   0x180023130  input.cpp:137  the subtree destroy (KeyMap::ClearAll)
 //   0x180023170  input.cpp:247  the retrace       (KeyMap::RegisterInput)
 //
-// With no DLL those three resolve to nothing and the calls execute address 0 —
-// the failure class Wave 9 attempts 13 and 17 both died on. All three are
-// `Collection::Set` internals, element-type-agnostic within their
+// All three are `Collection::Set` internals, element-type-agnostic within their
 // instantiation, and unexported in BOTH builds (checked: no name in retail's
 // 4,926 exports nor in Runtime-x64-profile.dll's 5,182 resolves to any of
-// them), so they can only be registered by address.
+// them).
 //
 // TRANSITIVE CLOSURE, COUNTED BEFORE A BODY WAS WRITTEN
 // -----------------------------------------------------
@@ -80,13 +78,9 @@ namespace {
 // 0x18002308b..0x1800230bc. That triple IS
 // `?MemAlloc@MemoryAllocator@System@@SAPEAX_KH@Z` at 0x1800c7a50 — lane Q
 // disassembled that composition instruction for instruction, and
-// src/engine/application/message_callbacks.cpp:101 already reaches the E16
+// src/engine/application/message_callbacks.cpp already reaches the E16
 // twin's allocator the same way. Note how retail builds the alignment:
 // `MOV EDX,0x38 ; LEA R8D,[RDX-0x30]` is `Allocate(size=0x38, align=8)`.
-//
-// Cache a hit, RETRY a miss (the RtResolveCached contract). Freezing a null
-// would make every later insert silently return nullptr for the life of the
-// process — the ordering defect attempt 14 fixed for `rtcoll::MemAlloc`.
 // ---------------------------------------------------------------------------
 void* MemAlloc(uint64_t bytes, int align) {
     return System::MemoryAllocator::MemAlloc(bytes, align);   // 0x1800c7a50
@@ -199,9 +193,10 @@ Node* RotateRight(Set* set, Node* n) {
 // after each rotation (0x180023202, 0x18002320d, 0x180023236), because a
 // rotation can move a different node into the position being examined. Passing
 // the node by value and caching it is a different algorithm that happens to
-// agree on balanced inputs. Our one caller — `KeyMap::RegisterInput`
-// (0x1800a7f56: `LEA RDX,[RSP+0x50]`) — hands it the address of a real stack
-// local for the same reason, and input.cpp already spells it that way.
+// agree on balanced inputs. `KeyMap::RegisterInput` (0x1800a7f56:
+// `LEA RDX,[RSP+0x50]`) hands it the address of a real stack local for the
+// same reason, and input.cpp spells it that way; set_core.cpp's
+// PortedRetrace24 is its other caller.
 //
 // The rebalance predicates are transcribed from the FLAGS, not from the obvious
 // form:
@@ -276,15 +271,10 @@ void Retrace(Set* set, Node** slot) {
 //
 // *** NO OURS-VS-THEIRS ORACLE EXISTS FOR THIS BODY, and that is stated rather
 // than skipped. *** Both implementations FREE the nodes, so there is nothing
-// left to compare afterwards, and the shipped body's `CALL 0x180009c30` is a
-// near call inside the DLL that our registry cannot intercept, so the free
-// sequence cannot be recorded on their side either. What the probe verifies
-// instead is that our walk REACHES EVERY NODE EXACTLY ONCE: `g_destroyVisits`
-// is compared against the tree's node count, measured independently by a
-// pre-walk of the same tree, with a negative control (a variant that skips the
-// right subtree) proving the counter can fail. That is a self-check with a
-// model-based expectation, which is weaker than a comparison against the DLL,
-// and it is labelled as such in the probe's output.
+// left to compare afterwards. What is checkable instead is that the walk
+// REACHES EVERY NODE EXACTLY ONCE: `g_destroyVisits` counts the visits, and
+// RtInput_KeyMap_DeletingDtor (src/engine/input/keymap_save.cpp) compares the
+// delta against the binding count minus the root it frees itself.
 // ---------------------------------------------------------------------------
 void DestroySubtree(Set* set, Node* n) {
     if (!n) return;
@@ -339,18 +329,14 @@ Node* AllocNode(void* /*unused, never read*/, const void* src, Node* parent) {
 }
 
 // ---------------------------------------------------------------------------
-// The 0x180009c30 boundary. Cache a hit, RETRY a miss.
+// The 0x180009c30 boundary.
 //
-// TWO PARAMETERS, the first IGNORED by the callee. `src/engine/system/
-// allocator.cpp` is the single owner of this address's registration and binds
-// `FreeLockedIgnoringSelf` there precisely so that a one-argument `MemFree`
-// cannot free the ignored first argument. See set_avl.cpp's "THE FIFTH HELPER"
-// banner for the shadowed-registration history.
+// TWO PARAMETERS, the first IGNORED by the callee. 0x180009c30's own body is
+// `rtalloc::FreeLockedIgnoringSelf` (src/engine/system/allocator.cpp). See
+// set_avl.cpp's "THE FIFTH HELPER" banner.
 // ---------------------------------------------------------------------------
-// ENDGAME B.3.2 closing pass: through `rtcoll::DoorFree` (alloc_door.cpp) —
-// the same free 0x180009c30 performs, reached through the exe dispatch slot so
-// this tree's allocs and frees stay on one channel. set_avl.cpp's copy of this
-// door carries the full argument.
+// Through `System::MemoryAllocator::MemFree`, the same free 0x180009c30
+// performs. set_avl.cpp's copy of this boundary carries the full argument.
 void SetNodeFree(void* ignored, void* node) {
     (void)ignored;
     System::MemoryAllocator::MemFree(node);

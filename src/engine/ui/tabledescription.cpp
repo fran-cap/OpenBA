@@ -5,7 +5,7 @@
 // Vtable batch 2. Derives straight from UI::ElementDescription.
 //
 // ??_7TableDescription@UI@@6B@ (retail 0x1801592c0), ten slots:
-//   0  deleting dtor      0x180079210  deleting_dtor.cpp row (sizeof 0x98)
+//   0  deleting dtor      0x180079210  the compiler's (sizeof 0x98)
 //   1  TypeName           0x180078ed0  here
 //   2  Type               0x180078eb0  here
 //   3  GetFileVersion     0x18011e6e0  here  (returns 0x204)
@@ -20,9 +20,9 @@
 //
 // LAYOUT, sizeof 0x98 (`MOV EDX,0x98` at 0x18007922f). ElementDescription
 // (0x68) plus:
-//     +0x68  int32   _gridA   ctor 1     kScalarInt; -> element +0xc4
-//     +0x6c  int32   _gridB   ctor 1     kScalarInt; -> element +0xc0
-//     +0x70  int32   _i70     ctor 0     kScalarInt; -> element +0xc8
+//     +0x68  int32   _columnCount ctor 1  kScalarInt; -> element +0xc4
+//     +0x6c  int32   _rowCount    ctor 1  kScalarInt; -> element +0xc0
+//     +0x70  int32   _spacing     ctor 0  kScalarInt; -> element +0xc8
 //     +0x74  *** NEVER WRITTEN, NEVER READ ***
 //     +0x78  Array<Cell>{int32 col, int32 row, ExternalPtr<ElementDescription>}
 //     +0x80  _size, +0x84 _capacity
@@ -33,14 +33,14 @@
 //                             say is that it is an owned String.
 //
 // THE CTOR'S +0x6c STORE IS AN UNALIGNED QWORD (`MOV qword [RCX+0x6c],1` at
-// 0x18011e824), so it writes _gridB = 1 AND +0x70 = 0 in one instruction and
+// 0x18011e824), so it writes _rowCount = 1 AND +0x70 = 0 in one instruction and
 // stops at +0x73. +0x74 is the gap that leaves.
 //
 // TWO NEW COLLECTION HELPERS, appended to src/engine/collection/array.cpp:
 //   0x1800799a0  Array<Cell>::SetSize -> kSpec_TableCell10, whose default tail
 //                is {-1, -1, nullptr} and NOT zero (see that row's comment)
 //   0x180079870  ~Array<Cell>, the canonical free-and-zero body
-// ??0TableElement@UI@@ (0x18011e2f0) is already ported (ui_factory_wave28.cpp).
+// ??0TableElement@UI@@ (0x18011e2f0) is already ported (TableElement.h).
 // ============================================================================
 #include <new>
 
@@ -58,10 +58,7 @@
 #include "collection/Collection.h"
 
 // ENDGAME B.3.6 block C4: the layout moved to src/engine/ui/
-// TableDescription.h (the real class). Every slot body below is a MEMBER; each
-// registered door is a one-line QUALIFIED delegation. The ctor and dtor stay
-// DOORS (B4b-2). RULE B6-5: every export the members reach is cached in a
-// namespace-scope std::atomic slot, never in a function-local static.
+// TableDescription.h (the real class). Every slot body below is a MEMBER.
 
 namespace {
 
@@ -144,7 +141,7 @@ bool TableDescription::Serialize(IO::Stream& streamv) {
 // ?CreateInstance@TableDescription@UI@@...   retail 0x18011e350
 // ============================================================================
 // TableElement is 0xf0 bytes (`MOV EDX,0xf0` at 0x18011e398); its ctor is CALLED
-// out of line (0x18011e2f0, the tableelement.cpp door).
+// out of line (0x18011e2f0, TableElement.h).
 //
 // This is a GRID BUILDER. For every (a, b) with a in [0, _columnCount) and b in
 // [0, _rowCount) it picks ONE cell description out of the flat cell list and

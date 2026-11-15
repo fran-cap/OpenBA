@@ -3,11 +3,9 @@
 // Achievement Runtime bases GOAL (Scenario, the Goal/GoalInstance leaves) and
 // LOOP (the AchievementInstance GameUpdateLoop builds) sit on.
 //
-// B38_RULES D1 / RULE B8-1: each gets a REAL constructor whose body is ONE
-// body with its ctor door (`InitFields`, inline in the header, reached by the
-// door through `X::DoorBody::Init` after it stamped the MINTED tables). The
-// destructors were already real and empty (the compiler's member/base chain
-// IS retail's body) and the doors call them; nothing changes there.
+// B38_RULES D1 / RULE B8-1: each gets a REAL constructor, inline in the
+// header (its member initialisers are the body). The destructors are real
+// and empty (the compiler's member/base chain IS retail's body).
 //
 // PART A — RETAIL'S BYTES: a test subclass built over a 0xCD-poisoned buffer
 //   carries exactly retail's writes (0x18009e240, 0x18009ed50, 0x18009ef00,
@@ -19,8 +17,8 @@
 //   B3X W1: the compiler's pair, D1 at `_ZTV…[2]` and D0 at `[3]`.
 //
 // The virtuals and the out-of-line dtors / GoalList members below are
-// MARKERS (src/engine/achievement stands on the registry and does not link
-// here); `InitFields` itself is the REAL body — it is inline.
+// MARKERS (their bodies in src/engine/achievement do not link here); the
+// constructors themselves are the REAL bodies — they are inline.
 // ============================================================================
 #include "unit.h"
 #include "abi.h"   // RT_ASM_LABEL
@@ -283,7 +281,4 @@ UNIT_TEST(b39_eng_achievement_deletingdtor_frees_both_arms) {
     CheckBothArms<Ach, 0x58>();
 }
 
-// ===========================================================================
-// PART C
-// ===========================================================================
 }  // namespace

@@ -2,17 +2,17 @@
 // tests/unit/ui_dialog_abi_test.cpp — ENDGAME B.3 step 6, block B
 //   the six dialog-family `UI` classes as real C++ classes
 //
-//   UI::DialogInstance         : Object::Internal,   abstract, 0xb8, 10 slots
-//   UI::DialogController       : Object::Internal,   abstract, 0x30, 11 slots
+//   UI::DialogInstance         : Object::Internal,   concrete, 0xb8, 10 slots
+//   UI::DialogController       : Object::Internal,   concrete, 0x30, 11 slots
 //   UI::DialogControllerConfig : Object::External,   abstract, 0x20,  8 slots
-//   UI::Dialog                 : Object::External,   abstract, 0x88,  9 slots
-//   UI::ComboDialog            : UI::DialogInstance, abstract, 0xd0, 10 slots
-//   UI::ToolTipDialog          : UI::DialogInstance, abstract, 0xc0, 10 slots
+//   UI::Dialog                 : Object::External,   concrete, 0x88,  9 slots
+//   UI::ComboDialog            : UI::DialogInstance, concrete, 0xd0, 10 slots
+//   UI::ToolTipDialog          : UI::DialogInstance, concrete, 0xc0, 10 slots
 //
 // Built to the contract of graphics_material_abi_test.cpp (block G, step 5):
 //
-// PART A — LAYOUT: size, alignment, the field offsets, the POD cross-asserts,
-//   and that each class's own fields begin at exactly sizeof(base).
+// PART A — LAYOUT: alignment, the shape traits, and that each class's own
+//   fields begin at exactly sizeof(base).
 // PART B — SLOT ORDER: probe subclasses whose GCC vtable is read back by BYTE
 //   OFFSET and raw-called, each slot landing on the member it must name.
 //   *** RULE B6-1.2 is the point of the DialogController half: OnOpened is +0x20
@@ -21,12 +21,9 @@
 // PART C — THE BY-ADDRESS InternalPtr ARGUMENT: slot 8 (DialogInstance) and
 //   slot 9 (DialogController) receive the ADDRESS of an InternalPtr<Element>,
 //   the MSVC by-value-class ABI, and the member sees exactly that address.
-// PART D — THE QUALIFIED CALL (B34_BRIEFS A.1): a door stamped into a minted
-//   table delegates with `->UI::DialogInstance::OnUpdateLayout()` and is entered
-//   exactly once.
 //
-// NOT PROVEN HERE: the ported bodies (src/engine/ui/dialog*.cpp stand on the
-// port registry and cannot link into a host test). The classes' out-of-line
+// NOT PROVEN HERE: the ported bodies (src/engine/ui/dialog*.cpp are not linked
+// into the unit host). The classes' out-of-line
 // virtuals are defined AS MARKERS at the bottom of this file, which is also
 // what makes GCC emit their vtables in this translation unit.
 // ============================================================================
@@ -159,9 +156,8 @@ using VoidFn  = void (*)(void*);
 using PtrArgFn = void (*)(void*, const void*);
 using EventFn = void (*)(void*, void*, int32_t, int32_t, int32_t, int32_t, int32_t, void*);
 
-// Raw-call every DialogInstance-numbered slot; `mark` is the member each
-// slot's marker records, `owner` whose marker it is (0 = DialogInstance's own,
-// otherwise the subclass's).
+// Raw-call every DialogInstance-numbered slot; each slot's marker records
+// 100*class + slot, so `% 100` names the slot whichever class owns it.
 void CheckInstanceSlots(void* raw, const ::Object::BaseTypeInfo& rec) {
     // Retail slot 0 is the destructor pair (CheckProbeDtorPair): D1 != D0.
     static_assert(DI::kRetailDtor == 0, "retail slot 0");
@@ -370,12 +366,7 @@ UNIT_TEST(ui_dialog_family_layout) {
     CHECK_EQ((int)offsetof(UI::ComboDialog, _list), (int)sizeof(UI::DialogInstance));
     CHECK_EQ((int)offsetof(UI::ToolTipDialog, _unreadCopiedHead), (int)sizeof(UI::DialogInstance));
 
-    // The fields the old engine POD got wrong (POD_TREE_AUDIT 1.2).
-
-    // The engine aliases (engine/types/ui/{DialogInstance,DialogController}.h)
-    // name the PODs, which must describe the same bytes as the classes.
-
-    // A write through the class lands where the POD readers look.
+    // A write through the probe lands in its DialogInstance fields.
     DialogInstanceProbe probe;
     probe._result = 3;
     probe._userFlags = 0x40;

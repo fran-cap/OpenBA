@@ -3,7 +3,7 @@
 //
 // WHY A SEPARATE FILE: harvestorchard.cpp hosts the vtable and every slot body but not
 // this constructor — the same split plantorchard_ctor.cpp / tendarea_ctor.cpp exist for.
-// It is the last unported leaf in OrchardComponent state 11's closure: the state-11 enter
+// It is a leaf of OrchardComponent state 11's closure: the state-11 enter
 // (0x140050800) builds the harvest work item with
 // `HarvestOrchard_Ctor(MemAlloc(0x68, 8), &orchard->+0x10)` — note NO tree-type argument,
 // unlike PlantOrchard_Ctor.
@@ -32,7 +32,7 @@
 #include "Entity/ComponentEntity.h"
 
 namespace {
-// 0x140005440 is WorkAcc_FindComponent_5440 (Work/exe_bodies.h), called by name (B3R).
+// 0x140005440 is ComponentEntity::FindComponent<OrchardComponent>, called by name (B3R).
 // 0x14000a590 (Array<bool>::SetSize) is the exe-side Collection::Array<T>
 // monomorphisation: `_slotsAvailable.SetSize` below.
 // ENDGAME B.3.8: the file-level lazy Resolve() is gone (B38 D7) — Work_Ctor25 is the
@@ -41,7 +41,7 @@ namespace {
 // is resolved where it is used.
 }  // namespace
 
-#include "orchard_diag.h"   // standalone/: the orchard diagnostic counters
+#include "orchard_diag.h"   // src/diag/: the orchard diagnostic counters
 
 // Retail copies the incoming IBP to a local and hands Work_Ctor25 its address; Work(void*)
 // reads the pointer once, so passing the caller's IBP is the same read.

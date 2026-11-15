@@ -52,7 +52,7 @@ NEEDS_LABEL = "status: needs label"
 NEEDS_REPRO = "status: needs repro"
 NEEDS_TRIAGE = "status: needs triage"
 
-# First match wins per path. A PR's areas are every label its paths hit.
+# First match wins per path. A PR's areas are the labels its paths hit most (ranked_areas).
 PATH_AREAS = [
     (r"^src/engine/", "area: engine"),
     (r"^src/render/", "area: render"),

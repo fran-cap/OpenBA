@@ -104,7 +104,7 @@ const char* TypeNameOf(const void* obj) {
 
 } // namespace
 
-// Called from ComponentEntity_Serialize on the SAVE leg, before the component
+// Called from ComponentEntity::Persist on the SAVE leg, before the component
 // IBP loop writes anything. Returns the number of bad slots found.
 extern "C" int EntityCompValidate(const ComponentEntity* entity, const ComponentDescription* desc,
                                   Object::InternalPtr<Component>* ibpArr, int count) {

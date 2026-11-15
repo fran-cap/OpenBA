@@ -5,12 +5,9 @@
 // No additional fields beyond Component base.
 //
 // Vtable at 0x140164e30. Three non-trivial overrides:
-//   Shutdown (0x1401302F0) — Serialize + conditional zone map registration
-//   Draw     (0x1401301F0) — Zone rendering (complex, many deps)
-//   OnCreate (0x140130080) — Zone creation + tree walk (complex)
-//
-// Draw and OnCreate are deeply coupled to zone rendering subsystem.
-// We call the original exe functions for these.
+//   Persist  (0x1401302F0) — Serialize + conditional zone map registration
+//   OnAdded  (0x1401301F0) — stamp the footprint into the world grid + zone map registration
+//   OnRemove (0x140130080) — stamp the footprint with a null ref + zone map tree walk and removal
 //
 
 #include "Component/ZoneComponent.h"
@@ -25,7 +22,7 @@
 #include "io/Stream.h"      // ENDGAME B.3.4 callers batch H: IO::Stream::GetDirection
 #include <new>
 #include "Component/exe_bodies.h"
-#include "Action/exe_bodies.h"   // ZoneComponent_sub_d360 (0x14009d360)
+#include "Action/exe_bodies.h"
 #include "system/MemoryAllocator.h"
 #include "Component/MapComponent.h"
 #include "Component/MapDescription.h"   // MapDescription::_footprint (+0x28)
@@ -40,16 +37,16 @@
 // FUN_140017230 ResidenceComponent_impl_7230 — red-black tree node insert/lookup;
 //   returns ptr-to-(ptr-to-node).
 // FUN_140003110 — append an entity ref to a tree node's child list.
-// FUN_14009d360 ZoneComponent_sub_d360 — rasterize zone tiles into the world grid.
-// FUN_140002cc0 Array<T>::Remove — finalize/cleanup tree node during OnCreate.
-// The GameWorld cell 0x1401c3dd8 is read through g_pGameWorldSingleton.
+// FUN_14009d360 Map::StampFootprint — rasterize zone tiles into the world grid.
+// FUN_140002cc0 Array<T>::Remove — finalize/cleanup tree node during OnRemove.
+// The GameWorld cell 0x1401c3dd8 is read through GameUpdateLoop::_singleton.
 
 
 // ============================================================
 // CitizenBehavior::AddZoneEntity (0x140088e20): register an entity in the zone map.
 // ============================================================
 // `entity` is an InternalBasePtr*; key = the entity's description (+0x28). Walk the
-// red-black tree at +0x160 for that key; if no node matches, insert one via TreeInsert;
+// red-black tree at +0x160 for that key; if no node matches, insert one via InsertCitizenBucket;
 // then append the entity ref to the node's child list (node+8, count = node[2]+1).
 // The +0x160 tree's nodes are TemplateBucket (Entity/CitizenBehavior.h), the key
 // compared by address.
@@ -203,21 +200,13 @@ void ZoneComponent::OnAdded() {
 
     entityRef = _entity;
     world->m_citizenList->AddZoneEntity(&entityRef);   // 0x140088e20
-
-    // BANISHED_REGENTITY_TRACE — this call is the ONLY writer of the
-    // per-description zone registry at (world+0xf0)+0x160, which is what
-    // TutorialGoalCount's Zone mode counts. A drag-placed StorageYard reaches
-    // OnAdded with the same armed component set as a Clear zone (Map, Zone,
-    // Decal, Work, StateMachine) and the correct description, yet never gains a
-    // node — so either one of the two early returns above fires for it, or this
-    // add runs and does not insert. Say which.
 }
 // ============================================================
 // ZoneComponent::OnRemove (0x140130080)
 // ============================================================
 // Reimpl of ZoneComponent::OnCreate (0x140130080): like Draw, find the map
-// component and zone description, rasterize the zone tiles, then walk the zone-map
-// red-black tree for the owner's entity id and finalize the matching node.
+// component and zone description, rasterize the zone tiles with a null ref, then walk the
+// zone-map red-black tree for the owner's description and remove the owner from that node.
 
 void ZoneComponent::OnRemove() {
     MapComponent* mapIBP = _entity->FindComponent<MapComponent>();   // 0x140004680

@@ -27,7 +27,7 @@
 #include <string>
 #endif
 #include "platform_settings.h"   // Platform::DocumentsDir (POSIX listing), Platform::UserDirOverride
-#include "save/SaveLoad.h"   // -Iruntime/types: ENDGAME B.3.7 callers (K5)
+#include "save/SaveLoad.h"   // -Isrc/engine: ENDGAME B.3.7 callers (K5)
 #include "Game/GameUpdateLoop.h"   // B4: m_userInterface by name
 
 #include "Dialog/AutoSaveDialog.h"   // AutoSaveDialog::Autosave (the ported FUN_14005dec0)
@@ -167,8 +167,8 @@ void LogSavedStateIdentity(int frameNum) {
 
 } // namespace
 
-// gameupdateloop.cpp hands `this`; its local declaration still spells the parameter
-// void* (C linkage, the same symbol).
+// gameupdateloop.cpp hands `this` through its own extern "C" declaration of this
+// function (the same symbol).
 extern "C" void SaveLoadHarness_Tick(GameUpdateLoop* gul, int frameNum) {
     const int trigger = TriggerFrame();
     if (trigger < 0) return;

@@ -22,46 +22,32 @@
 //   | ??1RenderStateData@Video@@UEAA@XZ         | 0x1800f8d70 |  662 | RETIRED (B.3.9 VID) |
 //   | ?Save@Configuration@Video@@QEAAXXZ        | 0x1800f6d10 | 3605 | poison + readback   |
 //
-// HELD BACK (reasons in full in WAVE6_LANE_B.md §2):
-//   ?Startup@Device@Video@@QEAA_NXZ            0x1800f7270  ord 4091
-//   ?Shutdown@Device@Video@@QEAAXXZ            0x1800f7280  ord 4044
-//   ?RecreateDynamic@Device@Video@@QEAAXXZ     0x1800f80b0  ord 3522
-//   ?ReleaseDynamic@Device@Video@@QEAAXXZ      0x1800f80e0  ord 3536
-//   ??0RenderBuffer@Video@@QEAA@XZ             0x1800f3ee0  ord  346
-//   ??1RenderBuffer@Video@@QEAA@XZ             0x1800f4020  ord  659
+// DEFINED IN OTHER FILES (src/engine/video/):
+//   ?Startup@Device@Video@@QEAA_NXZ            0x1800f7270  ord 4091  device_startup.cpp
+//   ?Shutdown@Device@Video@@QEAAXXZ            0x1800f7280  ord 4044  device_startup.cpp
+//   ?RecreateDynamic@Device@Video@@QEAAXXZ     0x1800f80b0  ord 3522  dynamic_resources.cpp
+//   ?ReleaseDynamic@Device@Video@@QEAAXXZ      0x1800f80e0  ord 3536  dynamic_resources.cpp
+//   ??0RenderBuffer@Video@@QEAA@XZ             0x1800f3ee0  ord  346  video_resources.cpp
+//   ??1RenderBuffer@Video@@QEAA@XZ             0x1800f4020  ord  659  video_resources.cpp
 //
-// NOT FUNCTIONS, so not registrable before cutover (PLAN §2.3 / the Wave 4
-// FileSystem::_singleton precedent):
+// NOT FUNCTIONS: two DATA exports, the class statics defined below.
 //   ?_singleton@Configuration@Video@@0PEAV12@EA  0x1801fe7a0  ord 4804
 //   ?_singleton@Device@Video@@0PEAV12@EA         0x1801fe7a8  ord 4807
-// They are DATA exports. `RegisterRuntimeExport` installs a function pointer
-// that ResolveExport hands back to a caller which then TAKES THE ADDRESS of the
-// variable — registering one would hand out a pointer to our code as if it were
-// the Device slot. Both stay on the DLL and both are counted as UNPORTED.
 //
-// All 17 mangled names were checked against the shipped export directory of
-// C:\GOG Games\Banished\Runtime-x64.dll with pefile BEFORE any body was written
-// (reference_resolveexport_phantom_names.md: a name the DLL does not contain
-// resolves to NULL in silence, the port still registers, and the census still
-// counts it). The retail addresses and ordinals above are that query's output.
+// The retail addresses and ordinals above were read from the shipped export
+// directory of Runtime-x64.dll with pefile.
 //
-// WHAT ELSE STAYS IN THE DLL, AND WHY
-// -----------------------------------
-// `Video::Device` is a singleton our own code already reaches into by hand:
-// src/app/video_interface.cpp DETOURS Video::Device::InitializeInterfaces
-// and writes the DX11 plugin slot directly at Device+0xb0, and src/render/dx11/ reads
-// Device+0x100. Every one of those offsets is asserted in
+// THE DEVICE'S OTHER WRITERS AND READERS
+// --------------------------------------
+// `Video::Device` is a singleton other code reaches into by field:
+// src/app/video_interface.cpp writes the DX11 plugin slot directly at
+// Device+0xb0 (called from Video::Device::InitializeInterfaces), and
+// src/render/dx11/ reads Device+0x100. Every one of those offsets is asserted in
 // src/engine/video/Device.h, so this port and those writers agree by
-// construction. None of the nine bodies below allocates, frees, stamps a
-// vtable, or changes any layout — they read the Device and write only fields
-// retail writes — so the "two implementations on one live object" hazard of
-// WAVE6.md's opening section does not arise for this lane.
+// construction.
 //
-// PLATFORM. Nothing here includes <windows.h>. The Win32 surfaces of this
-// class — the Device critical section at +0x60, LoadLibraryW in
-// InitializeInterfaces, the Application message callbacks in Startup — all sit
-// inside functions this lane holds back, so no `device_win.cpp` twin was needed
-// (PLAN §4.1 decision 1).
+// PLATFORM. Nothing here includes <windows.h>. Video::Device::InitializeInterfaces
+// is in src/platform/win/video_interfaces_win.cpp (and its posix twin).
 // ============================================================================
 
 #include <cstdint>
@@ -95,7 +81,7 @@ using RefreshRate       = Video::Device::RefreshRate;
 // ----------------------------------------------------------------------------
 
 // ?_singleton@Device@Video@@0PEAV12@EA (0x1801fe7a8) — the class static
-// (ENDGAME B.3.9 VID, B39_RULES D7; the minted row is redirected onto it).
+// (ENDGAME B.3.9 VID, B39_RULES D7).
 Video::Device* Video::Device::_singleton = nullptr;
 // ?_singleton@Configuration@Video@@0PEAV12@EA (0x1801fe7a0) — likewise.
 Video::Configuration* Video::Configuration::_singleton = nullptr;
@@ -120,9 +106,7 @@ int Video::Device::GetInterfaceCount() const {
 // would not help — see CLAUDE.md "Don't 'fix' a faithful crash with a null
 // check".
 //
-// The MEMBER returns the reference retail's `AEBU` mangling says it returns; the
-// DOOR keeps the pointer its callers have always received, which is the same
-// eight bytes on this ABI.
+// The MEMBER returns the reference retail's `AEBU` mangling says it returns.
 // ============================================================================
 const Video::Device::GraphicsInterface& Video::Device::GetInterface(int index) const {
     return interfaceData[index];
@@ -173,45 +157,18 @@ bool Video::Device::IsMultisampleModeSupported(int mode) const {
 //     leaves *refreshNum / *refreshDen ALONE and skips the ratio fallback
 //     entirely.
 //
-// CALLER NOTE: src/game/Dialog/optionsdialog.cpp:315 passes `&savedAdapter`
-// as BOTH the 2nd and the 8th argument (retail does the same at exe
-// 0x140072eb0). The diff harness below therefore rebuilds the caller's aliasing
-// exactly rather than assuming eight distinct slots — with eight distinct
-// scratch ints, the original would see a different world from ours and report
-// a divergence that is an artifact of the harness.
+// CALLER NOTE: src/game/Dialog/optionsdialog.cpp passes `savedAdapter` as BOTH
+// the 2nd and the 8th argument (retail does the same at exe 0x140072eb0), so two
+// of the eight out-parameters alias.
 // ============================================================================
 // ----------------------------------------------------------------------------
 // Video::Device::GetDefaultResolution — retail 0x1800f7540, ordinal 2559.
 //
 // ValidateConfiguration falls back to it when the requested resolution is not
-// in the adapter's list. It is EXPORTED and public, so it is reachable by name;
-// it is simply not one of the 17 functions this lane owns, and nothing in our
-// tree calls it directly. Called at the DLL exactly as retail's own body does,
-// the shape Wave 5 lane D used for Picking::Scene's internals and Wave 4 lane C
-// used for Map_Find / Map_Insert.
-//
-// WAVE 9 LANE V2, 2026-09-07 — the door was wrong and the stated reason for it
-// does not survive being checked. It read "the raw DLL door (not ResolveExport) on
-// purpose: this is the DLL's implementation, unaffected by whether some later
-// wave registers a port of it, which keeps this lane's oracle comparing like
-// with like." But this helper has exactly ONE caller
-// (ValidateConfigurationBody's resolution fallback), and that caller is the
-// LIVE ported body, not the oracle — so it is a REAL DEPENDENCY, and pinning it
-// to the DLL was pinning the live path, not an oracle. If a later wave ports
-// GetDefaultResolution, the live path SHOULD pick that up; the diff harness
-// further down still calls retail's ValidateConfiguration whole, which is where
-// like-for-like actually comes from.
-//
-// The concrete hazard is cutover: the raw DLL door returns NULL with
-// Runtime-x64.dll absent, so raw here is a null call on the fallback path.
-// ENDGAME B.3.5 block D2: `GetDefaultResolution` IS ported and registered today
-// (src/engine/video/device_startup.cpp, by name AND by address), and it is a
-// member of this very class — so the resolution fallback below is now a DIRECT
-// MEMBER CALL instead of an `RT_EXPORT_ONCE` lookup. That is the step-5 rule for
-// a runtime-internal caller inside the block's own file set, and it makes the
-// dependency a link-time fact rather than a name resolved at run time. The
-// argument order is unchanged: retail passes `this` in RCX even though
-// 0x1800f7540's first instruction is `MOV RDI,RDX` and RCX is dead from there.
+// in the adapter's list. It is a member of this class, defined in
+// src/engine/video/device_window.cpp, so the resolution fallback below is a
+// DIRECT MEMBER CALL. Retail passes `this` in RCX even though 0x1800f7540's
+// first instruction is `MOV RDI,RDX` and RCX is dead from there.
 // ----------------------------------------------------------------------------
 
 void Video::Device::ValidateConfiguration(int& renderer, int& adapterIdx,
@@ -303,8 +260,8 @@ bool Video::Device::ApplyChangedSettings() {
 // Records the colour and depth surfaces, derives the buffer's dimensions from
 // whichever of them is non-null (colour wins), and tail-calls slot 1 of the
 // platform object at +0x28 — which in this process is
-// VideoDX11 RenderBufferData::Stub1, `mov al,1; ret`
-// (src/render/dx11/smallclasses.cpp:12).
+// VideoDX11 RenderBufferData::Slot1, `mov al,1; ret`
+// (src/render/dx11/smallclasses.cpp).
 //
 // The dimension rule is the same for width and height, driven by three bits of
 // ImageBuffer::flags (+0x34) that src/engine/video/ImageBuffer.h did not
@@ -430,8 +387,7 @@ void Video::Configuration::Save() {
 // bool Video::Configuration::Startup()
 // retail 0x1800f6680, ord 4087 — the exact INVERSE of Save above, and the
 // second of Engine::Startup's two Video::Configuration calls
-// (src/engine/engine/engine_lifecycle.cpp:653, which is where the cutover
-// residue reports this name).
+// (src/engine/engine/engine_lifecycle.cpp).
 //
 // Retail reads the SAME 18 keys, from the SAME "Video" section, in the SAME
 // order as Save writes them, so this body iterates `kSaveFields` rather than
@@ -446,9 +402,8 @@ void Video::Configuration::Save() {
 // 0x18000d5a0..0x18000d6c0 — sixteen-byte stubs that are each a single
 // `MOV EAX,[RCX+off]` / `MOVZX EAX,byte [RCX+off]`. They agree with
 // Device.h's struct on all 18. (They also name +0x42, which Device.h calls
-// `field42`: 0x18000d6c0 is ?HideWindow@Configuration@Video@@QEBA_NXZ. Startup
-// does not read it and Save does not write it, so it stays out of the table —
-// reported, not renamed, since Device.h is not this lane's file.)
+// `hideWindow`: 0x18000d6c0 is ?HideWindow@Configuration@Video@@QEBA_NXZ. Startup
+// does not read it and Save does not write it, so it stays out of the table.)
 //
 // RETAIL INLINES the int reads rather than calling ?Get@Persistence@IO@@…AEAH:
 // String::Format("%s%s", section, key) -> Map_Find (0x18002ace0) -> on a hit,
@@ -456,16 +411,13 @@ void Video::Configuration::Save() {
 // `XOR EDX,EDX; LEA R8D,[RDX+0xa]; JMP strtol`). That is instruction-for-
 // instruction what the ported IO::Persistence::Get(int&) already does, so this
 // body calls the port. The bool reads are NOT inlined in retail — it makes a
-// real CALL to 0x1800b8290 — and that address is `RtIo_Persistence_GetBool`.
-// Both are called as C++ symbols, not through a resolver, for the reason lane
-// VID gives for ImageBuffer::Width: the dependency is then checked by the
-// oracle those functions already carry.
+// real CALL to 0x1800b8290 — and that address is `IO::Persistence::Get(bool&)`.
+// Both are called as C++ members.
 //
 // FAITHFUL DETAILS:
 //  * A key that is ABSENT leaves the field at whatever the ctor put there.
 //    Retail achieves that by only storing inside the `if (node)`; ours by
-//    Get's documented contract of writing *out only on a hit. This is why the
-//    oracle below must RESTORE the object before replaying retail — see there.
+//    Get's documented contract of writing *out only on a hit.
 //  * The persistence singleton pointer is read and used UNGUARDED, as retail
 //    does (0x1800f66a3 `MOV RDI,[0x1801fc6b8]`, then `MOV RCX,RDI` into the
 //    find with no test). No null check is added.

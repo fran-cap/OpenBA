@@ -14,7 +14,6 @@
 //     [8] 0x140004f10 GetComponentType: DiseaseComponent's TypeId
 //     [9] 0x140004e70 Construct (folded with createInPlace)
 //   the ctor stores no defaults in retail; the tree zeroes +0x20..+0x47 (kept)
-//   engine/types/DiseaseComponent.h's `DiseaseDescription` POD forwards here (B8-4)
 //   sizeof 0x48.
 // ============================================================================
 

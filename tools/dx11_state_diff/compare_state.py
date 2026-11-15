@@ -39,8 +39,8 @@ import sys
 from collections import Counter, defaultdict
 
 # Fields that describe pipeline configuration rather than per-draw payload.
-# `vb`/`ib` are split: strides and offsets are configuration, the buffer
-# identity is not (dynamic buffers are re-allocated per frame at varying sizes).
+# `vb`/`ib` are split: their strides and offsets go to the per-field diff (strides_only), not the
+# configuration; the buffer identity is dropped (dynamic buffers are re-allocated per frame at varying sizes).
 CONFIG_FIELDS = [
     "topology", "layout", "vs", "ps", "gs", "hs", "ds",
     "raster", "viewports", "scissors", "blend", "depthState", "om",
@@ -90,7 +90,7 @@ def config_hash(rec: dict) -> str:
 #   sampler.maxLOD    D3D11 clamps it to the bound texture's mip count
 #   srv.numMips       the view covers the texture's mips
 #   srv.numSlices     the view covers the texture's array slices
-# They are not simply discarded — check_texture_derived_invariants() verifies
+# They are not simply discarded — check_maxlod_invariant() verifies
 # each against the bound texture's actual description, which is the stronger
 # statement: not "both renderers used 7" but "both renderers derived it from
 # the texture by the same rule, every time".
@@ -335,14 +335,11 @@ def main() -> int:
               f"{len(pa)} ways.")
 
     # ── 1b-ii. explain the signature gap ─────────────────────────────────────
-    # A signature present on one side only is not automatically a defect. Two
-    # benign causes dominate, and both are checked rather than assumed:
-    #   - the shader pair never ran on the other side at all (that material had
-    #     nothing to draw), which is content;
-    #   - the only difference is the sampler's maxLOD, which D3D11 derives from
-    #     the bound texture's mip count -- so it tracks *which* texture is bound,
-    #     i.e. resource identity leaking back into an otherwise identity-free
-    #     signature. (`sampler maxLOD == mips-1` is verified below.)
+    # A signature present on one side only is not automatically a defect. The benign
+    # cause checked here: the shader pair never ran on the other side at all (that
+    # material had nothing to draw), which is content. The sampler's maxLOD, which
+    # D3D11 derives from the bound texture's mip count, is already out of the
+    # signature (SAMPLER_DROP); `sampler maxLOD == mips-1` is verified below.
     # Anything left over is reported as UNEXPLAINED and is a real finding.
     explain_signature_gap(recs_a, recs_b, la, lb)
     explain_signature_gap(recs_b, recs_a, lb, la)

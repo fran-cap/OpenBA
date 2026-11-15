@@ -21,7 +21,7 @@
 //   ConsumeProduceComponent_impl_ec50 (feature finalize/carve)  @ 0x1400cec50
 //   ConsumeProduceComponent_impl_c350 (box-blur smoothing)      @ 0x1400cc350
 //   ConsumeProduceComponent_impl_sub_eee0 (radial falloff brush)@ 0x1400ceee0  (shared callee)
-//   ConsumeProduceComponent_impl_sub_1460 == CRT powf           @ 0x140131460  (-> std::pow)
+//   ConsumeProduceComponent_impl_sub_1460 == CRT powf           @ 0x140131460  (-> MsvcLibm::Powf)
 //   FUN_140132010                  == CRT sqrtf                 @ 0x140132010  (-> std::sqrt)
 //
 // Heightfield scratch-struct field offsets (blueprint §1.1) — Ghidra's int* indexing:
@@ -35,8 +35,6 @@
 //   param_1[0x28a] +0xa28 sizeRow (int*) ; sizeRow[+0x24] = erodeIterations
 //   (Random @ hf+0x58 == param_1+0x16)
 //
-// ADD-ONLY: this file does not modify worldgen.cpp. The orchestrator wires these
-// three extern "C" entry points into the kFullPipeline branch separately.
 
 #include "Game/TerrainHeightfield.h"   // TerrainHeightfield, the stage declarations
 #include "Game/exe_bodies.h"
@@ -202,7 +200,8 @@ static void wg_eee0_radial_brush(const TerrainHeightfield* hf, const float* cent
 // REDISTRIBUTES: peaks get shaved, adjacent lower cells rise, slopes relax toward
 // local flatness. No global lowering toward sea level comes from this stage.
 // Net signed change of the whole field ~ 0 (the start cell never starts on the
-// border ring, so the outermost row/col is left untouched). Local amplitude
+// border ring; a border cell changes only as a step's lowest neighbour, which then
+// ends the droplet). Local amplitude
 // (max-min over a slope) shrinks; valley-floor mean is essentially unchanged.
 // => NOT the source of the ~8-unit normalization.
 // ============================================================================
@@ -847,7 +846,7 @@ void wg_f390_erosion(TerrainHeightfield* hfv) {
 //   Pass A — patch groups (param_1[6]/[8]): for each group g (count param_1[8]),
 //     for each 0x1C-stride record in the group's recs[] (count at grp+8):
 //       rec = {float pt[2]@0, float a@8, float b@0xc, float c@0x10, float d@0x14, float e@0x18}
-//       eee0(hf, pt, cutoff=c, base=b, strength=1.0, mode 0 -> mulMask)   // MIN
+//       eee0(hf, pt, cutoff=b, base=c, strength=1.0, mode 0 -> mulMask)   // MIN
 //       eee0(hf, pt, cutoff=d, base=e, strength=a,   mode 1 -> subMask)   // MAX
 //
 //   Pass B — listC points (param_1[0xe]/[0x10]): for each 0xC-stride record
@@ -860,7 +859,7 @@ void wg_f390_erosion(TerrainHeightfield* hfv) {
 // HEIGHT EFFECT — a MULTIPLY-then-SUBTRACT carve, NOT mass-conserving:
 //   * mulMask in (0, 1]: where features are stamped it DROPS below 1.0, SCALING the
 //     height DOWN toward 0 (lowering). Untouched cells keep mul=1.0 (NO change).
-//   * subMask in [0, ~2.25]: where features are stamped it RISES above 0.0,
+//   * subMask in [0, ~2.0]: where features are stamped it RISES above 0.0,
 //     SUBTRACTING an absolute amount AFTER the scale — pulling heights toward / below
 //     sea level (0). Untouched cells keep sub=0.0 (NO change).
 //   Net: h' = mul*h - sub. Stamped regions are lowered both multiplicatively and
@@ -928,7 +927,7 @@ void wg_f390_carve(TerrainHeightfield* hfv) {
             center[0] = rec->x;
             center[1] = rec->y;
             float radius = rec->radius;
-            // eee0(center, cutoff=radius, base=2.0, strength=2.25, mode 1 -> subMask)
+            // eee0(center, cutoff=radius, base=2.25, strength=2.0, mode 1 -> subMask)
             wg_eee0_radial_brush(hfv, center, radius, kListCExp, kListCStrength, 1, subMaskHdr);
         }
     }
@@ -988,8 +987,8 @@ void wg_f390_smooth(TerrainHeightfield* hfv) {
     // Temp output buffer. Retail 0x1400cc388 calls Array<float>::SetSize(n) (0x140023a00), which leaves
     // the buffer as the allocation found it; the loop below writes only [0, dim) of each edge-wide row
     // and the copy-back (retail 0x1400cc4b0) reads all cellCount floats, so retail moves uninitialised
-    // floats into the last column and row of the heightmap. The port keeps them 0.0f (the fill form)
-    // until the user decides (known_port_issues row 1162).
+    // floats into the last column and row of the heightmap. The port keeps them 0.0f (the fill form),
+    // as ruled in known_port_issues row 1162.
     RawArray<float> tmpHdr = {nullptr, 0, 0};
     RawArraySetSize(tmpHdr, cellCount, 0.0f);
     float* tmp = tmpHdr.data;

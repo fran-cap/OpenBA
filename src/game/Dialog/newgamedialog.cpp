@@ -6,12 +6,6 @@
 //
 // Original source: C:\Projects\Buildy\code\Game\Dialog/NewGameDialog.h
 //                  Dialog\NewGameDialog.cpp
-//
-// LEFT (B.4 W1 DLG-b): the three generator classes (Game/MapGenerator.h,
-// ClimateGenerator.h, TerrainGenerator.h) declare their StringTable ExternalPtr
-// and their name / description Strings as `void*`; the reads of those fields
-// stay casts until those headers are typed. EditElement::_text is the String's
-// raw `char*` (H5, runtime UI header).
 
 #include "load_time.h"   // [LoadTime] stamps (NOT RETAIL, print-only; block LOADSTAMP)
 #include "ui/Sprite.h"   // ENDGAME B.3.6 UI callers (K2)
@@ -56,7 +50,7 @@
 #include "Game/ClimateGenerator.h"   // X::TypeId() (ENDGAME B.3.9)
 #include "Game/TerrainGenerator.h"   // X::TypeId() (ENDGAME B.3.9)
 #include "Dialog/exe_bodies.h"
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc
 #include "rt_crt.h"   // rtcrt::StrICmp, retail's _stricmp (D.4 Q9)
 
 // ============================================================
@@ -147,9 +141,9 @@ static void GenerateTownName(System::String& retStr, System::Random* random, int
     }
 
     // minLen 5 is retail's constant; maxLen is derived from the edit box's
-    // _maxLength by the caller. NameDB_GenerateName (0x1400a4b30, registered by
-    // standalone/reg_namedb.cpp) constructs the String in retStr even when the
-    // database is missing, so retStr is always live for the suffix fix-up below.
+    // _maxLength by the caller. NameDB_GenerateName (0x1400a4b30, citizen_names.cpp)
+    // constructs the String in retStr even when the database is missing, so retStr
+    // is always live for the suffix fix-up below.
     NameDB_GenerateName(&retStr, nameDB, random, 5, maxLen);   // 0x1400a4b30
 
     // Retail: a name longer than 4 chars ending in "vill" gets an "e" appended,

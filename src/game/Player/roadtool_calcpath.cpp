@@ -4,19 +4,19 @@
 // DragTool_OnKey dispatches vtable slot 13 (+0x68) on drag-release to commit whatever
 // the drag previewed. RoadTool's slot 13 was a Tool_Ret0 stub, so a road drag always
 // reported "invalid" (error sound, nothing placed) even though slot 14 (CalcCost) had
-// already priced a valid path. This file ports slot 13 and the three exe helpers it
-// needs; every deeper leaf was already ported + registered by earlier waves.
+// already priced a valid path. This file ports slot 13 and the two exe helpers it
+// needs; every deeper leaf is called by name (the list below).
 //
 // Ported here (all verified against the Application-x64.exe disassembly):
-//   0x140104d30  RoadTool::CalcPath            — slot 13, validate + place the run
-//   0x14009c960  RoadTool_PlaceRoadSegment     — one cell: BuildRoad work + queue + BST
-//   0x1400acd90  RoadTool_DecalStore           — record the road's decal by road type
-//   0x140026990  RoadTool_FindMapDescription   — find MapDescription on the descriptor
+//   0x140104d30  RoadTool::CalcPath                 — slot 13, validate + place the run
+//   0x14009c960  Map::PlaceRoadCell                 — one cell: BuildRoad work + queue + BST
+//   0x1400acd90  WorldGeometry::StoreBatchMaterial  — record the road's decal by road type
+// 0x140026990 (find MapDescription on the descriptor) is ComponentDescription::FindDescription.
 //
 // Leaves (every one is called by name since B3R; see the list below):
 //   0x14009ce00 road A* (keystone_a_zone)      0x1400af370 road-mesh rebuild (pf_road)
-//   0x1400e4b50 BuildRoad 8-arg ctor           0x1400f72e0 Work base ctor (reg_work_base)
-//   0x1400f88a0 work-scheduler insert          0x14001a4f0 AVL insert (reg_pf_avl)
+//   0x1400e4b50 BuildRoad 8-arg ctor           0x1400f72e0 Work base ctor (Work/Work.h)
+//   0x1400f88a0 work-scheduler insert          0x14001a4f0 AVL insert (Action/PathAvl.h)
 //   0x14009c700 road-cell removal handler      0x140001bb0/0x1400021d0 array resizers
 //
 // Map-grid layout used below (mapGrid = gameWorld+0xf8):
@@ -30,13 +30,13 @@
 #include <new>
 #include "Entity/exe_bodies.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
-#include "Action/exe_bodies.h"   // RoadTool_sub_ce00 (0x14009ce00), called by name
+#include "Action/exe_bodies.h"
 #include "Player/exe_bodies.h"
 #include "Action/exe_bodies.h"
 #include "Component/exe_bodies.h"
 #include "Game/exe_bodies.h"
 #include "Work/buildroad_funcs.h"
-#include "Work/BuildRoad.h"   // BuildRoad_CtorParams_Impl returns the BuildRoad (a Work)
+#include "Work/BuildRoad.h"   // BuildRoad (a Work), built with the 0x1400e4b50 ctor
 #include "graphics/Material.h"   // Graphics::MaterialInstance is-an Object::External (the decal store)
 #include "system/MemoryAllocator.h"
 #include "object/TypeInfo.h"
@@ -59,13 +59,13 @@
 namespace {
 
 // ---- leaves, called by name ---------------------------------------------------
-//   0x1400e4b50 BuildRoad_CtorParams_Impl (Work/buildroad_funcs.h)
-//   0x1400f88a0 CitizenAI_WorkScheduler_Insert (Component/exe_bodies.h)
+//   0x1400e4b50 BuildRoad::BuildRoad (Work/BuildRoad.h)
+//   0x1400f88a0 WorkScheduler::Insert (Game/WorkScheduler.h)
 //   0x14001a4f0 AvlInsert28 (Action/PathAvl.h)
-//   0x14009c700 RemovalCalc_helper_c700 (Player/exe_bodies.h) -- road-cell removal
-//   0x140001bb0 / 0x1400021d0 Reimpl_Array_Resize_Stride08 / _Stride04
-//               (Game/exe_bodies.h)
-//   0x14009ce00 RoadTool_sub_ce00 (Action/exe_bodies.h) -- the road A*; returns the
+//   0x14009c700 Map::RemovePendingRoad (Game/Map.h) -- road-cell removal
+//   0x140001bb0 Reimpl_Array_Resize_Stride08 (Game/exe_bodies.h), 0x1400021d0
+//               Collection::Array<int32_t>::SetSize
+//   0x14009ce00 Map::FindRoadPath (Game/Map.h) -- the road A*; returns the
 //               path length
 
 // Shared description scan: walk the ComponentDescription's sub-descriptions (+0x28

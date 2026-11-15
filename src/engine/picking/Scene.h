@@ -31,8 +31,7 @@
 // QEAA@XZ` (0x180125890) is four `~Array` calls, +0x48, +0x30, +0x18, +0x08 —
 // exactly reverse member order — and nothing else. `Entry` carries its inner
 // `Array<Math::Transform>` as a real member, so `~Array<Entry>` destroying each
-// element first IS the 0x180073c90 J2 body. The registered dtor door delegates
-// to it.
+// element first IS the 0x180073c90 J2 body.
 //
 // NOT TRIVIALLY COPYABLE (B7-8): the retail copy ctor (0x1800722f0 ->
 // 0x180072340) is DEEP; declared, not ported, no caller.

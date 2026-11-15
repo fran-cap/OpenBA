@@ -1,6 +1,6 @@
 """tools/ext_icons/highlimits.py -- the white pictogram for the high_limits row (programmer art, our own).
 
-Same conventions as extralimits.py: draw(px) paints the 12 x 12 interior (x, y in [2, 13]) of a 16 x 16 tile.
+Same conventions as itemlimits.py: draw(px) paints the 12 x 12 interior (x, y in [2, 13]) of a 16 x 16 tile.
 '#' = white, 'k' = the dark accent, '.' = leave the tier colour showing.
 """
 

@@ -39,7 +39,7 @@
 //        MOV ECX,[RDX+0x20] ; SHR ECX,4 ; TEST CL,1 ; CMOVNZ ...
 //        MOV RCX,[RDX+0x18] ; TEST RCX,RCX ; JZ +5 ; MOV ECX,[RCX+0x34]
 //        CMP ECX,R8D
-//    When `dialog->_desc` (+0x18) is NULL the `MOV ECX,[RCX+0x34]` is SKIPPED
+//    When `dialog->_dialog` (+0x18) is NULL the `MOV ECX,[RCX+0x34]` is SKIPPED
 //    and ECX still holds `flags >> 4` — so the layer compared is the SHIFTED
 //    FLAGS WORD, not zero and not a layer. The very next block re-loads +0x18
 //    and, on the same null, assigns `XOR R8D,R8D` = 0 instead. Two different
@@ -144,9 +144,6 @@
 #include "ui/SharpDraw.h"   // NOT RETAIL: ext.sharp_ui's snap origin (SpriteContext::_extSharp)
 #include "ui/SpriteRecord.h"   // NOT RETAIL: ext.render_pipe's replayed frames (SpriteContext::_extRecord)
 #include "video/CompanionData.h"   // NOT RETAIL: ext.touch_mode resets ImageBufferData::_extPointSampling
-// ENDGAME B.3.6 block E: element_common.h carries the same file-scope
-// `Module` / `ResolveAddr` declaration every other runtime/src file uses (the
-// address door lives in standalone/), and the RULE B6-5 atomic door caches.
 #include "element_common.h"
 #include "video/Device.h"   // ENDGAME B.3.9 SS1: Video::Device::_singleton
 #include "input/Device.h"   // ENDGAME B.3.9 SS1: Input::Device::_singleton
@@ -383,8 +380,6 @@ void UI::UserInterface::Draw(Video::Context& context) {
                         // both re-load the sheet. Kept as two reads because
                         // that is two loads of `[d+0x58]` in retail. The sheet's
                         // sprite table is `SpriteSheet::m_sprites` (+0x20).
-                        // B.4 LEFT: `DialogInstance::_spriteSheet` is `void*`
-                        // (R-UI-a).
                         int32_t sw = 0, sh = 0;
                         {
                             const int64_t idx = d->_spriteIndex;

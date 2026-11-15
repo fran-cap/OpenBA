@@ -17,8 +17,8 @@
 //     [8] 0x1400279e0 Construct (folded with createInPlace) — NEW here
 //     [9] 0x1400e0300 CreateElement — NEW here: builds the image's UI element
 //         in a dialog and returns it BY VALUE through the hidden return slot
-//         (RCX this, RDX ret, R8 dialog; `return param_2`). TutWave_RefreshStepUI
-//         calls it raw as `(img, retbuf, dialog)`. B8-11 shape: the slot is
+//         (RCX this, RDX ret, R8 dialog; `return param_2`).
+//         TutorialInstance::RefreshStepUI calls it as `(img, retbuf, dialog)`. B8-11 shape: the slot is
 //         spelled with the return slot as an explicit first parameter.
 //   sizeof 0x30.
 // ============================================================================

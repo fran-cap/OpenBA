@@ -74,7 +74,7 @@
 // THREADS E.5; its Win32 calls are Platform:: primitives now (platform_file.h:
 // DirCreate, FileCreateTemp, FileClose, FileDelete, FileMove). The Win32 entry
 // points retail calls were read out of Runtime-x64.dll's OWN import table with
-// `pefile` — `tools/dispatch_slot_map.py` is for the EXE's imports:
+// `pefile`:
 //
 //     0x18014b0c8 CreateDirectoryW   0x18014b340 GetTempPathW
 //     0x18014b338 GetTempFileNameW   0x18014b320 CreateFileW
@@ -97,8 +97,8 @@
 #include "collection/avl_trees.h"      // rtavl::SubtreeFree
 #include "io/packfile_fold_index.h"   // block PATHINDEX: the hash index beside _packfileIndex
 
-#include <new>        // placement new into the retail hidden return slot
-#include <utility>    // std::move -- the pointer steal out of a POD out-param
+#include <new>
+#include <utility>
 
 // ENDGAME B.3.1 step 2: the two lane-String entry points this file
 // forward-declared here — `RtSystem_Filename_AdjustDelimiters` (0x1800c6970)
@@ -121,27 +121,10 @@ namespace {
 // AVL subtree free at 0x180008340 is rtavl::SubtreeFree (avl_trees.cpp). Both
 // are called by name (B3R RT-IO).
 //
-// ENDGAME B.3.2 step 2 (2026-09-13) — NOT CONVERTED to `Collection::Set<T>`,
-// deliberately. `FileSystem::packfileIndexRoot`/`packfileIndexCount` (+0x40/
-// +0x48) ARE a `Collection::Set<T>` header in every way that matters here, and
-// 0x180008340 IS `Set<T>::DestroySubtree` (avl_trees.cpp names it: "the
-// recursive subtree free"). What blocks the conversion:
-//   1. the element (`PackfileIndexNode`'s {key, packIndex, fileIndex}) is
-//      released ASYMMETRICALLY — only the `key` slot (a raw `const char*`, not
-//      a `System::String`) is `Release()`d, the packed {packIndex,fileIndex}
-//      qword is not. `Set<T>::DestroySubtree` calls `n->element.~T()`, a real
-//      C++ destructor over the WHOLE element; expressing "release only one
-//      raw-pointer field" would need a hand-written element type with a
-//      matching destructor, which is new class design, not a call-site swap.
-//   2. `packfileIndexRoot`/`Count` are two loose fields, not a typed member —
-//      other files reach the same tree by raw node pointer (`node[3]`/
-//      `node[4]` walks in filesystem.cpp, filesystem_find.cpp,
-//      filesystem_openfile.cpp, filesystem_packages.cpp), none of which
-//      are in this batch, so retyping the header field is out of scope.
-// The member that would be needed: `Collection::Set<PackfileIndexElem>` where
-// `PackfileIndexElem`'s destructor implements the key-only String release
-// (`StringReleaseInline`), once that type exists and the other four files'
-// raw walks are converted alongside it.
+// `_packfileIndex` (+0x40/+0x48) is the raw {root, count} header
+// `RtIO::PackfileIndexTree` (FileSystem.h), not a `Collection::Set<T>`; its nodes
+// are `Collection::Set<PackfileIndexPair>::Node` and ~FileSystem frees them with
+// rtavl::SubtreeFree (0x180008340).
 
 }  // namespace
 
@@ -173,14 +156,8 @@ namespace {
 //     touches no field — which is why `?Create@FileStream@` can and does call
 //     it on the singleton rather than on anything of its own.
 // ============================================================================
-// ENDGAME B.3.4 PACKAGE+FS commit 5a: the body is now
-// `IO::FileSystem::CreatePath`, at the bottom of this file. The door keeps its
-// name, its signature (file_stream.cpp forward-declares and calls it) and both
-// registration lines, and delegates. No qualified `IO::` call is needed:
-// `IO::FileSystem` has no vtable at all (src/engine/io/FileSystem.h), so
-// B34_BRIEFS section A.1's re-entry hazard cannot arise.
-// B.4 R-IO: the `RtIo_FileSystem_CreatePath` door is gone; its caller calls
-// the member.
+// The body is the member `IO::FileSystem::CreatePath`, in the `namespace IO`
+// block below.
 
 // ============================================================================
 // IO::FileSystem::PlatformCreateFile(FileInfo&, Filename const&)
@@ -209,23 +186,11 @@ namespace {
 // (-1 nothing, -2 loose, otherwise a packed (packIndex<<24)|fileIndex).
 //
 // GetTempFileNameW's prefix comes from the .rdata literal at 0x1801557e8, which
-// READS AS `L"SRS"` (53 00 52 00 53 00 00 00 — Shining Rock Software). It is
-// still fetched live through the address door rather than spelled here: it is an
-// unexported literal, and a transcription of it is a guess no static check
-// could catch. The bytes are quoted so a reader can see the door was verified.
+// READS AS `L"SRS"` (53 00 52 00 53 00 00 00 — Shining Rock Software); the body
+// spells it as `kTempPrefix`.
 // ============================================================================
 // The body is the member `IO::FileSystem::PlatformCreateFile`, at the bottom of
 // this file (`AEAA`, private, in retail).
-
-// ENDGAME B.3.4 PACKAGE+FS commit 5a: the remaining doors of this file,
-// gathered here so every one of them is a single delegating line and the
-// retail bodies are all in the one `namespace IO` block below. Each keeps its
-// name, its signature — `CreateFileW` keeps the (self, hidden-return-slot,
-// path) form and `CloseFile` is called cross-file by file_stream.cpp,
-// text_file_stream.cpp, persistence_saveinfo_job.cpp and
-// persistence_worker.cpp — and its registration lines, unchanged.
-// B.4 R-IO: the `RtIo_FileSystem_CreateFileW` / `RtIo_FileSystem_CloseFile`
-// doors are gone; every caller calls the member on `IO::FileSystem::_singleton`.
 
 }  // namespace RtIO
 
@@ -234,8 +199,7 @@ namespace {
 // ============================================================================
 // Defined outside `namespace RtIO` because a member of `IO::X` must appear in a
 // namespace ENCLOSING the class (B34_BRIEFS section A.2); these bodies reach
-// this translation unit's `RtIO`-scoped names — the anonymous-namespace
-// helpers `WideStr`/`WideFromString`/`WideRelease` and the `using`-ed System names — as `RtIO::X`.
+// this translation unit's `RtIO`-scoped names as `RtIO::X`.
 // Every POD is spelled `RtIO::` or `RtSystem::` and every real class `System::`
 // (B34_RULES section 7.2).
 //
@@ -420,9 +384,8 @@ void FileSystem::PlatformCloseFile(RtIO::FileInfo& infoRef) {
 // hand-written clear does not have.
 //
 // The temporary leaves +0x04 unwritten, so the assignment copies a dword of
-// retail's own stack garbage into the caller's FileInfo. That is faithful and
-// it is why filesystem_openfile.cpp's oracle already excludes +0x04
-// (`reference_oracle_must_not_compare_unwritten_bytes.md`).
+// retail's own stack garbage into the caller's FileInfo. That is faithful, as
+// in filesystem_openfile.cpp section 4.
 // ============================================================================
 void FileSystem::CloseFile(RtIO::FileInfo& infoRef) {
     RtIO::FileInfo* const info = &infoRef;
@@ -433,21 +396,12 @@ void FileSystem::CloseFile(RtIO::FileInfo& infoRef) {
     // NOT written), FileInfo::operator= (1800acd1a), then ~FileInfo on the
     // temporary (1800acd20 +0x28 first, 1800acd50 +0x20).
     *info = RtIO::FileInfo();
-
-    // ---- NOT PART OF THE PORT ------------------------------------------
-    // A one-shot trigger for file_stream_slots_probe.cpp, which needs a LIVE
-    // FileSystem singleton (it builds its paths through GetSaveDirectory) and
-    // therefore cannot run from RuntimePortInit or from an atexit handler.
-    //
-    // This body is the latest-and-most-attended anchor this lane owns: 2854
-    // calls on the gameplay route, all of them after the package mount. Call
-    // 2000 is arbitrary but comfortably inside that. It is gated on the probe's
 }
 
 // ============================================================================
 // IO::FileSystem::~FileSystem                             retail 0x1800ac6d0
 // ============================================================================
-// Six steps, in retail's order:
+// Five steps, in retail's order:
 //   1. SubtreeFree(&packfileIndexRoot, packfileIndexRoot)    1800ac6ff
 //   2. packfileIndexRoot = null; packfileIndexCount = 0      1800ac706/09
 //   3. ~Array<Filename>(&userPackFilenames)  (+0x30)         1800ac710
@@ -481,7 +435,7 @@ FileSystem::~FileSystem() {
     _packfileIndex.root  = nullptr;                    // 1800ac706
     _packfileIndex.count = 0;                          // 1800ac709
 
-    // Step 3 — Array<Filename>, ported by modification.cpp and registered.
+    // Step 3 — Array<Filename>, ported by modification.cpp.
     RtIO::RtColl_ArrayFilenameDtor_1800098d0(&_userPackFilenames);   // 1800ac710
 
     // Step 4 — ~Array<PackageFile*> (0x1800097f0, called at 1800ac71a): the

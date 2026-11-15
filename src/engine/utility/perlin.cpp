@@ -19,28 +19,16 @@
 // TRANSCENDENTALS GO THROUGH src/engine/rt_libm.h, NOT A DIRECT CALL TO
 // THE DLL. Disassembling 0x1801089b0 shows two CALLs to un-exported internal
 // helpers, 0x180127560 and 0x180126d10:
-//   * 0x180126d10 is already named in rt_libm.cpp as kDllCosf (found there by
-//     an earlier wave from Transform2's ctor and Vector3::Heading) — this
-//     lane's own disassembly reaches the identical address independently,
-//     which is a cross-check, not a new discovery.
-//   * 0x180127560 is powf (its body is the classic fdlibm-shaped ieee754_pow,
-//     confirmed by decompiling it and reading the exponent/mantissa branches)
-//     and was NOT in rt_libm before this lane. Added as RtLibm::Pow, same
-//     pattern as the other three (kDllPowf = 0x180127560).
+//   * 0x180126d10 is Crt_cosf and 0x180127560 is Crt_powf in rt_libm.h's list
+//     of the ported CRT math bodies. 0x180127560's body is the classic
+//     fdlibm-shaped ieee754_pow, confirmed by decompiling it and reading the
+//     exponent/mantissa branches.
 //
-// rt_libm.h's own policy (read it before assuming this is a shortcut) is that
-// the DEFAULT is OUR OWN libm (std::pow/std::cos), and the DLL's copies are a
-// DIAGNOSTIC ONLY (RT_LIBM=dll) that does not survive cutover — a
-// port that depends on Runtime-x64.dll staying loaded is not a port
-// (PLAN.md §4.1 decision 1). So Generate's own bit-exactness against retail
-// is bounded by MinGW's libm agreeing with MSVC's statically-linked CRT on
-// pow/cos to the last bit, which this lane does NOT claim — this is the same
-// "1-ULP residual" family the Wave 8 control run's own notes flag as already
-// present pre-wave (docs/history/runtime_port/WAVE8.md, "Pre-wave control"). The
-// oracle is the diff oracle with a small tolerance for exactly that reason,
-// stated here rather than silently widened: not a port defect, a libm
-// difference, checkable by rerunning with RT_LIBM=dll (if that
-// makes the divergence disappear, libm was the whole story).
+// RtLibm::Cos and RtLibm::Pow are MsvcLibm::Cosf and MsvcLibm::Powf, the
+// ported MSVC CRT bodies in src/engine/crt/msvc_libm.cpp (installed by
+// src/engine/rt_libm.cpp), so Generate does not depend on Runtime-x64.dll
+// (PLAN.md §4.1 decision 1). The "1-ULP residual" a different libm leaves
+// against MSVC's CRT is in docs/history/runtime_port/WAVE8.md, "Pre-wave control".
 // ============================================================================
 
 #include <cstdint>
@@ -69,9 +57,9 @@ constexpr uint32_t kW4Bits    = 0x3e800000u;  // DAT_18016168c = 1/4  (center we
 // Retail's lattice hash: `n ^ (n * 0x2000)`, a uint32 multiply-XOR (equal to
 // `n ^ (n << 13)` for the low bits that survive the later `& 0x7fffffff`, but
 // transcribed as the multiply retail actually performs, not the shift a
-// well-known tutorial algorithm would use — this project's own magic
-// constants (0xc0ae5, 0xd208dd0d) are NOT the textbook 789221/1376312589, so
-// nothing here is assumed from that tutorial).
+// well-known tutorial algorithm would use — 0x3d73 and 0xc0ae5 are the textbook
+// 15731/789221, and 0xd208dd0d is the textbook 1376312589 (0x5208dd0d) with
+// bit 31 set, which the `& 0x7fffffffu` discards).
 inline uint32_t LatticeHash(uint32_t n) { return n ^ (n * 0x2000u); }
 
 // `1.0f - (float)(((n*n*15731u + 789221u... )` — the actual retail constants:
@@ -131,17 +119,10 @@ float SmoothNoise(const PerlinNoise* self, int32_t x, int32_t y) {
 //                                   int offsetX, int offsetY)   retail 0x180108c70
 // ??0PerlinNoise@Utility@@QEAA@MMHH@Z
 // ----------------------------------------------------------------------------
-// WAVE 9 LANE GFX, 2026-09-08 — NOW REGISTERED.
+// The residue census in docs/history/runtime_port/wave9_residue_tutorial3.txt
+// lists this ctor's mangled name.
 //
-// Wave 8 lane E wrote this body and deliberately left it unregistered ("no
-// registration, since a caller that needs a NEW PerlinNoise is out of this
-// lane's scope"). Cutover boot attempt 06 says otherwise: this mangled name is
-// one of the 61 that resolved to NOTHING, `engine/funcs/engine_funcs.cpp:3493`
-// resolves it as `fn_PerlinNoise_Ctor`, and the residue census caught it live
-// (docs/history/runtime_port/wave9_residue_tutorial3.txt). Left unregistered it is a
-// null function pointer waiting to be called by the terrain generator.
-//
-// The body is unchanged. It is verified fresh against the retail bytes at
+// The body is verified against the retail bytes at
 // 0x180108c70 — seven instructions, all four stores and no others:
 //
 //     MOV   EAX,[RSP+0x28]        ; 4th argument, from its home slot
@@ -194,10 +175,6 @@ PerlinNoise* RtUtility_PerlinNoise_Ctor(PerlinNoise* self, float persistence, fl
 // ABI: `this` is a const PerlinNoise*, the two float args arrive in XMM1/XMM2
 // per the mangled `QEBAMMM` (member, const, returns M=float, args M,M) — no
 // hidden return slot, a float fits in XMM0.
-//
-// ORACLE: the diff oracle with a small tolerance — see the file banner for why
-// a tolerance is used here (libm, not a port defect) rather than the 0.0f
-// this lane would otherwise default to for the one pure function in the wave.
 // ============================================================================
 float RtUtility_PerlinNoise_Generate(const PerlinNoise* self, float x, float y) {
 

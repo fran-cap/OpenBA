@@ -1,20 +1,17 @@
 // src/game/Entity/entitylist.cpp
 // Clean reimplementation of EntityList methods from Application-x64.exe.
 //
-// EntityList (0xE0 bytes) — manages all ComponentEntity instances in the world.
-// NOT directly hooked — called by GameUpdateLoop::Update (already hooked).
+// EntityList (0xE8 bytes) — manages all ComponentEntity instances in the world.
+// Called by GameUpdateLoop::Update.
 //
-// The original EntityList::Update (0x1400c4090) HANGS due to a spinlock.
-// This module provides a custom reimplementation that replicates the logic
-// without the spinlock, preserving the workaround from gameupdateloop.cpp.
 //
 // Methods reimplemented:
-//   - EntityList::Update           (0x1400c4090) — custom reimpl (original hangs)
+//   - EntityList::Update           (0x1400c4090) — deep reimpl (removal drain deferred one frame)
 //   - EntityList::PreUpdate        (0x1400c3bd0) — deep reimpl
 //   - EntityList::PostUpdate       (0x1400c43d0) — deep reimpl
-//   - EntityList::TreeNodeHandler  (0x1400c2de0) — deep reimpl
-//   - EntityList::PostUpdateNodeHandler (0x1400c2c70) — deep reimpl
-//   - EntityList::PostUpdateStaging(0x1400c3ab0) — deep reimpl (static helper)
+//   - ComponentEntity::TickComponents (0x1400c2de0) — deep reimpl
+//   - ComponentEntity::PostUpdateComponents (0x1400c2c70) — deep reimpl
+//   - EntityList::PostUpdateStaging(0x1400c3ab0) — deep reimpl
 //   - EntityList::RemoveEntity     (0x1400c38e0) — deep reimpl
 //   - EntityList::FlagAggregation  (0x1400c3470) — is ComponentEntity::RefreshEntityFlags
 //   - EntityList::Serialize        (0x1400c44a0) — deep reimpl
@@ -48,7 +45,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include "platform_time.h"   // Platform::PerfCounter for the BANISHED_SAVE_TIMING probe
+#include "platform_time.h"   // Platform::PerfCounter for the g_elProfDrainTicks..g_elProfBucketTicks timers
 #include "object/Internal.h"   // ENDGAME B.3.3 step 6B
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch D
 #include "io/Stream.h"      // ENDGAME B.3.4 callers batch H: IO::Stream::GetDirection
@@ -58,7 +55,7 @@
 #include <new>
 #include <new>
 #include "Entity/exe_bodies.h"
-#include "Game/exe_bodies.h"   // BucketTree_Serialize_21ba0
+#include "Game/exe_bodies.h"
 #include "Work/exe_bodies.h"   // WorkBST_RegisterWork_1a30, WorkBST_BSTRemove_a6e0
 #include "object/class_vptr.h"   // Object::ClassVptr (the vptr hint)
 
@@ -160,8 +157,8 @@ void ComponentEntity::PostUpdateComponents() {
 
 // (B3R W2-EZ: IBPTreeInsert_CppImpl / IBPTreeRemove_CppImpl, the plain-BST
 // stand-ins engine_funcs.cpp installed when 0x140021a30 / 0x14001a6e0 resolved null,
-// are gone with it. Both addresses are registered (the AVL ports in
-// src/game/Work/work_base_bst.cpp), so the fallback never ran; nothing else called them.)
+// are gone with it. Both bodies are ported (the AVL templates in
+// src/game/Work/KeyBst.h), so the fallback never ran; nothing else called them.)
 
 // ============================================================
 // Tree-walk corruption guard + diagnostics
@@ -226,8 +223,8 @@ static void FlagTreeCorrupt(const char* site, EntityTreeNode* from, const void* 
 // The always-on [TreeGuard] above covers the in-order WALK (TreeMinimum /
 // TreeSuccessor / the walk body's entityIBP key). It does NOT cover the staging
 // loops' own key-search, nor the AVL delete they call
-// (fn_IBPTreeRemove -> WorkBST_BSTRemove_a6e0 -> SimpleBST_Retrace, in
-// src/game/Work/work_base_bst.cpp — a faithful 1:1 port of 0x14001a6e0 that
+// (WorkBST_BSTRemove_a6e0 -> WorkBST_Retrace, in
+// src/game/Work/KeyBst.h — a faithful 1:1 port of 0x14001a6e0 that
 // dereferences node->parent unguarded, exactly as retail does).
 //
 // So the SAME corruption the walk guard was built for still crashed here
@@ -307,8 +304,6 @@ static void ReportTreeCorrupt(const char* walk, EntityList* self, EntityTreeNode
            (void*)self->updateTree._root, (long long)self->updateTree._count);
     fflush(stdout);
 
-    // BANISHED_TREE_CATCH=1 — name the WRITER with a hardware write watchpoint.
-    //
     // The corruption is always the same shape: a fully live node (valid entityIBP,
     // valid children, sane balance/height, real parent linking down to it) whose
     // parent field at +0x08 has had only its LOW 32 BITS overwritten with a small
@@ -362,15 +357,15 @@ static EntityTreeNode* TreeSuccessor(EntityTreeNode* node) {
 }
 
 // ============================================================
-// EntityList::Update (0x1400c4090 — CUSTOM REIMPL)
+// EntityList::Update (0x1400c4090)
 // ============================================================
-// The original function hangs due to a spinlock issue in the hooked environment.
-// This reimplementation replicates the exact logic from the Ghidra decompilation.
+// This reimplementation replicates the logic from the Ghidra decompilation; step 5 runs
+// at the top of the next frame's Update (see UpdateImpl's Step 0).
 //
 // Steps:
 //   1. Accumulate time: *self += *time
 //   2. PreUpdate: process staging arrays into trees
-//   3. Tree walk: in-order traversal of update tree, call TreeNodeHandler per entity
+//   3. Tree walk: in-order traversal of update tree, call TickComponents per entity
 //   4. 5-bucket round-robin: for each bucket, tick processCount entities with vtable[+0x48]
 //   5. If removal list non-empty: PreUpdate again, PostUpdateStaging, then process removals
 // ============================================================
@@ -972,8 +967,8 @@ template <int kWalk>
     }
     if (prof) { Platform::PerfCounter(&pq1); g_elProfBucketTicks += pq1 - pq0; }
 
-    // Step 5: removal drain DEFERRED to the TOP of the NEXT EntityList_Update (see
-    // EntityList_DrainRemovals call + rationale at the head of this function). What
+    // Step 5: removal drain DEFERRED to the TOP of the NEXT EntityList::Update (see the
+    // DrainRemovals call + rationale at the head of this function). What
     // state-5 pushed onto removalList this frame stays marked-but-alive through this
     // frame's UI pump + EditTool tick, and is freed at the next frame's Step 0.
 }
@@ -1002,7 +997,7 @@ void EntityList::UpdateWalkBatchGrid(const System::Time* time) {
 // RemoveEntity per pending IBP, then clear the list.
 // Close any still-open info dialog whose data-source entity is marked-for-removal
 // (0x400) this drain, BEFORE the entity is freed below. A PINNED info panel is driven
-// by the UI pump, NOT by EditTool, so EditTool's close-on-death (edittool.cpp:544) can
+// by the UI pump, NOT by EditTool, so EditTool's close-on-death (EditTool::Update, edittool.cpp) can
 // never reach it; next frame the panel would read its dangling +0x28, and because the
 // freed entity's +0x40 no longer has the 0x400 bit it FALSE-POSITIVES the per-panel
 // guard and dereferences freed memory. Confirmed crash 2026-07-22 (pin a house panel,
@@ -1019,11 +1014,11 @@ static void EntityList_CloseDialogsForDyingEntities() {
     if (!ui) return;
 
     // EntityUI is the shared frame controller on every entity info dialog; its +0x28 is
-    // the data-source entity (raw .rdata type-id is null in standalone -> resolve by name).
+    // the data-source entity.
     const uint32_t s_tidEntityUI = EntityUI::TypeId();   // caller batch CB6: was a lazy by-name cache
     if (s_tidEntityUI == 0 || s_tidEntityUI == 0xFFFFFFFFu) return;
 
-    // Collect first, close after — fn_UI_CloseDialog mutates the list we're walking.
+    // Collect first, close after — UI::UserInterface::CloseDialog mutates the list we're walking.
     UI::DialogInstance* toClose[16];
     int nClose = 0;
 
@@ -1070,7 +1065,7 @@ static void EntityList_CloseDialogsForDyingEntities() {
 // (+0x28) and also runs AFTER the follow, so it cannot save it. Clear the tool's selection
 // here, during the marked window (entity still ALIVE — reading +0x40 is safe), so next
 // frame there is nothing dangling to follow. Reaches the tool the same way the tool tick
-// does: EntityUI == GameWorld+0x120, active-tool IBP at EntityUI+0x28 (PlayerToolManager::Update 0x1401026a0).
+// does: PlayerToolManager == GameWorld+0x120, active-tool IBP at its +0x28 (PlayerToolManager::Update 0x1401026a0).
 static void EntityList_ClearToolSelectionForDyingEntities() {
     GameUpdateLoop* gw = GameUpdateLoop::_singleton;
     if (!gw) return;
@@ -1093,7 +1088,7 @@ static void EntityList_ClearToolSelectionForDyingEntities() {
     if ((tool->lastEntityRef->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) == 0) return;
 
     // Drop both the dialog ref (+0x28) and the selected-entity ref (+0x30), exactly as
-    // EditTool_CloseInfoDialog does — leaving +0x30 set would keep the follow chasing it.
+    // EditTool::CloseInfoDialog does — leaving +0x30 set would keep the follow chasing it.
     tool->entityRef = 0;
     tool->lastEntityRef = 0;
     printf("[EntityList] cleared EditTool selection on dying (marked-for-removal) "
@@ -1101,7 +1096,7 @@ static void EntityList_ClearToolSelectionForDyingEntities() {
 }
 
 // ============================================================
-// [diag] BANISHED_DRAIN_AUDIT — "why does a destroyed entity leave a LIVE node in
+// [diag] "why does a destroyed entity leave a LIVE node in
 // Graphics::Scene?" (the open question from the wild-food seed-crash wave).
 //
 // Nothing in the free path removes scene geometry: RemoveEntity only unlinks the
@@ -1110,12 +1105,8 @@ static void EntityList_ClearToolSelectionForDyingEntities() {
 // so any re-registration between the mark and the free ships a scene node that
 // points into memory the drain is about to recycle.
 //
-// Two things are measured on every entity the drain is about to free:
-//   markStillSet — is bit 0x400 still set at free time? A CLEARED bit means the
-//                  entity was un-marked after the mark (NotifyEntityChanged
-//                  0x1400c3470 ZEROES entity+0x40 and rebuilds it from the
-//                  component flag words, which do not carry 0x400) and was
-//                  therefore ticked again like a live entity.
+// Checked on every entity the drain is about to free (the ParticleComponent arm below
+// makes the same test on an emitter's sceneId):
 //   liveModel    — a ModelComponent-derived component whose modelId (+0x16c) is
 //                  >= 0, i.e. it is STILL registered in Graphics::Scene as the
 //                  allocation goes back to the heap. This is the dangling node.
@@ -1280,7 +1271,7 @@ void EntityList::PreUpdate() {
 }
 
 // ============================================================
-// EntityList::PostUpdateStaging (0x1400c3ab0) — static helper
+// EntityList::PostUpdateStaging (0x1400c3ab0)
 // ============================================================
 // Same pattern as PreUpdate but for the post-update tree (+0x78)
 // and staging array (+0x98/+0xa0), checking flag bit 4 (0x10).
@@ -1342,7 +1333,7 @@ void EntityList::PostUpdateStaging() {
 // EntityList::PostUpdate (0x1400c43d0)
 // ============================================================
 // Processes post-update staging array, then does in-order tree walk
-// of the post-update tree (+0x78), calling PostUpdateNodeHandler per entity.
+// of the post-update tree (+0x78), calling PostUpdateComponents per entity.
 //
 // Decompiled from 0x1400c43d0.
 void EntityList::PostUpdate() {
@@ -1392,7 +1383,7 @@ void EntityList::PostUpdate() {
 // Entity metadata layout (on the entity itself):
 //   +0x18: int32 — index in master array
 //   +0x1C: packed field — low 24 bits = index in bucket, high 8 bits include bucket ID
-//   +0x1F: int8 — bucket index (0-5, where 6 means "not in any bucket")
+//   +0x1F: int8 — bucket index (0-4, where 6 means "not in any bucket")
 //
 // Decompiled from 0x1400c38e0.
 void EntityList::RemoveEntity(ComponentEntity** entityIBP) {

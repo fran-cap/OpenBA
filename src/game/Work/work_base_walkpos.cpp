@@ -23,7 +23,7 @@
 #include "Game/ProfessionList.h"
 #include "Game/WeatherSimulation.h"
 #include "math/Math.h"
-#include "Action/exe_bodies.h"   // B3R: ActCNR_FindComponent_3f60, Pf_IsDstReachable_f810
+#include "Action/exe_bodies.h"
 #include "system/Value.h"      // ENDGAME B.3.4b System callers
 #include <cstdint>
 #include <cmath>
@@ -40,8 +40,8 @@
 // Exe sub-helpers, called by name (B3R)
 // ============================================================
 //   0x140003f60 FindComponent<ModelComponent>
-//   0x14009f810 MapPathCost    = Pf_IsDstReachable_f810      (Action/exe_bodies.h)
-//   0x1400a00f0 ValidateCell   = WorkBase_ValidateCell_a00f0 (Work/exe_bodies.h)
+//   0x14009f810 MapPathCost    = Map::PathDistance (Game/Map.h)
+//   0x1400a00f0 ValidateCell   = Map::ValidateCell (Game/Map.h)
 // Math::Transform::operator*(Vector3 const&) const -> Vector3: dispatch slot [0x140151470]
 // in retail, a direct Math::Transform member call since B.3.1 step 2.
 
@@ -58,8 +58,7 @@ static inline int WalkClampCell(int v, int w) {
 // param_1 = the InteractComponent (its entity's ModelComponent holds the Transform).
 // param_2 = one of its description's node arrays (InteractDescription::NodeArray),
 // param_3 = source world pos (float[2]+), param_4 = best-pos out (float[3]),
-// param_5 = best-distance out (int). An InteractComponent member (its header is
-// COMP's, so this stays free).
+// param_5 = best-distance out (int). An InteractComponent member.
 // Returns true if *param_5 < 0xffff (a reachable node was found).
 bool InteractComponent::FindWalkablePos(const InteractDescription::NodeArray* nodes,
                                  float* param_3, float* param_4, int* param_5) {
@@ -107,7 +106,7 @@ bool InteractComponent::FindWalkablePos(const InteractDescription::NodeArray* no
 // 0x140122b00 — recursive walkable-position search across the parts
 // ============================================================
 // param_1 = the InteractComponent. Resolves its InteractDescription (+0x18,
-// IsDerivedFrom DAT_1401c7938), runs WalkablePos_122be0 on node array `param_2`
+// IsDerivedFrom DAT_1401c7938), runs FindWalkablePos (0x140122be0) on node array `param_2`
 // (0 use, 1 build, 2 create: desc + 0x28 + param_2*0x10), then recurses into each
 // part (useLocations +0x28, count +0x30). Returns the OR of all sub-results.
 uint8_t InteractComponent::FindWalkablePosRecursive(int param_2,

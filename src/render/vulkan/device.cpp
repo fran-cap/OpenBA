@@ -21,7 +21,7 @@
 // Vulkan floor (PLAN.md §4.1): 1.1 with VK_KHR_swapchain and the Vulkan memory model (core in 1.2,
 // VK_KHR_vulkan_memory_model before; the converted shaders declare it). A device with 1.3's
 // dynamicRendering, synchronization2 and timelineSemaphore takes the 1.3 path, the one the backend is
-// written for; one without any of them takes THE 1.1 PATH (vulkan11.h: render passes, vkCmdPipelineBarrier,
+// written for; one lacking any of them takes THE 1.1 PATH (vulkan11.h: render passes, vkCmdPipelineBarrier,
 // fence serials, baked vertex strides, SPIR-V 1.3), chosen here from the caps. Nothing else is required;
 // what is merely used when present is probed here and recorded in `caps`.
 // ============================================================================
@@ -41,7 +41,7 @@
 #include "vulkan_entry.h"
 #include "ao/assao_pass.h"                         // P4: ext.ambient_occlusion's pass objects
 #include "better_water/scene_depth_pass.h"         // ext.better_water's scene depth copy
-#include "depth_copy/depth_copy.h"                 // the shared depth copy (AO, clouds, water)
+#include "depth_copy/depth_copy.h"                 // the shared depth copy (AO, clouds, water, terrain, DOF)
 #include "better_clouds/cloud_shadow_pass.h"       // ext.better_clouds' shadow pass
 #include "fancy_terrain/terrain_light_pass.h"       // ext.fancy_terrain's terrain light
 #include "dof/dof_pass.h"                          // ext.depth_of_field's depth blur
@@ -457,10 +457,10 @@ bool CreateSwapchain(SDL_Window* window, std::string* why) {
         *why = "the window has no pixels (minimised)";
         return false;
     }
-    // Pre-rotation (present.h, PLAN.md §4.5). A rotated surface (a phone in landscape: ROTATE_90 or
-    // ROTATE_270) gets preTransform = currentTransform and images in the panel's own orientation; the
-    // frame keeps the window's landscape extent and the present pass turns it. Anything else (IDENTITY
-    // on every desktop, or a mirrored transform no device here reports) presents as before.
+    // Pre-rotation (present.h, PLAN.md §4.5). A rotated surface (ROTATE_90 or ROTATE_270, a phone in
+    // landscape, or a half turn) gets preTransform = currentTransform and images in the panel's own
+    // orientation; the frame keeps the window's landscape extent and the present pass turns it. Anything
+    // else (IDENTITY on every desktop, or a mirrored transform no device here reports) presents unrotated.
     const VkSurfaceTransformFlagBitsKHR current = surfaceCaps.currentTransform;
     const bool rotate = (current == VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR ||
                          current == VK_SURFACE_TRANSFORM_ROTATE_180_BIT_KHR ||
@@ -1293,7 +1293,7 @@ void DeviceData::Shutdown() {
             CloudShadow::Shutdown();
             TerrainLight::Shutdown();   // ext.fancy_terrain: its map images and pass objects
             Dof::Shutdown();            // ext.depth_of_field: its images and pass objects
-            DepthCopy::Shutdown();   // after its three readers: the shared depth copy
+            DepthCopy::Shutdown();   // after its five readers: the shared depth copy
             Rewrites::Shutdown();
             ShareGpuData::Clear();
             PresentShutdown();

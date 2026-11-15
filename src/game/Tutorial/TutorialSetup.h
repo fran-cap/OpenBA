@@ -16,8 +16,8 @@
 //     [4] Object::External::Compile (import) — inherited
 //     [5] 0x1400e2000 Serialize: an EMPTY Serializer(stream, 0) scope, MOV AL,1
 //     [6] Reconstruct PURE  [7] Destruct PURE (External's)
-//     [8] PURE Begin   — TutWave_RefreshStepUI calls `(this)` when a step opens
-//     [9] PURE Update  — TutWave_StepExecute (0x1400e1db0) calls `(this, time)`
+//     [8] PURE Begin   — TutorialInstance::RefreshStepUI calls `(this)` when a step opens
+//     [9] PURE Update  — TutorialInstance::StepExecute (0x1400e1db0) calls `(this, time)`
 //     [10] PURE End    — StepExecute calls `(this)` when the step completes
 //     (names ours; the exe has no symbols)
 //   Every leaf adds slot 11, its own Construct(). sizeof == External's 0x20.

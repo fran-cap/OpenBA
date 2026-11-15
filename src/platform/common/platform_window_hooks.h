@@ -50,7 +50,7 @@ void ApplyInitialWindowGeometry(SDL_Window* window, int savedX, int savedY, int 
 
 // The primary display as the Options resolution list needs it, in engine PIXELS: the usable
 // area less a title bar (maxW / maxH) and the display's own size (nativeW / nativeH).
-// The only caller is the Metal backend (src/render/metal, the renderer PR).
+// Callers: the Metal and Vulkan backends (src/render/metal/backend.mm, src/render/vulkan/device.cpp).
 // All zero when unknown (BuildResolutionList then does not filter).
 void QueryScreenForModes(int* maxW, int* maxH, int* nativeW, int* nativeH);
 

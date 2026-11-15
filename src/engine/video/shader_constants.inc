@@ -4,10 +4,9 @@
 // ?AssignConstants@Context@Video@@AEAAXXZ (0x1800ef3d0), LIFTED byte
 // for byte out of Runtime-x64.dll's read-only data. Never retyped.
 //
-// Each row is { rva, length, literal }. The RVA is what lets
-// RtVideoShaderConstantsVerify() compare our compiled-in copy against
-// the loaded DLL at startup, so a typo introduced by a later edit fails
-// loudly instead of silently unbinding a shader parameter.
+// Each row is { rva, length, literal }: the RVA the literal was lifted
+// from, which `tools/extract_shader_constants.py --verify` re-extracts
+// and diffs against the committed file.
 //
 // Regenerate:  tools/extract_shader_constants.py --emit src/engine/video/shader_constants.inc
 

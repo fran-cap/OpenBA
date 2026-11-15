@@ -16,32 +16,28 @@
 // plus ??1ComboDescription@UI@@UEAA@XZ (0x180112370).
 //
 // ENDGAME B.3.6 block C1: the bodies are MEMBERS of `UI::ComboDescription`
-// (src/engine/ui/ComboDescription.h); the doors are one-line QUALIFIED
-// delegations.
+// (src/engine/ui/ComboDescription.h).
 //
 // DERIVES FROM UI::ButtonDescription, exactly as CheckDescription does, and
 // reaches the same three places in src/engine/ui/buttondescription.cpp:
-// ??0ButtonDescription (0x180110b10, a door), ButtonDescription::Serialize
-// (0x1801113e0) and the shared applier (0x1801108d0) — the last two now as
+// ??0ButtonDescription (0x180110b10), ButtonDescription::Serialize
+// (0x1801113e0) and the shared applier (0x1801108d0) — the last two as
 // QUALIFIED member calls. `??0ComboDescription@UI@@QEAA@XZ` (0x180112320) IS
-// exported (the old banner said it was not); nothing registers it, and the
-// four stores it adds are open-coded in Construct.
+// exported; the four stores it adds are the real ctor in ComboDescription.h,
+// which Construct and Reconstruct run.
 //
 // ----------------------------------------------------------------------------
 // WHAT IS **NOT** PORTED HERE, AND WHY
 // ----------------------------------------------------------------------------
 // `CreateInstance` calls six functions that belong to other classes, and all
-// six are reached through the port-aware door rather than copied:
+// six are called by name rather than copied:
 //   0x180035020  UI::String::operator System::String   PORTED (ui/sprite.cpp)
 //   0x180034860  Array<System::String>::SetSize(n,fill) PORTED (collection/array.cpp
 //                kSpec_StringRef)
 //   0x18004bfc0  Array<{ptr,int}>::SetSize(n,fill)      PORTED (collection/array.cpp)
 //   0x180024fe0  Array<void*>::SetSize(n,fill)          PORTED (collection/array.cpp)
 //   0x180120f20  UI::UserInterface::CloseDialog         PORTED (ui/userinterface_close.cpp)
-//   0x180112180  ComboElement::UpdateText               PORTED as a DOOR in
-//                widgets_input.cpp (fragment pass): the member is declared in
-//                ComboElement.h but not defined, so it is still reached by
-//                address, which is registry-first.
+//   0x180112180  ComboElement::UpdateText               PORTED (ui/widgets_input.cpp)
 //
 // Layout: src/engine/ui/ComboDescription.h over DescriptionsBatch1.h.
 // sizeof 0xb8.
@@ -68,8 +64,8 @@ namespace UI {
 int32_t ComboDescription::GetFileVersion() const { return 0x2104; }
 
 // The four stores ComboDescription adds on top of its base's constructor,
-// transcribed from 0x180074d42..0x180074d63 (Construct; the null test is the
-// door's) and identically inside Reconstruct.
+// transcribed from 0x180074d42..0x180074d63 (Construct) and identically inside
+// Reconstruct.
 // ENDGAME B.3.9 UI-A: that sequence is the real ctor (ComboDescription.h).
 Object::External* ComboDescription::Construct() {
     return ::new (this) ComboDescription();                    // 180074d3c..180074d63
@@ -130,8 +126,8 @@ bool ComboDescription::Serialize(IO::Stream& streamv) {
 //      loop-invariant.
 //
 // ONE STACK SLOT ([RSP+0x90]) serves as the applier's handle, the converted
-// System::String and the CloseDialog argument, as in retail; it is a `void*`
-// here for exactly that reason.
+// System::String and the CloseDialog argument in retail; here they are three
+// typed locals.
 Object::InternalPtr<Element>* ComboDescription::CreateInstance(
         Object::InternalPtr<Element>* ret, const Dialog* dialog) const {
     void* raw = MemAlloc(0x128, 8);                         // 180112ab3

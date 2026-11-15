@@ -3,7 +3,7 @@
 // ============================================================================
 // NOT RETAIL. shader_convert.h has the contract, the pipeline and the binding layout. This file
 // needs no Vulkan header and no device; the cache's Store calls live in shader_cache.cpp, so the
-// headless check (tools/vulkan/shader_check.cpp) links this file alone.
+// headless check (tools/vulkan/shader_check.cpp) links this file without shader_cache.cpp.
 // ============================================================================
 #include "shader_convert.h"
 #include "spirv_combine.h"

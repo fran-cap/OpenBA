@@ -1,6 +1,6 @@
 #pragma once
 // ============================================================================
-// src/ext/item_priority/item_priority.h -- ext.item_priority (class C, default OFF)
+// src/ext/item_priority/item_priority.h -- ext.item_priority (class C, default ON)
 // ============================================================================
 // NOT RETAIL. docs/extensions/handins/ITEMPRIO.md. Item priority: for the four item categories a citizen
 // fetches from a storage (Fuel, Tool, Health, Clothing) the town ranks the items, best first, and a citizen
@@ -35,7 +35,7 @@
 // item, ranked or not).
 //
 // THE LIST is the town's own state (class C): ItemPriority::Lists, saved in the row's record in the save tail
-// (save_state.cpp, wire format v1), edited live from the Priority page of the extension window
+// (save_state.cpp, wire format v2), edited live from the Priority page of the extension window
 // (toolbar_page.cpp). It never lives in settings.cfg. An item is named by the template path of its
 // RawMaterialDescription (External::GetPath), not by `_name`, which is a sprite / string key that mods reuse.
 //

@@ -4,7 +4,7 @@
 //   C++ classes, plus the four element types of Renderer's three arrays
 //
 // The sibling of `graphics_geometry_abi_test.cpp` (block E) and
-// `io_vtable_abi_test.cpp`, for the seven classes block F converts:
+// `io_vtable_abi_test.cpp`, for the eight classes block F converts:
 //
 //   Graphics::Camera             NON-POLYMORPHIC root, 0xd8   (Camera.h)
 //   Graphics::RendererDrawable   0x10                         (Camera.h)
@@ -17,21 +17,18 @@
 //
 // WHAT THIS FILE HAS TO ESTABLISH
 // -------------------------------
-// None of these seven has a vtable, so there is no slot order to pin and PART B
+// None of these eight has a vtable, so there is no slot order to pin and PART B
 // of the Geometry test has no analogue here. What binds instead is LAYOUT and
 // two ABI properties that a later edit could silently break:
 //
-// PART A — LAYOUT. Every size, alignment and field offset the two headers claim,
-//   measured here as well as `static_assert`ed there, so a header edit that moves
-//   a field fails a TEST and not only a build somebody may be tempted to "fix".
-//   It also pins the three EMBEDDINGS that fix `sizeof(Camera)` independently of
-//   Camera's own field list — `RendererDrawGroup`'s two adjacent Cameras and
-//   `RendererSceneEntry`'s one — and the eight POD cross-asserts that keep the
-//   `RtGraphics` mirrors from drifting.
+// PART A — LAYOUT. Standard layout for the three roots, `Scene`'s grid field
+//   offsets, the sizes of `::Frustum` and `Math::Matrix`, retail's nested names
+//   for the element types, and `RtGraphics::kSceneCellCount`.
 //
 // PART B — TRIVIAL COPYABILITY (RULE B5-4), IN BOTH DIRECTIONS. `Camera` is a
-//   by-value member of two `Collection::Array<T>` element types, so it must stay
-//   trivially copyable; `RendererDrawGroup` and `RendererSceneEntry` must NOT be,
+//   by-value member of two `Collection::Array<T>` element types: its assign and
+//   destructor stay trivial (its copy constructor is retail's partial copy, Camera.h);
+//   `RendererDrawGroup` and `RendererSceneEntry` must NOT be trivially destructible,
 //   because each embeds a `Collection::Array<T>` whose destructor is what
 //   `rtcoll::SpecFor<T>`'s destroy hook (and retail's 0x18001c8c0 / 0x18001ce90)
 //   runs. Both halves are asserted, because getting either wrong changes which
@@ -42,28 +39,23 @@
 //   `SunLight::GetSunCamera` returns a whole `Camera` by value. Block E measured
 //   that GCC's ms_abi passes the hidden return pointer BEFORE `this`, which is
 //   why a VIRTUAL by-value return must spell an out-parameter in retail order
-//   (Geometry.h's B5-12 block). PART C shows the other half of that finding: for
-//   a NON-VIRTUAL member the same swap is invisible, because both ends of the
-//   call are this same GCC — and that the DOOR shape the tree uses,
-//   `(this, ret)` with `RAX = ret`, reproduces retail's ABI exactly when the door
-//   placement-news the member's prvalue. A `void` door would be the 2026-09-13
-//   perf-only crash (`1a4200c3`) again.
+//   (Geometry.h's B5-12 block). For a NON-VIRTUAL member the same swap is invisible,
+//   because both ends of the call are this same GCC. PART C cannot call the four
+//   getters (renderer.cpp is not linked here); it checks that each getter's SOURCE
+//   member is a whole value type whose copy moves exactly the dwords retail moves.
 //
-// PART D — THE QUALIFIED CALL. Doors delegate with
-//   `reinterpret_cast<Ns::C*>(self)->Ns::C::Method(args)`. On a NON-POLYMORPHIC
-//   class the qualification cannot change dispatch, and PART D says so as a
-//   measurement rather than as an assumption: a hand-built table stamped over the
-//   object is not consulted by either spelling, so no door in block F's set can
-//   re-enter itself the way B34_BRIEFS §A.1 warns about for a polymorphic one.
+// PART D — THE QUALIFIED CALL. Camera, Renderer, Scene, RendererDrawGroup and
+//   RendererSceneEntry are not polymorphic, so qualifying a member call cannot
+//   change dispatch, and the first eight bytes of `Renderer` and `Scene` are
+//   data, not a vptr.
 //
 // WHAT IS *NOT* PROVEN HERE
 // -------------------------
-// Nothing about MSVC, and nothing about the ported bodies. NO TREE SOURCE IS
-// LINKED: every body of these seven classes lives in `src/engine/graphics/
+// Nothing about MSVC, and nothing about the ported bodies: no test here calls a
+// member of these classes, whose bodies live in `src/engine/graphics/
 // {renderer,scene,cull,sun_camera,wave9_lane_gfxd,wave29_lane_gfxbody,
-// closure_batch2b}.cpp`, which stand on `RegisterRuntimeExport`, `ResolveAddr`,
-// `RT_EXPORT_ONCE` and `RT_DATA_SLOT` and cannot link into a host test (the same
-// reason `external_class_doors.cpp` is kept out — tests/unit/sources.cmake). The
+// closure_batch2b}.cpp` (of these, only `wave29_lane_gfxbody.cpp` is in
+// `UNIT_TREE_SRCS`, tests/unit/sources.cmake). The
 // binding binary facts here are OBJECT LAYOUT and the retail accessor bodies the
 // offsets were read out of; the arithmetic in `IsMirrored`, `GetSunCamera` and
 // `Scene::Clean` is verified by the real run.
@@ -86,18 +78,16 @@
 namespace {
 
 // Byte offset of a member measured from two live addresses, for the cases where
-// `offsetof` would be awkward. Every class here is standard-layout, so both
-// spellings are available and the two are cross-checked in PART A.
+// `offsetof` would be awkward. Every class here is standard-layout (PART A).
 template <typename Obj, typename Field>
 uintptr_t FieldOffset(const Obj* obj, const Field* field) {
     return reinterpret_cast<uintptr_t>(field) - reinterpret_cast<uintptr_t>(obj);
 }
 
 // Raw storage for a class whose default constructor is deliberately not
-// accessible (`Graphics::Camera`, RULE B5-4) or whose real constructor is a
-// registered DOOR (`Graphics::Renderer`, `Graphics::Scene`). Nothing here
-// CONSTRUCTS one: these tests read layout, and a `reinterpret_cast` over aligned
-// bytes is exactly what every minted row and every hand-inlined caller does.
+// accessible (`Graphics::Camera`, RULE B5-4) or whose real constructor is not
+// linked here (`Graphics::Renderer`, `Graphics::Scene`). Nothing here
+// CONSTRUCTS one: these tests read layout over zeroed, aligned bytes.
 template <typename T>
 struct RawOf {
     alignas(T) unsigned char bytes[sizeof(T)];
@@ -113,15 +103,12 @@ struct RawOf {
 // ===========================================================================
 
 UNIT_TEST(graphics_camera_field_offsets) {
-    // Each offset names the retail body that pins it.
-
     // `offsetof` and the live-address form must agree — they do only if the class
-    // is standard-layout, which is the property that lets every minted row and
-    // every `(*(void***)p)[N]` caller keep working.
+    // is standard-layout.
     CHECK(std::is_standard_layout_v<Graphics::Camera>);
 
     // The embedded value types are the REAL Math / Volume classes, and their own
-    // sizes are what make the three offsets above add up.
+    // sizes are what make Camera.h's three offsets (+0x00, +0x64, +0x94) add up.
     CHECK_EQ(sizeof(::Frustum), size_t(0x64));
     CHECK_EQ(size_t(0x94) + sizeof(Math::Matrix), size_t(0xd4));
 }
@@ -164,11 +151,8 @@ UNIT_TEST(graphics_scene_field_offsets) {
 // ===========================================================================
 
 UNIT_TEST(graphics_camera_copy_ctor_is_retails_assign_and_dtor_trivial) {
-    // The half that must be TRUE. `Camera` is a by-value member of two array
-    // element types and retail moves it as a plain 0xd8 blob, so the class must
-    // carry no copy, assign or destroy step of its own. Its defaulted copy is
-    // also what makes the three-byte deviation Camera.h records the ONLY
-    // divergence from retail's partial copy bodies.
+    // `Camera` is a by-value member of two array element types; the class
+    // carries no assign or destroy step of its own.
     // B.4 S4 GFX2: the copy CONSTRUCTOR is retail's partial 0x180017a70 now
     // (Camera.h), so the class is no longer trivially copyable; the assign and
     // the destructor stay trivial.
@@ -184,7 +168,7 @@ UNIT_TEST(graphics_camera_copy_ctor_is_retails_assign_and_dtor_trivial) {
     CHECK(std::is_trivially_copyable_v<Graphics::RendererDrawItem>);
 
     // `Camera`'s default constructor is `protected` (B4b-3) so only the two
-    // holders can make one, and `??0Camera@Graphics@@QEAA@XZ` stays a door.
+    // holders can make one.
     CHECK(!std::is_default_constructible_v<Graphics::Camera>);
     // ...and the holders CAN, which is what lets them hold it by value.
     CHECK(std::is_default_constructible_v<Graphics::RendererDrawGroup>);
@@ -209,8 +193,7 @@ UNIT_TEST(graphics_renderer_element_types_keep_their_destructors) {
 
 UNIT_TEST(graphics_camera_byvalue_getters_copy_exactly_what_retail_copies) {
     // WHAT THIS CAN AND CANNOT DO. The four members themselves are in
-    // `renderer.cpp`, which stands on `RegisterRuntimeExport`, `ResolveExport` and
-    // `RT_DATA_SLOT` and is NOT on the UNIT_TREE_SRCS list, so calling
+    // `renderer.cpp`, which is NOT on the UNIT_TREE_SRCS list, so calling
     // `Graphics::Camera::GetFrustum()` here is an undefined reference at link.
     // Defining marker bodies for them in this file — block H1's arrangement for
     // its two polymorphic classes — would be a SECOND definition of four functions
@@ -267,14 +250,10 @@ UNIT_TEST(graphics_camera_byvalue_getters_copy_exactly_what_retail_copies) {
 // ===========================================================================
 
 UNIT_TEST(graphics_renderer_family_has_no_vtable_to_dispatch_through) {
-    // B34_BRIEFS §A.1 makes every door's delegation a QUALIFIED non-virtual call
-    // because a live POLYMORPHIC instance in this build wears a MINTED table
-    // whose slots resolve back to the doors themselves, so an unqualified virtual
-    // call inside a door is infinite recursion. None of block F's classes is
-    // polymorphic — B35_RULES §2.1: no `??_7Camera@Graphics@@6B@`, no
-    // `??_7Renderer@`, no `??_7Scene@`, no `_typeInfo`, and every export
-    // `QEAA`/`QEBA`/`AEBA` — so for THIS block the qualification cannot change
-    // dispatch and no door can re-enter itself. Stated as a measurement:
+    // None of block F's classes is polymorphic — B35_RULES §2.1: no
+    // `??_7Camera@Graphics@@6B@`, no `??_7Renderer@`, no `??_7Scene@`, no
+    // `_typeInfo`, and every export `QEAA`/`QEBA`/`AEBA` — so a qualified and an
+    // unqualified member call dispatch the same way. Stated as a measurement:
     CHECK(!std::is_polymorphic_v<Graphics::Camera>);
     CHECK(!std::is_polymorphic_v<Graphics::Renderer>);
     CHECK(!std::is_polymorphic_v<Graphics::Scene>);

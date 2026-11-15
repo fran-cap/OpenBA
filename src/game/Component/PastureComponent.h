@@ -5,7 +5,7 @@
 // `PastureComponent` (a pasture: its livestock, capacity and herder commands) as a
 // real C++ class with a compiler-generated vtable and its state controller as an
 // EMBEDDED MEMBER at +0x48, after the class's own 0x20 bytes (B38_RULES.md D1-D6;
-// there is no multiple inheritance). The engine/types POD is a forwarder.
+// there is no multiple inheritance).
 //
 // RETAIL (B38_SLOTS.md §2 / §6, bytes read 2026-09-26):
 //   reflected "PastureComponent", parent "ControllerComponent", ti 0x1401c7ba0

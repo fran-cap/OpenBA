@@ -5,9 +5,9 @@
 // resources, weather, citizen status indicators.
 //
 // Vtable layout (reimpl names -> actual function):
-//   +0x28 (Draw/Slot5):     0x14007a3d0 — element finding/init (319 lines)
-//   +0x38 (Startup/Slot7):  0x1400798d0 — main HUD update (299 lines)
-//   +0x48 (OnRemove/Slot9): 0x14007a3a0 — status icon click handler (reimplemented)
+//   +0x28 (OnOpened/Slot5):       0x14007a3d0 — element finding/init (319 lines)
+//   +0x38 (OnUpdateLayout/Slot7): 0x1400798d0 — main HUD update (299 lines)
+//   +0x48 (OnElementEvent/Slot9): 0x14007a3a0 — status icon click handler (reimplemented)
 //
 // Original source: C:\Projects\Buildy\code\Game\Dialog/StatusBarUI.h
 //                  Dialog\StatusBarUI.cpp
@@ -44,7 +44,7 @@
 #include "Game/Calendar.h"
 #include "Game/WeatherSimulation.h"
 #include "Game/PlayerToolManager.h"
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"   // System::MemoryAllocator
 #include "ext/registry.h"              // Ext::Fix().statusbar_empty_town
 
 // CitizenUI_UpdateIconDisplay_Impl is in the shared header Dialog/citizen_icon_helpers.h;
@@ -76,7 +76,7 @@ static T* FindNamed(StatusBarUI* self, const char* name) {
 }
 
 // ============================================================
-// StatusBarUI_Draw (0x14007a3d0, vtable +0x28):
+// StatusBarUI::OnOpened (0x14007a3d0, vtable +0x28):
 // Element initialization — finds all named UI elements
 // ============================================================
 
@@ -167,7 +167,7 @@ void StatusBarUI::OnOpened() {
 }
 
 // ============================================================
-// StatusBarUI_Startup (0x1400798d0, vtable +0x38):
+// StatusBarUI::OnUpdateLayout (0x1400798d0, vtable +0x38):
 // Main HUD update — called every frame
 // ============================================================
 // Iterates all citizens to count status problems (homeless, hungry,
@@ -448,19 +448,19 @@ bound_test:
 }
 
 // ============================================================
-// StatusBarUI_OnRemove (0x14007a3a0, vtable +0x48):
+// StatusBarUI::OnElementEvent (0x14007a3a0, vtable +0x48):
 // Status icon click handler.
 //
-// Called when an element is activated (eventType == 2 = element click).
+// Called on a left press on an element (eventType == 2, UI::EventId::LeftPress).
 // Status icons imageStatusHome..imageStatusDisease have element IDs 100-105
-// (set during Draw/Startup initialization).
+// (set in OnOpened).
 //
 // On each click of icon N, cycles to the NEXT citizen whose StatusIconComponent
 // bits include bit N (1 << N), increments self->statusCitizenIndex,
 // navigates camera and opens CitizenUI for that citizen.
 //
 // The actual citizen search + navigation is done by the shared helper at
-// 0x14007a120 (fn_StatusBarUI_StatusIconHandler), which:
+// 0x14007a120 (StatusBarUI_StatusIconHandler_Impl), which:
 //   1. Checks game state flag (bails if paused/locked)
 //   2. Increments and wraps self->statusCitizenIndex within citizen count
 //   3. Iterates citizens starting at that index, finds StatusIconComponent
@@ -489,9 +489,9 @@ void StatusBarUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, 
 // with every field on its .rsc default: title untitled, all statistics zero.
 //
 // Retail vtable (exe @ 0x14015d810):
-//   idx5 (+0x28) = 0x14007a3d0  element discovery      -> StatusBarUI_Draw
-//   idx7 (+0x38) = 0x1400798d0  full stats refresh      -> StatusBarUI_Startup
-//   idx9 (+0x48) = 0x14007a3a0  status-icon click       -> StatusBarUI_OnRemove
+//   idx5 (+0x28) = 0x14007a3d0  element discovery      -> StatusBarUI::OnOpened
+//   idx7 (+0x38) = 0x1400798d0  full stats refresh      -> StatusBarUI::OnUpdateLayout
+//   idx9 (+0x48) = 0x14007a3a0  status-icon click       -> StatusBarUI::OnElementEvent
 //
 // Slot 5 is dispatched by DialogInstance::OnOpened when the dialog is added
 // (UserInterface::AddDialog), slot 7 by DialogInstance::ComputeLayout from

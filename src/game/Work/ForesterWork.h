@@ -17,8 +17,8 @@
 //   Validate  [10] 0x1400eb910 GetTarget  [11] 0x140029860 GetPriority (`+0x50 > 0`,
 //   shared by 13 tables)  [12] = Work (0x140006b10)
 //   ForesterComponent's CreateWork (resourceproduce_creatework.cpp, block MI-B) builds
-//   the work BY HAND (retail 0x14011f780) and stamps 0x1401613a0; that registration
-//   serves ForesterWork::Vtable() (B38 D5). The default ctor here builds what the tree's
+//   the work (retail 0x14011f780) from the default ctor and Work::InitFromEntity. The
+//   default ctor here builds what the tree's
 //   factory built (Work_GenericCtor: base init, leaf fields zeroed).
 // ============================================================================
 
@@ -53,8 +53,8 @@ public:
     // reads the element's +0x278): the assigned citizens. A real member: the ctor (0x14011f780)
     // zeroes root (qword) and count (dword) under an EH state, the dtor 0x1400eba00 runs its
     // inlined Clear before the AutoPickupWork / Work stamps. `_citizens._count` (+0x50) is
-    // the assigned count (0x140029860 `CMP [RCX+0x50],EAX; SETG`). The Set ctor also zeroes
-    // its +0x0c pad (+0x54), which retail leaves (known_port_issues row 640).
+    // the assigned count (0x140029860 `CMP [RCX+0x50],EAX; SETG`). The Set ctor leaves
+    // its +0x0c pad (+0x54) as found, as retail does (known_port_issues row 640).
     using CitizenSet     = Collection::Set<CitizenComponent*>;
     using AssignmentNode = CitizenSet::Node;
     CitizenSet _citizens;

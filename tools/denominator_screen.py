@@ -70,8 +70,7 @@ WHERE THE MECHANISABLE VERSION LIVES INSTEAD
 --------------------------------------------
 Enforce the denominator where the number is PRODUCED, not where it is QUOTED.
 A tool's output is machine-readable and its author is one place; a wave doc is
-neither.  That approach has already worked in this tree -- runtime_census.py
-prints SUBJECT / PARAMETERS / POPULATION before any finding, and Wave 18's six
+neither.  That approach has already worked in this tree -- Wave 18's six
 instruments were repaired by making each print what it could not see.  Note
 the asymmetry: Wave 20 §5.10's four denominator failures were in an
 instrument, a lane, a close, and a self-verification -- and only the FIRST of
@@ -88,8 +87,8 @@ import os
 import re
 import sys
 
-# A candidate numeric claim: a bare integer (2+ digits, or 1 digit followed by
-# a noun we cannot see) or a percentage.
+# A candidate numeric claim: a bare integer of 2+ digits (scan_file drops a bare
+# single digit) or a percentage.
 NUM_RE = re.compile(r"(?<![\w.$])(\d{1,3}(?:,\d{3})+|\d+)(%?)(?![\w.])")
 
 # SKIP -- syntactic shapes that are not counts.  Each one is a deliberate

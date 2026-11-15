@@ -55,31 +55,31 @@
 
 // Diagnostics-only counters (src/diag/orchard_diag.cpp). No-op unless
 // BANISHED_ORCHARD_DIAG is set; never change behaviour.
-#include "orchard_diag.h"   // standalone/: the orchard diagnostic counters
+#include "orchard_diag.h"   // src/diag/: the orchard diagnostic counters
 
 // ============================================================
 // Sub-functions, called by name (B3R; Work/Action/Component/Tutorial/Game headers)
 // ============================================================
 //   AutoPickupWork::CheckAssignments (0x1400e3db0)  Work::TryAutoPickup
-//   0x140003050 FindComponent MaterialDesc          WorkBase_FindComponent_3050
-//   0x140002f90 FindComponent MeshInstance          WorkBase_FindComponent_2f90
-//   0x140005440 FindComponent OrchardDescription    WorkAcc_FindComponent_5440
-//   0x1400052c0 FindComponent NaturalResource       WorkBase_FindComponent_52c0
-//   0x14000a0b0 FindComponent (description comp)    WorkLeaf_FindComp_a0b0
-//   0x14012c3f0 MeshInstance set visible            CitizenComp_FUN_14012c3f0
+//   0x140003050 FindComponent MaterialDesc          FindComponent<WorkComponent>
+//   0x140002f90 FindComponent MeshInstance          FindComponent<StatusIconComponent>
+//   0x140005440 FindComponent OrchardDescription    FindComponent<OrchardComponent>
+//   0x1400052c0 FindComponent NaturalResource       FindComponent<NaturalResourceComponent>
+//   0x14000a0b0 FindComponent (description comp)    FindComponent<FruitComponent>
+//   0x14012c3f0 MeshInstance set visible            StatusIconComponent::SetFlag
 //   0x14012e5c0 CalcMaxWorkers                      WorkComponent::CalcMaxWorkers
-//   0x14009ccf0 Map_FindNearestPassable             WorkGrid_FindCell_9ccf0
-//   0x1400a00f0 Map_CanPathTo                       WorkBase_ValidateCell_a00f0
+//   0x14009ccf0 Map_FindNearestPassable             Map::FindCell
+//   0x1400a00f0 Map_CanPathTo                       Map::ValidateCell
 //               (a uint64 whose low byte is the bool; read through uint8_t)
-//   0x14009f3e0 GetTerrainPos                       Reimpl_MapGetTerrainPos
-//   0x140006330 FindComponent RawMaterial           WorkAcc_FindComponent_6330
+//   0x14009f3e0 GetTerrainPos                       Map::GetTerrainPos
+//   0x140006330 FindComponent RawMaterial           FindDescription<RawMaterialDescription>
 //   0x1400bb7b0 orchard harvest action ctor         WorkAct_GatherWorkCtor_bb7b0
 //   0x140029a40 / 0x14001ca60 / 0x140029de0 cell BST insert / remove / serialize
 //                                                   WorkCellBST_Insert_9a40 / _Remove_ca60 / _Serialize_9de0
 //   0x1400f7100 ValidateTask                        Work::ValidateTask
-//   0x1400c5400 cancel work                         WorkBase_TaskListCleanup_c5400
-//   0x140002e10 FindPositionComponent               AttendanceComponent_GetJobHostComponent
-//   0x14000e320 BST recursive free                  WorkBase_TreeNodeFree_e320
+//   0x1400c5400 cancel work                         ActionStack::Clear
+//   0x140002e10 FindPositionComponent               FindComponent<WorkPlaceComponent>
+//   0x14000e320 BST recursive free                  the `_cells` member's ~Set
 //   MemAlloc                                        System::MemoryAllocator::MemAlloc
 //   DAT_140172114 = 0.5f                            kRdata_140172114
 
@@ -134,8 +134,7 @@ int HarvestOrchard::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
     bool isDerived = Object::IsDerivedFromNullSafe(descObj, OrchardDescription::TypeId());
     OrchardDescription* orchardDesc = isDerived ? static_cast<OrchardDescription*>(descObj) : nullptr;
 
-    // Check tree count vs max workers (the tree's port of 0x14012e5c0 called here takes
-    // the component as an integer: LEFT)
+    // Check tree count vs max workers (0x14012e5c0)
     int treeCount = _cells._count;
     if (matDesc->workState == 0) {
         int maxWorkers = matDesc->CalcMaxWorkers();
@@ -161,7 +160,7 @@ int HarvestOrchard::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
 
     // Step 3: Get map and citizen position
     Map* map = gameWorld->m_game;
-    // The map helpers (0x14009ccf0, 0x1400a00f0) take the map as int*: LEFT.
+    // The map helpers (0x14009ccf0, 0x1400a00f0) are Map::FindCell / Map::ValidateCell.
     Map* mapGrid = map;
 
     const Math::Vector3& citizenPos = (*citizenIBP)->character->modelComponent->transform.translation;
@@ -210,7 +209,7 @@ int HarvestOrchard::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
                         mapGrid->FindCell(srcCellIdx, citizenGridCell, PathBits::Walk & ~PathBits::Obstacle);
 
                     if (nearestCell >= 0) {
-                        uint64_t canPath = (uint64_t)static_cast<uint8_t>(mapGrid->ValidateCell(PathBits::Walk, citizenGridCell, nearestCell));   // the bool door read AL
+                        uint64_t canPath = (uint64_t)static_cast<uint8_t>(mapGrid->ValidateCell(PathBits::Walk, citizenGridCell, nearestCell));   // the bool is the low byte (AL)
                         if ((char)canPath != 0) {
                             // Check the NaturalResourceComponent (0x1400052c0)
                             NaturalResourceComponent* natRes = entityAtCell->FindComponent<NaturalResourceComponent>();
@@ -370,8 +369,7 @@ int HarvestOrchard::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
 // `picked >= live` latch. The [OrchardGrow] harness corroborated it — exactly one of
 // twelve trees was repeatedly zeroed and re-ripened.
 int HarvestOrchard::OnComplete(CitizenComponent** /*param2*/, ComponentEntity** /*param3*/, int param4) {
-    // Search the claim tree for the key and remove if found (the helper takes the
-    // container as uintptr_t*: LEFT)
+    // Search the claim tree for the key and remove if found
     ClaimNode* node = _cells._root;
     while (node != nullptr) {
         if (param4 < node->element.slot) {
@@ -396,8 +394,7 @@ int HarvestOrchard::OnComplete(CitizenComponent** /*param2*/, ComponentEntity** 
 // the found and not-found exits (0x1400ed84d and 0x1400ed865). Cancelling a pick
 // returns that tree to the pool.
 int HarvestOrchard::OnCancel(CitizenComponent** /*param2*/, ComponentEntity** /*param3*/, int param4) {
-    // Search the claim tree for the key and remove if found (the helper takes the
-    // container as uintptr_t*: LEFT)
+    // Search the claim tree for the key and remove if found
     ClaimNode* node = _cells._root;
     while (node != nullptr) {
         if (param4 < node->element.slot) {
@@ -446,7 +443,6 @@ int HarvestOrchard::Cleanup() {
 // HarvestOrchard::Slot9 -- RemoveInvalid
 // ============================================================
 // Identical structure to HarvestArea::Slot9.
-// Hook DISABLED (bug class 2: MOV RAX,RSP in prologue).
 int HarvestOrchard::Validate() {
     int* collectArray = nullptr;
     int* currentArray = nullptr;
@@ -537,7 +533,6 @@ int HarvestOrchard::Validate() {
     }
 
 cleanup:
-    // (the helper takes the container as uintptr_t*: LEFT)
     if ((int)collectCount > 0) {
         for (uint32_t k = 0; k < collectCount; k++) {
             ClaimNode* bstNode = *root;
@@ -594,7 +589,7 @@ void HarvestOrchard::Persist(IO::Stream& stream) {
         _slotsAvailable.SetSize(cellCountBuf[0]);
     }
 
-    // Serialize validity array through the BOOL-ARRAY door.
+    // Serialize validity array through the bool-array overload.
     //
     // ENDGAME B.3.4 callers batch H — SETTLED FROM RETAIL. HarvestOrchard's
     // Serialize (Application-x64.exe 0x1400edea0) is instruction-for-instruction
@@ -609,7 +604,7 @@ void HarvestOrchard::Persist(IO::Stream& stream) {
     // the old `s_fn_Serializer_SerializeBoolArray` alias pointed at (removed with
     // its door in the B.3.4a closing sweep). See
     // harvestarea.cpp for the full argument.
-    serializer2.Serialize(cellCountBuf[0], _slotsAvailable._data, nullptr);   // slot 0x140151458 = bool-array door
+    serializer2.Serialize(cellCountBuf[0], _slotsAvailable._data, nullptr);   // slot 0x140151458 = the bool-array overload
 }
 
 

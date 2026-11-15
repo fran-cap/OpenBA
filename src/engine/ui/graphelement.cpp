@@ -6,9 +6,9 @@
 //
 //   slot  method                retail       where
 //   ----  --------------------  -----------  ---------------------------------
-//    0    vector deleting dtor  0x1800408b0  deleting_dtor.cpp row
-//    1    TypeName              0x180040460  here
-//    2    Type                  0x180040440  here
+//    0    vector deleting dtor  0x1800408b0  GraphElement.h (the class's own)
+//    1    TypeName              0x180040460  GraphElement.h (DECLARE_TYPE)
+//    2    Type                  0x180040440  GraphElement.h (DECLARE_TYPE)
 //    4    ComputeSize           0x1800d1810  here
 //    5    ComputeLayout         0x1800d16b0  here
 //    6    Draw                  0x1800d1360  here
@@ -23,12 +23,10 @@
 //
 // ENDGAME B.3.6 block C5: the five slot bodies MOVED into the members of the
 // real `UI::GraphElement` (src/engine/ui/GraphElement.h, which now names the
-// fields this banner used to list as offsets); each registered door is a
-// one-line QUALIFIED delegation. The ctor / copy-ctor / dtor stay doors (B4b-2).
+// fields this banner used to list as offsets); the dtor is a member too (below).
 //
-// `??0GraphElement@UI@@QEAA@XZ` (0x1800d1880) is NOT here: it is already
-// ported and registered, table-driven, by src/engine/ui/factory_ui1.cpp
-// (the factory roster). One address, one owner.
+// `??0GraphElement@UI@@QEAA@XZ` (0x1800d1880) is NOT here: it is the class's
+// ctor in src/engine/ui/GraphElement.h.
 // ============================================================================
 #include <new>
 
@@ -45,12 +43,6 @@ constexpr int kSeriesCnt = UI::GraphElementOffsets::kGraphsCount;   // 0xf8
 
 static_assert(kSeries == 0xf0 && kSeriesCnt == 0xf8,
               "GraphElement.h must still pin the series Array at +0xf0");
-
-// The two exported DATA slots, in namespace-scope atomics (RULE B6-5: the
-// members below may run on the loader thread).
-
-// UI::SpriteContext::AddLine(ctx, const Sprite&, x0, y0, x1, y1, color) — block
-// D's class, reached by address (its door stays a door).
 
 
 // 0x180161694 and 0x18016169c, read out of the DLL's float pool for this batch.
@@ -158,7 +150,6 @@ void GraphElement::Draw(SpriteContext& context, uint8_t alpha) const {
 
     const int32_t seriesCount = _seriesCount;
     for (int32_t s = 0; s < seriesCount; ++s) {
-        // LEFT: _seriesData stays void* (widgets_layout.cpp, R-UI-b, views it as bytes).
         const GraphSeries* rec = static_cast<const GraphSeries*>(_seriesData) + s;   // stride 0x18
         const int width = _layoutWidth;
         const int segments = rec->points._size - 1;                  // rec+0x10

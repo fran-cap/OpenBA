@@ -8,7 +8,8 @@ asks -- "who READS this static in the DLL, in a body we have NOT ported?" -- but
 its population is hard-wired to the twenty ``?_singleton@`` rows, and it asserts
 that count.  Lane VIDVT's subjects are
 
-  * 4 ``?_first*@`` statics  (heads of intrusive lists of live GPU resources),
+  * 4 ``?_first*@`` statics  (heads of intrusive lists of live GPU resources) and the
+    2 ``?_singleton@`` statics of Video::Configuration and Video::Device,
   * 12 ``??_7*Data@Video@@6B@`` base vtables (whose triage question is not
     "who reads it" but "who STAMPS it" -- i.e. LEA references),
 

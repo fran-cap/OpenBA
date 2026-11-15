@@ -15,9 +15,8 @@
 // See src/engine/application/Application.h for the layout and the
 // vtable verdict (not polymorphic, proven from the ctor's first store).
 //
-// `Application::Application` (the class) is NOT in this lane's function list
-// and is not ported: the wave brief names only the six functions in
-// docs/history/runtime_port/wave8_lanes.txt, and the ctor is not one of them. This
+// The constructor is `Ctor_Application` (src/engine/engine/singleton_ctors.cpp),
+// outside the six functions docs/history/runtime_port/wave8_lanes.txt lists. This
 // file only reads/writes the two bytes IsPaused and Quit touch.
 // ============================================================================
 
@@ -38,7 +37,6 @@ using App = Application::Application;
 // ?IsPaused@Application@1@QEAA_NXZ
 // ----------------------------------------------------------------------------
 // `return this[0x11] == 0`. A plain byte read, no state mutated.
-// Oracle: FULL DIFF.
 // ============================================================================
 bool Application::Application::IsPaused() {
     const bool ours = (_running == 0);
@@ -50,19 +48,6 @@ bool Application::Application::IsPaused() {
 // ?Quit@Application@1@QEAAXXZ
 // ----------------------------------------------------------------------------
 // `this[0x28] = 1`. One byte store.
-//
-// ORACLE: SCRATCH-COPY DIFF over sizeof(Application).
-//
-// CORRECTED BY WAVE 12 LANE B (PLAN §6 step 8). This comment used to say the
-// copy was "restricted to the first 0x29 bytes ... this lane does not port the
-// constructor and so does not know the class's true extent — only that it is AT
-// LEAST 0x29 bytes". That caveat is now stale in both halves: the extent IS
-// known — 0x30, from retail's own allocation at Engine::Startup 0x1800dbbb3
-// (`MemAlloc(0x30, 4)`), asserted in the header — and the constructor IS ported
-// (src/engine/engine/singleton_ctors.cpp:576). Nothing about the code below
-// changes: `sizeof(Application)` was already 0x30 to the compiler, because the
-// struct's alignment is 8, so the copy was always a full-object copy and always
-// in bounds. Only the reasoning was wrong.
 // ============================================================================
 void Application::Application::Quit() {
     _quitRequested = 1;
@@ -109,9 +94,7 @@ int64_t QpcToEngineTicks(int64_t qpc) {
 // millisecond divisor) reads as 1000.0f (bytes 00 00 7a 44), confirmed by
 // direct memory read against the shipped DLL rather than assumed.
 //
-// `this` is never read — retail's SleepThread ignores the object entirely,
-// which is why the parameter below is unused and untyped-through only for
-// signature fidelity.
+// `this` is never read — retail's SleepThread ignores the object entirely.
 // ============================================================================
 void Application::Application::SleepThread(int32_t ms) {
 

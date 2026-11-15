@@ -20,7 +20,7 @@ complete DLL reimplementation, which is not the stated goal (PLAN.md §4.1
 decision 1: static link, no drop-in DLL).
 
 Usage:
-    tools/ghidra_mcp/.venv/Scripts/python.exe tools/runtime_census.py
+    tools/ghidra_mcp/.venv/Scripts/python.exe perf/mintsel/runtime_census_at_MINTSEL.py
     ... --csv docs/runtime_port/census_<stamp>.csv    write the per-function rows
     ... --unported                                    list what is called but not ported
     ... --namespace UI                                restrict to one namespace

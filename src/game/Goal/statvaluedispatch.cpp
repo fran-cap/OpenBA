@@ -13,10 +13,7 @@
 // 0x14011e710, the FindComponent<T> instances 0x140004680 / 0x140003ea0);
 // those are ported here too, typed.
 //
-// B.4 TUT: every field is read by name. LEFT (raw): the two CitizenBehavior
-// trees (+0x100, +0x160; WORK-a's header declares them `void*`, no node type)
-// and WorldGeometry's +0x220 int array (GAME-c's header holds it as an untyped
-// {data, count|cap} Header).
+// B.4 TUT: every field is read by name.
 
 #include "Goal/StatGoal.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton

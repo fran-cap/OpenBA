@@ -38,14 +38,12 @@ using namespace rtuielem;
 
 namespace {
 
-// UI::UserInterface's current clip rectangle, four dwords at +0xfc..+0x108
-// (block E's class, reached at raw offsets). Proven by this class: Update and
-// Contains save it, overwrite it with their own layout rect, run the base body,
-// and put the old one back.
+// UI::UserInterface's current clip rectangle, `_clipRegion`, four dwords at
+// +0xfc..+0x108. Proven by this class: Update and Contains save it, overwrite it
+// with their own layout rect, run the base body, and put the old one back.
 
 // UI::SpriteContext::SetScissor(ctx, Viewport& out, const Viewport& in) —
 // returns the PREVIOUS scissor by value through the hidden slot in RDX.
-// Block D's class, reached by address.
 
 // ENDGAME B.3.5 block VC: the REAL `Video::Viewport` (src/engine/video/
 // Context.h), field-identical to the local duplicate this file once had.

@@ -1,6 +1,6 @@
 // ============================================================================
-// tests/fuzz/text_codec3_fuzz.cpp -- a one-shot repro, not a fuzz loop: ConvertText's int32
-//   `produced` counter over a source whose UTF-8 form passes 2 GB
+// tests/fuzz/text_codec3_fuzz.cpp -- a one-shot repro, not a fuzz loop: ConvertText's `produced`
+//   counter over a source whose UTF-8 form passes 2 GB (the return saturates at INT32_MAX)
 // ============================================================================
 // Any input runs the same case: 0x2B000000 raw 16-bit units of U+FFFF (1.34 GB, format 1), sized
 // into UTF-8 (format 2, 3 bytes each): 0x81000000 bytes, past INT32_MAX. Run it with

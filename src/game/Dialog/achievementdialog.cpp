@@ -1,9 +1,9 @@
-// engine/src/ui/achievementdialog.cpp
+// src/game/Dialog/achievementdialog.cpp
 // Clean reimplementation of AchievementDialog game logic.
 //
 // AchievementDialog (0xD0 bytes) — achievement progress display.
 // Extends DialogInstance (0xB8 base).
-// +0x20 = parent element, +0x28 = entity/data source, +0x30 = progress element.
+// +0xB8 = textComplete element, +0xC0 = the row entry array (stride 0x20).
 //
 // Decompiled from Application-x64.exe.
 
@@ -34,7 +34,7 @@
 #include <cstdint>
 #include "object/Internal.h"   // ENDGAME B.3.3 step 6B
 #include "Entity/ComponentEntity.h"   // X::TypeId() (ENDGAME B.3.9)
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"   // B3R: the allocator
 
 // ============================================================
 // AchievementDialog::OnOpened (vtable +0x20) — Setup/populate achievement table

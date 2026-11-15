@@ -4,7 +4,7 @@
 //
 // `??_7RibbonElement@UI@@6B@` (retail 0x180156e70):
 //
-//   0  vector deleting dtor  0x180044ac0  -> deleting_dtor.cpp row (this batch)
+//   0  vector deleting dtor  0x180044ac0  the compiler's (virtual ~RibbonElement)
 //   1  TypeName              0x1800446e0  here
 //   2  Type                  0x1800446c0  here
 //   4  ComputeSize           0x1800d6190  here
@@ -21,8 +21,8 @@
 // file's offsets there under the retail name).
 //
 // ENDGAME B.3.6 block C5: the five slot bodies MOVED into the members of the
-// real `UI::RibbonElement`; each registered door is a one-line QUALIFIED
-// delegation. The ctor / dtor stay doors (B4b-2).
+// real `UI::RibbonElement`. The ctor is inline in RibbonElement.h; the dtor is
+// below.
 //
 // UI::ListElement's +0xF0 points at one of these and reads exactly +0xC0,
 // +0xC4 and +0xC8 through it — corroboration of all three offsets from a

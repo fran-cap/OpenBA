@@ -5,8 +5,8 @@
 // PART A — size / shape: 0x30 (`MemAlloc(0x30)` in Engine::Startup
 //   0x1800dbbb3), no vtable, not default-constructible (the ctor is the door
 //   `Ctor_Application`), and `RtApplication::Application` IS the class.
-// PART B — Engine::_application at +0x690 (Application's own field offsets
-//   are Application.h's static_asserts).
+// PART B — Engine::_application at +0x690 is Engine.h's static_assert
+//   (Application's own field offsets are Application.h's static_asserts).
 // PART C — declared signatures that carry an ABI claim: IsCursorEnabled
 //   returns the RAW byte (uint8_t, the same AL as retail's `_N`, without C++
 //   bool normalisation); WindowProc is a STATIC member with the WNDPROC shape

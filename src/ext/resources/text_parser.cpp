@@ -2,8 +2,8 @@
 // src/ext/resources/text_parser.cpp -- our .rsc text dialect (text_parser.h)
 // ============================================================================
 // NOT RETAIL. A hand-written recursive-descent reader over a tiny tokenizer:
-// identifiers (letters, digits, '_', '.', ':' and a leading '-' / "0x" for
-// numbers), quoted strings (no escapes: a backslash inside the quotes is a path
+// identifiers (letters, digits, '_', '-', and '.' past the first character, so
+// numbers with a leading '-' / "0x" too), quoted strings (no escapes: a backslash inside the quotes is a path
 // delimiter, as in `"Font\FontSmall.rsc"`), the punctuation = ; : | { } [ ],
 // and `//` comments. Anything else is a syntax error with its line number.
 // ============================================================================

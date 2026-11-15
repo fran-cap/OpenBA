@@ -2,7 +2,7 @@
 // Trade wave — the last unported function in the trade path.
 //
 //   0x14005ace0  TradeComponent::SpawnPurchasedLivestock
-//                (engine_funcs' fn_Building_AddBuyToStorage)
+//                (Ghidra's Building_AddBuyToStorage)
 //
 // This is the LIVESTOCK arm of the trade checkout. When a player buys animals at a
 // trading post, the two other arms of 0x140081420 only register the purchase as
@@ -224,5 +224,4 @@ void TradeComponent::SpawnPurchasedLivestock(ComponentDescription* tmpl, unsigne
     std::fflush(stderr);
 }
 
-// B4 FORWARD: 1 outside caller (Dialog/tradeui_checkout.cpp) holds the post and the
-// purchased template untyped; the closing wave rewires it.
+// 1 outside caller: Dialog/tradeui_checkout.cpp (the checkout's livestock arm).

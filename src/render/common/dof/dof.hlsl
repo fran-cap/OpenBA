@@ -20,7 +20,7 @@
 //                                  SRC_ALPHA / INV_SRC_ALPHA, RGB only: the main alpha holds the shore
 //                                  depth the water reads)
 //
-// THE CoC (dof_backend.h FocusMath has the C++ twin, unit-tested): each pixel's distance from the camera
+// THE CoC (dof_math.h CocOf is the C++ twin, unit-tested): each pixel's distance from the camera
 // d (the world position from the scene depth and the inverse view-projection, the sky at a large
 // distance), the focus distance f (the camera's distance to its target, or the depth at the centre of the
 // screen when the frame passes 0),
@@ -28,7 +28,7 @@
 //     CoC = clamp(x * gain, -1, 1) * maxCoC          (half-resolution pixels; negative = near)
 // (d - f) / d is the thin lens's blur at a fixed focal length, up to the aperture: the far field tends to
 // the full blur, the near field grows without bound and is clamped. Stored in an 8-bit alpha as
-// CoC / (2 maxCoC) + 0.5 (the intermediate targets are BGRA8 on every backend).
+// CoC / (2 maxCoC) + 0.5 (the intermediate targets are RGBA8 on DX11, BGRA8 on Vulkan).
 //
 // The full-screen vertex program is AO's (src/render/common/ao/shaders/VSFullscreen.h, SV_Position only).
 // Compiled offline by tools/water_shaders.py (fxc, ps_4_0) into dof_*_ps.h.

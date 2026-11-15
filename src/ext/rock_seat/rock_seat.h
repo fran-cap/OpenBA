@@ -12,7 +12,7 @@
 // the minimap are retail's with the fix on.
 //
 // WHICH MODELS. An entity whose NaturalResourceDescription is not animated
-// (_b64, the falling-tree animation) and is mined with the pick axe (_u80 ==
+// (_animated, the falling-tree animation) and is mined with the pick axe (_toolType ==
 // kToolPickAxe): NaturalResourceRock and NaturalResourceOre in the shipped
 // data, and any mod template made the same way. Trees, bushes, herbs and crops
 // are left retail.

@@ -6,9 +6,8 @@
 // (MapGenerator, TerrainGenerator, BuildingGoal, the tutorial steps, the start
 // town) hands it, and the goals' / tutorials' ExternalPtr-by-name resolvers
 // (0x1400265b0, 0x140027de0) and the terrain-material resolver 0x14001fd10 read
-// the same three fields. B4 S4 RESOLVE: MapGenerator's `ExternalRef` and the
-// componentdescription.cpp-local `NamedDescriptionRef` were this record under
-// other names; they are gone.
+// the same three fields. B4 S4 RESOLVE: MapGenerator's `ExternalRef` is this
+// record (a `using` alias, Game/MapGenerator.h).
 //
 // B4 Y GAMEA (H5): `name` is a real System::String. Retail's default ctor is
 // inlined in every owner, in member order (String() qword 0, dword -1 at +0x08,

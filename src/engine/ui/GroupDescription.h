@@ -13,9 +13,6 @@
 //
 //   sizeof 0x78   `MOV EDX,0x78` at 0x180046b0f, the eh_vector_destructor
 //                 iterator stride in the deleting destructor 0x180046af0.
-//                 Corroborated by the factory's Allocate(0x78, 8) in
-//                 src/engine/ui/factory_ui1_tables.inc's kGroupDescription
-//                 row, whose last store is +0x70.
 //   +0x68 _children  `ADD RCX,0x68` before the `Array::~Array` call at
 //                 0x180117c20, and `LEA RCX,[RDI+0x68]` before
 //                 `Array<ExternalPtr<ElementDescription>>::SetSize`
@@ -34,8 +31,8 @@
 //
 // PARENT `UI::ElementDescription` — READ, not inferred:
 //     ?_ParentTypeName@GroupDescription@UI@@CAPEBDXZ  @0x180046630 -> "ElementDescription"
-// RULE B5-15 / B6-7 — the two literals, RECORDED, NOT USED (slots 1/2 keep
-// reading the minted `?_typeInfo@GroupDescription@UI@@…`):
+// RULE B5-15 / B6-7 — the two literals (DEFINE_TYPE in groupdescription.cpp
+// carries the parent one):
 //     ?_TypeName@GroupDescription@UI@@CAPEBDXZ        @0x180046620 -> "GroupDescription"
 //     ?_ParentTypeName@GroupDescription@UI@@CAPEBDXZ  @0x180046630 -> "ElementDescription"
 //

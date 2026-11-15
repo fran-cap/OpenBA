@@ -1,7 +1,7 @@
 // ============================================================================
 // tests/unit/ext_better_camera_test.cpp -- ext.better_camera
 // ============================================================================
-// src/ext/better_camera/better_camera.h without the game: the registry row (class A, off by default, the
+// src/ext/better_camera/better_camera.h without the game: the registry row (class B, on by default, the
 // profile keys), the pitch blend (retail's expression to the last bit), the wider zoom limits and their
 // normalisation, and the clamp back into retail's range when the row is turned off mid-game.
 // ============================================================================

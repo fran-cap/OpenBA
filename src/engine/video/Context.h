@@ -27,17 +27,15 @@
 // is asserted for the first time so that the tree's `memcpy` / `memset` /
 // `reinterpret_cast` traffic over these 0x2168 bytes stays well defined.
 // `Math::Matrix` and `Math::Vector4` are NOT trivially default-constructible
-// (their retail default constructors zero the storage, Math.h:218/175), so
+// (their retail default constructors zero the storage, Math.h:234/183), so
 // `Context` is not either — which is fine and is asserted the other way: see
 // "NO REAL CONSTRUCTOR" below.
 //
 // `RtVideo::Context`, `RtVideo::Viewport` and `RtVideo::ConstantBufferOpaque`
-// are now ALIASES for the real classes, at the bottom of this file. Nine files
-// outside block D1's set spell `RtVideo::Context` (src/engine/engine/loops.cpp,
-// graphics/wave21_lane_gfxbody.cpp, graphics/wave27_lane_gfxbig.cpp,
-// save/saveload_draw.cpp, ui/spritecontext.cpp, ui/spritecontext_flush.cpp,
-// ui/userinterface_draw.cpp, video/video_program.cpp) and they are untouched —
-// one definition, an alias, and no duplicate layout (B4b-1).
+// are ALIASES for the real classes, at the bottom of this file. Two files use
+// `RtVideo::Context` through a `using` (src/engine/graphics/wave21_lane_gfxbody.cpp,
+// src/engine/save/saveload_draw.cpp) — one definition, an alias, and no
+// duplicate layout (B4b-1).
 //
 // NOTHING HOLDS `Video::Context` BY VALUE — CHECKED, NOT ASSUMED
 // ---------------------------------------------------------------------------
@@ -47,9 +45,8 @@
 // `standalone/`." Repeated this pass over `code/`, `engine/`, `standalone/`,
 // `src/engine/`, `src/engine/`, `src/render/dx11/` and `tests/`, for a by-value member,
 // local, array or parameter and for every `sizeof(Context)` / `kContextSize`
-// site: **no by-value holder exists.** Every `kContextSize` use is a raw
-// `uint8_t[]` scratch subject inside `src/engine/video/context_bind.cpp`'s own
-// probe. So `Context` needs neither a protected `= default` constructor nor a
+// site: **no by-value holder exists.** `kContextSize` has no use beyond its own
+// definition. So `Context` needs neither a protected `= default` constructor nor a
 // `friend` holder (B4b-3 / RULE B5-4 do not fire), and it is CONCRETE with no
 // constructor at all.
 //
@@ -62,9 +59,9 @@
 // (`Engine::MainLoop::CreateVideoContext`, 0x1800dd500) and its first act is to
 // write `_device`; it builds seven `ConstantBuffer`s in line, four sub-objects
 // through four different class `operator new`s, and two default ImageBuffers. It
-// stays a registered ctor DOOR (`RtVideo_Context_Ctor`,
-// src/engine/video/context_ctor.cpp), and so do `??1` (the destructor,
-// `RtVideo_Context_Dtor` in context_lifecycle.cpp), the two `??2` and the `??3`.
+// is the free function `RtVideo_Context_Ctor` (src/engine/video/context_ctor.cpp);
+// `??1` is `RtVideo_Context_Dtor` and `??3` is `Video_Context_OperatorDelete`, both
+// in context_lifecycle.cpp, and the two `??2` are not ported.
 // A user-provided constructor, destructor, copy constructor or copy assignment
 // here would also destroy `std::is_trivially_copyable<Context>`, which the whole
 // of `src/engine/video/` and `src/render/dx11/` relies on.
@@ -213,9 +210,7 @@ namespace Video {
 // `VertexBuffer` are D2's; `ImageBuffer` and `RenderState` are C's;
 // `VertexLayout`, `VertexProgram`, `PixelProgram`, `VideoProgram` are B's;
 // `ContextData` is block A's, in CompanionData.h), so this header declares and
-// never defines them, and every FIELD stays `void*` — nine files outside this
-// block cast those fields to their own partial views and a typed field would
-// break every one of those casts.
+// never defines them; the pointer FIELDS below are typed with them.
 class ContextData;
 class Device;
 class ImageBuffer;
@@ -238,7 +233,7 @@ class VideoProgram;
 // `MOV [RCX+4],R8D` (y), `MOV [RCX+8],R9D` (width), `MOV [RCX+0xc],[RSP+0x28]`
 // (height) — so the argument order really is (x, y, width, height).
 //
-// TRIVIALITY IS THE CONSTRAINT, AND IT IS WHY THE CONSTRUCTORS STAY DOORS
+// TRIVIALITY IS THE CONSTRAINT, AND IT IS WHY THE CONSTRUCTORS ARE NOT DECLARED
 // (RULE B5-4). `Video::Context` holds two Viewports BY VALUE and has no real
 // constructor, so `Viewport` must stay trivially copyable AND trivially
 // default-constructible. Retail exports both constructors, and the default one
@@ -247,7 +242,7 @@ class VideoProgram;
 // either a user-provided zeroing body (which makes `Context` non-trivially
 // default-constructible, i.e. gives `Context` a constructor B4b-2 forbids) or
 // `= default` (which is a DIVERGENCE: retail zeroes, a trivial default ctor
-// does not). Neither is acceptable, so both constructors stay registered DOORS
+// does not). Neither is acceptable, so neither constructor is declared
 // and this class stays an aggregate — exactly the B4b-2 posture `Context`
 // itself takes, for the same reason.
 //
@@ -294,15 +289,13 @@ static_assert(offsetof(Viewport, height) == 0x0c, "Viewport::height");
 class Context {
 public:
     // ---- ported: the state mutators ------------------------------------
-    // Bodies in src/engine/video/context.cpp; each registered door there is a
-    // one-line QUALIFIED non-virtual delegation onto the member.
+    // Bodies in src/engine/video/context.cpp, except SetVertexBuffer (context_bind.cpp),
+    // SetDefaultRenderBuffer (context_ctor.cpp), SetLight (batchc_context_setlight.cpp)
+    // and ClearResources (context_lifecycle.cpp).
     //
-    // Where retail's parameter is a class pointer whose class is another
-    // block's, the parameter stays `const void*` and the real type is in the
-    // comment: the FIELD is `void*` (see the forward-declaration note above),
-    // and a typed parameter would only move the cast from the door into the
-    // body. Where the parameter's class is real TODAY — `Math::Matrix`,
-    // `Math::Vector4`, `Viewport` — it is spelled.
+    // Where retail's parameter is a class pointer, the parameter is spelled with
+    // that class (`ImageBuffer`, `VertexBuffer`, `RenderBuffer`), as are
+    // `Math::Matrix`, `Math::Vector4` and `Viewport`.
     void SetColor(const Math::Vector4& color);                     // 0x18001a8e0
     void SetInverseScale(float x, float y, float z, float w);      // 0x18001a880
     void SetTime(float time);                                      // 0x18001a330
@@ -337,9 +330,8 @@ public:
 
     // ---- ported: the two private bind halves the frame loop drives -----
     // Bodies in src/engine/video/context_bind.cpp. `AEAA` in the mangled name:
-    // both are PRIVATE in retail, and a `QEAA` guess resolves NULL in silence
-    // (reference_resolveexport_phantom_names.md). Public here because the two
-    // registered doors and the `src/render/dx11/` backend reach them from outside.
+    // both are PRIVATE in retail. Public here because the backends
+    // (src/render/dx11/, src/render/vulkan/, src/render/metal/) call them from outside.
     void BindResources();                                          // 0x1800ef060
     void BindTextures();                                           // 0x1800ef330
 
@@ -378,8 +370,7 @@ public:
     // the eight constructors / destructor / `operator new` / `operator delete`
     // spellings in the comment that follows. Declared and left undefined so no
     // later block has to edit this header (BLOCK_BRIEF "the shape"); nothing in
-    // the tree calls any of them as a member, and the rows exist today only in
-    // `standalone/rt_export_addrs.inc`.
+    // the tree calls any of them as a member.
     void AddIndex(uint16_t index);                                 // 0x18001adc0 — not ported
     void AddIndices(int32_t count, const uint16_t* indices);       // 0x18001ade0 — not ported
     bool BeginCommands();                                          // 0x1800f2340 — not ported
@@ -388,8 +379,8 @@ public:
     void ForceRenderStateDirty(uint32_t bits);                     // 0x180019eb0 — not ported
     // The seven private one-line bind thunks `BindResources` dispatches
     // through. Each is `MOV RCX,[RCX+0x2160] / MOV RAX,[RCX] / JMP [RAX+off]`,
-    // and the offsets are the `kSlotBind*` values context_bind.cpp already
-    // uses; the ported `BindResources` reaches the backend directly, exactly as
+    // and the slots are the `ContextData` virtuals context_bind.cpp calls by
+    // name; the ported `BindResources` reaches the backend directly, exactly as
     // retail does, rather than through these.
     void BindRenderBuffer();                                       // 0x1800f2280 — not ported (AEAA)
     void BindViewport();                                           // 0x1800f2300 — not ported (AEAA)
@@ -430,10 +421,7 @@ public:
     // return pointer BEFORE `this`, retail passes `this` first, so a VIRTUAL
     // that retail returns by value must be declared `T* M(T* ret, args…)` in
     // retail order. This one is NON-virtual, so the by-value declaration is
-    // allowed — but only for C++ callers. **The day a door is written for it,
-    // that door must keep the explicit `(this, ret)` signature and
-    // placement-new the member's prvalue into the caller's slot.** There is no
-    // door today: the member is unported and nothing in the tree calls it.
+    // allowed. The member is unported and nothing in the tree calls it.
     Viewport GetViewport() const;                                  // 0x18001a0c0 — not ported
     void SetScissor(const Viewport& vp);                           // 0x18001a0f0 — not ported
     void SetIndexBuffer(const void* ib, int32_t offset);           // 0x180019fb0 — not ported
@@ -450,8 +438,8 @@ public:
     // NOT DECLARED, DELIBERATELY — the eight lifecycle spellings. Declaring any
     // of them would make this class non-trivially-copyable (and the
     // constructors non-trivially-default-constructible), which is the property
-    // the whole of src/engine/video/ and src/render/dx11/ relies on; and B4b-2 keeps
-    // them as registered DOORS anyway. Recorded here so the census can see that
+    // the whole of src/engine/video/ and src/render/dx11/ relies on; the ported
+    // ones are free functions instead. Recorded here so the census can see that
     // all 85 exports were read, not 77:
     //   ??0Context@Video@@QEAA@AEBV01@@Z                    0x180018560  copy ctor, unported
     //   ??0Context@Video@@QEAA@PEAVDevice@1@@Z              0x1800f1280  1-arg ctor, unported
@@ -465,8 +453,8 @@ public:
     //   ??4Context@Video@@QEAAAEAV01@AEBV01@@Z              0x180018f90  operator=, unported
 
     // ---- the 0x2168 bytes ----------------------------------------------
-    // Public for the same reason `Object::External`'s are: the registered doors,
-    // the probes and nine files outside this block read and write them by name.
+    // Public for the same reason `Object::External`'s are: the render backends and
+    // the engine code outside this class read and write them by name.
     // B.4 (R-VIDEO), H4: the pointer members carry the classes the setters'
     // and getters' mangled names give them (see the member declarations above).
     Device*  _device;                                   // 0x0000
@@ -546,8 +534,8 @@ public:
     // 0x1dd8 .. 0x1f77, one 0x1a0-byte block `?Reset@` clears in a single
     // memset and `BindResources` uploads as one source. `?SetLight@`
     // (0x18001a950) writes its first 0x60 bytes; B.4 (R-VIDEO) names them as
-    // SetLight's stores do (batchc_context_setlight.cpp's banner). The rest is
-    // never written by a ported body and stays bytes.
+    // SetLight's stores do (batchc_context_setlight.cpp's banner). The shadow
+    // matrix at +0xa0 is written by WriteShadowMatrix; the rest stays bytes.
     struct LightStaging {
         uint32_t colour[4];        // +0x00  copied as dwords, never float arithmetic
         uint32_t position[4];      // +0x10  likewise
@@ -576,8 +564,8 @@ public:
     uint8_t* _dynamicVertexCursor;                      // 0x20e0
     int32_t  _dynamicVertexStride;                      // 0x20e8
     int32_t  _pad20ec;                              // 0x20ec
-    // The dynamic INDEX cursor: the backend (dx11 contextdata.cpp
-    // kDynIndexCursor) maps it, the geometry writers store 16-bit indices
+    // The dynamic INDEX cursor: the backend (dx11 contextdata.cpp's
+    // ContextData::BeginInstancedIndexedVertices) maps it, the geometry writers store 16-bit indices
     // through it and step it (wave27_lane_gfxpart.cpp: `ADD R14W,4`, word
     // stores).
     uint16_t* _dynamicIndexCursor;                      // 0x20f0
@@ -702,8 +690,7 @@ static_assert(offsetof(Context, _dynamicIndexBase) == 0x2128, "Context::_dynamic
 static_assert(alignof(Context) == 8, "Video::Context is qword-aligned (MemAlloc's align 8)");
 
 // The property that makes the 0x2168-byte block a flat block: nine files read
-// and write it through `memcpy`, `memset` and `reinterpret_cast`, and
-// context_bind.cpp's probe compares every one of the 0x2168 bytes.
+// and write it through `memcpy`, `memset` and `reinterpret_cast`.
 static_assert(std::is_trivially_copyable<Context>::value,
               "Video::Context must stay trivially copyable: no user-provided "
               "ctor, dtor, copy ctor or copy assignment (B4b-2 keeps all four "
@@ -718,9 +705,9 @@ static_assert(std::is_standard_layout<Context>::value,
 // The `RtVideo` compatibility layer — ALIASES, not a second layout (B4b-1)
 // ============================================================================
 // `Video::Context`, `Video::Viewport` and `Video::ConstantBuffer` now own the
-// retail names. These aliases keep the pre-B.3.5 spellings working so the nine
-// files outside block D1's set that use them are untouched; they die with the
-// caller pass. There is exactly ONE definition of each layout.
+// retail names. These aliases keep the pre-B.3.5 spellings working for the two
+// files that still spell `RtVideo::Context` / `RtVideo::Viewport`. There is
+// exactly ONE definition of each layout.
 namespace RtVideo {
 
 using Context              = ::Video::Context;
@@ -761,9 +748,6 @@ using Vector4Raw = ::Math::Vector4;
 // b35-D1 was already merged and adding this include there would have
 // manufactured a merge-order dependency.
 //
-// STILL OPEN, both handed to the closing pass: two more duplicates of
-// `Video::Viewport` itself, at src/engine/ui/clipregionelement.cpp:73
-// (`struct Viewport { int32_t x, y, w, h; }`) and src/render/dx11/contextdata.cpp:425.
 // ----------------------------------------------------------------------------
 using RenderBufferPrefix = ::Video::RenderBuffer;
 static_assert(offsetof(RenderBufferPrefix, width)  == 0x10, "RenderBuffer::width");
@@ -839,11 +823,10 @@ enum : unsigned {
 
 }  // namespace RtVideo
 
-// ==== B3R W0-P0c: Runtime bodies reached by retail address ====
-// ENDGAME B.3R (B3R_RULES R5): each body below is registered at the retail
-// address in its trailing comment and read through the registry today. It is
-// declared here, copied from its definition (linkage, namespace, types), so the
-// reader can call it by name. Nothing calls it through this declaration yet.
+// ==== B3R W0-P0c: Runtime bodies called by name ====
+// Each body below is declared here, copied from its definition (linkage,
+// namespace, types), so a caller can call it by name; the trailing comment is
+// its retail address.
 
 // ---- video/context_lifecycle.cpp
 extern "C" void RtVideo_Context_Dtor(Video::Context* self);  // 0x1800f16e0

@@ -88,9 +88,10 @@ void IO::CompressedStream::SetWindowCount(int n) {
 //     a blockCount large enough to overflow `blockCount * 8` wraps negative and
 //     PASSES this one too.
 //
-// Both are transcribed as retail spells them. Making either "safe" would reject
-// inputs retail accepts, and this function's whole job is to decide whether a
-// packfile header is well-formed.
+// Both are transcribed as retail spells them. The NOT RETAIL bound on
+// blockCount below ([0, 0xFFFF]) runs before the second test, so that test's
+// overflow case cannot occur here. This function's whole job is to decide
+// whether a packfile header is well-formed.
 //
 // The final `total == len` is the real integrity check, and the per-entry term
 // is a 16-bit field read at +0x04 of each 8-byte header with a fallback to the
@@ -138,7 +139,7 @@ bool IO::CompressedStream::Open(Stream& srcRef, int windowCount) {
     src->Read(_headerSize * 8, _headerData);               // 1800aa5ed slot 3
 
     // Each 8-byte header's compressedSize (+0x04), falling back to its
-    // uncompressedSize (+0x06) when it is zero -- Stream.h's StoredLength rule.
+    // uncompressedSize (+0x06) when it is zero -- compressed_stream_write.cpp's RtIo::StoredLength rule.
     int32_t total = 4 + blockCount * 8;                    // 1800aa5f7 LEA
     const RtIo::CompressedStreamHeader* e = _headerData;   // 1800aa609
     for (int32_t i = 0; i < _headerSize; ++i) {            // 1800aa5fe..aa628

@@ -26,7 +26,7 @@
 //
 // So this harness is the same class of stand-in as src/diag/panel_staffing_driver.cpp
 // — it presses a widget the unattended build has no player to press. The seat itself
-// is retail's (0x140091130, already registered by reg_townhallui.cpp); only the
+// is retail's (0x140091130, CitizenBehavior::AddWorker, citizen_employ_cascade.cpp); only the
 // pressing is ours.
 
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton

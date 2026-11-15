@@ -37,8 +37,7 @@ def main():
     for s in pe.DIRECTORY_ENTRY_EXPORT.symbols:
         if s.address:
             byva.setdefault(ib + s.address, (s.name or b"").decode(errors="replace"))
-    PURECALL_VA = 0x18007ec28   # named by Ghidra get_function_by_address; the
-    # generator tools/rt_mint_gen.py carries the same constant (line 107).
+    PURECALL_VA = 0x18007ec28   # named by Ghidra get_function_by_address
     byva.setdefault(PURECALL_VA, "_purecall")
     pure = [va for va, n in byva.items() if n == "_purecall"]
     print("SUBJECT %s" % DLL)

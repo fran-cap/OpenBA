@@ -1,4 +1,4 @@
-// engine/src/ui/radiusui.cpp
+// src/game/Dialog/radiusui.cpp
 // Clean reimplementation of RadiusUI game logic.
 //
 // RadiusUI (0x38 bytes) — displays building radius overlay.
@@ -20,25 +20,17 @@
 #include "object/Internal.h"   // ENDGAME B.3.3 step 6B
 #include "Entity/ComponentEntity.h"   // X::TypeId() (B.3.9 CG2)
 #include "Component/RadiusDescription.h"   // X::TypeId() (B.3.9 CG2)
-#include "Player/exe_bodies.h"      // B3R: Player_HighlightAdd_55430
-#include "Component/exe_bodies.h"   // B3R: DecalComponent_TerrainDecalRemove
+#include "Player/exe_bodies.h"
+#include "Component/exe_bodies.h"
 #include "Dialog/RadiusUI.h"
 #include "Component/ComponentDescription.h"
 #include "Component/MapComponent.h"
 
 // ============================================================
-// RadiusUI::Slot6 (vtable +0x30) — Remove radius overlay
-// ============================================================
-// When the panel is hidden/closed, removes the active radius overlay
-// from the RadiusDisplayManager and resets the index to -1.
-//
-// Original: 0x140077600, 28 bytes.
-
-// ============================================================
 // RadiusUI::Slot5 (vtable +0x28) — Calculate and store radius overlay
 // ============================================================
-// When the panel is shown, finds the RadiusComponent on the entity's
-// class sub-object, gets the BuildComponent, calculates the center
+// When the panel is shown, finds the RadiusDescription among the entity's
+// description's sub-descriptions, gets the MapComponent, calculates the center
 // tile index, and stores the radius overlay display index at +0x30.
 //
 // Original: 0x140077650.
@@ -67,9 +59,8 @@ void RadiusUI::OnOpened() {
     ComponentDescription* subObj = checkedEntity->_description;
 
     // Search the description's sub-descriptions for the RadiusDescription
-    // ENDGAME B.3.9 CG2: TypeId_RadiusComponent binds cell 0x1401c4870, whose retail
-    // class is RadiusDescription (Table 1 NAME LIE — the global's name says
-    // RadiusComponent).
+    // ENDGAME B.3.9 CG2: type-id cell 0x1401c4870 is RadiusDescription's
+    // (RadiusDescription::TypeId(); Table 1).
     uint32_t radiusTypeId = RadiusDescription::TypeId();
     RadiusDescription* radiusComp = nullptr;
     int count = subObj->_subDescCount;
@@ -87,8 +78,7 @@ void RadiusUI::OnOpened() {
         }
     }
 
-    // Find the placement component on the entity (0x1401c79e0 — labelled
-    // "MapComponent" in reg_economy_typeids; the finder name is a known misnomer).
+    // Find the placement component on the entity (0x1401c79e0, MapComponent).
     MapComponent* buildComp = checkedEntity->FindComponent<MapComponent>();
 
     // SA-only guards (retail derefs both unguarded). Retail reaches Slot5 only from a
@@ -109,8 +99,7 @@ void RadiusUI::OnOpened() {
     int tileIndex = centerY * gridSize + centerX;
 
     // Calculate radius and store display index
-    // The door was named fn_RadiusCalc; it is bound to 0x140055430
-    // Player_HighlightAdd_55430 (B3R: the binding decides, INVENTORY_E §5.8).
+    // 0x140055430 RadiusDescription::AddHighlight.
     this->highlightIndex = radiusComp->AddHighlight(tileIndex);
 
 }
@@ -119,7 +108,7 @@ void RadiusUI::OnOpened() {
 // RadiusUI::Slot6 (vtable +0x30) — Remove radius overlay
 // ============================================================
 // When the panel is hidden/closed, removes the active radius overlay
-// from the RadiusDisplayManager and resets the index to -1.
+// from the terrain (WorldGeometry::RemoveDecal) and resets the index to -1.
 //
 // Original: 0x140077600, 28 bytes.
 
@@ -129,8 +118,7 @@ void RadiusUI::OnClosed() {
     if (this->highlightIndex >= 0) {
         // Game/World singleton +0x110 = the terrain (GameUpdateLoop::m_worldGeometry)
         WorldGeometry* radiusMgr = GameUpdateLoop::_singleton->m_worldGeometry;
-        // The door was named fn_RadiusDisplay_Remove; it is bound to 0x1400b0d00
-        // DecalComponent_TerrainDecalRemove (B3R: the binding decides).
+        // 0x1400b0d00 WorldGeometry::RemoveDecal.
         radiusMgr->RemoveDecal(this->highlightIndex);
     }
     this->highlightIndex = -1;

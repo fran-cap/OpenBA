@@ -46,8 +46,8 @@
 //    FromYawPitch / the Transform and Quaternion ops are NOT inlined — those carry angle
 //    and handedness conventions worth taking from the engine.
 //
-// GATED: reached only through BANISHED_LIVE_TRADE_CTRL (the state-2 merchant spawn) and
-// the controller's shared teardown. Nothing else in the build calls it.
+// Reached only from the state-2 merchant spawn (TradeComponent::TickIdle) and the
+// controller's shared teardown (TradeComponent::Teardown). Nothing else in the build calls it.
 
 #include <new>
 #include "object/TypeInfo.h"
@@ -409,14 +409,6 @@ void BoatComponent::SetDestination(const Object::InternalPtr<ComponentEntity>* d
                                              static_cast<uint32_t>(mapSize * destTy2 + destTx2),
                                              static_cast<uint64_t>(static_cast<uint32_t>(mapSize * exitTy + exitTx)),
                                              nullptr, s_cellsOut);
-
-    // CONTROL PROBE (BANISHED_BOAT_TRACE only, no behaviour): both real legs end at the
-    // dock, which sits on LAND by construction — so "0 cells" there is ambiguous between
-    // "this dock is unreachable" and "water pathing does not work in standalone at all".
-    // Query between two points that are unambiguously ON the polyline centreline instead.
-    // A non-zero result here means the A* is fine and the dock is the problem; a zero
-    // means the water profile or the nav grid is, and the route builder is being blamed
-    // for someone else's gap.
 
     // BOTH legs or NEITHER — retail's gate at 140045e60.
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/BOATLANE.md): ext.boat_lane. Retail's gate decides

@@ -60,7 +60,7 @@ struct HasClassDelete<T, std::void_t<decltype(static_cast<void (*)(void*)>(&T::o
 
 // A heap stand-in for a concrete T: T itself, plus a recording class-scope
 // `operator delete` that frees with std::free. Allocate it with std::malloc
-// (NewRecording below), never with a new-expression.
+// (NewOnMalloc below), never with a new-expression.
 template <class T>
 struct Recording final : T {
     using T::T;

@@ -18,11 +18,9 @@
 //         -> UI::ElementDescription
 //                             ??_7ElementDescription@UI@@6B@   0x1801561c0
 //
-// ALL THREE VTABLES ARE EXPORTED. That is the `??_7Geometry@Graphics@@6B@`
-// lever from Wave 6 (WAVE7.md fact 2): a ported ctor stamps the DLL's own
-// vtable byte for byte instead of minting one, so a half-ported class never
-// puts two vtables in play. `src/engine/ui/dialog.cpp`'s ported ctor resolves
-// all three by name and stamps them; it does not synthesise a table.
+// ALL THREE VTABLES ARE EXPORTED in retail (the `??_7Geometry@Graphics@@6B@`
+// lever: docs/history/runtime_port/WAVE7.md fact 2). The port's constructor
+// (below) is a real one: the compiler stamps its own tables.
 //
 // SIZE: 0x68, and it is PROVEN by the constructor rather than inferred — the
 // ctor's last store is a qword at +0x60, and `??1ElementDescription`
@@ -76,7 +74,7 @@
 //                                   elem+0x34 (never assigns — see below)
 //   0x48  _childDesc      External* CreateInstance calls its vtable +0x40 and
 //                                   stores the result in elem+0xb0
-//   0x50  _userData       ExternalPtr<UI::Dialog>  -- NOT a uint64; see the
+//   0x50  _toolTipDialog  ExternalPtr<UI::Dialog>  -- NOT a uint64; see the
 //                                   note on the field below. CreateInstance's
 //                                   plain qword copy to elem+0x40 still looks
 //                                   right because an ExternalPtr is 8 bytes.
@@ -99,10 +97,7 @@
 //     the element rather than assigning, so a description with no flags cannot
 //     clear a flag the element already has. That is retail behaviour, not a
 //     transcription slip.
-//   * The ctor writes EVERY byte of 0x00..0x67 — there is no padding hole. That
-//     is what makes the replay oracle in dialog.cpp a full oracle for it rather
-//     than a spot check (reference_oracle_must_not_compare_unwritten_bytes.md:
-//     an oracle that compares bytes neither side writes fails 100% of calls).
+//   * The ctor writes EVERY byte of 0x00..0x67 — there is no padding hole.
 //
 // PORTABILITY: no <windows.h>, per PLAN.md §4.1 decision 1.
 // ============================================================================
@@ -125,8 +120,8 @@
 //     ?_ParentTypeName@ElementDescription@UI@@CAPEBDXZ @0x1800350c0 -> "Object::External"
 // and the ctor's three stamps (Base, External, ElementDescription) above agree.
 //
-// RULE B5-15 / B6-7 — THE TWO NAME LITERALS, RECORDED, NOT USED (no
-// `DEFINE_TYPE` in step 6; slots 1/2 keep reading the minted
+// RULE B5-15 / B6-7 — THE TWO NAME LITERALS (DEFINE_TYPE in dialog.cpp emits
+// both; slots 1/2 read the class's own record, retail's
 // `?_typeInfo@ElementDescription@UI@@0VBaseTypeInfo@Object@@A`, 0x1801faaf8):
 //     ?_TypeName@ElementDescription@UI@@CAPEBDXZ       @0x1800350b0 -> "ElementDescription"
 //     ?_ParentTypeName@ElementDescription@UI@@CAPEBDXZ @0x1800350c0 -> "Object::External"
@@ -151,16 +146,16 @@
 // ABSTRACT (slots 6, 7, 8 pure). Every live one is a leaf description built
 // by its real constructor and wearing its COMPILER table (ENDGAME B.3.9 UI-D
 // retired the minted `??_7ElementDescription@UI@@6B@`, its RT_DELDTOR row,
-// the ??0 / ??1 doors and the slot doors). The REAL protected ctor and
-// non-virtual dtor (B.3.8 block RB) have the private `InitFields` /
-// `ReleaseFields` as bodies. Slot 0 is the class's own vector deleting dtor.
+// the ??0 / ??1 doors and the slot doors). The REAL protected ctor (B.3.8
+// block RB) has the private `InitFields` as its body; the virtual dtor's body
+// is empty. Slot 0 is the class's own vector deleting dtor.
 //
 // WHERE THE BODIES ARE. `Serialize` moved into the member
-// (elementdescription_serialize.cpp). `TypeName`, `Type`, `GetFileVersion`,
-// `InitFields`/`ReleaseFields` and the non-virtual `CreateInstance(InternalPtr<Element>*)`
-// are members defined in `src/engine/ui/dialog.cpp` (fragment pass F2).
-// Defining `TypeName` (the key function) emits this class's vtable in
-// dialog.cpp.
+// (elementdescription_serialize.cpp). `GetFileVersion`, `InitFields` and the
+// non-virtual `CreateInstance(InternalPtr<Element>*)` are members defined in
+// `src/engine/ui/dialog.cpp` (fragment pass F2); `TypeName` / `Type` are
+// DECLARE_TYPE's inline bodies. Defining `GetFileVersion` (the key function)
+// emits this class's vtable in dialog.cpp.
 //
 // A NAME-HIDING TRAP FOR THE LEAF BLOCKS. Retail has TWO `CreateInstance`s on
 // this class: the pure slot-8 virtual and the non-virtual
@@ -220,8 +215,7 @@ public:
         const Dialog* dialog) const = 0;                          // [8] _purecall — RETSLOT, B6-2
 
     // ---- non-virtual members ----------------------------------------------
-    // 0x180115ad0 — defined in dialog.cpp (fragment pass F2); the door
-    // `RtUiElementDescription_CreateInstance` delegates to it. Retail passes
+    // 0x180115ad0 — defined in dialog.cpp (fragment pass F2). Retail passes
     // the handle by ADDRESS (MSVC: non-trivial copy ctor; RULE B6-11), so the
     // member takes `InternalPtr<Element>*` in retail order and every leaf's
     // applier calls it as `ElementDescription::CreateInstance(&slot)`.
@@ -230,7 +224,7 @@ public:
     ElementDescription(const ElementDescription& src);            // 0x180035120  not ported
     ElementDescription& operator=(const ElementDescription& src); // 0x180035210  not ported
 
-    // Reflection statics. `_typeInfo` is the MINTED record TypeId reads.
+    // Reflection statics: DECLARE_TYPE above; `_typeInfo` is the record TypeId reads.
     // Abstract: retail's pair is `xor eax,eax; ret` (dialog.cpp).
 
 protected:
@@ -246,9 +240,8 @@ private:
 
 
 public:
-    // ---- the 0x48 bytes after Object::External — RtUI::ElementDescription's
-    // names and types, unchanged (the per-field evidence is the banner at the
-    // top of this file). PUBLIC for the reason External's are.
+    // ---- the 0x48 bytes after Object::External (the per-field evidence is
+    // the banner at the top of this file). PUBLIC for the reason External's are.
     //
     // ONE MEANING CORRECTION, recorded and NOT applied as a rename (call sites
     // use the name): `_elementType` (+0x40) is the element's ALIGNMENT. The

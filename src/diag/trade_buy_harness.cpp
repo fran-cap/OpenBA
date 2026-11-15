@@ -16,12 +16,12 @@
 //
 //   1. find a trading post whose TradeUI panel can be opened (the same EditTool
 //      select an in-world click uses, borrowed from the tradepanel harness),
-//   2. fill every SELL row's pending quantity from the post's own stock,
-//   3. call TradeUI_UpdateSellTotals / _UpdateBuyTotals so the total ELEMENTS carry
+//   2. fill every SELL row's pending quantity with a fixed amount (BANISHED_TRADE_SELL_PERROW, default 100),
+//   3. call TradeUI::UpdateSellTotals / UpdateBuyTotals so the total ELEMENTS carry
 //      the numbers the checkout reads (it takes the sell total off the
 //      numberSellTotal element at self+0x100 field +0xd8, not from a recompute --
 //      writing the row quantities alone would credit nothing),
-//   4. call TradeUI_OnTradeButton (retail 0x140081420) — the ported checkout, which
+//   4. call TradeUI::OnTradeButton (retail 0x140081420) — the ported checkout, which
 //      does the whole two-phase commit including crediting townMgr+0x1ac.
 //
 // So the harness supplies the intent a player would supply; every number that moves
@@ -57,7 +57,7 @@
 #include "Component/CharacterDescription.h"
 #include "Game/Map.h"
 #include "Dialog/TradeUI.h"
-#include "Action/exe_bodies.h"   // StorageAdd (0x14012d000)
+#include "Action/exe_bodies.h"
 #include "ui/DialogInstance.h"   // B4: the open dialog's controller array
 // The sell/buy tables are built ONCE when the panel opens. Seeding the trade
 // stock afterwards leaves the rows as they were, so the refresh has to be
@@ -65,8 +65,7 @@
 
 // edittool.cpp — activate the EditTool and drive the select path the way an
 // in-world click does. HarnessSelectEntity is the wrapper (it builds the
-// InternalBasePtr the impl expects); calling EditTool_SelectEntity_Impl with a
-// bare entity pointer instead faults on a -1 read inside the tool.
+// InternalPtr EditTool::SelectEntity expects).
 #include "Player/edittool_funcs.h"    // EditTool_HarnessAcquire / _HarnessSelectEntity
 // tradecomponent_serialize.cpp — insert/top-up one {resource, qty} pair in the
 // TradeComponent's +0x60 AVL tree, the tree the sell table is built from.
@@ -76,7 +75,7 @@ extern "C" void TradeStock_SeedForTest(TradeComponent* tradeComp, ComponentDescr
 namespace {
 
 int  s_interval = -2;      // -2 = env unread, -1 = disabled
-int  s_perRow   = 0;       // max units per sell row per visit (0 = whole row)
+int  s_perRow   = 0;       // units queued per sell row per visit (0 = 100)
 long long s_totalSold = 0;
 int  s_visits   = 0;
 
@@ -325,8 +324,7 @@ void TradeWatch(int frameNum) {
 static int s_openedAtFrame = -1;
 static const int kSettleFrames = 30;
 
-// The tool manager (gameupdateloop.cpp hands its `m_toolManager`; its local
-// declaration still spells the parameter void*).
+// The tool manager (gameupdateloop.cpp hands its `m_toolManager`).
 extern "C" void TradeSellHarness_Tick(PlayerToolManager* entityUI, int frameNum) {
     TradeWatch(frameNum);
     Init();
@@ -396,9 +394,7 @@ extern "C" void TradeSellHarness_Tick(PlayerToolManager* entityUI, int frameNum)
     const int creditBefore = townMgr->totalTradeValue;   // +0x1ac
 
     // Fill the SELL rows. self+0x30 array, count +0x38, stride 0x20, pending qty at
-    // entry+0x18 — the same layout the checkout consumes. entry+0x10 is the row's
-    // available stock (what the panel shows as sellable); cap the pending quantity to
-    // it so the checkout never subtracts more than the post holds.
+    // entry+0x18 — the same layout the checkout consumes.
     int rowsFilled = 0, unitsQueued = 0;
     const int sellCount = tui->_sellItems.GetSize();                    // +0x38
     TradeUI::SellItem* const sellBase = tui->_sellItems.GetData();      // +0x30 (stride 0x20)

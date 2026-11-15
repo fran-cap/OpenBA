@@ -16,14 +16,11 @@
 // NOT this lane's file). `ImageBuffer::CopyToTexture`/`CopyFromTexture`/
 // `Create` are the same shape, dispatching through `this+0x60`
 // (dx11::ImageBufferData, src/render/dx11/imagebufferdata.cpp). Since VideoDX11 is
-// ALREADY OURS (PLAN.md's "Why this wave is different" note), every one of
-// those trampolines reaches a vtable this project already owns on both sides
-// of the port — see the per-function oracle notes below for what that means
-// for diffing.
+// ALREADY OURS (docs/history/runtime_port/WAVE6.md's "Why this wave is different"
+// note), every one of those trampolines reaches a vtable this project owns.
 //
-// The remaining functions are the true leaves: nine pure accessors with a
-// full differential oracle, three constructors, two destructors, and one
-// held-back function (SaveImageToFile — see its own comment).
+// The remaining functions are the true leaves: nine pure accessors, three
+// constructors and two destructors. SaveImageToFile is in save_image_to_file.cpp.
 
 #include "video/ImageBuffer.h"
 #include "video/Buffers.h"
@@ -46,7 +43,7 @@ namespace {
 // `Object::CompiledExternal`, so `~CompiledExternal()` and then `~External()`
 // run after the member body with no resolver on the path — the same retirement
 // `Video::VertexLayout` made in b35-B, and `Object::External`'s own banner
-// (`src/engine/object/external_class.cpp:128-135`) is the settled rule for why
+// (`src/engine/object/external_class.cpp:45-68`) is the settled rule for why
 // the two base vptr stores are the compiler's and not hand-written on a
 // converted object.
 
@@ -193,11 +190,11 @@ namespace Video {
 // Retail's four steps, and where each one is now:
 //   1. stamp ImageBuffer's own vtable          — the compiler's entry store
 //   2. PlatformDestruct                        — the member call
-//   3. release the `_sourceName` String by hand — below; `_sourceName` keeps the
-//      `void*` type precisely so the compiler does NOT release it a second time
+//   3. release the `_sourceName` String        — the System::String member's
+//      destructor, which the compiler runs after this body
 //   4. stamp CompiledExternal's vtable, then tail-jump ~External
 //                                              — the DESTRUCTOR CHAIN
-// Steps 2 and 3 are `ReleaseFields`, kept out of line only so the unit tests
+// Step 2 is `ReleaseFields`, kept out of line only so the unit tests
 // can link recording stand-ins.
 ImageBuffer::~ImageBuffer() { ReleaseFields(); }
 
@@ -441,7 +438,7 @@ void Video::RenderBuffer::PlatformDestruct() {
 // platform buffer object at +0x08 (dx11::IndexBufferData / VertexBufferData).
 // ============================================================================
 
-// ENDGAME B.3.5 block D2. The two constructors stay DOORS and do NOT become real
+// ENDGAME B.3.5 block D2. The two constructors stay free functions and do NOT become real
 // `IndexBuffer()` / `VertexBuffer()`: the `PlatformConstruct` they tail into
 // publishes `this` into the `_firstBuffer` intrusive list (RULE B4b-4 /
 // B35_RULES §9). What converted inside them is the hand-off, a member call.
@@ -491,30 +488,7 @@ bool Video::VertexBuffer::Set(int sizeBytes, int offsetBytes, void* data) {
 }
 
 // ============================================================================
-// HELD BACK: Video::ImageBuffer::SaveImageToFile (static) — 0x1800f2840,
-// ordinal 3608. One caller (src/game/Game/w2_takescreenshot.cpp, the
-// screenshot path).
-//
-// Not ported. Reasons:
-//   1. File I/O side effect (writes a .bmp to disk) — not diffable by the
-//      RT_DIFF pure/idempotent-replay patterns this lane's other functions
-//      use; running "ours" and "theirs" back to back would write the file
-//      twice, and there is no private-scratch variant of a filesystem write.
-//   2. The decompile (see docs/history/runtime_port/WAVE6_LANE_C.md) is not a small
-//      leaf: it builds paths via System::Filename::GetPathDirectory /
-//      GetPathFilename / AdjustDelimiters and System::operator+ on
-//      refcounted Strings, opens the file through IO::FileSystem::CreatePath
-//      and IO::BinaryFileStream/IO::FileStream::Create, and hand-assembles a
-//      24-bit BMP header before writing rows back-to-front through
-//      WriteFile. That is Wave 4 (IO) and System::String territory, not
-//      this lane's ImageBuffer/IndexBuffer/VertexBuffer scope, and
-//      reimplementing it here would mean either depending on those other
-//      lanes' unowned internals or duplicating them.
-//   3. Low traffic and low risk on the DLL: it runs once per screenshot, on
-//      a user-initiated action, not in a hot path or on every frame.
-//
-// fn_ImageBuffer_* in engine_funcs.h does not resolve this export at all —
-// w2_takescreenshot.cpp calls a different, already-ported capture path — so
-// leaving this on the DLL costs nothing beyond the census counting it as
-// "called, not ported."
+// Video::ImageBuffer::SaveImageToFile (static) — 0x1800f2840, ordinal 3608 — is
+// in save_image_to_file.cpp. One caller (src/game/Game/w2_takescreenshot.cpp,
+// the screenshot path). Decompile notes: docs/history/runtime_port/WAVE6_LANE_C.md §5.
 // ============================================================================

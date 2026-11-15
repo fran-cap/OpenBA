@@ -26,8 +26,8 @@
 // `AEAA` is PRIVATE, not unexported. So a by-name `ResolveExport` of any of the
 // three used to fall through to the DLL silently -- exactly the
 // half-registered-port trap other files in this directory warn about. All
-// three are now registered by NAME and by ADDRESS below, in
-// `RtInputDeviceUpdateRegister`.
+// three are `Input::Device` members, defined below and called by name from
+// `Device::Update`.
 //
 // This is the whole of the row WAVE9.md called the hardest single item in the
 // wave, which two earlier lanes sized and declined. Both of their measurements
@@ -62,10 +62,6 @@
 // hands BOTH sides the same bytes, so the drain stops existing rather than
 // being recorded around (reference_synthetic_subject_beats_a_fake.md).
 //
-// That probe is input_device_update_probe.cpp (RT_INPUTUPD_PROBE=1).
-// The LIVE registration below carries the diff oracle + the diff oracle and NOT a
-// replay, for the drain reason above — said here rather than left to be
-// inferred from an absent macro.
 //
 // ---------------------------------------------------------------------------
 // THE DOOR CLOSURE, COUNTED BEFORE A LINE WAS WRITTEN
@@ -82,8 +78,7 @@
 //                                 ScreenToClient, GetAsyncKeyState,
 //                                 GetSystemMetrics, [vtbl+0x48], [vtbl+0x38]
 //
-// Runtime DATA read by these bodies — all three MINTED since lane C2, so none
-// is a new cutover obligation:
+// Runtime DATA read by these bodies — all three are class statics:
 //   0x1801FC678  ?_singleton@Application@1@0PEAV11@EA        (+0x00 is the HWND)
 //   0x1801FE768  ?_singleton@Configuration@Input@@0PEAV12@EA (+0x09 is legacy)
 //   0x1801FE728  ?_secondsPerTick@Timer@System@@0NA
@@ -123,16 +118,14 @@
 // budget before the oracle dies.
 //
 // ---------------------------------------------------------------------------
-// ONE CUTOVER GAP THIS PORT DOES NOT CLOSE, AND MUST NOT BE READ AS CLOSING
+// THE TWO DEVICE POINTERS
 // ---------------------------------------------------------------------------
-// The two COM pointers at +0x11E0 / +0x11E8 are created by
-// Input::Device::PlatformConstruct (0x1800E1820) and ??0Device@Input@@,
-// **neither of which is ported**. Today the DLL's ctor fills them. With the DLL
-// absent they hold whatever the minted storage holds, and the non-legacy path
-// in both pollers dereferences them UNGUARDED — faithfully, because retail
-// does. Do NOT add a null check here (CLAUDE.md): the upstream fact to fix is
-// that our Input::Device was never constructed, and a guard would skip the poll
-// rather than restore it. Carried in WAVE9_LANE_ENGIO.md's HONEST LIMITS.
+// The two COM pointers at +0x11E0 / +0x11E8 are nulled by the ctor
+// (`Ctor_InputDevice`, singleton_ctors.cpp) and filled by PlatformStartup through
+// Platform::Input::CreateDevices (input_platform_startup.cpp); the SDL backend
+// (src/platform/sdl/input_sdl.cpp) leaves them null and its reads ignore them.
+// The pollers pass them on UNGUARDED, as retail does: do NOT add a null check
+// here (CLAUDE.md).
 //
 // ---------------------------------------------------------------------------
 // CONSTANTS — LIFTED AS RAW BITS (PLAN rule 8), never retyped as decimals
@@ -153,9 +146,8 @@
 
 // Phase D.4 SDL I1: no <windows.h> / <dinput.h>. The DirectInput reads, the re-acquire
 // and the legacy path's user32 calls are Platform::Input primitives
-// (src/platform/common/platform_input.h; Win32 bodies in
-// src/platform/win/input_dinput_win.cpp until SDL-C; SDL3 bodies in
-// src/platform/sdl/input_sdl.cpp since I2-I4), with the arguments retail passed.
+// (src/platform/common/platform_input.h; SDL3 bodies in
+// src/platform/sdl/input_sdl.cpp), with the arguments retail passed.
 #include <cstdint>
 #include <cstddef>
 #include <cstring>
@@ -172,10 +164,7 @@ namespace {
 
 using State = Input::Device::State;
 
-// ---- the three minted DATA slots -------------------------------------------
-// RT_DATA_SLOT is the never-cache-a-null form (rt_port.h). Lane E3 measured 22
-// sites in the tree using the FROZEN form, where the first caller fixes a null
-// for the whole process; these three use the correct one deliberately.
+// ---- Timer::_secondsPerTick, the class static ------------------------------
 inline const double* TimerSecondsPerTick() {
     // ENDGAME B.3.9 SS1 (B39_RULES D7): the class static now, no lazy cache.
     return &::System::Timer::_secondsPerTick;
@@ -225,9 +214,8 @@ constexpr uint32_t kDiErrInputLost = static_cast<uint32_t>(Platform::Input::kInp
 // Device::UpdateState — retail 0x1800E0FC0. 234 instructions, ZERO calls.
 //
 // `this` (RCX) is passed and NEVER READ. Retail loads it and does nothing with
-// it. The parameter is kept so the signature matches all four call sites and
-// the address registration; this comment is why it is unused rather than a
-// transcription slip.
+// it; the member keeps retail's signature, and this comment is why `this` is
+// unused rather than a transcription slip.
 //
 // Retail unrolls the loop 4x with a scalar tail. The unrolled body and the tail
 // were read SEPARATELY and agree instruction for instruction on every offset,
@@ -253,8 +241,7 @@ constexpr uint32_t kDiErrInputLost = static_cast<uint32_t>(Platform::Input::kInp
 //    cannot matter. Carrying the MOVSX into the tests, or the zero-extension
 //    into the divide, yields a body that is wrong ONLY for negative axis
 //    values. No keyboard and no mouse button can produce one, so such a defect
-//    would pass every test that did not deliberately feed a negative axis. The
-//    probe feeds them.
+//    would pass every test that did not deliberately feed a negative axis.
 //
 //  * The f == 0 branch is JP (unordered) and THEN JNZ, and BOTH jump to the
 //    HOLD path. So a NaN takes the hold path, not the reset path. C++'s
@@ -311,19 +298,7 @@ void Device::UpdateState(State* dst, State* src, int32_t count, const System::Ti
         }
     }
 
-    // DID-WORK = this call produced at least one press/release EDGE. calls= here
-    // is two per frame by construction and each call sweeps 105 or 13 elements,
-    // so the site would read as enormous coverage while almost every element
-    // takes the all-zero path — the trap lane M's DID-WORK counter exists to
-    // close, one level up from calls=0-reads-as-clean. A run whose work column
-    // is 0 has seen no edge at all and has verified only the quiescent case,
-    // whatever calls= says.
-
-    // No replay. dst IS the live Device state and this is a read-modify-write of
-    // it (pressed/released depend on the PREVIOUS value), so running theirs
-    // afterwards compares the second application of an update that is only
-    // accidentally idempotent. The byte comparison lives in the probe, on a
-    // synthetic Device. See the banner.
+    // `edges` counts this call's press/release edges; nothing reads it.
     (void)edges;
 }
 
@@ -609,11 +584,6 @@ namespace Input {
 
 void Device::Update(const System::Time& time) {
 
-    // NOTE FOR ANYONE LOOKING FOR THE PROBE HOOK: it is NOT here, and the first
-    // version of this lane put it here and measured nothing. See the
-    // ZERO CALLERS section of the banner. The probe is scheduled from
-    // Input::KeyMap::GetValue instead (input.cpp), which really does run.
-
     // Phase D.4 SDL I2: not retail. SDL's keyboard / mouse state is as fresh as its last
     // event pump, and the frame pumps AFTER this poll; DirectInput / GetAsyncKeyState
     // were live here. Pumping first keeps every key on the tick retail saw it
@@ -638,10 +608,7 @@ void Device::Update(const System::Time& time) {
     }
 
     // Both pollers return true unconditionally today, so both ifs are always
-    // taken. This RECORDS that rather than assuming it: if the work column ever
-    // reads below the call count, one of them started returning false and the
-    // corresponding dispatch stopped running — which would be invisible
-    // otherwise, because the resulting state is "last frame's, unchanged".
+    // taken.
 
     PlatformUpdate();   // retail: JMP 0x1800E2130
 

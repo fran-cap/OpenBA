@@ -9,8 +9,8 @@
 // The grid is made of tiles. A box is three tiles wide and its CENTER is a tile's center, so a vertical line
 // from a box's middle is the vertical line of one tile. Two boxes side by side have centers 4 tiles apart
 // (one empty tile between them). Between two rows of boxes sits a row of line tiles (4 arms: up, right, down,
-// left); inside a row of boxes the one tile between a couple is a short horizontal line, with a stem down
-// when the couple has children.
+// left); inside a row of boxes the tile (or tiles) between a couple is a short horizontal line, with a stem
+// down when the couple has children.
 #pragma once
 
 #include <cstdint>

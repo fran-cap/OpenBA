@@ -16,7 +16,7 @@ def _paint(px, rows):
 
 
 def draw_river_channel(px):
-    """A river running down the tile on a diagonal, three wide the whole way."""
+    """A river running down the tile on a diagonal, three to four wide the whole way."""
     _paint(px, [
         "###.........",
         "####........",

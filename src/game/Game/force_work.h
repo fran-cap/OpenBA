@@ -18,8 +18,8 @@
 // A Work is driven with the WORK-DRIVER ABI — (self, citizenIBP) — NOT the action-stack
 // executor ABI. The building's controller calls the Work's vtable slot directly with the
 // worker's IBP; Execute then pushes an action sequence (MoveTo/PerformWork/...) onto the
-// citizen's OWN CharacterComponent action stack, which MoveTick's executor (FUN_1400c4c50,
-// env BANISHED_LIVE_CHARACTER_MOVETICK) runs. Driving only when the stack is idle lets the
+// citizen's OWN CharacterComponent action stack, which MoveTick's executor (FUN_1400c4c50)
+// runs. Driving only when the stack is idle lets the
 // previously-pushed sequence finish before the next Execute.
 #pragma once
 

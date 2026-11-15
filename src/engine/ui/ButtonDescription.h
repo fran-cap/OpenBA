@@ -3,15 +3,14 @@
 // src/engine/ui/ButtonDescription.h — UI::ButtonDescription, the REAL class
 // ============================================================================
 //
-// ENDGAME B.3 step 6, block C1. The layout is `RtUI::ButtonDescription` in
-// DescriptionsBatch1.h (the ten-class POD header four clusters share and
-// nobody edits, RULE B6-4.4); this header declares the class under retail's
-// name with the SAME fields and cross-asserts every offset against that POD.
+// ENDGAME B.3 step 6, block C1. `RtUI::ButtonDescription` in
+// DescriptionsBatch1.h is an alias of this class; that header's banner keeps
+// the per-field evidence, and every offset is asserted below.
 //
 // PARENT `UI::ElementDescription` — READ, not inferred:
 //     ?_ParentTypeName@ButtonDescription@UI@@CAPEBDXZ  @0x180047e00 -> "ElementDescription"
-// RULE B5-15 / B6-7 — the two literals, RECORDED, NOT USED (slots 1/2 keep
-// reading the minted `?_typeInfo@ButtonDescription@UI@@…`, 0x1801fa900):
+// RULE B5-15 / B6-7 — the two literals, which the class's DEFINE_TYPE
+// (buttondescription.cpp) returns:
 //     ?_TypeName@ButtonDescription@UI@@CAPEBDXZ        @0x180047df0 -> "ButtonDescription"
 //     ?_ParentTypeName@ButtonDescription@UI@@CAPEBDXZ  @0x180047e00 -> "ElementDescription"
 //
@@ -35,15 +34,10 @@
 // and its `Serialize` first; both are name-hidden by their own slot-8
 // override, so both call sites are QUALIFIED.
 //
-// THE KEY FUNCTION. `TypeName` is this class's key function, so GCC emits
-// `vtable for UI::ButtonDescription` in buttondescription.cpp. Its typeinfo
-// names `typeinfo for UI::ElementDescription`, whose key function
-// (`ElementDescription::TypeName`) is still a dialog.cpp door — that does NOT
-// break the link: mingw-w64 GCC emits every typeinfo it needs as a COMDAT in
-// the using TU (measured with `nm` on a two-class probe, 2026-09-25). The
-// emitted table is never stamped on anything; live objects wear the minted one.
-// The DESTRUCTOR is the one member that stays undefined: a body would chain to
-// `~ElementDescription`, which is not defined in the real build.
+// THE KEY FUNCTION. `~ButtonDescription` is this class's key function (the first
+// non-inline virtual; DECLARE_TYPE's TypeName is inline), so GCC emits
+// `vtable for UI::ButtonDescription` in buttondescription.cpp, and live objects
+// wear it.
 //
 // (Until ENDGAME B.3.9:) ABSTRACT: slot 0 `= 0`; no real ctor (`??0ButtonDescription` 0x180110b10 is
 // the factory_ui1.cpp door that `Construct`/`Reconstruct` tail-jump into).
@@ -61,7 +55,7 @@
 #include <type_traits>
 
 #include "ElementDescription.h"
-#include "DescriptionsBatch1.h"   // kVtbl* names; RtUI::ButtonDescription aliases this class
+#include "DescriptionsBatch1.h"   // RtUI::ButtonDescription aliases this class
 #include "../object/Internal.h"   // Object::detail::InternalMemFree
 
 namespace UI {
@@ -124,8 +118,8 @@ public:
 private:
 
 public:
-    // ---- the 0x38 bytes after ElementDescription — RtUI::ButtonDescription's
-    // names, unchanged (the evidence per field is on the POD).
+    // ---- the 0x38 bytes after ElementDescription (the per-field evidence is
+    // in DescriptionsBatch1.h's banner).
     //
     // NAME-HIDING NOTE: `_childDesc` here (+0x68, five of them) HIDES
     // `ElementDescription::_childDesc` (+0x48) inside this class and its two

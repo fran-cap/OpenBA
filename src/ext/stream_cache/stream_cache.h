@@ -16,9 +16,10 @@
 // record carries the entry's block directory (STREAMCACHE2.md).
 //
 // EXACTNESS. The record is the bytes the serializer itself consumed, in order; the stream served
-// from it answers the same reads with the same bytes and the same positions, and anything else --
-// a read outside the record -- fails loudly. WHICH resources load, and in what order, is the
-// serializer's business and unchanged: the save's reference table cannot move. A resource with no
+// from it answers the same reads with the same bytes and the same positions, and a read outside the
+// record goes on through retail's compressed stream on the same entry (segment_stream.h). WHICH
+// resources load, and in what order, is the serializer's business and unchanged: the save's reference
+// table cannot move. A resource with no
 // record loads as retail loads it, recorded; the records a load bracket produced are stored at the
 // bracket's end by the derived cache's writer thread.
 //

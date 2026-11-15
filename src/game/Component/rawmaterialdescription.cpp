@@ -4,9 +4,9 @@
 // Size 0x60. GetVersion=8 (slot +0x18 @ 0x140129630: mov eax,8; ret).
 //
 // Ctor defaults (RawMaterialDescription_CopyCtor):
-//   ExternalPtr @ +0x20 = 0, ExternalPtr @ +0x28 = 0   (sprite / icon refs)
-//   String      @ +0x30 = 0, String @ +0x38 = 0        (name / plural)
-//   int         @ +0x40 = 1, +0x44 = 1, +0x48 = 1       (flags / stack / etc.)
+//   ExternalPtr @ +0x20 = 0, ExternalPtr @ +0x28 = 0   (sprite sheet / string table refs)
+//   String      @ +0x30 = 0, String @ +0x38 = 0        (_name / _nameSmall)
+//   int         @ +0x40 = 1, +0x44 = 1, +0x48 = 1       (low / high create count, weight)
 //   float       @ +0x50 = 0.33 (0x3ea8f5c3)
 //   byte/bool   @ +0x58 = 0
 //   int/enum    @ +0x5c = 0

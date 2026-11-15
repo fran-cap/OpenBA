@@ -286,8 +286,7 @@ void ComponentEntity::StartupComponents() {
 // Read in B6 (row 46), 0x1400c3470-0x1400c3541: the count is read once (0x1400c3486), +0x40 zeroed
 // (0x1400c348d), and every slot is CheckPtr'd and its +0x20 word OR'd in (0x1400c34a0-0x1400c34c1)
 // with no null test; the two appends go through 0x140003110. This member is THE body of
-// 0x1400c3470 (the tree's second copy, NotifyEntityChanged in action_base_hunt.cpp, is to become a
-// call to it).
+// 0x1400c3470.
 void ComponentEntity::RefreshEntityFlags() {
     // [PerfX WALKCACHE -- NON-RETAIL] a component's flags changed: the update walk's
     // cached list of this entity's slot-8 components is stale (entitylist.cpp).
@@ -412,7 +411,7 @@ void ComponentEntity::Persist(IO::Stream& stream) {
                     tid = c->Type();
                 }
                 // Stream cursor (CompressedMemoryStream + 0x8C — see
-                // engine/types/io_serializer.h). Logged on BOTH save and load:
+                // engine/io/Stream.h). Logged on BOTH save and load:
                 // diffing the two traces per component finds an ASYMMETRIC
                 // serializer (read size != write size — a silent desync that
                 // corrupts every later component without crashing).
@@ -567,7 +566,6 @@ void ComponentEntity::Persist(IO::Stream& stream) {
                 ::Object::InternalPtr<Component> newIBP(newComp);
 
                 // Get description template ptr for this component
-                // LEFT: ComponentDescription::_subDescs is void** (COMP-c's header, running).
                 Description* descTemplate = static_cast<Description*>(desc->_subDescs[descIdx]);
 
                 // Set component fields: +0x10 = owner IBP (this entity), +0x18 = description template
@@ -606,9 +604,8 @@ void ComponentEntity::Persist(IO::Stream& stream) {
 // ============================================================
 // EntityList registration (FUN_1400c48a0 + helpers) — Foundation B
 // ============================================================
-// In standalone these exe primitives resolve to NULL until registered, so they
-// are reimplemented here in clean C++ and registered at their Ghidra addresses
-// (address_registry.cpp). Used by the start-town ECS spawn.
+// These exe primitives are reimplemented here in clean C++ and called by name.
+// Used by the start-town ECS spawn.
 
 // FUN_1400c33e0 — register an entity in its owner's update/draw buckets when the
 // update(bit2)/draw(bit4) capability changed vs oldFlags. This is the same tail
@@ -659,7 +656,7 @@ void ComponentEntity::OnAddedPass() {
 //   entityList+0xE0 (byte) : "closed" flag — if set, drop (delete) the entity.
 //   entityList+0x08        : main entity array header {ptr@+0x08,count@+0x10,cap@+0x14}.
 //                            entity id = the pre-insert main count.
-//   entityList[0]          : copied to entity+0x20 (externals).
+//   entityList[0]          : copied to entity+0x20 (the last-update time).
 //   per-category C: bucket header at entityList+0x18+C*0x10 (count at +0x20+C*0x10).
 //   entity+0x1C low-24     = bucket index (pre-insert bucket count); +0x1F = category.
 //   category 6 = no bucket (entity+0x1C low-24 set to 0xFFFFFF sentinel).

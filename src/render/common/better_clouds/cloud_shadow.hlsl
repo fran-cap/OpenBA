@@ -8,7 +8,7 @@
 // colour (blend ZERO / SRC_COLOR). The sky (depth 1) is left alone; the water and everything blended draw
 // after it, over it.
 //
-// The full-screen vertex program is AO's (src/render/common/ao/ao_depth_resolve.hlsl VSFullscreen: the
+// The full-screen vertex program is AO's (src/render/dx11/ao/ao_depth_resolve.hlsl VSFullscreen: the
 // clip position alone). Compiled offline by tools/water_shaders.py (fxc, ps_4_0) into cloud_shadow_ps.h.
 // ============================================================================
 

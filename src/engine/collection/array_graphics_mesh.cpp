@@ -20,9 +20,9 @@
 // same session, and array_destroy.cpp's table is POSITIONAL (its banner records
 // a Wave 27 merge that silently gave two lanes the same indices). A new file
 // with no table of its own cannot collide. Nothing here is a second copy of a
-// Collection algorithm: `SetSizeCore`, `ArrayDtorImpl`, `MemAlloc` and
-// `MemFree` are array.cpp's bodies, reached through array_internal.h, exactly
-// as array_graphics_anim.cpp reaches them.
+// Collection algorithm: `SetSizeCore` and `MemAlloc` are array.cpp's bodies and
+// `ArrayDtorImpl` and `MemFree` are header-inline in Collection.h, all reached
+// through array_internal.h, exactly as array_graphics_anim.cpp reaches them.
 //
 // GREPPED BEFORE WRITING: all eight addresses were searched across code/,
 // engine/, runtime/, standalone/ and src/render/dx11/. None is registered anywhere, and
@@ -96,16 +96,15 @@ void IndexBufferPlatformDestruct(Video::IndexBuffer* p) {
 }
 
 // `Collection::Array<T>::operator=` for the 0x98 index array — retail
-// 0x180013640, the copy constructor's only call. UNEXPORTED and NOT YET PORTED,
-// so this is an address door that reaches the DLL today and our body the day
-// someone ports it (ResolveAddr is registry-first). Named here so the next
+// 0x180013640, the copy constructor's only call, ported in array_destroy.cpp as
+// RtColl_ArrayAssign_180013640 and called by name. Named here so the next
 // reader can find it rather than meeting a bare hex number.
 void InnerIndexArrayAssign(void* dst, const void* src) {
     rtcoll::RtColl_ArrayAssign_180013640(dst, src);
 }
 
 // The same job one level up, for `Array<Array<T>>`'s element assign — retail
-// 0x180014c70, PORTED. Address door for the same reason (no export name).
+// 0x180014c70, ported in array_destroy.cpp as RtColl_ArrayAssign_180014c70.
 void InnerArrayAssign(void* dst, const void* src) {
     rtcoll::RtColl_ArrayAssign_180014c70(dst, src);
 }
@@ -322,11 +321,11 @@ static_assert(kSpec_InnerArray.seedZeroHi <= kSpec_InnerArray.stride,
 }  // namespace rtcoll
 
 // ============================================================================
-// The registered entry points. One free function per ADDRESS, with the address
-// in the name so a crash log or a census line names it directly.
+// The entry points. One free function per ADDRESS, with the address
+// in the name so a crash log names it directly.
 // ============================================================================
 // B3R RT-VG: namespace rtcoll (external linkage), was an anonymous namespace --
-// the graphics readers call these by name (types/graphics/GraphicsMesh.h).
+// the graphics readers call these by name (src/engine/graphics/GraphicsMesh.h).
 namespace rtcoll {
 
 using namespace rtcoll::gfxmesh;
@@ -343,10 +342,6 @@ void* Rt_ArrayDtor_180014160(void* a) {       // ~Array<Array<T>>
     rtcoll::AsArray<&kSpec_InnerArray>(a)->~Array();
     return nullptr;
 }
-
-// Retail's arity for the two element-destroy helpers, including the `this`
-// each spills to the shadow space and never reads (array_destroy.cpp's
-// "ignoredThis" note applies unchanged).
 
 void Rt_SetSize_18005d840(void* a, int n) {   // Array<TriangleList>
     rtcoll::AsArray<&kSpec_TriangleList>(a)->SetSize(n);

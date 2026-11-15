@@ -1,16 +1,14 @@
 // src/game/Action/action_pf_geom.cpp
 // Pathfinding / region-graph / geometry / heuristic leaf sub-helpers (PF porter wave).
 //
-// Faithful 1:1 ports of nine exe sub-helpers that are pure leaves (no NEEDS-PORT
+// Faithful 1:1 ports of six exe sub-helpers that are pure leaves (no NEEDS-PORT
 // children — only Math::Vector3 engine exports, System::MemoryAllocator/Random
 #include "Action/exe_bodies.h"
-// exports, and bit/array/index math). Their callers call them by name through
-// Action/exe_bodies.h (B3R); standalone/reg_pf_geom.cpp still registers them for readers
-// other blocks have.
+// exports, and bit/array/index math). Their callers call them by name.
 //
 // Transcribed literally from the Ghidra decompile/disassembly. Do NOT "improve",
 // simplify, or reorder. None of these are exercised on the autostart path, so a
-// wrong port is undetectable silent corruption — strictly worse than unregistered.
+// wrong port is undetectable silent corruption.
 //
 //   (0x1400a5ec0, the neighbour by direction code, is GridPathSearch::Neighbour, inline in
 //   Action/PathSearch.h so FindPath can carry the row and column)
@@ -135,7 +133,7 @@ int Pf_TileShapeLut_ae180(void* /*self*/, char p2, char p3, char p4, char p5,
 // 0x14009d0a0 — expanding-ring spiral search for nearest valid region cell
 // ============================================================
 // param_1[0] = grid width (square). param_1+0x20 (int* arithmetic, = BYTE 0x80) =
-// cell-record array base — the SAME array Pf_IsDstReachable_f810 reads at (int*)param_1+0x20.
+// cell-record array base — the SAME array Map::PathDistance reads at (int*)param_1+0x20.
 // (stride 0x30; +0x18 = regionId int). Starting from cell param_2, if that cell's
 // regionId < 0, spiral outward in rings of growing radius (1..3) testing the four
 // "side" walks of each ring; the first neighbour with regionId >= 0 returns that
@@ -146,7 +144,7 @@ int Map::NearestRegionId(int param_2) const {
     int iVar5 = size;
     int64_t lVar16 = (int64_t)iVar5;
     // Ghidra's `param_1 + 0x20` on int* is byte 0x80: the cell array (the same array
-    // Pf_IsDstReachable_f810 reads).
+    // Map::PathDistance reads).
     const MapCell* lVar6 = cells.GetData();
     uint32_t uVar8 = (uint32_t)(param_2 / iVar5);
     int iVar11 = param_2 % iVar5;
@@ -422,10 +420,6 @@ int PopulationComponent::PickTargetCell(int param_2) const {
     System::MemoryAllocator::MemFree(pvVar5);
     return iVar2_result;
 }
-
-// ===========================================================================
-// B4 FORWARD: the C spellings other blocks' files still call, one line each.
-// ===========================================================================
 
 // (Pf_QuadtreeSubdivide_18880 / Pf_QuadtreeInit_18dd0, the forwarders to
 // CharacterGridWalker::Subdivide / Init, had no caller left: deleted, B4 wave X.)

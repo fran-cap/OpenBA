@@ -5,8 +5,8 @@
 //   +0x50: uint8  fishingFlag  (serialized as bool)
 //   +0x54: float  fishingRate  (serialized)
 //
-// Vtable at 0x140163230. One non-trivial hookable override:
-//   Shutdown (0x14011f050) — ResourceProduceComponent::Shutdown + own serializer
+// Vtable at 0x140163230. Overrides slot [3] Persist (0x14011f050) — ResourceProduceComponent::Persist
+//   + own serializer — and slots [18]-[21] (listed at the end of this file).
 //
 // Decompiled from Application-x64.exe using Ghidra.
 
@@ -38,8 +38,6 @@
 // base's member (B38_RULES D1, D2, D6).
 // ============================================================================
 #include "Object/factory_registration.h"
-
-// Slots 18-21: the retail bodies, ported elsewhere and reached through these.
 
 // 0x14011f130: the RP ctor (CALL 0x14012b3d0), the compiler's stamp, then
 // `MOV byte [RBX+0x50],0`. Retail leaves +0x54 unwritten; the tree's factory

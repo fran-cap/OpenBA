@@ -1,23 +1,14 @@
 // src/game/Action/action_base_movedeps.cpp
 // Wave 3 (Action) — closure-safe code sub-callees of the MoveTo "unsafe" helpers.
 //
-// These two exe helpers are the *only* members of the move-helper sub-callee set whose
-// own transitive closure is fully satisfiable in standalone (engine_funcs export-resolved
+// These two exe helpers are sub-callees of the move helpers in action_base_move.cpp:
 #include "Action/exe_bodies.h"
-// pointers + already-registered helpers + data globals). Registering them unblocks wiring
-// the two closure-safe members of the deferred move-unsafe-6 set:
-//   - 0x1401250f0 (this file)  ->  unblocks 0x14010a1f0 SetAnimation
-//   - 0x1400a9290 (this file)  ->  unblocks 0x140116650 CitizenBreakCheck (and is also a
-//                                  callee of 0x14010a1f0's helper, indirectly)
+//   - 0x1401250f0 ModelComponent::PlayAnimation, called by 0x14010a1f0 SetAnimation
+//   - 0x1400a9290 BreakTimeCheck, called by 0x140116650 CitizenComponent::BreakCheck
 //
-// The remaining move sub-callees (0x14009c480 ConnRefresh, 0x1400a68b0 / 0x1400a6a30 /
-// 0x1400a6b20 / 0x1400a6c10 terrain-cost queue ops) are NOT registered here: they are
-// commands to a background pathfinding worker Thread — they call System::Thread::Start and
-// depend on FUN_1400a6430 -> FUN_14001ce00 (unregistered path-builder) and 9c480 ->
-// FUN_14009c170 -> FUN_14001a9b0 (the deferred ZoneRefresh region flood-fill). Wiring them
-// would either start an unwired background thread or build half-populated path records —
-// strictly worse than the safe no-op of leaving them skipped. They stay deferred (and so do
-// e550 / 9cfb0 / c8c10 that depend on them).
+// The other move sub-callees (0x14009c480 Map::FillZones in action_pf_roots_road.cpp;
+// 0x1400a68b0 / 0x1400a6a30 / 0x1400a6b20 / 0x1400a6c10, the PathfinderThread commands in
+// action_pf_astar.cpp) and e550 / 9cfb0 / c8c10 (action_base_move.cpp) are not in this file.
 //
 // Each function below is a 1:1 port of the decompiled exe helper (Ghidra), ABI verified
 // against the disassembly. Do NOT "improve" behavior.
@@ -25,7 +16,7 @@
 
 // The runtime type header comes FIRST: graphics/Mesh.h reaches
 // src/engine/volume/Volume.h, whose global-scope `struct Rectangle` is hidden
-// by <wingdi.h>'s `Rectangle()` once <windows.h> has been seen through resolve.h.
+// by <wingdi.h>'s `Rectangle()` once <windows.h> has been seen.
 #include "graphics/Mesh.h"                 // ENDGAME B.3.5 batch K1
 #include "object/External.h"
 #include "object/TypeInfo.h"
@@ -76,11 +67,11 @@ bool BreakTimeCheck(System::Time* time, const float* pair, System::Random* rng) 
 // AnimalComponent_helper_50f0 (0x1401250f0) — start a mesh animation.
 // ============================================================
 // void fn(animObj* self, uint32_t animId, float p3, float p4, float p5)
-//   obj = *(self+0x18); if IsDerivedFrom(obj, FenceDescription type) keep it, else null.
+//   obj = *(self+0x18); if IsDerivedFrom(obj, ModelDescription type) keep it, else null.
 //   Time tB(p3), tA(p4).  animData = *(*(obj+0x20) + (short)self[0x164]*0x18).
 //   MeshInstance(self+0x28)::PlayAnimation(animData, animId, tB, tA, p5).
 //   self[0x20] |= 4; if the low-16 bits changed and self+0x10 != 0, CheckPtr(self+0x10)
-//   then NotifyEntityChanged (FUN_1400c3470, already registered).
+//   then ComponentEntity::RefreshEntityFlags (FUN_1400c3470).
 // Verified ABI (disasm 0x1401250f0): RCX=self, EDX=animId, XMM2=p3, XMM3=p4, [stack]=p5;
 // IsDerivedFrom slot 0x140152a98, Time::Time(float) slot 0x140152b00, PlayAnimation slot
 // 0x140152988 (?PlayAnimation@MeshInstance@Graphics@@QEAAXV?$ExternalPtr@VAnimationGroup@
@@ -88,7 +79,7 @@ bool BreakTimeCheck(System::Time* time, const float* pair, System::Random* rng) 
 // Time is passed by const-ref (pointer); ExternalPtr<AnimationGroup> animData is a single
 // pointer-sized value passed by value.
 // B3R: ??0Time@System@@QEAA@M@Z is RtSystem_Time_Ctor, 0x1400c3470 is
-// ActHunt_NotifyEntityChanged_c3470, both called by name.
+// ComponentEntity::RefreshEntityFlags, both called by name.
 
 void ModelComponent::PlayAnimation(uint32_t animId, float p3, float p4, float p5) {
     // B6 (14d G57): retail tests neither the model nor the narrowed description: it reads

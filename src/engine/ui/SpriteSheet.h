@@ -187,11 +187,11 @@ static_assert(offsetof(SpriteInfo, v1) == 0x30, "v1 at +0x30");
 //
 // THE FIELD NAMES ARE THE ONES THE TREE ALREADY SPELLS, and they stay public:
 // ~16 unconverted src/engine/ui TUs and saveload_draw.cpp read them through
-// the `::SpriteSheet` alias. Three are now NAMED BY EVIDENCE in comments only
-// (renaming would touch other blocks' files): +0x30 is the sheet's
+// the `::SpriteSheet` alias. +0x30 `m_materialInstance` is the sheet's
 // `ExternalPtr<Graphics::MaterialInstance>` (Serialize hands it to that
 // instantiation's Serialize, 0x180014520; `GetMaterialInstance` 0x180003320 /
-// `SetMaterial` 0x1800034a0 are its accessors), and +0x48/+0x4C/+0x50 are
+// `SetMaterial` 0x1800034a0 are its accessors), and +0x48/+0x4C/+0x50
+// (`m_imageWidth` / `m_imageHeight` / `m_padForFiltering`) are
 // `Set`'s two ints and its bool (sprite.cpp, 0x1800034f0).
 class SpriteSheet : public Object::External {
 public:
@@ -243,9 +243,9 @@ public:
     void    SetMaterial(Object::ExternalPtr<Graphics::MaterialInstance> material); // 0x1800034a0
     SpriteSheet(const SpriteSheet& src);                    // 0x1800035d0
     SpriteSheet& operator=(const SpriteSheet& src);         // 0x1800036b0
-    // `??2`/`??3` keep their DOORS in spritesheet_new.cpp (B36_RULES
-    // section 7). The factory pair is the class's own (ENDGAME B.3.9 UI-D,
-    // spritesheet_vtable.cpp), registered by name and address.
+    // `??2`'s body is `RtUi_SpriteSheet_OperatorNew` in spritesheet_new.cpp
+    // (B36_RULES section 7). The factory pair is the class's own (ENDGAME B.3.9
+    // UI-D, spritesheet_vtable.cpp).
     static void* operator new(std::size_t bytes);              // 0x180002e60  (door)
     static void* operator new(std::size_t bytes, void* place); // 0x180002ed0
     static void  operator delete(void* p) { ::Object::detail::InternalMemFree(p); }                     // 0x180002ee0  (door)
@@ -319,11 +319,10 @@ inline constexpr size_t kSpriteSheetWrittenBytes = 0x51;
 using SpriteSheet = UI::SpriteSheet;
 using SpriteInfo  = UI::SpriteInfo;
 
-// ==== B3R W0-P0c: Runtime bodies reached by retail address ====
-// ENDGAME B.3R (B3R_RULES R5): each body below is registered at the retail
-// address in its trailing comment and read through the registry today. It is
-// declared here, copied from its definition (linkage, namespace, types), so the
-// reader can call it by name. Nothing calls it through this declaration yet.
+// ==== B3R W0-P0c: Runtime bodies declared by name ====
+// ENDGAME B.3R (B3R_RULES R5): each body below is declared here, copied from its
+// definition (linkage, namespace, types), so a caller can call it by name; the
+// trailing comment is its retail address.
 namespace IO { class Serializer; }   // io/Serializer.h
 
 // ---- ui/spritesheet_vtable.cpp

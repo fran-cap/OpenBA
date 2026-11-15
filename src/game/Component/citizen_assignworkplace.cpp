@@ -7,15 +7,6 @@
 //   (the roster: ResidenceComponent::RemoveResident 0x14012a550 / AddResident 0x14012a710 /
 //    CountResidents 0x140129ff0, residencecomponent.cpp)
 //
-// DORMANT: no caller in code/Game yet (the lead wires it in a later brick). It must be
-// crash-safe and byte-faithful now. The roster bookkeeping (find/compact/decrement in
-// a550; grow-array append + qsort in a710; the count sum in 129ff0) is the FAITHFUL CORE
-// and runs unconditionally. Every rendering/audio side effect is INERT — in standalone
-// the Audio::Scene (*(gameWorld+0x78)) is often null and FindComponent can return a
-// null-wrapped IBP — so those branches are guarded to no-op crash-safe, mirroring the
-// established inert-branch pattern (src/game/Component/citizencomponent.cpp roster read,
-// reference_citizencomponent_field_map).
-//
 // Verified against Application-x64.exe disassembly (Ghidra):
 //   AssignWorkplace ABI  RCX=self, RDX=workplaceIBP, R8D=slotIndex (0x1401163e2 MOV EBP,R8D)
 //   a550/a710 ABI        RCX=storageComp, EDX=slotIndex, R8=selfIBP

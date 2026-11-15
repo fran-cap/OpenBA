@@ -17,12 +17,12 @@
 //   * sizeof 0xb8 — `MOV EDX,0xb8` in the slot-0 vector deleting dtor
 //     0x180049c60 (B36_SLOTS.md section 1).
 //
-// PARENT, read (B36_SLOTS.md section 3), recorded not used (RULE B6-7):
+// PARENT, read (B36_SLOTS.md section 3), used by DEFINE_TYPE in sliderdescription.cpp (RULE B6-7):
 //     ?_TypeName@SliderDescription@UI@@CAPEBDXZ       @0x180049710 -> "SliderDescription"
 //     ?_ParentTypeName@SliderDescription@UI@@CAPEBDXZ @0x180049720 -> "ElementDescription"
 //
 // `??_7SliderDescription@UI@@6B@` @ 0x1801575e0, TEN slots:
-//   [0] 0x180049c60 deleting dtor (RT_DELDTOR row)  [1] 0x180049750 TypeName
+//   [0] 0x180049c60 deleting dtor                   [1] 0x180049750 TypeName
 //   [2] 0x180049730 Type            [3] 0x1800d79f0 GetFileVersion (0x304)
 //   [4] External::Compile (inherited, NOT declared — B6-1.5)
 //   [5] 0x1800d7890 Serialize       [6] 0x1800498d0 Reconstruct
@@ -34,8 +34,7 @@
 // own slot 0 (the vector deleting dtor), a virtual ~SliderDescription holding
 // the retired ??1 door's body, and the factory pair as the class's own statics;
 // every live one wears the COMPILER's table. The minted `??_7SliderDescription@UI@@6B@`,
-// its RT_DELDTOR row 0x180049c60 and the ctor / dtor / slot doors are retired
-// (tools/rt_mint_retired/ui-b.txt).
+// its RT_DELDTOR row 0x180049c60 and the ctor / dtor / slot doors are retired.
 // ABSTRACT (slot 0 `= 0`), NO real ctor. The destructor is declared only:
 // `??1` (0x1800d7a00) is the registered door.
 // ============================================================================

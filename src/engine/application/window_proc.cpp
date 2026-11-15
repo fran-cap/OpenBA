@@ -37,10 +37,8 @@ using MessageCallbackFn = App::MessageCallback;
 // ?WindowProc@Application@1@CA_JPEAUHWND__@@I_K_J@Z    retail 0x18009f930
 //                                                      ord 4546  (CA = static)
 // ============================================================================
-// This is not an optional extra. `PlatformStartup` stores 0x18009f930 into
-// `WNDCLASSW::lpfnWndProc`, and at cutover that address is not mapped — a port
-// of PlatformStartup that did not also supply the procedure would register a
-// class whose window procedure is a null dereference on the first message.
+// Retail's `PlatformStartup` stores 0x18009f930 into `WNDCLASSW::lpfnWndProc`;
+// here Platform::Pump hands it each translated message (see the banner above).
 //
 // Retail's shape, transcribed:
 //

@@ -21,8 +21,8 @@
 //
 // which is the nested modal UI ShowDialog builds for itself. Our own tree
 // already independently reached the same pair — src/game/Game/
-// gameupdateloop_load.cpp:1065 does `AllocSub(0x128, 4)` before calling the
-// ctor through `s_fn_UI_Ctor` — and the ctor's last store lands at +0x120..
+// gameupdateloop_load.cpp does `AllocSub<UI::UserInterface>(0x128, 4)` before calling the
+// ctor through `RtUi_UserInterface_Ctor` — and the ctor's last store lands at +0x120..
 // +0x127, one qword short of 0x128.
 //
 // ---------------------------------------------------------------------------
@@ -93,7 +93,7 @@
 //                                      0x118) to SpriteContext::Begin
 //
 // INDEPENDENT CROSS-CHECK from the exe side, written months before this lane
-// existed: src/game/Dialog/optionsdialog.cpp's `ApplyKeyMapToUI_Impl`
+// existed: src/game/Dialog/optionsdialog.cpp's `GameContainer::ApplyKeyMapToUI`
 // (exe 0x140099260) writes UI +0xA8/+0xB0/+0xB8/+0xC0/+0xC8 as five sound
 // effects and UI +0xDC as `settings[0] / 100.0f`. Those are sound slots 2..6
 // of the `_sounds[7]` array at +0x98 and the `_uiScale` field — both agree
@@ -226,16 +226,16 @@ static_assert(offsetof(Event, userData) == 0x28, "Event::userData @ +0x28");
 // (`UpdateLoop.h`'s two by-value holders, the exe-tree readers of `_dialogs`,
 // `src/diag/mouse_inject.cpp`) compiles against the same fields.
 //
-// HELD BY VALUE (RULE B6-4.5 / B5-4): `RtEngine::DialogLoopT` (+0x40, pinned by
+// HELD BY VALUE (RULE B6-4.5 / B5-4): `Engine::DialogLoopT` (+0x40, pinned by
 // `?GetUserInterface@DialogLoopT@Engine@@` 0x18004d7c0) and
-// `RtEngine::DialogLoaderLoopT` (+0x60) embed it. So it is CONCRETE, its default
+// `Engine::DialogLoaderLoopT` (+0x60) embed it. So it is CONCRETE, its default
 // constructor is `protected` and `= default`, and the two holders are
 // `friend`s. That `= default` is NOT retail's constructor: `??0UserInterface@UI@@
 // QEAA@XZ` (0x180120de0) seeds `_uiScale = 1.0f`, `_fadeSpriteIndex = -1` and
 // `_fadeColor = 0xffffffff` and leaves 25 bytes unwritten, and it STAYS A DOOR
 // (`RtUi_UserInterface_Ctor`, userinterface.cpp — B4b-2: a C++ ctor would run a
 // second time over what the door seeded). It is constructed on the LOADER
-// thread (`src/game/Game/gameupdateloop_load.cpp`, `s_fn_UI_Ctor`) and by
+// thread (`src/game/Game/gameupdateloop_load.cpp`, `RtUi_UserInterface_Ctor`) and by
 // `ShowDialog` for its nested modal UI — both through the door.
 //
 // `??1UserInterface@UI@@QEAA@XZ` (0x180120b90) likewise STAYS A DOOR and is NOT
@@ -273,14 +273,14 @@ static_assert(offsetof(Event, userData) == 0x28, "Event::userData @ +0x28");
 //       BeginSpriteCapture 0x18011f4c0       `Video::Viewport`  MOV EAX,[R8]
 //
 // HIDDEN RETURN SLOTS (B36_SLOTS sec. 4), all NON-virtual, so the member returns
-// by value (both ends are this GCC) and the registered door keeps retail's
-// `(this, ret, …)` shape and placement-news the prvalue (B5-12):
+// by value (both ends are this GCC); the `extern "C"` RtUi_UserInterface_GetFirstDialog and
+// RtUi_UserInterface_GetFirstContainedDialog wrappers in userinterface.cpp keep retail's
+// `(this, ret, …)` shape and placement-new the prvalue (B5-12):
 //   GetFirstDialog 0x180031150 (`Iterator`), GetFirstContainedDialog 0x18011fb00,
 //   SetClipRegion x2 0x180122470 / 0x1801224d0 (`ClipRegion`).
 //
 // RULE B6-5: no member keeps a static initialiser, a lazy singleton or a
-// non-atomic first-call cache. Doors another namespace owns are resolved through
-// namespace-scope `std::atomic<void*>` slots (`rtuielem::AtomicExport`).
+// non-atomic first-call cache.
 // ############################################################################
 
 #include <type_traits>
@@ -359,7 +359,7 @@ public:
     // 0x180120410, fourteen instructions, read whole: MOV RAX,[RCX] (the head)
     // / JZ false — the argument is NOT read on an empty list — then
     // MOV RCX,[RDX] (the dialog, through the caller's InternalPtr) and a walk
-    // through `next` (+0x10). Not registered (nothing in the tree calls it).
+    // through `next` (+0x10).
     bool IsDialogOpen(Object::InternalPtr<DialogInstance>* dialog) const {
         auto* node = _dialogs._head;
         if (node == nullptr) return false;
@@ -401,9 +401,9 @@ public:
     bool WasMouseCaptured() const { return _mouseCaptured != 0; }                // 0x180031060  not registered
 
     // ---- retail `CA` (private STATIC) and `AEAA` (private) members ----------
-    // PUBLIC here, as SpriteContext.h keeps its AEAA members: the registered
-    // doors (plain functions) delegate to them, and MainLoop's callback arrays
-    // hold the DOORS, whose (context, userData) shape these statics mirror.
+    // PUBLIC here, as SpriteContext.h keeps its AEAA members. ShowDialog
+    // (userinterface_showdialog.cpp) puts the two statics in MainLoop's callback
+    // arrays, whose (context, userData) shape they mirror.
     static void DrawStandAloneUI(Video::Context& context, void* userData);       // 0x1801203f0  CA
     static void UpdateStandAloneUI(const System::Time& time, void* userData);    // 0x180120310  CA
     void CleanRemovedDialogs();                                                  // 0x18011f790  AEAA
@@ -608,11 +608,10 @@ static_assert(sizeof(UserInterface::Iterator) == 0x08,
 
 } // namespace UI
 
-// ==== B3R W0-P0c: Runtime bodies reached by retail address ====
-// ENDGAME B.3R (B3R_RULES R5): each body below is registered at the retail
-// address in its trailing comment and read through the registry today. It is
-// declared here, copied from its definition (linkage, namespace, types), so the
-// reader can call it by name. Nothing calls it through this declaration yet.
+// ==== B3R W0-P0c: Runtime bodies called by name ====
+// ENDGAME B.3R (B3R_RULES R5): each body below is declared here, copied from its
+// definition (linkage, namespace, types), so the reader can call it by name; its
+// retail address is in its trailing comment.
 
 // ---- ui/userinterface.cpp
 extern "C" void RtUi_UserInterface_Dtor(UI::UserInterface* self);  // 0x180120b90
@@ -621,6 +620,6 @@ extern "C" UI::UserInterface* RtUi_UserInterface_Ctor(UI::UserInterface* self); 
 // ==== end B3R W0-P0c ====
 
 
-// ==== B3R G-Game (R5): Runtime bodies code/Game calls by name ====
+// ==== B3R G-Game (R5): Runtime bodies src/game/Game calls by name ====
 extern "C" UI::UserInterface* RtUi_UserInterface_Ctor(UI::UserInterface* self);  // 0x180120de0
 // ==== end B3R G-Game ====

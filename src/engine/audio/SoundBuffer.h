@@ -15,7 +15,7 @@
 //                 External, CompiledExternal, then SoundBuffer.
 //
 // `??_7SoundBuffer@Audio@@6B@` @ 0x1801549e0, NINE slots:
-//   [0] +0x00 0x18000bef0  (unexported) vector deleting dtor — RT_DELDTOR row
+//   [0] +0x00 0x18000bef0  (unexported) vector deleting dtor
 //   [1] +0x08 0x18000b8b0  ?TypeName@SoundBuffer@Audio@@UEBAPEBDXZ
 //   [2] +0x10 0x18000b890  ?Type@SoundBuffer@Audio@@UEBAIXZ
 //   [3] +0x18 0x1800e0470  ?GetFileVersion@SoundBuffer@Audio@@UEBAHXZ (MOV EAX,0xa)
@@ -58,7 +58,7 @@
 // public constructor (??0SoundBuffer 0x1800e0320), its own slot 0, and the
 // factory pair as its own statics: every live SoundBuffer wears the COMPILER's
 // table. The minted row, its RT_DELDTOR row 0x18000bef0, the ??1 door and the
-// eight slot doors are retired (tools/rt_mint_retired/eng.txt).
+// eight slot doors are retired.
 //
 // THREADS (B7-7): owned by the main thread; the Stream worker reads +0x20,
 // +0x30, +0x48 and +0x50 of the one being streamed.

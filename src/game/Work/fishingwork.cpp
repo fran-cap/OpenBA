@@ -13,7 +13,7 @@
 //   +0x38: Slot7      (0x1400e9e80) — delegates to Slot6 via vtable +0x30
 //   +0x40: Slot8      (0x1400ea830) — cancel all: clear citizens + cancel actions
 //   +0x48: Slot9      (0x1400e9c30) — validate work assignments
-//   +0x50: Slot10     (0x1400ea8b0) — get target entity position IBP
+//   +0x50: Slot10     (0x1400ea8b0) — get the workplace's profession
 //
 // Decompiled from Application-x64.exe using Ghidra.
 
@@ -24,12 +24,12 @@
 #include "Game/exe_constants.h"   // kRdata_* (B3R Leftovers: the .rdata constants)
 #include "system/MemoryAllocator.h"
 #include "Work/exe_bodies.h"
-#include "Action/exe_bodies.h"      // B3R (Pf_EntityResolvePos_2e20 went in B6: InteractNodePosition is called typed)
-#include "Component/exe_bodies.h"   // B3R: CitizenComp_FUN_14012c3f0, AttendanceComponent_GetJobHostComponent
+#include "Action/exe_bodies.h"      // B3R (Pf_EntityResolvePos_2e20 went in B6: InteractComponent::NodePosition is called typed)
+#include "Component/exe_bodies.h"
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch C
 #include "system/Value.h"      // ENDGAME B.3.4b System callers
 #include "redzone_alloc.h"   // RedzoneAlloc_PrintBacktrace (wild-write diagnostic)
-#include "Object/factory_registration.h"   // GetTypeIdByName (drop-spot occupancy dump)
+#include "Object/factory_registration.h"   // GetTypeNameById (drop-spot occupancy dump)
 #include <cstdio>
 #include <cstdlib>
 #include <cstdint>
@@ -55,18 +55,18 @@
 // ============================================================
 // Sub-functions, called by name (B3R; Work/Action/Component exe_bodies.h)
 // ============================================================
-//   0x140002f90 Entity_FindComponent_MeshInstance   WorkBase_FindComponent_2f90
-//   0x140002ed0 Entity_FindComponent_Position       WorkBase_FindComponent_2ed0
-//   0x140122e20 Entity_impl_2e20 spot position      Pf_EntityResolvePos_2e20
-//   0x14012c3f0 MeshInstance visibility toggle      CitizenComp_FUN_14012c3f0
+//   0x140002f90 Entity_FindComponent_MeshInstance   ComponentEntity::FindComponent<StatusIconComponent>
+//   0x140002ed0 Entity_FindComponent_Position       ComponentEntity::FindComponent<InteractComponent>
+//   0x140122e20 Entity_impl_2e20 spot position      InteractComponent::NodePosition
+//   0x14012c3f0 MeshInstance visibility toggle      StatusIconComponent::SetFlag
 //   0x1400beae0 Fishing action ctor                 WorkAct_FishWorkCtor_beae0
 //   0x1400c2490 PlayAnimation_Action_Ctor           WorkAct_PlayAnimationCtor_c2490
-//   0x1400f8620 TryAssignToFishingSpot              WorkGrid_TryAssignWorkplace_f8620
-//   0x140002e10 find PositionComponent (GetTarget)  AttendanceComponent_GetJobHostComponent
-//   0x1400c5400 cancel pending actions              WorkBase_TaskListCleanup_c5400
-//   0x1400a00f0 Map_CheckPassable                   WorkBase_ValidateCell_a00f0
-//   0x1400f7100 Work::CanStartWork                  WorkBase_ValidateTask_f7100
-//   0x140115e60 CitizenAI_State_LongTermPlan        CitizenAI_State_LongTermPlan
+//   0x1400f8620 TryAssignToFishingSpot              WorkScheduler::TryAssignWorkplace
+//   0x140002e10 find WorkPlaceComponent (GetTarget) ComponentEntity::FindComponent<WorkPlaceComponent>
+//   0x1400c5400 cancel pending actions              ActionStack::Clear
+//   0x1400a00f0 Map_CheckPassable                   Map::ValidateCell
+//   0x1400f7100 Work::CanStartWork                  Work::ValidateTask
+//   0x140115e60 CitizenAI_State_LongTermPlan        CitizenComponent::LongTermPlan
 // 0x1400032e0 (Array<InternalPtr>::SetSize) and 0x1400021d0 (Array<int32>::SetSize) are
 // the citizenRefs / spotStates members' SetSize.
 
@@ -231,9 +231,7 @@ int FishingWork::Execute(CitizenComponent** citizenIBP, System::Time* /*time*/) 
             // Check passability. This is NOT an A*: 0x1400a00f0 is the region-equivalence
             // test (both cells' region word at cell+0x26 non-zero and EQUAL). A dock on
             // the far bank of a river is therefore unreachable no matter how good its
-            // fishable-tile score, and this branch used to return silently — a working
-            // dock and a stranded one logged exactly the same nothing. Count it and print
-            // the two region ids, which name the cause outright.
+            // fishable-tile score.
             uint64_t passResult = map->ValidateCell(PathBits::Walk, (uint32_t)citizenCell, spotCell);
             if ((char)passResult == '\0') {
                 return 1;
@@ -413,8 +411,8 @@ int FishingWork::Execute(CitizenComponent** citizenIBP, System::Time* /*time*/) 
             //
             // UPSTREAM CAUSE FOUND 2026-08-15 and fixed: the dock's own footprint claim
             // (dc20) was taking cell+8 on its '_' walkway cells, which are exactly where
-            // its four mode-2 drop spots sit. BANISHED_LIVE_WALKWAY_DROPCELLS (default on)
-            // leaves those cells unowned, so this branch should now be unreachable. It
+            // its four mode-2 drop spots sit. dc20 (keystone_a_map.cpp) leaves those cells
+            // unowned unconditionally, so this branch should be unreachable. It
             // stays as a tripwire: if it ever fires again the claim is back, and the
             // dock's 4-catch cap is back with it.
             if (cellEntity == _entity.Get()) {
@@ -446,9 +444,9 @@ int FishingWork::Execute(CitizenComponent** citizenIBP, System::Time* /*time*/) 
             //
             //  1. Retail's footprint claim (dc20) writes the owner entity into cell+8 for
             //     '#' AND '_' cells alike — `CMP CL,0x2e ; SETNZ BL`, only '.' is free.
-            //     BANISHED_LIVE_WALKWAY_DROPCELLS (default ON, keystone_a_map.cpp:411)
-            //     deliberately treats '_' as '.' so the dock's drop cells read cell+8 == 0.
-            //     That flag is what lifted the dock's 4-catch cap.
+            //     Our dc20 (keystone_a_map.cpp, the walkway drop-cells deviation)
+            //     deliberately leaves '_' cells unclaimed like '.', so the dock's drop
+            //     cells read cell+8 == 0. That deviation is what lifted the dock's 4-catch cap.
             //  2. SpawnComponent's DoSpawn gate TileFree (0x140120c30) tests cell+8 —
             //     `mov 0x8(%rax,%rcx,8),%rax ; test ; je reject`. An unclaimed drop cell
             //     therefore reads as free ground. The other gate, CanPlace (0x14009f5d0),
@@ -787,9 +785,9 @@ int FishingWork::Cleanup() {
 
 // ============================================================
 // Slot10/GetTarget (0x1400ea8b0)
-// Returns the target entity's position IBP (entity+0x48) via
+// Returns the building's WorkPlaceComponent profession (+0x48) via
 // the building entity reference at self+0x10.
-// Uses FUN_140002e10 to find PositionComponent on building entity.
+// Uses FUN_140002e10 to find the WorkPlaceComponent on the building entity.
 // Returns param2 (hidden return pointer pattern).
 // ============================================================
 Profession** FishingWork::GetTarget(Profession** param2) {

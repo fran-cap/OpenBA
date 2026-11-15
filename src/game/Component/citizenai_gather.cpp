@@ -7,76 +7,72 @@
 //                                                    + Storage/QueryCount/GetResourceCount
 //                                                    + Position/2e20 + FindPath + ef40 transfer-loop
 //                                                    + MeshInstance hide-render branch + 12c3f0
-//   0x14010b3e0  CitizenAI_State_GatherResources2  (state id 7)  -> same, with the private
+//   0x14010b3e0  CitizenAI_State_GatherResources2  (state id 7)  -> same, with
 //                                                    Storage_GetResourceCount2 + a resource-slot
 //                                                    selection loop (count matching RawMaterial
 //                                                    slots, Random pick, transfer)
-//   0x14012ab00  Storage_GetResourceCount2  (private to Gather2; closure = Entity_FindComponent_Storage
-//                                            @0x140006270 (REG) + IsDerivedFrom only -> closure-safe)
+//   0x14012ab00  Storage_GetResourceCount2  (ResidenceComponent::GetFuelCount; closure = Entity_FindComponent_Storage
+//                                            @0x140006270 + IsDerivedFrom only -> closure-safe)
 //
 // Both handlers make their state ENTERABLE by validating/walking-to the citizen workplace and
 // (when a carry target is found) building the pickup path + transferring resources onto the carrier.
-// ValidateAndEnterState (citizenai_candidatelist.cpp) dispatches them by ResolveAddr; returning 1
+// ValidateAndEnterState (citizenai_candidatelist.cpp) calls them directly; returning 1
 // commits the state. Transcribed from the Ghidra decompile + disassembly (FUN 0x14010bc90 /
 // 0x14010b3e0), offset-by-offset.
 //
 // SELF CHAIN: param_1 = CitizenAIComponent. self = param_1+0x38 (sibling CitizenComponent IBP).
-//   citizen = *self. citizen+0x238 = workplace entity, +0x10 = own entity IBP, +0x18 = description
+//   citizen = *self. citizen+0x238 = home entity, +0x10 = own entity IBP, +0x18 = description
 //   (CitizenDescription, +0xd8 = gather-rate scalar), +0x278 = CharacterComponent (+0x68 =
 //   ModelComponent transform, +0x158/+0x15c/+0x160 = world pos). Success epilogue writes the
 //   action-state flags to *self (+0x54 |= 4, +0x30 = -1, +0xb0 lastErrand = None then
 //   GatherFood / GatherFuel) and
 //   returns CONCAT71(cz>>8, 1). Cooldown-fail stamps Time(rate * mult) into the CitizenAIComponent
 //   timer (Gather: param_1+0x70; Gather2: param_1+0x78) and returns ...&0xff00. The
-//   found-but-empty branch (resource count 0) runs the MeshInstance "hide" render branch on the
-//   workplace MeshInstance (mirrors citizenai_handlers2.cpp SeekHappiness hide-render).
+//   not-found branch (no carry target) sets the home's StatusIconComponent flag (6 Gather,
+//   7 Gather2) when the home's food / fuel count is 0.
 //
 // GameWorld singleton (g_pGameWorldSingleton @ DAT_1401c3dd8): +0x60 = Graphics::Scene,
 //   +0xb0 = (sub @+0x30, +0x50 = town carry capacity), +0xd8 = Random, +0xf0 = entity-list pair,
 //   +0xf8 = MapGrid (int* width at [0]).
 //
-// Registered exe sub-callees (resolved via ResolveAddr; bodies NOT duplicated):
+// Exe sub-callees (called by name; bodies NOT duplicated):
 //   0x14008dd30  CitizenAI_State_sub_dd30           (citizenai_findtarget.cpp)   [find carry target]
-//   0x1401158d0  CitizenComponent_CheckWorkplaceValid (reg_component_gap_A.cpp)
-//   0x140002f90  Entity_FindComponent_MeshInstance  (registered)
-//   0x140002ed0  Entity_FindComponent_Position      (reg_work_base.cpp)
-//   0x140006270  Entity_FindComponent_Storage       (registered)  [citizen+0x10 variant]
-//   0x140008090  Entity_FindComponent_Storage       (reg_component_people.cpp)   [workplace variant]
-//   0x140122e20  Entity_impl_2e20                    (reg_pf_road.cpp)  [resolve world pos]
-//   0x140087fb0  Entity_impl_7fb0                    (reg_pf_road.cpp)  [workplace anchor cell]
-//   0x14008ef40  Entity_impl_ef40                    (reg_component_gap_A.cpp)  [carrier slot iter]
-//   0x1400c3470  FUN_1400c3470 NotifyEntityChanged   (reg_action_hunt)
-//   0x140116540  FUN_140116540  town carry-capacity  (registered)
-//   0x14012c3f0  FUN_14012c3f0  MeshInstance set-flag (registered)
-//   0x14012cf10  StorageComponent_QueryCount         (registered)
-//   0x14012a9d0  Storage_GetResourceCount            (reg_component_people.cpp)  [Gather]
+//   0x1401158d0  CitizenComponent_CheckWorkplaceValid
+//   0x140002f90  Entity_FindComponent_MeshInstance
+//   0x140002ed0  Entity_FindComponent_Position
+//   0x140006270  Entity_FindComponent_Storage       [citizen+0x10 variant]
+//   0x140008090  Entity_FindComponent_Storage       [workplace variant]
+//   0x140122e20  Entity_impl_2e20                    [resolve world pos]
+//   0x140087fb0  Entity_impl_7fb0                    [workplace anchor cell]
+//   0x14008ef40  Entity_impl_ef40                    [carrier slot iter]
+//   0x1400c3470  FUN_1400c3470 NotifyEntityChanged
+//   0x140116540  FUN_140116540  town carry-capacity
+//   0x14012c3f0  FUN_14012c3f0  MeshInstance set-flag
+//   0x14012cf10  StorageComponent_QueryCount
+//   0x14012a9d0  Storage_GetResourceCount            [Gather]
 //   0x14012ab00  Storage_GetResourceCount2           (THIS FILE)                 [Gather2]
-//   0x1400bf790  Pathfinding_FindPath                (registered)
-//   0x1400ca230  Resource_TransferToCarrier          (registered)
-//   0x140115e60  CitizenAI_State_LongTermPlan        (another agent registers; null-guarded)
+//   0x1400bf790  Pathfinding_FindPath
+//   0x1400ca230  Resource_TransferToCarrier
+//   0x140115e60  CitizenAI_State_LongTermPlan
 //
 // KEY ABI (verified): Entity_impl_ef40 (0x14008ef40) IGNORES its first arg — real sig
 //   (ignoredArg1, int64_t* out, void* entityIBP, int category). Mirror the decompile but arg1
 //   is don't-care (the decompile passes the citizen there; harmless).
 //
-// SELF-CONTAINED-BRICK type-ids (UNFILLED 0xFFFFFFFF in standalone; resolved via
-//   Object::GetTypeIdByName, every scan-result deref null-guarded):
+// SELF-CONTAINED-BRICK type-ids (each class's TypeId(), cached by EnsureInit; the scan
+//   results are read with no test):
 //     DWORD_1401c7190  -> "CitizenDescription"     [cooldown-rate IsDerivedFrom on citizen+0x18]
 //     DWORD_1401c7cb8  -> "RawMaterialDescription"  [resource-slot child-scan IsDerivedFrom]
 //
 // .rdata float consts (read from the exe):
-//     DAT_140172234 = 300.0f  (found-but-empty cooldown multiplier)
+//     DAT_140172234 = 300.0f  (no-carry-target cooldown multiplier)
 //     DAT_1401721fc =  75.0f  (no-valid-workplace cooldown multiplier)
 //
-// The MeshInstance/AddObject/RemoveObject render sub-branch touches the still-INERT ModelComponent
-// — every deref through it is null-guarded so it stays crash-safe (it is NOT exercised at
-// world-start).
 
 
 // graphics/Scene.h FIRST: it pulls src/engine/volume/Volume.h, whose
 // global-scope `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()` once
-// <windows.h> has been seen through resolve.h, which breaks Volume.h's own
-// `sizeof(Rectangle)` assert.  ENDGAME B.3.5 caller batch I2.
+// <windows.h> has been seen.  ENDGAME B.3.5 caller batch I2.
 #include "graphics/Scene.h"
 #include "Component/RawMaterialDescription.h"   // B.3.8 CB1a (TypeId)
 // EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMPRIO.md):
@@ -116,13 +112,13 @@
 
 namespace {
 
-// --- registered exe sub-callees: called by name (Component/Action/Work exe_bodies.h) ---
+// --- exe sub-callees: called by name (Component/Action/Work exe_bodies.h) ---
 // NB: WorkAct_GatherRawMatCtor_bf790's 8th param is a 64-bit RawMaterialDescription* (0 =
 // "any material"), NOT a 32-bit `long`. On Win64 `long` is 32-bit: a `long` there made the
 // caller write only the low dword of the 8-byte stack slot, leaving the high dword as stack
 // garbage, which the callee (exe Pathfinding_FindPath, which reads the full 8 bytes via
 // CONCAT44) passed to the PickupStored ctor (ca520) and crashed once LIVE_STORAGE made
-// storage non-empty. The declaration's int64_t writes the full 0.
+// storage non-empty. The declaration's ComponentDescription* writes the full 0.
 
 static uint32_t s_tid_CitizenDescription     = 0;  // DWORD_1401c7190
 static uint32_t s_tid_RawMaterialDescription = 0;  // DWORD_1401c7cb8
@@ -247,7 +243,7 @@ static void GatherTransferLoop(CitizenComponent* citizen, ::Object::InternalPtr<
 //            > 0; track a preferred index (last match whose rm+0x58 byte != 0), else stays -1.
 //   if any match: if no preferred, Random-pick chosen = Rand(matchCount).
 //   pass 2 — walk to the chosen-th match; transfer it if capLeft >= rm+0x48; deduct and re-loop.
-// Returns when a pass yields no transfer. Every scan-deref null-guarded.
+// Returns when a pass yields no transfer. The scan results are read with no test.
 static void SelectAndTransfer(ComponentEntity* found, ::Object::InternalPtr<Action> pathResult, int capLeft) {
     int transfers = 0;
 
@@ -551,8 +547,8 @@ uint64_t CitizenAIComponent::State_GatherResources2() {
         //            (row+8 - row+0xc) > 0; track a preferred index (rows whose +0x58 byte != 0).
         //   if any match: if the preferred index is unset, Random-pick one of the matches.
         //   pass 2 — walk to the chosen match and TransferToCarrier it.
-        // Mirrors the decompile offset-by-offset; every scan-deref null-guarded. The carrier-slot
-        // entity is found via ef40 (the loop's storage component is `found`'s Storage).
+        // Mirrors the decompile offset-by-offset; the scan results are read with no test. The
+        // loop's storage component is `found`'s Storage.
         SelectAndTransfer(found, pathResult, capLeft);
 
         // ---- set citizen action-state flags + return 1 ----

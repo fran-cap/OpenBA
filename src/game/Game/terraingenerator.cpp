@@ -54,16 +54,13 @@
 #include "ui/StringTable.h"   // B8 RT2: ::Object::SerializeExternal<UI::StringTable> (the downcast needs it complete)
 
 // FUN_14001fd10 -- resolve a deserialized noise-layer filename String to its
-// External. Registered at that address to this body (standalone/reg_game_leaf.cpp);
-// called directly now, as are the two array helpers below (0x1400206b0 /
-// 0x140020870), whose registered bodies live in this file.
+// External. Called directly, as are the two array helpers below (0x1400206b0 /
+// 0x140020870), whose bodies live in this file.
 void Game_TerrainResolveMaterial(MapGenerator::ExternalRef* ref);   // game_leaf_helpers.cpp
 
 // ============================================================
 // Standalone reimplementations of the +0x80 terrain-data-array helpers.
-// In standalone these exe addresses aren't mapped, so ResolveAddr returns
-// null and the size table never deserializes (gen+0x80 stays null -> worldgen
-// reads dim=0). These faithful reimpls (decompiled from FUN_1400206b0 /
+// These faithful reimpls (decompiled from FUN_1400206b0 /
 // FUN_140020870) populate the size table so the in-game terrain build works.
 // Each row is a SizeRow: 17 ints, stride 0x44; row[0] = map dimension.
 // ============================================================

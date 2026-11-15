@@ -4,9 +4,9 @@
 //
 // The save-enumeration and request-issue half of IO::Persistence: six of the
 // lane's seven rows. The seventh, ?BeginGetSaveGameInfo@, is the only one that
-// touches the Win32 event API directly and lives in the _win twin next door
-// (PLAN.md §4.1: src/engine/ stays platform-neutral unless a file is
-// explicitly a _win file).
+// calls the event primitives (Platform::EventReset / EventSet) in its own body
+// and lives in persistence_begin_saveinfo.cpp (docs/runtime_port/PLAN.md §4.1:
+// src/engine/ stays platform-neutral).
 //
 //   ?GetSaveCount@Persistence@IO@@QEBAHXZ                    0x1800b7c60
 //   ?GetSaveInfo@Persistence@IO@@QEBA?AUSaveGameInfo@12@H@Z  0x1800b7bd0
@@ -48,27 +48,25 @@
 // So the three rows share one mechanism, and that mechanism is strictly
 // friendlier than Audio's: the whole issued state is a String, three ints and
 // two event handles, all inside the object, with nothing having yet run into
-// game state when the call returns. That is what makes the synthesised
-// whole-object oracle in persistence_saves_probe.cpp possible at all.
+// game state when the call returns.
 //
-// WHAT IS CALLED BY ADDRESS, AND WHY
-// ----------------------------------
+// WHAT IS CALLED BY NAME
+// ----------------------
 // The two enqueue helpers and the worker destructor are UNEXPORTED DLL
 // internals — checked, not assumed: absent from the export table by address.
 // That is the one case where "AEAA means PRIVATE, not unexported" does NOT
 // apply (reference_aeaa_is_private_not_unexported.md); these have no mangled
-// name at all. They are called by address exactly as persistence.cpp already
-// calls Map_Find/Map_Insert, and for the same reason: they are shared DLL
-// internals this lane does not own. THIS GROWS THE CUTOVER SURFACE — see the
-// set-diff in docs/history/runtime_port/WAVE19_LANE_PERSIST.md
-// (reference_porting_can_grow_the_cutover_surface.md).
+// name at all. They are ported and called by name: the enqueue helpers in
+// persistence_worker.cpp, the worker destructor as `_worker`'s member destructor.
+// The set-diff of what this lane reached by address is in
+// docs/history/runtime_port/WAVE19_LANE_PERSIST.md.
 // ============================================================================
 
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
-#include <new>        // placement new into the retail hidden return slot
-#include <utility>    // std::move -- the pointer steal out of a POD out-param
+#include <new>
+#include <utility>
 #include "io/Persistence.h"
 #include "io/PersistenceWorker.h"   // ENDGAME B.3.9 IO (W2)
 #include "system/string_internal.h"
@@ -114,7 +112,7 @@ const char kRtPersistSaveFilenameFormat[] = "%sSave\\%s.sav";
 // ============================================================================
 // System::Filename IO::Persistence::GetSaveFilename(const String&) const
 // retail 0x1800b7c80 — PRIVATE (`AEBA`), and exported all the same: this DLL
-// exports its private members, so it is registered BY NAME like any other row
+// exports its private members
 // (reference_aeaa_means_private_not_unexported.md). Also returns BY VALUE:
 // (this=RCX, hiddenSlot=RDX, const String& name=R8).
 // ============================================================================
@@ -133,10 +131,9 @@ const char kRtPersistSaveFilenameFormat[] = "%sSave\\%s.sav";
 // ----------------------------------------------------------------------------
 // Three steps and nothing else: release _savePath, destroy the embedded
 // worker, then TAIL-JUMP into the settings-map destructor (0x18000f7d0, the
-// same body Wave 9 lane BOOT2 read to pin +0x00/+0x08). Written as a plain
-// call here — the tail jump is a code-size optimisation with no observable
-// effect, and it is the only deviation from the shipped instruction sequence
-// in this file.
+// same body Wave 9 lane BOOT2 read to pin +0x00/+0x08). Here the three are
+// the member destructors the compiler runs after the empty body of
+// ~Persistence below.
 //
 // NOT VERIFIED BY ORACLE, deliberately. See the wave doc's "what this does NOT
 // claim": ours-then-theirs would destroy one object twice, and the
@@ -157,9 +154,9 @@ const char kRtPersistSaveFilenameFormat[] = "%sSave\\%s.sav";
 // namespace is `RtIo`, LOWERCASE o.
 //
 // NOTHING ELSE CHANGED: same callees in the same order, the same refusal test
-// on bit 0 of `_flags` first, the same absence of a bounds check in
+// on bit 0 of `_runFlags` (IsWorking) first, the same absence of a bounds check in
 // GetSaveInfo, the same three-step destructor. The three `GetSaveFilename`
-// calls inside BeginDelete / BeginLoad / (in the _win twin)
+// calls inside BeginDelete / BeginLoad / (in persistence_begin_saveinfo.cpp)
 // BeginGetSaveGameInfo become direct MEMBER calls of the same body: they were
 // already direct calls to `RtIo_Persistence_GetSaveFilename` in this
 // translation unit and never went through a resolve door, so which body runs is
@@ -197,8 +194,7 @@ System::Filename Persistence::GetSaveFilename(const System::String& name) const 
     // The manual "zero, AddRef-adopt tmp's buffer, then AdjustDelimiters" IS
     // `Filename(const String&)` (retail 0x18000c780) -- see B31_RULES
     // DELIMITERS: an Adopt onto a just-nulled destination followed by
-    // AdjustDelimiters is exactly that ctor. The DOOR's placement-new is
-    // retail's hidden-return-slot construction.
+    // AdjustDelimiters is exactly that ctor.
     System::Filename out(tmp);
 
     // ~tmp is retail's release.

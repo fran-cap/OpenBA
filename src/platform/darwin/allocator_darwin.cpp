@@ -9,8 +9,8 @@
 //   VirtualAlloc(MEM_RESERVE|MEM_COMMIT) mmap(PROT_READ|PROT_WRITE, ...)
 //   VirtualAlloc(MEM_COMMIT)             mprotect(PROT_READ|PROT_WRITE): the pages keep their
 //                                        contents, and a never-touched page reads zero
-//   VirtualFree(MEM_DECOMMIT)            madvise(MADV_DONTNEED) + mprotect(PROT_NONE): the
-//                                        next commit reads zeros again, as on Windows
+//   VirtualFree(MEM_DECOMMIT)            mmap(PROT_NONE, MAP_FIXED) over the span + mprotect(PROT_NONE):
+//                                        the next commit reads zeros again, as on Windows
 //   VirtualFree(MEM_RELEASE)             munmap of the WHOLE reservation
 //   GetSystemInfo().dwPageSize           sysconf(_SC_PAGESIZE)
 //
@@ -22,10 +22,11 @@
 // every range's base) does nothing, as VirtualFree fails on it.
 //
 // A non-null `at` (PlatformAllocate's hint) is VirtualAlloc's exact-address
-// reserve: MAP_FIXED_NOREPLACE, failing rather than moving.
+// reserve: mmap takes it as a hint and a mapping placed elsewhere is unmapped,
+// failing rather than moving.
 //
-// THE LOCK at +0x640 is Platform::MutexInit's in-place recursive pthread_mutex_t
-// (sync_posix.cpp asserts it fits the 0x28 bytes); the spin count is ignored.
+// THE LOCK at +0x640 is Platform::MutexInit's recursive pthread_mutex_t, held by pointer
+// in the 0x28 bytes (sync_darwin.cpp); the spin count is ignored.
 // ============================================================================
 
 #include <sys/mman.h>
@@ -135,7 +136,7 @@ void Release(void* a) {
     if (bytes != 0) munmap(a, static_cast<size_t>(bytes));
 }
 
-// The ctor's InitializeCriticalSection + 5000 spin, in place in the +0x640 bytes.
+// The ctor's InitializeCriticalSection + 5000 spin, in the +0x640 bytes (a pointer to the mutex: sync_darwin.cpp).
 void LockInit(Platform::LockStorage* cs) { Platform::MutexInit(cs, Platform::kLockSpinCount); }
 
 const RtSysMemPlatform kPosix = {

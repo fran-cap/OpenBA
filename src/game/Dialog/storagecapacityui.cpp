@@ -1,4 +1,4 @@
-// engine/src/ui/storagecapacityui.cpp
+// src/game/Dialog/storagecapacityui.cpp
 // Clean reimplementation of StorageCapacityUI game logic.
 //
 // StorageCapacityUI (0x38 bytes) — storage capacity progress bar.

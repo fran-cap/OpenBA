@@ -7,8 +7,8 @@
 // Started by Wave 7 lane F as an evidence note behind a hold-back. Rewritten by
 // WAVE 9 LANE UIF (2026-09-08), which ported three of the class's exports and
 // two of its internals. ENDGAME B.3.6 block D made it the real class under
-// retail's name: every one of retail's 23 exports is declared below, the ported
-// bodies are its members, and the registered doors delegate to them.
+// retail's name: every one of retail's 23 exports is declared below and the
+// ported bodies are its members.
 //
 // PORTABILITY: no <windows.h>, per PLAN §4.1 decision 1.
 //
@@ -16,8 +16,7 @@
 // in the export table — including the `AEAA` (private) ones this banner used
 // to call "internal, no export": `AddSpriteDraw`, `Flush`, `FlushDeferredFonts`
 // and `SetSpriteSheet` are exported private members (B36_SLOTS.md section 6;
-// reference_aeaa_is_private_not_unexported.md). Their doors are registered by
-// ADDRESS in this tree; the names resolve through rt_export_addrs.inc.
+// reference_aeaa_is_private_not_unexported.md).
 //
 // ---------------------------------------------------------------------------
 // SIZE: EXACTLY 0x88 — PINNED BY ENDGAME B.3.6 block D (B36_RULES section 13
@@ -47,7 +46,7 @@
 // (0x18011d250) and a DEEP copy constructor (0x1800321c0 copies each Array
 // through 0x180033d20), so it is not trivially copyable in retail's terms
 // either, and the four `Collection::Array` members make that true here. What
-// B6-4.5 is for — `saveload_draw.cpp:734` builds one on the STACK field by
+// B6-4.5 is for — `Save::SaveLoad::Draw` (saveload_draw.cpp) builds one on the STACK field by
 // field — holds: the class is concrete with a PUBLIC defaulted default
 // constructor, the fields that TU writes are public, and the implicit
 // destructor frees exactly the four buffers retail's does.
@@ -96,13 +95,12 @@
 //                               AddSpriteDraw and SetScissor both
 //                               call into it only when non-null        0x18011c89a
 //
-// THREE MORE ARRAYS, deliberately left opaque. UserInterface::Draw's epilogue
+// THREE MORE ARRAYS. UserInterface::Draw's epilogue
 // frees FOUR buffers belonging to this object — at +0x10, +0x40, +0x58 and
 // +0x68 (0x180122242, 0x18012228f, 0x1801222dc, 0x180122329, each zeroing the
 // pointer and the qword after it). The first two are `_draws` and `_deferred`
-// above. The other two, and the plain qword at +0x50, are NOT modelled: no
-// body this lane ported reads them, and inventing a layout we have not proven
-// is how a shared struct corrupts silently (PLAN §4.3 risk 1).
+// above. The other two, and the plain qword at +0x50, are `_layout`, the
+// Font::Layout (RtUI::FontLayout, +0x50 .. +0x77, below).
 //
 // WAVE 14 LANE DRAW ADDS A SECOND, INDEPENDENT WITNESS for the same four, and
 // one new fact about +0x50. `Save::SaveLoad::Draw` (0x1800c2eb0) builds a
@@ -119,8 +117,8 @@
 //     stack instance. A port of any body that constructs one must NOT zero it,
 //     and an oracle must not compare it.
 // The two arrays at +0x58 and +0x68 are therefore Collection::Array<T> with the
-// usual {_data, _size, _capacity} shape; only their ELEMENT type is still
-// unknown, which is why they stay inside `_opaque50` rather than being named.
+// usual {_data, _size, _capacity} shape: `_layout`'s `_entries` and
+// `_lineWidths` (RtUI::FontLayout, Font.h).
 //
 // ---------------------------------------------------------------------------
 // WHAT IS STILL HELD BACK, AND WHY THE WAVE 7 ARGUMENT ONLY HALF SURVIVED
@@ -237,7 +235,7 @@ class SpriteContext {
 public:
     using SpriteDraw = ::UI::SpriteDraw;   // retail's nested spelling
 
-    // B6-4.5: `saveload_draw.cpp:734` builds one on its stack and writes every
+    // B6-4.5: `Save::SaveLoad::Draw` (saveload_draw.cpp) builds one on its stack and writes every
     // field itself (retail inlined the ctor there). Defaulted and PUBLIC; the
     // Array members zero themselves, +0x50's qword and +0x78/+0x80 are left as
     // the storage held, which is what retail's ctor does too.
@@ -270,8 +268,8 @@ public:
     // ?AddLine@…@QEAAXAEBVSprite@2@HHHHI@Z  0x18011cbe0
     void AddLine(const Sprite& sprite, int32_t x1, int32_t y1,
                  int32_t x2, int32_t y2, uint32_t color);
-    // The four AddSprite overloads — non-virtual C++ overloads, THE DOOR
-    // DECIDES WHICH ONE A CALLER MEANT (the mangled parameter list).
+    // The four AddSprite overloads — non-virtual C++ overloads; the mangled
+    // parameter list above each names which retail export it is.
     // ?AddSprite@…@QEAAXAEBVSprite@2@HHI@Z       0x18011cf00  point, natural size
     void AddSprite(const Sprite& sprite, int32_t x, int32_t y, uint32_t color);
     // ?AddSprite@…@QEAAXAEBVSprite@2@HHHHI@Z     0x18011d3c0  rect
@@ -306,9 +304,8 @@ public:
     Video::Context& GetVideoContext();                       // 0x1800321b0
 
     // ---- retail `AEAA` (private) members, PUBLIC here ----------------------
-    // Exported under private access; the doors and the not-yet-converted
-    // builders (UserInterface::Draw, Save::SaveLoad::Draw) reach them, so they
-    // stay public until those callers convert.
+    // Exported under private access; UserInterface::Draw, Save::SaveLoad::Draw
+    // and SpriteCapture::Draw call them, so they are public here.
     // ?AddSpriteDraw@…@AEAAXAEBUSpriteDraw@12@@Z  0x18011c890
     void AddSpriteDraw(const SpriteDraw& draw);
     // ?Flush@SpriteContext@UI@@AEAAXXZ  0x18011ba40 — src/engine/ui/spritecontext_flush.cpp

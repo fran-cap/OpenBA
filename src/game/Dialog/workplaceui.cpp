@@ -20,7 +20,7 @@
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "Game/ProfessionList.h"
 #include "Game/Profession.h"
-#include "Action/exe_bodies.h"           // B3R: Pf_RecursiveChildSum_123070
+#include "Action/exe_bodies.h"
 #include "Object/internal_factory_audit.h"   // ObjAudit::IsRegistered (stale weak-ref guard)
 #include "system/String.h"
 #include "system/Value.h"
@@ -46,7 +46,7 @@
 #include "Component/CitizenDescription.h"
 #include "Entity/ComponentEntity.h"
 #include "Entity/CitizenBehavior.h"
-#include "Component/exe_bodies.h"   // CitizenEmploy_Strat_*, WorkPlaceComponent_SetMaxWorkers, fn_StorageCountQuery
+#include "Component/exe_bodies.h"
 #include "Game/PlayerToolManager.h"   // CenterOnEntity 0x140103040
 
 namespace {

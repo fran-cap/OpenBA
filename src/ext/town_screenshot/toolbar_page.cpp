@@ -2,9 +2,10 @@
 // src/ext/town_screenshot/toolbar_page.cpp -- ext.town_screenshot's page in the extension window (NOT RETAIL)
 // ============================================================================
 // docs/extensions/handins/TOWNSCREENSHOT.md, src/ext/ui/Dialog/TownScreenshotPage.rsc. Three drop downs (the
-// quality, the angle and the turn), a button that starts the screenshot, one that stops it, and a line that
-// says what is happening. The screenshot itself is town_screenshot.cpp; the page only starts it and shows its
-// status line.
+// quality, the angle and the turn), two check boxes (the weather and the snow), a button that starts the
+// screenshot, one that stops it, one that saves the game's own screenshot of the view, and a line that says
+// what is happening. The screenshot itself is town_screenshot.cpp; the page only starts or stops it and shows
+// its status line.
 // ============================================================================
 
 // The runtime type headers first (moddialog.cpp's note: Volume.h's Rectangle).
@@ -123,8 +124,8 @@ void PageOpen(UI::Element* page, int32_t idBase) {
     ShowStatus();
 }
 
-// The three drop downs into the choices. Read when a screenshot starts as well as when a drop down is used,
-// so the choice stands whichever way the window host reports a pick.
+// The three drop downs and the two check boxes into the choices. Read when a screenshot starts as well as
+// when a drop down is used, so the choice stands whichever way the window host reports a pick.
 void ReadChoices() {
     Choices& c = Choose();
     if (g_quality != nullptr && g_quality->_currentItem >= 0) c.quality = g_quality->_currentItem;

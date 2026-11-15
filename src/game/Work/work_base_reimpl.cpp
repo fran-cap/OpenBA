@@ -1,12 +1,8 @@
 // src/game/Work/work_base_reimpl.cpp
 // Shared Work base-class / ECS helpers referenced from many Work classes.
 //
-// These exe sub-helpers are resolved via ResolveAddr(Module::Exe, 0xADDR) from
-// nearly every src/game/Work/*.cpp. They resolve to 0 (silently skipped) unless
-// registered.
-// This file provides faithful reimplementations and a single registration point
-// (RegisterWorkBaseBatch in standalone/reg_work_base.cpp) so the shared call sites
-// fire real logic in the standalone exe.
+// These exe sub-helpers are called by name from nearly every src/game/Work/*.cpp.
+// This file provides their faithful reimplementations.
 //
 #include "Work/exe_bodies.h"
 // Wave 2 (Work) — shared base-helper sub-batch. Each function is a 1:1 port of the
@@ -17,8 +13,8 @@
 #include "Entity/exe_bodies.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "system/MemoryAllocator.h"
-#include "Action/exe_bodies.h"      // B3R: Pf_IsDstReachable_f810, Pf_ZoneRefresh_9c480
-#include "Component/exe_bodies.h"   // B3R: FloorComponent_FindResData
+#include "Action/exe_bodies.h"
+#include "Component/exe_bodies.h"
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch C
 #include <cstdint>
 #include <cmath>
@@ -104,7 +100,7 @@ void Work::InitFromEntity(ComponentEntity* const* pEntityIBP) {
 // The receiver is the action stack embedded in CharacterComponent at +0x48
 // (CharacterComponent::actionStack, Action.h's ActionStack).
 void ActionStack::Clear() {
-    // ⚠ Retail re-reads BOTH the array pointer (*param_1) and the capacity
+    // ⚠ Retail re-reads BOTH the array pointer (*param_1) and the count
     // ((int)param_1[1]) on EVERY iteration — the +0x40 Cancel vcalls below can
     // push onto this same list (FUN_1400c54e0) and grow/realloc it mid-loop.
     // An earlier port cached both once; the first cancel-push that forced a
@@ -133,11 +129,6 @@ void ActionStack::Clear() {
         completionAction = nul;
     }
 }
-
-// standalone/work_ser_probe.cpp - BANISHED_WORK_SER_PROBE=1 stale-target census.
-// ⚠ NOT a null-guard on the derefs below: with the env var unset (the default) this
-// returns immediately and the faithful retail deref stands untouched. It exists only
-// to turn "save crashed" into a log line naming the stale Work while diagnosing.
 
 // Reimpl of FUN_1400f7400 (Work::Serialize) — serialize a Work task (version 3 stream).
 // Two task-target IBPs at +0x10 (must derive ComponentEntity) and +0x18 (must derive
@@ -182,9 +173,7 @@ bool Work::ValidateTask(void* /*unusedRdx*/, CitizenComponent** citizen, Complet
     if (!(*citizen)->IsA(CitizenComponent::TypeId())) return false;
 
     CharacterComponent* character = (*citizen)->character.Get();
-    // 0x1401c5e50 (CompleteTask's own cell) is UNREGISTERED -- the old raw-.rdata read
-    // always failed and fell through to this same CompleteTask::TypeId() call, so
-    // calling it directly is not a behaviour change (ENDGAME B.3.9 D5 note).
+    // 0x1401c5e50 (CompleteTask's own cell): CompleteTask::TypeId().
     uint32_t completeTaskTid = CompleteTask::TypeId();
     // The bound (+0x60 + 1) is re-read every pass, as retail (0x1400f7204).
     for (int i = 0; i < character->actionStack.current + 1; i++) {
@@ -219,8 +208,8 @@ int Map::CalcDistance(uint32_t cellA, uint32_t cellB) {
     return cost;
 }
 
-// FUN_14009c480 — connectivity/zone refresh for the (pathType, destCell, srcCell) query:
-// Pf_ZoneRefresh_9c480 (Action/exe_bodies.h), called by name with all four arguments.
+// FUN_14009c480 — connectivity/zone refresh: Map::FillZones (Game/Map.h), called by name
+// with no arguments.
 
 // Reimpl of FUN_1400a00f0 (Map::CanPathTo / WorldGrid_ValidateCell) — are two cells
 // mutually reachable? Refreshes connectivity (FUN_14009c480), then ORs the two cells'

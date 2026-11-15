@@ -5,8 +5,8 @@
 // src/app/video_interface.cpp fills. The main slot creates the real device data; the second
 // slot is the cutover-only placeholder (the role of src/render/dx11/dx9_placeholder.cpp): it
 // lists the same adapters and modes under its own name and never creates a device, so
-// choosing it in Options steps back to the main slot. Built only with
-// BANISHED_RENDER_BACKEND=vulkan (src/render/vulkan/backend.cmake).
+// choosing it in Options steps back to the main slot. Built whenever BANISHED_RENDER_BACKEND names
+// vulkan (src/render/vulkan/backend.cmake), the dual dx11+vulkan exe included.
 // ============================================================================
 
 #include "render_backend.h"   // src/render/common: the declarations

@@ -82,10 +82,9 @@
 // MEASURED ANSWER: **retail's teardown here IS the POD one, and copying the
 // refcounted recipe would have been the defect.** 0x18009f201-0x18009f24e is a
 // bare `if (p) { Enter; Free; Leave }` plus two zeroing stores. There is NO
-// per-element loop and NO release of any kind — compare
-// `Achievement::~Achievement`, which calls the real
-// `Array<ExternalPtr<Goal>>::~Array` (`ArrayFreeGoalPtrs`) precisely because
-// there the elements are still owned.
+// per-element loop and NO release of any kind — the same teardown as
+// `GoalArray`'s own destructor (0x180004890, Goal.h), which has no element
+// destroy because an ExternalPtr owns nothing.
 //
 // WHY retail can do that here: 0x18009f1e6 MOVES each `Goal*` out of the source
 // array and into the GoalInstance's `_goal` field, with no addref and no
@@ -103,16 +102,14 @@
 // TWO INLINED Object HELPERS, CALLED THROUGH THEIR PORTED EXPORTS
 // ============================================================================
 // Retail inlines `Factory::CreateObject` and `Base::IsDerivedFrom` here. Both
-// are ALREADY PORTED in src/engine/object/type_system.cpp (Wave 5 lane A) and
-// both are registered, so `ResolveExport` on either name hands back OUR body,
-// not the DLL's (reference_resolveaddr_consults_port_registry_first.md). They
-// are called rather than transcribed a third time:
+// are ported in src/engine/object/type_reflection.cpp. They are called rather
+// than transcribed a third time:
 //
-//   * `FindNode` + `rec->info->factoryFn()` is `RtObject_Factory_CreateObject`
+//   * `FindNode` + `rec->info->factoryFn()` is `Object::Factory::CreateObject`
 //     instruction for instruction, INCLUDING the unguarded `MOV RCX,[RAX+0x10]`
 //     on a null node that faults on an unregistered type.
 //   * the `GetTypeId()` compare then the `parent`-chain walk is
-//     `RtObject_Base_IsDerivedFrom`, including its `ADD RAX,8`-on-null.
+//     `Object::Base::IsDerivedFrom`, including its `ADD RAX,8`-on-null.
 //
 // A third transcription would be a third copy of two tree walks that must never
 // disagree — exactly what reference_grep_for_the_port_before_writing_it.md is
@@ -135,38 +132,7 @@
 // does not carry — and a guard would skip building the goal list rather than
 // restore it.
 //
-// ============================================================================
-// ORACLE — AND IT IS NOT A REPLAY
-// ============================================================================
-// There is NO second-opinion run of retail's copy, and the reason is not "no
-// oracle possible" (a claim this project has had wrong four times across three
-// waves). It is specific: every call of this body ALLOCATES `n` new
-// GoalInstances out of the global Object::InternalFactory, calls `Startup()` on
-// each, and FREES the caller's temporary buffer. Running retail's copy as a
-// second opinion would allocate a second set of instances into the one live
-// factory, leak them, Startup() them a second time, and then double-free the
-// temp. That is the "mutates the global factory" family the emission oracle names, one
-// level worse — there is no prefix that stops before the first mutation,
-// because the first iteration IS the first mutation.
 //
-// What runs instead is a SHADOW PREDICATE over the post-state, checking the
-// three invariants the body is supposed to establish, each naming its own
-// failing term (reference_shadow_predicate_must_name_its_failing_term.md):
-//   (a) `this->_size == n` and the source array is consumed (`_data == null`,
-//       `_size == 0`, `_capacity == 0`)
-//   (b) every element of `this->_data[0..n)` is non-null — i.e. no dynamic cast
-//       failed. A null here is the crash in (2) above and cannot be reached,
-//       so this term is a check on the SCREEN as much as on the body.
-//   (c) every instance's `_goal` (+0x18) holds the pointer the source array
-//       held at the same index, snapshotted BEFORE the buffer was freed.
-// (c) is the one that would catch the real failure mode — an off-by-one or a
-// transposed index in the move — and it is checkable without re-running
-// anything because it compares our own output against a snapshot of our own
-// input. It is NOT a comparison against retail, and this file does not claim
-// one.
-//
-// KILL SWITCH: RT_GOAL (with goal.cpp and goal_serialize.cpp) under
-// RT_ACHIEVEMENT — class atomicity, PLAN §4.1 decision 5.
 // ============================================================================
 
 #include <cstddef>
@@ -178,8 +144,8 @@
 #include "object/Internal.h"
 #include "object/TypeInfo.h"     // ENDGAME B.3.9 SS1: Object::Factory::_singleton
 
-// src/engine/collection/array.cpp — `rtcoll::MemFree` (declared in
-// Collection.h): `if (p) { Enter(alloc+0x640); Free(alloc, p); Leave; }`,
+// `rtcoll::MemFree` (Collection.h, inline: System::MemoryAllocator::MemFree):
+// `if (p) { Enter(alloc+0x640); Free(alloc, p); Leave; }`,
 // instruction for instruction the teardown inlined at 0x18009f209..0x18009f239.
 
 namespace {

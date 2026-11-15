@@ -55,8 +55,9 @@
 # directory (bin/x64/cmd.txt sets `/bin ..\`); /pathres and /pathdat are taken RELATIVE TO the kit's
 # bin/ (an absolute path is appended to it), so this script passes relative paths. One /build per
 # top-level object: the dialog, its button (nothing references it, so the dialog's build does not
-# reach it), the string table, the sprite sheet, each font variant (a variant whose four outputs are
-# newer than its source is skipped: 54 launches cost ~1 min). The tool exits 0 even when it failed and shows a
+# reach it), the string table, the sprite sheet, the Enhanced tab's button and page, the kit's
+# Font/Font.rsc (the typeface witness), each font variant (a variant whose source is not newer than
+# its four outputs is skipped: 54 launches cost ~1 min). The tool exits 0 even when it failed and shows a
 # modal "Assert" box for a missing resource, so every call runs under a timeout and its log is
 # checked for Warning / Error / Failed lines.
 set -u

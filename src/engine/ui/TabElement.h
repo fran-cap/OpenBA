@@ -5,19 +5,18 @@
 //   SetActiveTab(i)  0x18004c890  guard on this+0xf8 != i; sets this+0xf8=i;
 //                                 tail-calls the private (but exported)
 //                                 ?UpdateContainers@TabElement@UI@@AEAAXXZ
-//                                 (0x1800d9710). *** THAT IS PORTED NOW ***
-//                                 (src/engine/ui/tabelement.cpp, 2026-09-12,
-//                                 registered by name AND address), so the
-//                                 RT_ORIGINAL_ONCE call site in
-//                                 widgets_layout.cpp reaches OUR body. The old
-//                                 "NOT reimplemented here" was true of Wave 7
-//                                 lane E and is not any more.
-//   AddTab(...)      0x1800da130  HELD BACK -- see WAVE7_LANE_E.md sec2. Reads
+//                                 (0x1800d9710), ported in
+//                                 src/engine/ui/tabelement.cpp and called by
+//                                 name from SetActiveTab in widgets_layout.cpp.
+//   AddTab(...)      0x1800da130  ported in tabelement_addtab.cpp (retail
+//                                 notes: docs/history/runtime_port/
+//                                 WAVE7_LANE_E.md sec2). Reads
 //                                 this+0xa0/+0xa8 (the shared Element/
 //                                 ContainerElement children Array, same field
-//                                 PageElement::SetActivePage below iterates)
+//                                 PageElement::SetActivePage in
+//                                 widgets_layout.cpp iterates)
 //                                 and this+0xc0 (a running tab count it
-//                                 increments), but the body constructs a
+//                                 increments); the body constructs a
 //                                 temporary ElementDescription/DialogInstance
 //                                 and is not a leaf accessor.
 
@@ -46,15 +45,15 @@ constexpr int kChildrenCount = kChildrenData + 8; // Collection::Array<T>::_size
 //
 // `??_7TabElement@UI@@6B@` @ 0x180157790, TWELVE slots; sizeof 0x108 (`MOV
 // EDX,0x108` in the slot-0 vector deleting dtor 0x18004ca90):
-//   [0] 0x18004ca90 deleting dtor (RT_DELDTOR row)  [1] 0x18004c700 TypeName
+//   [0] 0x18004ca90 deleting dtor                   [1] 0x18004c700 TypeName
 //   [2] 0x18004c6e0 Type        [3] Element::Persist (inherited)
 //   [4] 0x1800d9ea0 ComputeSize [5] 0x1800d9b20 ComputeLayout
 //   [6] 0x1800d98b0 Draw        [7] 0x1800d9810 Update — OVERRIDDEN
 //   [8..11] Element's (inherited)
 //
 // RULE B6-8 — the layout tabelement.cpp held as raw offsets, MOVED here. Every
-// field is a store in `??0TabElement@UI@@QEAA@XZ` (0x1800da390, tabelement.cpp's
-// door) and a read in the slot bodies; +0x104 is written by nothing.
+// field is a store in `??0TabElement@UI@@QEAA@XZ` (0x1800da390, the inline ctor
+// below) and a read in the slot bodies; +0x104 is written by nothing.
 //
 // THE CHILD LIST IS PAIRED: children[0] the tab-strip backdrop, [1] the page
 // backdrop, [2] the page frame, then tab i's BUTTON at [3 + 2i] and CONTAINER at
@@ -68,8 +67,7 @@ constexpr int kChildrenCount = kChildrenData + 8; // Collection::Array<T>::_size
 // own slot 0 (the vector deleting dtor), a virtual ~TabElement holding
 // the retired ??1 door's body, and the factory pair as the class's own statics;
 // every live one wears the COMPILER's table. The minted `??_7TabElement@UI@@6B@`,
-// its RT_DELDTOR row 0x18004ca90 and the ctor / dtor / slot doors are retired
-// (tools/rt_mint_retired/ui-b.txt).
+// its RT_DELDTOR row 0x18004ca90 and the ctor / dtor / slot doors are retired.
 // ABSTRACT (slot 0 `= 0`), NO real ctor (the `??0TabElement` door builds every
 // live one; it wears the MINTED table).
 // ############################################################################
@@ -112,21 +110,20 @@ public:
                 const UpdateState& state) override;
 
     // ---- non-virtual members ----------------------------------------------
-    // 0x1800da130, body in tabelement_addtab.cpp. RETSLOT: returns
-    // InternalPtr<Element> by value (the door keeps retail's (this, ret, ...)
-    // shape); the two ExternalPtrs are trivially copyable 8-byte values and
-    // arrive in registers, as in retail.
+    // 0x1800da130, body in tabelement_addtab.cpp. RETSLOT in retail; here it
+    // returns InternalPtr<Element> by value. The two ExternalPtrs are trivially
+    // copyable 8-byte values and arrive in registers, as in retail.
     Object::InternalPtr<Element> AddTab(Object::ExternalPtr<ElementDescription> button,
                                         Object::ExternalPtr<ElementDescription> content);
     int32_t GetActiveTab() const { return _activeTab; }           // 0x18004c880 MOV EAX,[RCX+0xf8]
-    // Body in widgets_layout.cpp (door TabElement_SetActiveTab, fragment pass).
+    // Body in widgets_layout.cpp.
     void SetActiveTab(int32_t tab);                               // 0x18004c890
 
     TabElement(const TabElement& src);                            // 0x18004c8b0  not ported
     TabElement& operator=(const TabElement& src);                 // 0x18004c980  not ported
 
-    // Private in retail (`AEAA`); public here only because the registered door
-    // in tabelement.cpp and widgets_layout.cpp's forwarder reach it.
+    // Private in retail (`AEAA`); public here because TabDescription::CreateInstance
+    // (tabdescription.cpp) calls it.
     void UpdateContainers();                                      // 0x1800d9710 (tabelement.cpp)
 
 private:

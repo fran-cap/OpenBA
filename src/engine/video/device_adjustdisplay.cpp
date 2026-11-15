@@ -6,14 +6,11 @@
 //   ?AdjustDisplay@Device@Video@@QEAAXXZ    retail 0x1800f7e20
 // ============================================================================
 //
-// The ninth of lane GFXIF's nine rows, and the only one that is pure Win32.
-// PLAN §4.1 decision 1 keeps src/engine/ free of <windows.h> outside a `_win`
-// twin, so it lives here and device_enum_types.cpp stays portable.
+// The ninth of lane GFXIF's nine rows. It reaches the window only through
+// Platform::Window and includes no <windows.h>.
 //
-// B.4 (R-VIDEO): this TU includes src/engine/video/Device.h AFTER
-// <windows.h> (as buffers_win.cpp does) and the body is the member
-// `Video::Device::AdjustDisplay` on named fields; the literal offsets and the
-// `RtVideo_Device_AdjustDisplay(void*)` C body are gone.
+// B.4 (R-VIDEO): the body is the member `Video::Device::AdjustDisplay` on named
+// fields, not literal offsets.
 //
 // WHAT IT DOES. Re-lays the window out for the current Video::Configuration,
 // then reads back the client area and publishes it as the new backbuffer size:
@@ -43,18 +40,13 @@
 // Note GetWindowLong**W**, not GetWindowLongPtrW: the style travels as a 32-bit
 // LONG throughout, which is why every mask below is 32-bit.
 //
-// TWO CORRECTIONS TO src/engine/video/Device.h, BOTH FROM THIS BODY
+// TWO FIELDS OF src/engine/video/Device.h
 // -------------------------------------------------------------------
-//  * Device+0xA0 is an HMONITOR. Device.h currently covers it with
-//    `gap9E[0x12]` and records only "the ctor zeroes +0xa0 and +0xa8". This
-//    body loads it and passes it straight to GetMonitorInfoW (0x1800f7e68),
-//    which pins it.
-//  * Adapter+0x2C and +0x30 are NOT unrecovered. Device.h says "meaning not
-//    recovered" for both; src/render/dx11/devicedata.cpp:485-486 already names them
-//    dxgiAdapterIndex and dxgiOutputIndex, written by the shipped DX11
-//    EnumerateInterfaces. Recorded here because this lane read both files.
-// Neither correction changes a byte of layout, so nothing is edited in the
-// header by this lane; see docs/history/runtime_port/WAVE18_LANE_GFXIF.md.
+//  * Device+0xA0 is an HMONITOR (`monitor`). This body loads it and passes it
+//    straight to GetMonitorInfoW (0x1800f7e68), which pins it.
+//  * Adapter+0x2C and +0x30 are `dxgiAdapterIndex` and `dxgiOutputIndex`,
+//    written by the adapter enumeration in src/render/dx11/devicedata.cpp.
+// See docs/history/runtime_port/WAVE18_LANE_GFXIF.md.
 //
 // A RETAIL DEFECT, REPRODUCED DELIBERATELY
 // ----------------------------------------

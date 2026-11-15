@@ -109,7 +109,7 @@ private:
 
 // Issue #253: the lean builder's route for one draw item, recorded in pass A and replayed by
 // pass C in the same walk order (no second table probe). kKeepLive: the item keeps its live
-// geometry (a WorldGeometry mode other than decal / road).
+// geometry (a WorldGeometry mode other than decal / road, or ext.better_trees' falling leaves).
 constexpr int32_t kKeepLive = -1;
 
 // The entry of the item walked last, when the next item may reuse it without a probe: only an

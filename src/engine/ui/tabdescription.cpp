@@ -5,7 +5,7 @@
 // Vtable batch 2. Derives straight from UI::ElementDescription.
 //
 // ??_7TabDescription@UI@@6B@ (retail 0x1801577f0), ten slots:
-//   0  deleting dtor      0x18004c640  deleting_dtor.cpp row (sizeof 0xb8)
+//   0  deleting dtor      0x18004c640  the compiler's (sizeof 0xb8)
 //   1  TypeName           0x18004c1f0  here
 //   2  Type               0x18004c1d0  here
 //   3  GetFileVersion     0x1800da8d0  here  (returns 0x104)
@@ -25,9 +25,8 @@
 // deserialized hands the element whatever the allocator left. Retail's.
 //
 // ENDGAME B.3.6 block C5: every slot body MOVED into the members of the real
-// `UI::TabDescription`; each registered door is a one-line QUALIFIED
-// delegation. CreateInstance's by-address UpdateContainers (0x1800d9710)
-// is now the member call. The ctor / dtor stay doors (B4b-2).
+// `UI::TabDescription`. CreateInstance's by-address UpdateContainers (0x1800d9710)
+// is now the member call.
 //
 // TWO NEW COLLECTION HELPERS, both appended to
 // src/engine/collection/array.cpp rather than written here (that file is the
@@ -35,8 +34,8 @@
 //   0x18004cdf0  Array<Tab>::SetSize, two-argument, zeroed tail  -> kSpec_ExtPtrPair10
 //   0x18004cc90  ~Array<Tab>, the canonical free-and-zero body   -> J1_ENTRY
 // Everything else this class calls was already ported, including
-// ?UpdateContainers@TabElement@UI@@ (0x1800d9710, widgets_layout.cpp) and
-// ??0TabElement@UI@@ (0x1800da390, ui_factory_wave28.cpp).
+// ?UpdateContainers@TabElement@UI@@ (0x1800d9710, tabelement.cpp) and
+// ??0TabElement@UI@@ (0x1800da390, TabElement.h).
 // ============================================================================
 #include <cstddef>
 #include <cstdint>
@@ -93,8 +92,6 @@ void AddChild(const UI::Dialog* dialog, Object::InternalPtr<UI::Element>* slot,
 // ============================================================================
 namespace {
 // ?GetSpriteIndexFromName@SpriteSheet@UI@@ (0x1800031f0), called directly.
-// B.4 LEFT: the three names are `System::String` fields spelt `char*` (their
-// dtors would start to run as the real type, B4_RULES H5).
 int32_t GetSpriteIndexFromName(const UI::SpriteSheet* sheet, const System::String* name) {
     return sheet->GetSpriteIndexFromName(*name);
 }
@@ -169,7 +166,7 @@ bool TabDescription::Serialize(IO::Stream& streamArg) {
 // [8] ?CreateInstance@TabDescription@UI@@...   retail 0x1800da410
 // ============================================================================
 // TabElement is 0x108 bytes (`MOV EDX,0x108` at 0x1800da454) and its ctor is
-// CALLED out of line (0x1800da390, tabelement.cpp's door).
+// CALLED out of line (0x1800da390, TabElement.h).
 //
 // SIX child creations: the three fixed sub-elements from +0x68/+0x70/+0x78,
 // then per tab the pair at tabs[i][0] and tabs[i][8].

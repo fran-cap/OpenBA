@@ -5,9 +5,8 @@
 // NOT RETAIL (KITFREE RSCFONT). The font provider turns glyph bitmaps into a
 // UI::Font; the sprite sheet, its UI material and its texture are block
 // RSCSPRITE's generic builder (sheet_builder.*). This is the thin interface
-// the provider calls; font_sheet_stub.cpp answers "no builder" until the
-// coordinator points it at RSCSPRITE's (a one-file swap: implement
-// BuildFontSheet over sheet_builder.h and delete the stub).
+// the provider calls; font_sheet.cpp implements BuildFontSheet over
+// sheet_builder.h.
 //
 // Contract the provider relies on:
 //   * sprite i of the built sheet is bitmap i (UI::Font::_charToGlyph indexes
@@ -20,9 +19,9 @@
 //     (RGB 255, the kit's sheets), alpha = the byte;
 //   * the three objects are registered with the factory under the three
 //     paths (Ext::Resources::SetPath + Publish, in dependency order: texture,
-//     material, sheet), the material derives from `baseMaterialPath`'s
-//     Graphics::MaterialInstance by reference (its Material, parameters and
-//     constants; its "diffuse" texture replaced by ours), and the sheet's
+//     material, sheet), the material takes `baseMaterialPath`'s
+//     Graphics::MaterialInstance's Material by reference, with one "diffuse"
+//     texture (ours) and no constants, and the sheet's
 //     material pointer (UI::SpriteSheet::m_materialInstance) is that material;
 //   * `sheetWidth` x `sheetHeight` is a suggestion (the kit's size); the
 //     builder may choose another power-of-two size that fits.
@@ -57,7 +56,7 @@ struct FontSheetOutput {
     int32_t                     sheetWidth = 0, sheetHeight = 0;   // what was built
 };
 
-// False when no builder is linked or the build failed (logged as [ExtRes]).
+// False when the factory or the input is missing, or the build failed (logged as [ExtRes]).
 bool BuildFontSheet(const FontSheetInput& in, FontSheetOutput& out);
 
 }  // namespace Resources

@@ -42,7 +42,7 @@
 // `src/engine/engine/mainloop_video.cpp`'s banner records that porting
 // `OnVideoRestart` deliberately OPENED three unsatisfied names, two of which
 // are `+Load@External` and `+GetCompiledPath@ExternalFactory`. This file closes
-// the second. The first is HELD BACK — see docs/history/runtime_port/WAVE11_LANE_OBJEXT.md.
+// the second; `External::Load` (external_load.cpp) is called by name below.
 //
 // EVIDENCE. Transcribed from `disassemble_function(address=)` on Runtime-x64.dll
 // (image base 0x180000000, read 2026-09-09). Ghidra's C for both drops the
@@ -80,7 +80,7 @@ CompiledCounters g_cc = {};
 
 namespace {
 
-// 0x180155b04 and 0x180155afc. Named so the negative controls can swap them.
+// 0x180155b04 and 0x180155afc.
 const char* const kUnderscore = "_";
 const char* const kCrs        = ".crs";
 
@@ -159,11 +159,6 @@ System::Filename* RtObject_ExternalFactory_GetCompiledPath(System::Filename* ret
 
     BuildCompiledPath(path, ret);
 
-    // ---- THE ORACLE --------------------------------------------------------
-    // PURE, so a live replay is sound: it reads a const buffer and one
-    // singleton's const `dataDirectory`, allocates its own result, and mutates
-    // nothing. Ours and theirs write two different fresh slots, so they cannot
-    // alias (reference_oracle_must_snapshot_aliased_inputs.md).
     return ret;
 }
 
@@ -202,13 +197,6 @@ System::Filename* RtObject_ExternalFactory_GetCompiledPath(System::Filename* ret
 // VISITPASS shortcut answers every later visit), so remembering its requests only costs.
 static const ::Object::External* FindOrLoadBody(ExternalFactory* self, const System::Filename* path, bool useFast) {
     ++g_cc.findOrLoadCalls;
-
-    // The scheduling seam for BOTH of this lane's self-tests. FindOrLoad is the
-    // one body in the lane that a normal run actually drives (lane RRES counted
-    // 22,583 of them in a menu-to-gameplay run), and it is the only one holding
-    // the LIVE ExternalFactory singleton, which the path-stack probe's part 2
-    // needs and must not fake. Neither test runs unless its own env var armed
-    // it, and each clears its flag before running so it cannot recurse.
 
     // 0x1800bf339 / 0x1800bf345 — `GetLength` (0x1800063c0) is retail's own
     // pair of tests: it returns 0 for a null buffer and otherwise reads the
@@ -259,14 +247,6 @@ static const ::Object::External* FindOrLoadBody(ExternalFactory* self, const Sys
         System::Filename compiled;                               // [RBP+0x40]
         BuildCompiledPath(&expanded, &compiled);
 
-        // ---- THE ONE INDEPENDENT ORACLE THIS BODY HAS ----------------------
-        // The string `compiled` is the whole of the miss path's own work: what
-        // follows is three calls into functions this lane does not own. And
-        // retail has a SEPARATE, INDEPENDENTLY COMPILED body that builds the
-        // same string from the same input — `GetCompiledPath` — so comparing
-        // against it is not a self-check. It is the reason the two functions
-        // share a file.
-
         ::Object::External* loaded = RtObject_External_Load(&compiled, nullptr);
 
         // EXT SEAM (NOT RETAIL, docs/extensions/KITFREE.md §2): no loose
@@ -281,8 +261,7 @@ static const ::Object::External* FindOrLoadBody(ExternalFactory* self, const Sys
             // 0x1800bf562-0x1800bf5a6: retail's release-then-adopt with its own
             // `!=` guard, then AdjustDelimiters over the object's OWN field, is
             // `Filename::operator=(const Filename&)` (0x180006770) instruction
-            // for instruction. `_path` is a POD member of the not-yet-converted
-            // `Object::External`, so the left-hand side comes through the bridge.
+            // for instruction.
             // EXT SEAM (NOT RETAIL, VISITREPLAY.md): a `_path` write.
             ::Object::NotifyResourceEvent(::Object::ResourceEvent::PathWrite, nullptr, loaded, expanded._data);
             loaded->_path = expanded;
@@ -296,15 +275,6 @@ static const ::Object::External* FindOrLoadBody(ExternalFactory* self, const Sys
     }
 
 
-    // NO WHOLE-BODY SHADOW, and this is a measured limit rather than a shrug.
-    // Both branches MUTATE: the hit branch conditionally re-`Add`s (which ORs a
-    // bit into the entry's usage mask and bumps the generation bookkeeping),
-    // and the miss branch allocates an `External` and inserts it. Running
-    // retail's FindOrLoad after ours would insert the same key a second time,
-    // and retail's second insert RETURNS EARLY — which makes the comparison
-    // vacuously green. That is the exact trap external_set.h records for
-    // `KeyMap::RegisterInput`. The compiled-path shadow above is what this body
-    // can honestly be held to; see WAVE11_LANE_OBJEXT.md for the rest.
     return result;
 }
 

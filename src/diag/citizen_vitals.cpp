@@ -10,8 +10,8 @@
 // already rules out old age — so this samples the two accumulators directly and
 // prints one aggregate line, letting a load run be diffed against a new game.
 //
-// Reads only the TownManager citizen registry (gameWorld+0xF0, array +0xA0 /
-// count +0xA8) and four floats per citizen; it never writes.
+// Reads the TownManager citizen registry (gameWorld+0xF0, array +0xA0 / count +0xA8), four
+// floats, three links and the action-stack top per citizen, and the EntityList count; it never writes.
 
 #include "citizen_vitals.h"
 #include "options.h"

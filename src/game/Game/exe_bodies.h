@@ -2,12 +2,11 @@
 // src/game/Game/exe_bodies.h -- declarations of the exe bodies DEFINED in
 // src/game/Game/ (ENDGAME B.3R, block W0-P0c, B3R_RULES R5).
 //
-// Every body the registry reaches by retail address, declared once, copied
-// from its DEFINITION (linkage included), grouped by defining file; the
-// retail address(es) it is registered under are the trailing comment. The
-// defining .cpp includes this header so the compiler checks each pair.
-// Readers call these by name (W1); nothing here changes what runs. Making
-// them members is B.4's work.
+// The exe bodies of this module, declared once, copied from their DEFINITION
+// (linkage included), grouped by defining file; the retail address(es) are the
+// trailing comment. The defining .cpp includes this header so the compiler
+// checks each pair. Callers call these by name; nothing here changes what runs.
+// Making them members is B.4's work.
 //
 // Also here: the declarations and inline bodies of this module that lived in
 // engine/funcs/engine_funcs.h, moved verbatim with their comments (that
@@ -57,23 +56,8 @@ extern "C" int  EventLog_TileIndex_Reg(void* unused, const Object::InternalBaseP
 // removes matching entity via Game_RemoveEntity.
 void Game_TriggerDisasterByType_Impl(int disasterType);  // B8: free in retail -- first parameter the disaster type (an int), no object
 
-// --- Game_SpawnResources (0x140091660) — REIMPLEMENTED inline ---
-// Spawns 'count' resources into citizen storage buildings.
-// Phase 1: builds array of entity pointers whose NaturalResourceComponent flags match resourceFlag.
-// Phase 2: round-robin distributes items across citizens' StorageComponents.
-// param_1 = Game object (longlong*), param_2 = resourceFlag bitmask, param_3 = total count to spawn.
-//
-// Structure offsets on param_1 (Game object):
-//   +0x110 (param_1[0x22]) = entity array ptr (raw pointers)
-//   +0x118 (param_1[0x23]) = entity count
-//   +0x000 (param_1[0])    = citizen InternalBasePtr array
-//   +0x008 (param_1[1])    = citizen count
-//
-// Entities (phase 1) are raw pointers with components at +0x28 (array) / +0x30 (count).
-// Citizens (phase 2) are InternalBasePtr entries with components at +0x30 (IBP array) / +0x38 (count).
-//
-// Calls original exe functions StorageComponent_impl_cd80 (0x14012cd80) for CanAdd
-// and FUN_14012d000 (0x14012d000) for AddItem, via resolved function pointers.
+// Game_SpawnResources (0x140091660) is CitizenBehavior::SpawnResources (Entity/CitizenBehavior.h,
+// defined in game.cpp).
 class CitizenBehavior;
 
 // ---- game_leaf_helpers.cpp
@@ -165,7 +149,7 @@ class MainMenuDialog; namespace Save { class SavedState; }
 // SetEngineNextLoop — FUN_140097fb0(game, loaderLoop): the running game's UI
 // (GameUpdateLoop::m_userInterface +0x98) gets the hourglass cursor and a fade to
 // black, then the loop is queued in GameUpdateLoop::m_nextLoop (+0xC8).
-// SetDialogLoaderNextLoop — FUN_14009a8f0(menuLoop, loaderLoop): the menu loop's UI
+// MenuDialogLoopT::SetLoaderNextLoop — FUN_14009a8f0(menuLoop, loaderLoop): the menu loop's UI
 // (DialogLoopT::GetUserInterface, +0x40) fades to black, then the loop is queued in
 // MenuDialogLoopT::_pendingLoop (+0xb68).
 // Both are defined in Game/worldsetup_reload.cpp (they were inline here, reached

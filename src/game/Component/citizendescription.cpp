@@ -43,7 +43,7 @@
 #include <cstring>
 #include <cstdint>
 #include <new>
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"   // B3R: System::MemoryAllocator
 #include "Game/exe_bodies.h"
 #include "Game/Profession.h"   // B8 RT2: ::Object::SerializeExternal<Profession> (the downcast needs it complete)
 #include "graphics/GraphicsMesh.h"   // B8 RT2: ::Object::SerializeExternalArray<Graphics::GraphicsMesh> (the downcast needs it complete)

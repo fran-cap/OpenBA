@@ -77,8 +77,8 @@
 //
 // The layout call is `ComputeStringLayout` (0x180116fd0, unexported in retail;
 // the name is the profile build's), and its NINTH argument is `this + 0x50`.
-// That is the previously-opaque region `src/engine/ui/SpriteContext.h` calls
-// `_opaque50`, and ComputeStringLayout's own prologue names its shape:
+// That is the region `src/engine/ui/SpriteContext.h` types as `_layout`
+// (`RtUI::FontLayout`), and ComputeStringLayout's own prologue names its shape:
 //
 //   0x180117005  LEA RCX,[RDI+0x18] ; CALL 0x18002fea0   -> clear array @ +0x68
 //   0x180117010  LEA RCX,[RDI+0x08] ; CALL 0x180076a40   -> clear array @ +0x58
@@ -86,13 +86,11 @@
 //
 // which is exactly the three members SpriteContext.h deduced from
 // `Save::SaveLoad::Draw`'s inlined constructor, seen from the other side. So
-// `_opaque50` is one `UI::Font::Layout` object, and AddFont then walks the array
+// `_layout` is one `RtUI::FontLayout` object, and AddFont then walks the array
 // at +0x58 with `_size` at +0x60 and a stride of 0x10 (`ADD RDI,0x10` at
 // 0x18011ceba), reading three ints out of each element: the sprite index at
-// +0x00, an x at +0x04 and a y at +0x08. Those facts are appended to
-// SpriteContext.h as `UI::FontGlyph` and the `kSpriteContextLayout*` offsets;
-// nothing else about the Layout object is modelled, because nothing else is
-// read here.
+// +0x00, an x at +0x04 and a y at +0x08 — `RtUI::FontLayoutEntry`'s `_glyph`,
+// `_x` and `_y` (Font.h).
 //
 // TWO EARLY-OUTS BRACKET THE LAYOUT CALL, and they are vertical scissor culls:
 //
@@ -113,21 +111,14 @@
 // reproduce that exactly.
 //
 // ---------------------------------------------------------------------------
-// THE DOOR ARITHMETIC
+// THE CALLEES
 // ---------------------------------------------------------------------------
-// CLOSES four export doors (the four in the table) and four address doors.
-// OPENS exactly ONE: `ComputeStringLayout` at 0x180116fd0, which nothing in the
-// tree has ported. It is reached through `ResolveAddr(Module::Runtime, …)`,
-// which consults the port registry first
-// (reference_resolveaddr_consults_port_registry_first.md), so the day it is
-// ported these bodies pick it up with no edit here.
-// Every other callee is already satisfied:
-//   0x18011ba40  SpriteContext::Flush         — ported, spritecontext_flush.cpp
-//   0x18011c890  SpriteContext::AddSpriteDraw — ported, spritecontext.cpp
-//   0x180078520  Array<SpriteDraw> append     — ported, collection/array.cpp
-//   0x18011cf00  AddSprite (point overload)   — ported HERE, and called as a
-//                direct C++ call rather than through the registry, exactly as
-//                spritecontext.cpp's FlushDeferred calls its own AddSpriteDraw.
+//   0x180116fd0  Font::ComputeStringLayout    — font.cpp
+//   0x18011ba40  SpriteContext::Flush         — spritecontext_flush.cpp
+//   0x18011c890  SpriteContext::AddSpriteDraw — spritecontext.cpp
+//   0x180078520  Array<SpriteDraw> append     — collection/array.cpp
+//   0x18011cf00  AddSprite (point overload)   — HERE, a direct C++ call, exactly
+//                as spritecontext.cpp's FlushDeferredFonts calls AddSpriteDraw.
 // ============================================================================
 
 #include <cstddef>
@@ -141,9 +132,6 @@
 #include "system/String.h"
 #include "../collection/array_internal.h" // ENDGAME B.3.2 step 2 — kSpec_SpriteDraw
 
-// Same forward declarations, same spelling, as spritecontext.cpp and
-// spritecontext_flush.cpp — the linker checks them against standalone/resolve.h.
-// See spritecontext.cpp's banner for why resolve.h is not included from here.
 namespace {
 
 using UI::SpriteContext;

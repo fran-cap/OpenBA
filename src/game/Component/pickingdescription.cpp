@@ -8,7 +8,7 @@
 // Field layout (from PickingDescription_Factory @ exe and Serialize @ 0x140128d00):
 //   +0x20  void*  groupArray   (dyn-array, 0x10 stride)
 //   +0x28  int32  groupCount
-//   +0x30  External* meshRef   (ExternalPtr; FUN_140007140)
+//   +0x30  External* _material (ExternalPtr<Graphics::MaterialInstance>; FUN_140007140)
 //   +0x38  bool   enabled
 //
 // Group element (stride 0x10):
@@ -19,7 +19,7 @@
 //   1. refCount (int, elem+8)
 //   2. resize refArray (elem+0)            — fresh-load alloc+zero
 //   3. serialize each External* ref        — 0x140037000, the PickingMesh array instance
-// Tail: meshRef ExternalPtr (+0x30) via fn_ExternalPtr_Serialize3, then bool (+0x38).
+// Tail: _material ExternalPtr (+0x30) via ::Object::SerializeExternal, then bool (+0x38).
 //
 // Decompiled from Application-x64.exe (READ-ONLY Ghidra).
 //

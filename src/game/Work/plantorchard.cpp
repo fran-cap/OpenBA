@@ -12,7 +12,7 @@
 // - Orchard cells are the OrchardComponent's slots (+0x50, 0x28 stride)
 // - Calls OrchardComponent::ValidateRefs (0x140051830) to refresh orchard slot state
 // - OnComplete/OnCancel deal with single cell (param4 is plain int, not packed)
-// - Validate marks cells with 0 (not available) instead of 1
+// - Validate marks cells with 0 (available) instead of 1
 //
 // Decompiled from Application-x64.exe using Ghidra.
 
@@ -45,7 +45,7 @@
 
 // Diagnostics-only counters (src/diag/orchard_diag.cpp). No-op unless
 // BANISHED_ORCHARD_DIAG is set; never change behaviour.
-#include "orchard_diag.h"   // standalone/: the orchard diagnostic counters
+#include "orchard_diag.h"   // src/diag/: the orchard diagnostic counters
 
 // ============================================================
 // Sub-functions, called by name (B3R; the module exe_bodies.h headers)
@@ -85,8 +85,8 @@ static WorkCellSetNode* FindCell(WorkCellSetNode* node, int key) {
     return nullptr;
 }
 
-// LEFT (every slot below): the set bodies 0x140029a40 / 0x14001ca60 / 0x140029de0
-// keep their C signature (outside callers): the set as uintptr_t*.
+// LEFT (every slot below): the set bodies 0x140029a40 / 0x140029de0 keep their C signature
+// (outside callers): the set as uintptr_t*; 0x14001ca60 is the template in Work/CellBst.h.
 
 
 // ============================================================
@@ -167,7 +167,7 @@ int PlantOrchard::Execute(CitizenComponent** citizenRef, System::Time* /*context
                 continue;
             }
 
-            bool canPath = static_cast<uint8_t>(mapGrid->ValidateCell(PathBits::Walk, citizenGridCell, nearestCell));   // the door read AL
+            bool canPath = static_cast<uint8_t>(mapGrid->ValidateCell(PathBits::Walk, citizenGridCell, nearestCell));   // only AL is read
             if (!canPath) {
                 continue;
             }
@@ -474,7 +474,7 @@ void PlantOrchard::Persist(IO::Stream& stream) {
         _claimedSlots.SetSize(cellCountBuf[0]);
     }
 
-    // Serialize validity array through the BOOL-ARRAY door.
+    // Serialize validity array through the bool-array overload.
     //
     // ENDGAME B.3.4a closing — same alias bug, same retail proof as
     // plantarea.cpp and harvestarea.cpp. PlantOrchard::Serialize

@@ -10,19 +10,6 @@
 //   InitInventory, InitAgriculture, UpdateGraph, UpdateGeneral,
 //   UpdateProfessions, UpdateProduction, UpdateAgriculture,
 //   UpdateInventory, UpdateAll, OnProfessionButton, OnProfessionSpinner
-//
-// READS LEFT AT AN OFFSET (B.4, owner named on each line):
-//   GameUpdateLoop::m_citizenList (the town manager, CitizenBehavior: WORK-a):
-//     its citizen list, homes, statistics history, production records, entity
-//     trees and lists.
-//   GameUpdateLoop::m_dayCounter (W0: void*): the year and the time of year.
-//   ProfessionList::arrayData (GAME-b: void*, H5 raw) and Profession's String
-//     keys (GAME-b: H5 raw).
-//   StorageComponent::storageSlots (W0 raw storage).
-//   ComponentDescription::_subDescs (COMP-c: void**).
-//   UI::Element::_description (R-UI-a: void*).
-//   The exe helpers' untyped parameters (the
-//   CitizenEmploy strategies, Avl38SetInsert 0x140014890: toolbar_utility_helpers.cpp).
 
 #include "Dialog/Panels.h"
 #include "Dialog/TownHallUI.h"
@@ -77,10 +64,10 @@
 #include "Object/factory_registration.h"
 #include <cstddef>
 #include "Dialog/exe_bodies.h"
-#include "Component/exe_bodies.h"   // B3R: CitizenEmploy_Strat_*
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "Component/exe_bodies.h"
+#include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
 #include "Action/PathAvl.h"   // AvlRebalance (0x140013480)
-#include "Work/exe_bodies.h"   // B3R: WorkBase_TreeNodeFree_14c30
+#include "Work/exe_bodies.h"   // B3R: WorkBase_TreeNodeFree
 #include "Game/Calendar.h"     // GameUpdateLoop::m_dayCounter (year, yearTime)
 #include "Game/PlayerToolManager.h"   // CenterOnEntity 0x140103040
 #include "Component/AttendanceComponent.h"   // B4 S4 RT2: InternalPtr<AttendanceComponent>::Get() needs the class complete
@@ -278,7 +265,7 @@ void TownHallUI::InitProfessions() {
         UI::ButtonElement* button = CastElement<UI::ButtonElement>(rowElem->Child(4).Get());
         profEntry.button = button;
 
-        // Get profession type entry: profList->types[i]
+        // Get profession type entry: profList->professions[i]
         Profession* profTypeId = profList->professions.GetData()[i];
         profEntry.workers = i;  // profession index
 
@@ -1169,7 +1156,7 @@ void TownHallUI::UpdateProduction() {
             // Set number value on the number element (+8 from label)
             invTable[i].count->SetValue(static_cast<int32_t>(entries[i].value));
 
-            // Set active flag (vtable +0x50 with -1)
+            // Set the number's color to 0xFFFFFFFF (vtable +0x50, SetColor)
             invTable[i].count->SetColor(static_cast<uint32_t>(-1));
         }
         displayIdx = entryCount;
@@ -1190,13 +1177,13 @@ void TownHallUI::UpdateProduction() {
             // Set value to 0
             invTable[i].count->SetValue(static_cast<int32_t>(0));
 
-            // Set inactive flag (vtable +0x50 with 0)
+            // Set the number's color to 0 (vtable +0x50, SetColor)
             invTable[i].count->SetColor(0u);
         }
     }
 
-    // entryArr frees its own buffer (rtcoll::MemFree, the same 0x1800c7ad0 that
-    // fn_MemFreeStatic resolves) when it goes out of scope here.
+    // entryArr frees its own buffer (rtcoll::MemFree, which calls System::MemoryAllocator::MemFree
+    // 0x1800c7ad0) when it goes out of scope here.
 }
 
 // ============================================================
@@ -1420,7 +1407,7 @@ void TownHallUI::UpdateInventory() {
         int entityArrayCount = profEntry.entities.GetSize();
         profEntry.buildingsNumber->SetValue(static_cast<int32_t>(entityArrayCount));
 
-        // Set visibility via vtable+0x40 (UI::Element slot 8, Enable)
+        // Enable the button when the row has entities (vtable+0x40, UI::Element slot 8, Enable)
         profEntry.button->Enable(entityArrayCount > 0);
     }
 
@@ -1472,8 +1459,8 @@ void TownHallUI::UpdateInventory() {
 // TownHallUI::UpdateAll (0x14007d590)
 // ============================================================
 // Collects entities from 4 entity lists in game data, zeros
-// and populates invBST counters, then updates inventory and
-// agriculture table UI based on component types.
+// and populates invBST counters by component type (storage,
+// trading post, home).
 void TownHallUI::UpdateAll() {
     CitizenBehavior* town =
         GameUpdateLoop::_singleton->m_citizenList;
@@ -1557,8 +1544,8 @@ void TownHallUI::UpdateAll() {
         }
     }
 
-    // entityArr frees its own buffer (rtcoll::MemFree, the same door
-    // fn_MemFreeStatic resolves) when it goes out of scope here.
+    // entityArr frees its own buffer (rtcoll::MemFree, which calls System::MemoryAllocator::MemFree
+    // 0x1800c7ad0) when it goes out of scope here.
 }
 
 // ============================================================
@@ -1587,8 +1574,8 @@ void TownHallUI::OnProfessionSpinner(int index) {
     // NO g_wpcRosterOnly guard (removed 2026-08-17, together with the two sibling
     // spinners this comment used to point at). The fault it named — READ of 0x10 in
     // Detach's e710 getter on a LOWER, which this handler does via
-    // fn_CitizenList_RemoveWorker — is now guarded at the source
-    // (workplacecomponent.cpp:276 returns early on a null accessor). "Our objects can't
+    // CitizenBehavior::RemoveWorker — is guarded at the source
+    // (WorkPlaceComponent::Detach returns early on a null DestroyComponent). "Our objects can't
     // survive it" stopped being true when that guard landed. Meanwhile the flag also
     // gates Attach's clear of the "no workers" status bit, so holding it left the ? icon
     // up over every building staffed from this tab. Measured on the lower path too: a
@@ -1601,12 +1588,12 @@ void TownHallUI::OnProfessionSpinner(int index) {
     if (current < desired) {
         int toAdd = desired - current;
         for (int i = 0; i < toAdd; i++) {
-            // FindAvailableBuilding takes the town manager and the profession as integers.
+            // FindAvailableBuilding writes an available workplace of the profession (or null) into retBuf[0].
             CitizenBehavior* const townKey = GameUpdateLoop::_singleton->m_citizenList;
             Profession* const profKey = GameUpdateLoop::_singleton->m_professionList->professions.GetData()[index];
 
             ComponentEntity* retBuf[2] = {nullptr, nullptr};
-            townKey->FindAvailableBuilding(retBuf, profKey);   // 0x14008d100 (door misnamed fn_CitizenList_RequestWorker)
+            townKey->FindAvailableBuilding(retBuf, profKey);   // 0x14008d100
             ComponentEntity* slot = retBuf[0];
 
             // Try idle -> working -> student -> any. Each strategy returns its
@@ -1700,9 +1687,7 @@ inline bool Bound(const TownHallUI* self) {
 
 // One-shot gate diagnostic — prints WHICH component of Ready()/TownReady() is
 // missing (a silently-skipping gate looks identical to "blank dialog"). Logs a
-// handful of lines once per session; also callable at world-build time via
-// TownHallSA_Diag (gameupdateloop.cpp) so the dialog-independent gates are
-// visible without opening the panel.
+// handful of lines once per session, from the first OnUpdate.
 void DiagPrint(const char* where, const TownHallUI* self) {
     // ENDGAME B.3.9 CG2 / TR: every type-id entry this diagnostic used to list
     // retired — their class statics always answer. B3R: so did the twelve
@@ -1878,8 +1863,7 @@ void TownHallUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, U
 // (all slots no-op, see ui_dialog_stub_factories.cpp — that stub registration is
 // REMOVED there to avoid a duplicate REGISTER_TYPE), so the dialog opened with every
 // field left on its .rsc template default: the "general statistics" numbers never
-// populated. This installs a real per-class vtable wiring the fully-reimplemented
-// methods above, following the StorageUI/WorkPlaceUI promotion pattern.
+// populated. TownHallUI's virtual overrides (TownHallUI.h) are the methods above.
 //
 // Vtable offsets (verified from the exe TownHallUI vtable @ 0x14015dce0):
 //   +0x00 (idx0)  ScalarDtor — frees the prof/prod/inv/agri arrays + 3 BSTs
@@ -1899,8 +1883,8 @@ void TownHallUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, U
 // + citizen_employ_cascade.cpp and called by name.
 
 
-// World-build-time gate diagnostic (called once from GameUpdateLoop::Update at an
-// early frame, see gameupdateloop.cpp). B3R: the publish this called
+// Called from GameUpdateLoop::Update (gameupdateloop.cpp); the body only latches a
+// one-shot flag from frame 120 on and prints nothing. B3R: the publish this called
 // (townhallui_sa::EnsureGlobals) had been emptied at B.3.9 -- every global it
 // filled is a class static now -- and is deleted. The entry point stays while
 // gameupdateloop.cpp calls it.

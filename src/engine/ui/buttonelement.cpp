@@ -21,7 +21,7 @@
 //
 // Slots 4/5/6/8 are ALSO ComboElement's and slot 8 is ALSO CheckElement's — the
 // two subclasses repeat these addresses in their own tables. They are
-// registered once, here.
+// defined once, here.
 //
 // ENDGAME B.3.6 block C1: the seven slot bodies are MEMBERS of
 // `UI::ButtonElement` (src/engine/ui/ButtonElement.h, which now owns the
@@ -49,9 +49,7 @@ namespace {
 // `_children` indices this class dispatches on.
 constexpr int kChildLabel = 4;
 
-// Collection::Array<UI::UserInterface::Event>::SetSize(array, newSize, &fill)
-
-// UI::UserInterface (block E's class, still a struct): the pending-event array
+// UI::UserInterface (block E's class): the pending-event array
 // at +0x48 {data, size, capacity} (src/engine/ui/UserInterface.h,
 // `Collection::Array<Event> _events`).
 

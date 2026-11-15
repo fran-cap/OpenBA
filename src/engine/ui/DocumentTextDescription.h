@@ -4,10 +4,10 @@
 // the REAL class
 // ============================================================================
 //
-// ENDGAME B.3 step 6, block C5. The layout was pinned by the Wave 7 batch as
-// the POD `RtUI::DocumentTextDescription` in DescriptionsBatch1.h, which four
-// leaf clusters share and none may edit (RULE B6-4.4); this header carries the
-// class and cross-asserts every offset against that POD. The field NAMES here
+// ENDGAME B.3 step 6, block C5. The layout was pinned by the Wave 7 batch in
+// DescriptionsBatch1.h, where `RtUI::DocumentTextDescription` is an alias of
+// this class; the asserts at the bottom carry the offsets it pinned. The field
+// NAMES here
 // follow what the applier (0x1800cf520, documenttextdescription.cpp) copies
 // each one into on the DocumentTextElement (DocumentTextElement.h), the
 // convention ElementDescription.h's banner uses.
@@ -18,7 +18,7 @@
 //
 // `??_7DocumentTextDescription@UI@@6B@` @ 0x180156750, TEN slots; sizeof 0xe8
 // (`MOV EDX,0xe8` in the slot-0 vector deleting dtor 0x18003bd90):
-//   [0] 0x18003bd90 deleting dtor (RT_DELDTOR row)  [1] 0x18003b900 TypeName
+//   [0] 0x18003bd90 deleting dtor                   [1] 0x18003b900 TypeName
 //   [2] 0x18003b8e0 Type            [3] 0x1800cfb20 GetFileVersion (0x204)
 //   [4] External::Compile (inherited, NOT declared — B6-1.5)
 //   [5] 0x1800cf8a0 Serialize       [6] 0x18003ba80 Reconstruct
@@ -28,9 +28,8 @@
 // A SECOND, NON-VIRTUAL `CreateInstance` — the applier:
 //   ?CreateInstance@DocumentTextDescription@UI@@QEBAXV?$InternalPtr@
 //       VDocumentTextElement@UI@@@Object@@PEBVDialog@2@@Z      0x1800cf520
-// It IS EXPORTED (B36_SLOTS.md section 6 lists it at 0x1800cf520); the port's
-// banner calling it "UNEXPORTED, address-only" was wrong, and its registration
-// stays address-only. It returns void and takes the InternalPtr BY VALUE, which
+// It IS EXPORTED (B36_SLOTS.md section 6 lists it at 0x1800cf520). It returns
+// void and takes the InternalPtr BY VALUE, which
 // retail passes as the ADDRESS of the caller's handle (block A's finding), so
 // it is declared with `InternalPtr<DocumentTextElement>*`.
 //
@@ -45,7 +44,7 @@
 #include <cstdint>
 
 #include "ElementDescription.h"
-#include "DescriptionsBatch1.h"   // kVtbl* names; RtUI::DocumentTextDescription aliases this class
+#include "DescriptionsBatch1.h"   // RtUI::DocumentTextDescription aliases this class
 
 namespace UI {
 

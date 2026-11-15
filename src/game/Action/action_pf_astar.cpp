@@ -1,9 +1,8 @@
 // src/game/Action/action_pf_astar.cpp
 // Wave 3 (Action) — KEYSTONE batch: A* pathfinder core + worker-thread command
 // queue/dispatcher + region flood-fill. Faithful 1:1 ports of the exe pathfinding
-// closure. NONE of this is exercised on the autostart path, so a wrong transcription
-// is undetectable silent corruption — every offset below is cross-checked against the
-// Ghidra decompile AND disassembly. Do NOT "improve" or simplify.
+// closure. A wrong transcription is silent corruption — every offset below is
+// cross-checked against the Ghidra decompile AND disassembly. Do NOT "improve" or simplify.
 //
 // B.4 ACT-a: the records are named (src/game/Action/PathSearch.h, Game/PathfinderThread.h,
 // Game/Map.h) and the bodies are their members:
@@ -38,7 +37,7 @@
 #include "ext/path_query_first/path_query_first.h"   // EXT SEAM (NOT RETAIL): fix.path_query_first, command 6
 #include <atomic>      // std::atomic_signal_fence (ApplyCommand case 5: retail's per-iteration reloads)
 #include <cstdint>
-#include <cstdio>    // [FLOODDIAG] diagnostic reporting
+#include <cstdio>
 #include <cstdlib>
 #include "ext/winter_ice/walk_type.h"   // EXT SEAM (NOT RETAIL, WINTERICE.md 5.2): ext.walk_on_ice, a frozen lake cell reads as type 9
 

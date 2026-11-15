@@ -3,16 +3,18 @@
 // src/render/common/depth_copy/depth_copy_backend.h -- THE SHARED DEPTH COPY: one R32F copy of the main
 // depth per frame for every reader that needs one
 // ============================================================================
-// NOT RETAIL, and no extension row: plumbing under three rows, identical output. No graphics-API types:
+// NOT RETAIL, and no extension row: plumbing under five rows, identical output. No graphics-API types:
 // the rule below is backend-neutral and unit-tested (tests/unit/depth_copy_rule_test.cpp); each backend
 // that has the readers implements the copy (src/render/dx11/depth_copy/, src/render/vulkan/depth_copy/).
-// A backend without them (Metal: none of the three passes) needs none of it.
+// Metal has only the AO pass of the five, which makes its own copy there, and needs none of it.
 //
-// THE READERS. Three passes read the main depth as a single-sampled float (0 near .. 1 far, the
+// THE READERS. Five passes read the main depth as a single-sampled float (0 near .. 1 far, the
 // hardware value; sample 0 of a multisampled depth, the depth itself when single-sampled):
 //   ext.ambient_occlusion   the AO seam, right after the Opaque list (renderer_ext_ao.h)
 //   ext.better_clouds       the cloud shadow, the ground-draw seam, right after the AO seam
 //   ext.better_water        the contact foam's scene depth, the frame-copy seam before the water draws
+//   ext.fancy_terrain       the terrain light (fancy_terrain/terrain_light.cpp)
+//   ext.depth_of_field      the depth blur, at the scene-draw seam (dof/dof_pass.cpp)
 // Each used to make its own copy, three full-resolution copies (and, on Vulkan, three moves of the
 // main depth to SHADER_READ_ONLY and back) of a depth that had not changed in between: the draws
 // between the AO seam and the water's frame copy (the cloud shadow, the decals and the rest of the

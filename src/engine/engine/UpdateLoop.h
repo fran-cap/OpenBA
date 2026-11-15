@@ -22,9 +22,6 @@
 // ALL FIVE VTABLES ARE EXPORTED DATA SYMBOLS, and each address above is the
 // address the class's own constructor stamps (`LEA RAX,[…] / MOV [RCX],RAX`),
 // verified instruction by instruction — not inferred from the export existing.
-// That is Wave 6's `??_7Geometry` lever: a ported constructor RESOLVES the
-// exported symbol and stamps it, and never mints a table of its own, so an
-// object our ctor built and one the DLL's ctor built dispatch identically.
 //
 // The slot counts below came out of the binary, by reading the vtable region
 // 0x1801578d0..0x180157a18 as qwords — not from a base class's count
@@ -98,8 +95,8 @@
 //     this->_loop   = nullptr                 // +0x30
 //
 // The only instance is the static `?_loader@LoaderLoop@Engine@@1VLoader@2@A`
-// at 0x1801fe7b8 — a DATA export, not a function. See loops.cpp for why this
-// port deliberately does NOT register it.
+// at 0x1801fe7b8 — a DATA export, not a function (the class static
+// `LoaderLoop::_loader`, defined in loops.cpp).
 //
 // ?Run@Loader@Engine@@UEAAXXZ (0x1800dbfc0) is the worker body: it runs
 // UpdateLoop::LoadResources(_loop) and then _loop->vtable[6] (Load) with
@@ -304,7 +301,7 @@ public:
     // 256 KB stack), the vptr (the compiler's), `_loop = nullptr` (+0x30).
     // The Thread body creates the worker SUSPENDED, makes its three events,
     // then resumes it parked on {hStart, hStop}; it touches no MemoryAllocator
-    // (thread_win.cpp InitFields), so it is safe before main.
+    // (src/engine/system/thread.cpp InitFields), so it is safe before main.
     Loader() : System::Thread(0x40000u), _loop(nullptr) {}
     // `??1Loader@Engine@@QEAA@XZ` 0x18004d330: the Thread restamp and the
     // inlined ~Thread (SetEvent hStop, join, four CloseHandles) -- nothing of
@@ -348,8 +345,9 @@ public:
 
     // `?_loader@LoaderLoop@Engine@@1VLoader@2@A` (0x1801fe7b8) -- the ONE loader
     // (ENDGAME B.3.9 ENG W2: the class static, no longer minted). A PROTECTED
-    // static in retail; PUBLIC here because the standalone's two loader-loop
-    // stubs and the engine loader gate (standalone/) read it too. LIVE THREAD:
+    // static in retail; PUBLIC here because the two loader-loop stubs
+    // (src/game/Game/loader_loop_stubs.cpp) and the engine loader gate
+    // (src/app/engine_loader_gate.cpp) read it too. LIVE THREAD:
     // no lock (retail takes none); LoaderLoop::Shutdown joins it before ~Engine.
     static Loader _loader;
 

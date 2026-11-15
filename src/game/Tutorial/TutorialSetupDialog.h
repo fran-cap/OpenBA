@@ -23,7 +23,7 @@
 //
 // The helpers the slots call (show-listed 0x1400e29f0, open-highlight
 // 0x1400e2700, set-all-flags 0x1400e2330, find-highlight 0x1400e24f0) are
-// ported in tutorial_wave.cpp and reached through engine_funcs' fn_TSD_*.
+// the non-virtual members below, defined in tutorial_wave.cpp.
 // ============================================================================
 
 #include <cstddef>

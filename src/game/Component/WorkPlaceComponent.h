@@ -4,7 +4,7 @@
 //
 // `WorkPlaceComponent` (a building's job roster and its profession-registry key)
 // as a real C++ class with a compiler-generated vtable and its state controller
-// as an EMBEDDED MEMBER (B38_RULES.md D1-D6). The engine/types POD is a forwarder.
+// as an EMBEDDED MEMBER (B38_RULES.md D1-D6).
 //
 // RETAIL (B38_SLOTS.md §2 / §6, bytes read 2026-09-26):
 //   reflected "WorkPlaceComponent", parent "ControllerComponent", ti 0x1401c80e0

@@ -12,48 +12,46 @@
 // table is intact; it is the town's lists that hold the stale pointers.
 //
 // Ghidra-verified 1:1 against the decompile of 0x140113ca0. Eight steps, in order:
-//   1. prologue teardown — hide the carried tool (0x1401176e0), release the partner
-//      slot +0x208 (0x140115a50, no re-roll) and the two queued-worker link slots
-//      +0x228 / +0x230 (0x1401159b0 / 0x140111650)
-//   2. AssignWorkplace(self, null, -1)         — workplace link +0x238 / slot +0x240
-//   3. LeaveRoster_2040(self->+0x258, &self)   — unlink from the host's roster ring
+//   1. prologue teardown — hide the carried tool (0x1401176e0), leave the school
+//      slot +0x208 (0x140115a50, no re-roll) and release the care-building and chapel
+//      links +0x228 / +0x230 (0x1401159b0 / 0x140111650)
+//   2. SetHome(self, null, -1)                 — home link +0x238 / slot +0x240
+//   3. RemoveChild(self->+0x258, &self)        — leave the parent's children ring
 //   4. family ring +0x250 (spouse) / +0x260 (ring head):
 //        no spouse  -> per member: under-age (age +0x3c <= desc(+0x288)+0x44) dies via
 //                      HandleLifeEvent(member, 4); otherwise it is emancipated —
-//                      sub_1fa0(member, null), AssignWorkplace(null,-1), release its
-//                      partner slot
-//        spouse     -> re-home the whole ring onto the spouse (sub_1fa0(member,&spouse))
+//                      SetParent(member, null), SetHome(null,-1), leave its
+//                      school (+0x208)
+//        spouse     -> re-home the whole ring onto the spouse (SetParent(member,&spouse))
 //      then clear the spouse's back-ref and our own +0x250
-//   5. AssignHousing(self, null)               — housing link +0x248
+//   5. SetWorkplace(self, null)                — workplace link +0x248
 //   6. profession list — when +0x1f0 is not the default profession (*(gw+0xb0)+0x30),
 //      ask the town for a replacement worker (0x14008c3d0) and post life event 0xf
 //      (replacement found, named after the deceased) or 0x10 (nobody available)
 //   7. TradeWork_impl_3480(gw+0x120, &ownerEntity)  — trade-work list + open dialogs
 //   8. FUN_140002cc0(townMgr+0xa0, &self)      — the citizen-list removal itself
 //
-// Every callee is already ported AND registered (checked explicitly — "ported but
-// unregistered" is how a pause button ended up calling address 0):
-//   0x1401176e0 ActCt_HideTool_1176e0                 reg_action_complete.cpp
-//   0x140115a50 AttendanceComponent_ReleasePartnerSlot reg_component_gap_A.cpp
-//   0x1401159b0 AttendanceComponent_ReleaseLink59b0    reg_component_gap_A.cpp
-//   0x140111650 AttendanceComponent_ReleaseLink1650    reg_component_gap_A.cpp
-//   0x1401163d0 CitizenComponent_AssignWorkplace       reg_citizen_assignworkplace.cpp
-//   0x140112040 CitizenComp_LeaveRoster_2040           reg_citizen_25.cpp
-//   0x140111fa0 CitizenComp_sub_1fa0                   reg_component_people.cpp
-//   0x140111ee0 CitizenComp_AssignHousing              reg_component_gap_A.cpp
-//   0x140116dd0 CitizenComponent_HandleLifeEvent       reg_citizen_lifeevent_handler.cpp
-//   0x14008c3d0 CitizenList_AssignWorker_c3d0          reg_townhallui.cpp
-//   0x140113af0 CitizenComponent_PostLifeEvent         reg_eventlog_citizen.cpp
-//   0x140103480 NomadComp_FUN_140103480                reg_component_people.cpp
-//   0x140002cc0 Array<T>::Remove               reg_component_visuals.cpp
+// Every callee is ported and called by name:
+//   0x1401176e0 CitizenComponent::HideTool
+//   0x140115a50 CitizenComponent::LeaveSchool
+//   0x1401159b0 CitizenComponent::ReleaseCareBuilding
+//   0x140111650 CitizenComponent::ReleaseLink230
+//   0x1401163d0 CitizenComponent::SetHome
+//   0x140112040 CitizenComponent::RemoveChild
+//   0x140111fa0 CitizenComponent::SetParent
+//   0x140111ee0 CitizenComponent::SetWorkplace
+//   0x140116dd0 CitizenComponent::HandleLifeEvent
+//   0x14008c3d0 CitizenBehavior::AssignWorker
+//   0x140113af0 CitizenComponent::PostLifeEvent
+//   0x140103480 PlayerToolManager::OnEntityRemoved
+//   0x140002cc0 Array<T>::Remove
 //
 // Dispatch: 0x140113ca0 has no CALL xrefs in the exe — all four are DATA, the
 // CitizenComponent vtable slot 7 (0x140162580+0x38) and three sibling vtables. Slot 7
 // is the removed-from-world broadcast that MarkForRemoval (0x1400c2ea0) fires over
 // every component whose capability flags (+0x20) have bit 1 set; CitizenComponent's
-// flags are 0xCB, so the broadcast already reaches us — it has just been landing on
-// the inert no-op stub. citizencomponent.cpp installs this into
-// CitizenComponent_LiveVtable[7] under BANISHED_LIVE_CITIZEN_ONREMOVE.
+// flags are 0xCB, so the broadcast reaches us: CitizenComponent::OnRemove overrides
+// slot 7.
 //
 // No standalone deviation is left (B8 RES, row 310): the `character` / description /
 // world / profession-list / AssignWorker-result / town-list tests and the two ring-walk

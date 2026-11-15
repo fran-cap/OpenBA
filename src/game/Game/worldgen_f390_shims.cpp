@@ -1,7 +1,7 @@
 // src/game/Game/worldgen_f390_shims.cpp
-// Link shims for worldgen_f390_rivers.cpp (cd460/e910). That stage referenced a few
-// engine helpers as GLOBAL extern "C" symbols rather than file-local resolved pointers
-// (which the other f390 stages use). Defined here once so the standalone exe links.
+// Link shims for worldgen_f390_rivers.cpp (cd460/e910). That stage declares a few
+// helpers as GLOBAL extern "C" symbols; the two it calls are defined here once so the
+// standalone exe links.
 //
 // All semantics match how rivers.cpp actually calls them (verified at the call sites):
 //   - FUN_140014c30           is only called on a null AVL root (dead path) -> no-op
@@ -17,8 +17,7 @@
 extern "C" {
 
 // vector<int> bucket deep-copy ({data@+0, count@+8, cap@+0xC}, stride-4 elements).
-// Mirrors Reimpl_TradeComponent_helper_f9e0 in gameupdateloop_load.cpp. Its one
-// caller is worldgen_f390_rivers.cpp's cluster-bucket resize.
+// Its one caller is worldgen_f390_rivers.cpp's cluster-bucket resize.
 void TradeComponent_helper_f9e0(RawArray<int32_t>* d, const RawArray<int32_t>* s) {
     if (d == s) return;
     int32_t* old = d->data;

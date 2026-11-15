@@ -10,7 +10,7 @@
 // The species comes from the draw's names: the material's path (billboard, not evergreen), the material
 // instance's own path and its textures' paths. The answer is kept per material instance, per thread (the
 // render pipe draws on its own thread), with the material and first texture it was computed from, so a
-// freed instance whose address is reused is recomputed. Each new name set is logged once to stderr.
+// freed instance whose address is reused is recomputed. Each new canopy name set is logged once to stderr.
 //
 // Issue #253: each Setup also tells the backend whether this draw can show any blossom (Blossom::CanBloom
 // on the code and the season stamp in gc.time.y); where it cannot, a backend may draw the billboard colour

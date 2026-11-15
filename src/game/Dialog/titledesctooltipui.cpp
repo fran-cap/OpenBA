@@ -1,10 +1,10 @@
-// engine/src/ui/titledesctooltipui.cpp
+// src/game/Dialog/titledesctooltipui.cpp
 // Clean reimplementation of TitleDescToolTipUI game logic.
 //
 // TitleDescToolTipUI (0x30 bytes) — tooltip that shows a title and description.
 // Extends DialogController. No subclass fields.
 //
-// Decompiled from Application-x64.exe @ 0x14007b730 (Serialize / vtable +0x20).
+// Decompiled from Application-x64.exe @ 0x14007b730 (OnCreated / vtable +0x20).
 
 #include "Dialog/ui_panels.h"
 #include "ui/UserInterface.h"

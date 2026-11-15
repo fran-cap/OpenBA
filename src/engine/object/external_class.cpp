@@ -12,17 +12,15 @@
 // WHY THIS FILE IS SEPARATE FROM external.cpp, AND FROM ITS OWN SIBLING
 // ---------------------------------------------------------------------
 // Exactly the split src/engine/object/type_reflection.cpp made against
-// type_system.cpp at step 3, for the same reason: the thirteen existing
-// `external*.cpp` files own the REGISTRY — the `RtObject_*` ABI shims, the
-// mangled-name and retail-address doors, `RT_EXPORT_ONCE`, `RT_DATA_SLOT`,
-// `RtResolveCached` — and none of that links into `make unit`. The CLASSES have
-// to be unit-testable (B33_RULES §9 step 5 asks for the slot order, the
+// type_system.cpp at step 3: of the `external*.cpp` files only this one is in
+// the unit build (tests/unit/sources.cmake). The CLASSES have to be
+// unit-testable (B33_RULES §9 step 5 asks for the slot order, the
 // Type()/TypeName() chain, `Destroy(p)` and a tree find at two depths), so the
-// bodies that need nothing but memory live here and the doors stay where they
-// are.
+// bodies that need nothing but memory live here and the rest stay in the other
+// `external*.cpp` files.
 //
 // `external_class_doors.cpp` is the other half: every member whose body is a
-// door into an already-ported C function. It is NOT linked into `make unit`.
+// door into an already-ported C function. It is NOT in the unit build.
 //
 // NOTHING HERE IS REGISTERED. ENDGAME B.3.9 OBJ: every External-derived class
 // is a real class with a compiler table; the minted External /
@@ -47,9 +45,8 @@ namespace Object {
 // Retail stamps `??_7Base@Object@@6B@` and then immediately overwrites it with
 // `??_7External@Object@@6B@`. That IS the inlined `Object::Base` constructor
 // followed by External's own stamp, and a real constructor chain emits both
-// stores for us — which is why they are not transcribed. The object then
-// carries GCC's table rather than the minted one; the two are slot-compatible
-// (see the file banner).
+// stores for us — which is why they are not transcribed. The object
+// carries the compiler's table.
 //
 // The zero stores retail makes at +0x08, +0x10, +0x18 are the members' own
 // constructors, run in declaration order before this body: `_path`'s
@@ -95,7 +92,7 @@ DEFINE_TYPE(Object::External, "Base", nullptr)
 // ?CreateNewObject@External@Object@@SAPEAVBase@2@XZ          0x18002c980
 // ?CreateInPlaceObject@External@Object@@SAPEAVBase@2@PEAX@Z  0x18002c990
 // Both `XOR EAX,EAX; RET` (the FACTREST row had no steps): the class is
-// abstract. Registered by name and VA from external.cpp (B39_RULES D2).
+// abstract.
 Base* External::CreateNewObject()          { return nullptr; }
 Base* External::CreateInPlaceObject(void*) { return nullptr; }
 
@@ -137,7 +134,7 @@ DEFINE_TYPE(Object::CompiledExternal, "External", nullptr)
 // ?CreateNewObject@CompiledExternal@Object@@SAPEAVBase@2@XZ          0x18000b6c0
 // ?CreateInPlaceObject@CompiledExternal@Object@@SAPEAVBase@2@PEAX@Z  0x18000b6d0
 // Both `XOR EAX,EAX; RET` (the FACTREST row had no steps): the class is
-// abstract. Registered by name and VA from external.cpp (B39_RULES D2).
+// abstract.
 Base* CompiledExternal::CreateNewObject()          { return nullptr; }
 Base* CompiledExternal::CreateInPlaceObject(void*) { return nullptr; }
 
@@ -156,20 +153,17 @@ CompiledExternal::~CompiledExternal() {}
 // name "ExternalList", parent literal "Object::External" EXACTLY as the retail
 // record carries it (the ctor strips it to "External"), no file extension.
 // The factory pair it names is external_list.cpp's. The minted record is
-// retired (tools/rt_mint_retired/obj.txt) in the same commit.
+// retired in the same commit.
 // ============================================================================
 DEFINE_TYPE(Object::ExternalList, "Object::External", nullptr)
 
 // ============================================================================
-// Object::ExternalList's registry-free members ARE NOT HERE, and that is a LINK
-// decision, not an oversight. GCC emits a class's vtable in the translation
-// unit that defines its KEY FUNCTION (the first non-inline virtual in
-// declaration order), and that vtable references EVERY slot. ExternalList's
-// slots 5-8 (`Serialize`, `Reconstruct`, `Destruct`, `Construct`) are doors
-// into the registry, so a vtable emitted in THIS file would drag the registry
-// into `make unit` through the back door and undo the split this file exists
-// for. All of ExternalList therefore lives in external_class_doors.cpp, whose
-// vtable emission is harmless because that file is not a unit-test input.
+// Object::ExternalList's members ARE NOT HERE, and that is a LINK decision, not
+// an oversight. GCC emits a class's vtable in the translation unit that defines
+// its KEY FUNCTION (the first non-inline virtual in declaration order), and that
+// vtable references EVERY slot. ExternalList's destructor and slots 3 and 6-8
+// are in external_class_doors.cpp, slot 5 (`Serialize`) and the factory pair in
+// external_list.cpp; neither file is a unit-test input.
 //
 // `Object::External` itself has no such problem: its four unimplemented slots
 // are PURE in retail too (`_purecall` at 0x18007ec28), so its vtable references

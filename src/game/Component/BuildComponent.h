@@ -4,7 +4,7 @@
 //
 // `BuildComponent` as a real C++ class with a compiler-generated vtable and its
 // state controller as an EMBEDDED MEMBER (B38_RULES.md D1-D6; there is no
-// multiple inheritance). The engine/types POD is a forwarder to this file.
+// multiple inheritance).
 //
 // RETAIL (Application-x64.exe, B38_SLOTS.md §2 and §6, bytes read 2026-09-26):
 //   reflected "BuildComponent", parent "ControllerComponent", ti 0x1401c7008
@@ -31,7 +31,7 @@
 //                               (one unit of labour delivered); ctor 0
 //   +0x4C int32 costMultiplier  Serialize(int&); ctor 1; the state-1 body sets
 //                               it from the site's multiplier; completion is
-//                               laborProgress reaching (materials x this)
+//                               laborProgress reaching (_workRequired x this)
 //   +0x50 bool  buildFlag       Serialize(bool&); ctor 0 (meaning not settled)
 //   +0x58 Collection::Array<InternalPtr<ModelComponent>>: data +0x58, count
 //         +0x60, capacity +0x64 (Persist: count via Serialize(int&), SetSize

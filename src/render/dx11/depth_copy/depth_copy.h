@@ -3,8 +3,9 @@
 // src/render/dx11/depth_copy/depth_copy.h -- THE SHARED DEPTH COPY on this backend
 // ============================================================================
 // NOT RETAIL. The contract and the reuse rule: src/render/common/depth_copy/depth_copy_backend.h. The
-// readers: the AO pass (ao/ao_pass.cpp), the cloud shadow (better_clouds/cloud_shadow.cpp) and the
-// water's scene depth (better_water/scene_depth.cpp). Bodies: depth_copy.cpp.
+// readers: the AO pass (ao/ao_pass.cpp), the cloud shadow (better_clouds/cloud_shadow.cpp), the
+// water's scene depth (better_water/scene_depth.cpp), the terrain light (fancy_terrain/terrain_light.cpp)
+// and the depth blur (dof/dof_pass.cpp). Bodies: depth_copy.cpp.
 //
 // THE COPY is a view the readers Load as Texture2D<float> (the hardware depth, 0 near .. 1 far):
 //   the main depth readable (AO's request, ao_backend.h RequestReadableDepth: its R24_UNORM_X8 SRV

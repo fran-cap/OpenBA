@@ -67,13 +67,10 @@
 // Math::Vector3 helpers the exe calls (Cross computes this x other; the by-value
 // Normalize returns this/|this|). Only the operations that touch opaque engine
 // state (Transform3 copy, Camera::GetFrustum, Frustum::operator*/Contains,
-// Matrix::Matrix, and the six Video::Context methods) are resolved from
-// Runtime-x64.dll.
+// Matrix::Matrix, and the six Video::Context methods) are engine calls.
 
 // ENDGAME B.3.5 Video/Graphics caller batch: Graphics::Camera and Video::Context
-// are real classes. Both headers go AHEAD of "resolve.h" — resolve.h pulls
-// <windows.h>, whose <wingdi.h> declares a global `Rectangle` FUNCTION that hides
-// `Volume::Rectangle`'s class name inside Volume.h's own static_asserts.
+// are real classes.
 #include "graphics/Camera.h"
 #include "WeatherParticleGeometry.h"   // caller batch CB6: Draw is the class's
 #include "Weather.h"                   // caller batch CB6: the descriptor's fields
@@ -92,7 +89,7 @@
 namespace {
 
 // ------------------------------------------------------------------
-// Runtime function pointers (lazy, resolved once on first Draw call).
+// Runtime calls (all direct C++ calls).
 // ------------------------------------------------------------------
 // ENDGAME B.3.5 Video/Graphics caller batch: SEVEN doors left this block —
 // `?GetFrustum@Camera@Graphics@@QEBA?AVFrustum@Volume@@XZ` and the six
@@ -105,10 +102,9 @@ namespace {
 //     0x1800f2110  Context::EndInstancedIndexedVertices(int)
 // The four Math/Volume doors that stayed then are direct calls now (B3R).
 // Called by name (B3R): ??0Transform3@Math@@QEAA@AEBV01@@Z -> the Math::Transform3 copy
-// ctor (the registered RtMath_Transform3_CtorCopy is a memcpy of the class), ??D /
-// ?Contains@Frustum@Volume@@ -> RtVolume_Frustum_MulTransform3 / _Contains
+// ctor, ??D / ?Contains@Frustum@Volume@@ -> RtVolume_Frustum_MulTransform3 / _Contains
 // (volume/Volume.h), ??0Matrix@Math@@QEAA@AEBVVector4@1@000@Z (Runtime 0x18001e540) ->
-// the Math::Matrix column ctor (RtMath_Matrix_CtorColumns assigns Matrix(c0, c1, c2, c3)).
+// the Math::Matrix column ctor.
 
 // ------------------------------------------------------------------
 // Inlined Vector3 math (bit-identical to the Math::Vector3 Runtime helpers).
@@ -157,7 +153,7 @@ void WeatherParticleGeometry::Draw(Video::Context& videoCtx, const Graphics::Cam
     // B.3.5: the seven Video/Graphics readiness terms are gone with their doors;
     // B3R: the four Math/Volume ones too.
     if (!System::MemoryAllocator::_singleton) {
-        // Cascade-safe: skip the weather draw rather than crash on a null fn ptr.
+        // Cascade-safe: skip the weather draw while there is no MemoryAllocator.
         s_weatherDrawWarned.store(true);
         return;
     }

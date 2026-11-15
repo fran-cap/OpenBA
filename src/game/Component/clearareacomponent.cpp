@@ -40,7 +40,7 @@
 //   gw+0xf8 -> map (int*);  *map = grid width;  *(map+0x80 bytes) = tile array base.
 //   tile stride 0x30 bytes; entity ptr slot at +0x08.  gw+0xe8 -> EntityList.
 
-// The mark-for-removal leaf 0x1400c2ea0 is ActHunt_MarkEntityRemoval_c2ea0, called directly.
+// The mark-for-removal leaf 0x1400c2ea0 is ComponentEntity::MarkForRemoval, called directly.
 // 0x140003110 was Collection::Array<void*>::SetSize(n, fill) monomorphised
 // into the exe (ENDGAME B.3.2 step 2) — converted at its call site below.
 
@@ -117,7 +117,7 @@ static const bool s_clearAreaStateTableBuilt = (ClearAreaCtrl_PopulateTable(), t
 
 // 0x140117fa0. Component() is the CALL 0x1401188b0; the stamps are the compiler's;
 // `_controller(this)` is the member's back-pointer; +0x48 = 0. No flag OR: the SM
-// ticks the node, so the component needs no self-tick bit (0x80).
+// ticks the node, so the component sets no bit beyond Component()'s Startup (0x80).
 ClearAreaComponent::ClearAreaComponent() : _controller(this), clearState(0), _pad4C{} {}
 
 // 0x140117f40: restamp + ~Internal, no own work.

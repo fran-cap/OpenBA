@@ -67,8 +67,7 @@ inline void MemFree(void* p) {
 }
 // The locked Enter/Allocate/Leave triple every CreateInstance inlines
 // (`?_singleton@MemoryAllocator@System@@` + 0x640, EnterCriticalSection,
-// 0x1800c6e60, LeaveCriticalSection) has one out-of-line twin, 0x1800c7a50,
-// checked instruction by instruction by src/engine/ui/factory_ui1.cpp.
+// 0x1800c6e60, LeaveCriticalSection) has one out-of-line twin, 0x1800c7a50.
 inline void* MemAlloc(uint64_t bytes, int align) {
     return System::MemoryAllocator::MemAlloc(bytes, align);
 }

@@ -1,6 +1,6 @@
 // ============================================================================
 // src/engine/io/modification_refresh.cpp — WAVE 9 LANE MOD (second pass)
-// ?RefreshList@Modification@IO@@QEAAXXZ, 0x1800af5f0 — the live cutover wall
+// ?RefreshList@Modification@IO@@QEAAXXZ, 0x1800af5f0
 // ============================================================================
 //
 // WHY THIS FILE EXISTS
@@ -22,12 +22,10 @@
 //
 // THAT BLOCKER IS GONE, AND IT WAS RE-DERIVED HERE RATHER THAN INHERITED
 // (`reference_holdback_blockers_are_stale_check_them_first.md`). Lane PKG2
-// ported the constructor and the leaf accessors (src/engine/io/
-// package_file.cpp:838 `RegisterRuntimeExport("??0PackageFile@IO@@QEAA@XZ")`
-// plus `RegisterRuntimeAddr(0x1800b4440)`), and lane PKG3 ported ReadPackfile
-// itself (src/engine/io/package_file_read.cpp:999-1001). Both doors, both
-// rows. So RefreshList's PackageFile dependency is satisfied and this body can
-// be both run and diffed.
+// ported the constructor (src/engine/io/PackageFile.h) and the leaf accessors
+// (src/engine/io/package_file.cpp), and lane PKG3 ported ReadPackfile itself
+// (src/engine/io/package_file_read.cpp). So RefreshList's PackageFile
+// dependency is satisfied.
 //
 // ---------------------------------------------------------------------------
 // WHAT THIS FILE PORTS — eight rows
@@ -44,6 +42,9 @@
 //   | 0x180025580 | ?GetPreviewData@PackageFile@IO@@           |    20  |
 //   | 0x18007f034 | the registry-string integer parse helper   |     3  |
 //
+// 0x180028610 is `ModList::SetSize` over kSpec_Mod (modification.cpp); the
+// retrace and the two rotations are in modification_avl8.cpp.
+//
 // RefreshList is 934 instructions, not the "~450" the first pass's holdback
 // note estimated from a decompile's line count. The difference is what MSVC
 // inlined into this one body: the whole `Set<Filename>` insert, the same tree's
@@ -53,100 +54,27 @@
 // retail's C is open-coded in the instruction stream.
 //
 // ---------------------------------------------------------------------------
-// WHAT THIS FILE DECLINES, WITH THE MEASURED REASON  (the honest half)
+// RefreshList's CALLEES PORTED IN OTHER FILES
 // ---------------------------------------------------------------------------
-// RefreshList's call closure is 22 distinct addresses. 14 were already
-// registered before this lane started; this file closes 5 of the remaining 8
-// (0x180028610, 0x1800274c0, 0x180025530, 0x180025580, 0x18007f034) plus the
-// two rotations the fix-up needs and RefreshList itself. THREE REMAIN, each
-// declined for a reason measured today rather than inherited:
-//
-//   0x1800b4540  ??1PackageFile@IO@@UEAA@XZ (ord 639) — 87 instructions. NOT
-//     THIS LANE'S ROW: src/engine/io/package_file.cpp:925 already names it as
-//     lane PKG2's next wall, "(5 unported callees)". Writing it here would
-//     duplicate a scoped row, and a duplicate `RegisterRuntimeAddr` is
-//     last-binding-wins — it silently makes one of the two bodies dead code
-//     (`reference_grep_for_the_port_before_writing_it.md`).
-//
-//   0x1800accc0  ?CloseFile@FileSystem@IO@@ (ord 1726) — 56 instructions, and
-//     lane PKG2's own document claims it (`WAVE9_LANE_PKG2.md:944`, "the
-//     teardown half"). It also OPENS a door rather than closing one: it calls
-//     0x1800ae020, which nothing in the tree registers. A lane that closes one
-//     door and opens one has not moved the count.
-//
-//   0x180028760  the Array<Mod> introsort — NO LONGER DECLINED. BATCH 8b
-//     ported it and its small-range pass (0x180028fc0) in
-//     src/engine/io/modification_sort.cpp; the third door it named,
-//     0x1800c98a0 (`String::StrCompare`), was already ported in
-//     src/engine/system/string.cpp. The objection recorded here — that the
-//     population ties and so the SWAP SEQUENCE, not sortedness, decides which
-//     record wins — was right, and is the reason that port TRANSCRIBES the
-//     shipped MSVC sort skeleton (../collection/introsort_msvc.h) rather than
-//     substituting one. What was wrong was the conclusion that a
-//     replayed-permutation probe had to come first: a transcription of the
-//     bytes needs no corpus to justify it.
-//
-// So with the DLL PRESENT this body is complete and diffable; at cutover it
-// moves the wall from `RefreshList` to those three. The set-diff is in
-// docs/history/runtime_port/WAVE9_LANE_MOD2.md and is honest about that.
+//   0x1800b4540  ??1PackageFile@IO@@UEAA@XZ (ord 639) —
+//     src/engine/io/package_file_dtor.cpp.
+//   0x1800accc0  ?CloseFile@FileSystem@IO@@ (ord 1726) —
+//     src/engine/io/filesystem_createfile.cpp.
+//   0x180028760  the Array<Mod> introsort and its small-range pass
+//     (0x180028fc0) — src/engine/io/modification_sort.cpp. The population
+//     ties, so the SWAP SEQUENCE, not sortedness, decides which record wins;
+//     that port TRANSCRIBES the shipped MSVC sort skeleton
+//     (../collection/introsort_msvc.h) rather than substituting one.
 //
 // ---------------------------------------------------------------------------
-// THE ORACLE — and why RefreshList is replayable when it does not look it
+// WHY RefreshList IS IDEMPOTENT
 // ---------------------------------------------------------------------------
 // RefreshList destroys and rebuilds `this->mods` from scratch: it frees every
 // record, re-scans the pack directory, re-reads every .pkm header and re-reads
-// the registry. Nothing about it can be restored-and-replayed byte-wise, and a
-// byte compare of the result is meaningless because the two runs allocate
-// different heap blocks.
-//
-// It IS replayable in the sense that matters, for a reason visible in its first
-// instruction: `CALL 0x180010b80` destroys the existing array UNCONDITIONALLY,
-// before anything else. The function is therefore idempotent over the pair
-// (pack directory, registry) — which is exactly what the game relies on when
-// the mods dialog's Ok calls it a second time. So:
-//
-//     run OURS  -> photograph the resulting list BY VALUE
-//     run THEIRS on the same object (it re-destroys and rebuilds)
-//     photograph again -> compare the two photographs
-//
-// Retail's run is the one that LANDS, the same property SaveList's oracle has:
-// a diffing run's live behaviour is retail's behaviour.
-//
-// The photograph is BY VALUE, never by pointer, because every String and every
-// Set node in the second run is a different heap block:
-//
-//     count, and per mod: strcmp(name), strcmp(author), strcmp(description),
-//     strcmp(file), enabled, order, version, userVersion, iconWidth,
-//     iconHeight, crc, icon.size, preview.size, files.size, set.count,
-//     the SET'S IN-ORDER KEY SEQUENCE (strcmp, node by node), and
-//     the FILES ARRAY's contents (strcmp, element by element).
-//
-// The in-order key sequence is the term that makes this non-tautological for
-// the part of the body hardest to get right. The set is an AVL tree built by an
-// inlined insert plus a retrace (0x1800274c0) plus two rotations, and a
-// rebalance bug does not change the SET of keys — it changes the tree.
-// Comparing the in-order walk catches a tree that lost, duplicated or
-// misordered a node; comparing `set.count` alongside catches a count that
-// drifted from the tree. WHAT IT CANNOT CATCH is a wrong rotation that still
-// leaves a valid BST over the same keys with the same count — a differently
-// SHAPED but equally correct tree. That is stated rather than papered over.
-//
-// EFFECTIVENESS CONTROL. `the diff oracle` records how many calls actually built
-// something (count > 0). A run whose pack directory holds no .pkm produces
-// `divergences=0` over an empty list — a green line meaning "never ran", which
-// is precisely `reference_uniform_population_is_not_a_verification.md`. The
-// measurement section of WAVE9_LANE_MOD2.md quotes the work count, and a zero
-// there invalidates the run rather than being explained away.
-//
-// NEGATIVE CONTROL. `the old DLL-era switch=<n>` perturbs OUR photograph after
-// it is taken and before the compare — 1 flips mods[0].enabled, 2 flips a
-// bit in the LAST KEY of the first set's in-order walk, 3 bumps
-// mods[0].order, 4 drops a key from that walk. Crucially 2 is what reaches
-// `set.inorder`, the term the AVL port rests on: the first draft of this
-// probe had only the DROP case, which fires on the length check before the
-// key walk ever runs, so the tree-shape term had no control at all. Each must
-// make the shadow FAIL and name the term it broke. A control that cannot fire
-// is worse than none (`reference_probe_needs_an_effectiveness_control.md`).
+// the registry. Its first instruction, `CALL 0x180010b80`, destroys the existing
+// array UNCONDITIONALLY, before anything else, so the function is idempotent
+// over the pair (pack directory, registry) — which is exactly what the game
+// relies on when the mods dialog's Ok calls it a second time.
 //
 // ---------------------------------------------------------------------------
 // THE DELIBERATE DEVIATIONS FROM THE INSTRUCTION STREAM
@@ -200,9 +128,8 @@ namespace RtIO {
 // elements and (B.4 acceptance MOD) `Mod::file` are `System::Filename`.
 
 // ---------------------------------------------------------------------------
-// Borrowed from modification.cpp (same lane, same kill switch). Declared rather
-// than re-implemented: two copies of a refcount idiom is how one of them
-// drifts — the near-miss modification.cpp §4 records about RtString_AdoptInline.
+// The refcount helpers RefreshList uses. RefCount forwards to String.h's
+// accessor (RtSystem::StringRefCount), as modification.cpp's copy of it does.
 // ---------------------------------------------------------------------------
 // (0x180011110 / 0x180011220, the two Array operator= bodies RefreshList
 // calls, are declared by Modification.h; Mod's copy ctor 0x1800101e0 and its
@@ -259,31 +186,24 @@ int ModStrICmp(const char* a, const char* b) {
 // (ENDGAME B.3.2 closing pass)
 // ===========================================================================
 //
-// The three bodies above ARE the ported core for element width 8 / node 0x28,
-// and they were the last width `Collection::Set<T>` could not reach: the
-// template's `AvlOps` carried 0x10, 0x18 and 0x30 and fell through to
-// `AvlGeneric` for 8. These three forwarders are what set_core.cpp's are for
-// the other three widths, and they live HERE, next to the bodies, rather than
-// in set_core.cpp: that file's rule is that it is the only place that knows the
-// three node TYPES, and this node type belongs to IO::Modification.
-//
-// NOTHING IS RE-DERIVED. `AvlRotateLeft`/`AvlRotateRight`/the retrace are
-// unchanged above, still registered at 0x180027e20 / 0x180027f50 / 0x1800274c0,
-// and still reached by address by anything that wants them that way.
+// The three bodies in modification_avl8.cpp ARE the ported core for element
+// width 8 / node 0x28. `AvlOps<NodeT, 0x8>` (Collection.h) hands its Retrace to
+// RtColl_SetInsertFixup_1800274c0 by name; the two rotations are reached only
+// from inside that retrace.
 //
 // THE RETRACE TAKES `&set.root`. Retail's `CMP RDX,[RCX]` reads RCX as a
 // pointer to the root SLOT, and the template hands its `Set*`; `_root` is at
 // +0x00, so the two are the same address. The other three widths' cores take
 // the set and read `set->root` themselves — a spelling difference, not a
-// behavioural one, and it is why these forwarders cast rather than offset.
+// behavioural one, and it is why `AvlOps<NodeT, 0x8>::Retrace` casts rather than offsets.
 namespace Collection {
 namespace detail {
 
 // PortedRetrace8 (the 0x1800274c0 forwarder) was deleted in B.4 wave X: the
-// template calls RtColl_SetInsertFixup_1800274c0 above by name.
+// template calls RtColl_SetInsertFixup_1800274c0 (modification_avl8.cpp) by name.
 // PortedRotateLeft8 / PortedRotateRight8 (0x180027e20 / 0x180027f50 forwarders)
 // were deleted in B.4 P2 R-IO: no caller was left; the two rotations are
-// reached only from the retrace above.
+// reached only from that retrace.
 
 // (B.4 acceptance MOD: `KeyTraits<System::Filename>` -- the Filename null
 // state the descent tests -- moved to Modification.h, beside the set type.)
@@ -320,7 +240,7 @@ namespace RtIO {
 //
 // The `ADD RCX,RDI ; JZ` at 0x180028695 tests the ELEMENT address, not the
 // buffer, and is retail's only protection against a failed MemAlloc.
-// Transcribed, not hoisted — modification.cpp §4.
+// Transcribed, not hoisted — modification.cpp's growth-rule note says why.
 //
 // B.4 acceptance MOD: that is `rtcoll::SetSizeCore` driven by `kSpec_Mod`
 // (modification.cpp) -- the same grow rule, the same `realloced ? 0 : oldSize`
@@ -346,9 +266,9 @@ namespace RtIO {
 // `?$Array@I` (unsigned int) for the icon, `?$Array@E` (unsigned char) for the
 // preview — which is why the two call different assigns.
 // ENDGAME B.3.4 PACKAGE+FS commit 3: both bodies are now members of the real
-// `IO::PackageFile`, at the bottom of this file. Both doors keep their names
-// and both registrations and delegate. Neither is a virtual slot -- they are
-// `QEBA` -- so the qualification below is for the reader, not for dispatch.
+// `IO::PackageFile`, at the bottom of this file. Neither is a virtual slot --
+// they are `QEBA` -- so the qualified calls in RefreshList are for the reader,
+// not for dispatch.
 // (B.4 R-IO: the two doors `RtIo_PackageFile_GetIconData` /
 // `RtIo_PackageFile_GetPreviewData` had one caller, RefreshList below, which
 // calls the members directly now; the doors are deleted.)
@@ -358,11 +278,10 @@ namespace RtIO {
 // ===========================================================================
 //     XOR EDX,EDX ; LEA R8D,[RDX+0xa] ; JMP 0x180083e18
 // a bare tail-jump to CRT `strtol(s, NULL, 10)`. That identification is not new
-// here: WAVE4_LANE_C.md:167 and src/engine/io/persistence.cpp:127 both record
-// it, and keymap_load.cpp:270 and video/device.cpp:773 already call std::strtol
-// for the same address. This row exists to give the ADDRESS a door — the three
-// existing sites call std::strtol inline, so nothing had registered
-// 0x18007f034 and a by-address caller (this one) would find null at cutover.
+// here: docs/history/runtime_port/WAVE4_LANE_C.md:167 and
+// src/engine/io/persistence.cpp:137 both record it, and keymap_load.cpp:267
+// calls std::strtol for the same address. RefreshList's `ModIndex_` read calls
+// this body by name.
 extern "C" int RtCrt_ParseInt10_18007f034(const char* s) {
     return static_cast<int>(std::strtol(s, nullptr, 10));
 }
@@ -373,7 +292,7 @@ extern "C" int RtCrt_ParseInt10_18007f034(const char* s) {
 
 // B3R RT-IO: the fourteen callees below were function-pointer statics filled
 // through address doors; every one is called by name now (FileSystem /
-// PackageFile / String / Filename members, RtSystem_ConfigMap_Find,
+// PackageFile / String / Filename members, the settings map's `Find`,
 // RtColl_ArraySetSizeFill_180026880, RtIo_Modification_SortMods).
 
 // The `Mod` int columns, named from the PackageFile fields RefreshList copies
@@ -430,11 +349,8 @@ void Modification::RefreshList() {
     LoadTime::Stamp("mods.refresh");   // NOT RETAIL: print-only (the disk scan of the .pkm files)
 
 
-    // The two singletons retail loads at 0x1800af648 / 0x1800af64f. Read through
-    // the exported data slots rather than the raw addresses so a standalone run
-    // sees the objects Engine::Startup actually constructed.
-    // (ENDGAME B.3.9 IO (D7): the class statics; the address of a static is
-    // never null, so the two slot tests the doors carried are gone.)
+    // The two singletons retail loads at 0x1800af648 / 0x1800af64f
+    // (ENDGAME B.3.9 IO (D7): the class statics).
     ::IO::FileSystem* const  fs   = ::IO::FileSystem::_singleton;
     ::IO::Persistence* const pers = ::IO::Persistence::_singleton;
 
@@ -643,8 +559,8 @@ void Modification::RefreshList() {
             // for arm — the template's `InsertCorePattern` IS this descent (its
             // banner names 0x180030380 / 0x18002a170 / 0x180025c70 / 0x1800275e0
             // as the other four copies of it), and `AvlOps<Node, 0x8>` is the
-            // retrace and the two rotations THIS FILE ports at 0x1800274c0 /
-            // 0x180027e20 / 0x180027f50. Nothing moved to a different body.
+            // retrace and the two rotations modification_avl8.cpp ports at
+            // 0x1800274c0 / 0x180027e20 / 0x180027f50. Nothing moved to a different body.
             //
             // Every asymmetry the transcription called out survives in the
             // template and is worth naming once more, because each is one `if`:
@@ -653,7 +569,7 @@ void Modification::RefreshList() {
             //     stores whatever `AllocNode` returned, null included.
             //   * a null NODE key skips the left test; a null SEARCH key
             //     descends LEFT in the first arm and reports EQUAL (no insert,
-            //     no count) in the second — `KeyTraits<System::Filename>` above
+            //     no count) in the second — `KeyTraits<System::Filename>` (Modification.h)
             //     plus the pattern's two arms.
             //   * the retrace starts at the PARENT of the new node and takes a
             //     SLOT, re-read after every rotation.
@@ -765,9 +681,6 @@ void Modification::RefreshList() {
     found.data = nullptr; found.size = 0; found.capacity = 0;
     LoadTime::Stamp("mods.refresh.done");   // NOT RETAIL: print-only
 
-    // -----------------------------------------------------------------------
-    // The oracle. See the banner for why running theirs SECOND is legal here.
-    // -----------------------------------------------------------------------
 }
 
 }  // namespace IO
@@ -776,10 +689,10 @@ void Modification::RefreshList() {
 // ENDGAME B.3.4 PACKAGE+FS — `IO::PackageFile`'s two counted-array getters
 // ============================================================================
 // Defined outside `namespace RtIO` because a member of `IO::X` must appear in a
-// namespace ENCLOSING the class (B34_BRIEFS section A.2). They stay in THIS
-// file because this is where their doors and their registrations have always
-// been, and because the two `Collection::Array<T>::operator=` instantiations
-// they call are this file's, reached by address.
+// namespace ENCLOSING the class (B34_BRIEFS section A.2). The two
+// `Collection::Array<T>::operator=` bodies they call are modification.cpp's
+// (`RtColl_ArrayI32Assign_180011110` / `RtColl_ArrayU8Assign_180011220`),
+// declared by Modification.h.
 namespace IO {
 
 // The self-compare (`LEA RDX,[RCX+0x80]` / `CMP RBX,RDX`) can only be true if a

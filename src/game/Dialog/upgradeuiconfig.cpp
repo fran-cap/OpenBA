@@ -18,7 +18,7 @@
 // Serialize      0x140086fb0 (vtable +0x28): IO::Serializer(stream, 0) +
 //                ExternalPtr<ComponentDescription>::Serialize 0x140002340 on +0x20
 //                (load: FindOrLoad, kept only if IsDerivedFrom the cell 0x1401c7318)
-//                — ported via the canonical ExternalPtrSerializeGeneric body.
+//                — ported as Object::SerializeExternal<ComponentDescription>.
 // GetVersion     (vtable +0x18, 0x140087000): return 1.
 // GetTypeId      (vtable +0x10, 0x140016be0): return DWORD_1401c5868.
 //
@@ -52,7 +52,7 @@
 // the class inherits.
 
 // [5] 0x140086fb0 — deserialize the target-template reference
-// (ExternalPtr<ComponentDescription> 0x140002340, the canonical ExternalPtrSerializeGeneric body).
+// (ExternalPtr<ComponentDescription> 0x140002340, Object::SerializeExternal<ComponentDescription>).
 bool UpgradeUIConfig::Serialize(IO::Stream& stream) {
     IO::Serializer serializer(stream, 0);
     // 0x140002340: ExternalPtr<ComponentDescription>::Serialize (cell 0x1401c7318; B8 RT2).

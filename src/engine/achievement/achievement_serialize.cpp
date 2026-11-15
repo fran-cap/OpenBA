@@ -29,51 +29,15 @@
 // The banner in achievement_manager.cpp is corrected in the same commit.
 //
 // ----------------------------------------------------------------------------
-// THE TWO ORACLES ARE NOT THE SAME STRENGTH, AND THE DIFFERENCE IS THE POINT
+// THE COUNT RECORD
 // ----------------------------------------------------------------------------
-// `Achievement::Serialize` on the WRITE path is a pure read of the object, so
-// the whole body replays: stopAfter = 0, everything compared.
-//
-// `AchievementManager::Persist` is NOT. Its tail (FUN_180009a20) is a loop of
-// `Object::InternalBasePtr::Serialize`, which the emission oracle names in as many
-// words as one of the mutating members — it "ends in PersistObject -- mutates
-// the pointer AND the global factory". Replaying that performs the mutation
-// twice on the one live factory. So `Persist` gets the PREFIX oracle, stopping
-// after the ONE emission that precedes the loop (the int count, emitted through
-// ReaderWriter slot +0xA0 at 0x18009e988). THE COST IS REAL AND IS NOT HEDGED:
-// everything after emission 1 — i.e. every instance record — is NOT compared by
-// this oracle. What it does prove is the half that decides the stream layout:
-// that the count record is emitted, through the right slot, with the right
-// value, after the right codec was built.
-//
-// ----------------------------------------------------------------------------
-// FOUR NEW ADDRESS DOORS, NAMED RATHER THAN HIDDEN
-// ----------------------------------------------------------------------------
-// Both bodies reach unexported Collection/Object internals. They are CALLED by
-// address, not reimplemented — the same cost goal_serialize.cpp recorded for
-// its two, and the same growth in the cutover surface
-// (reference_porting_can_grow_the_cutover_surface.md). Two of the four were
-// already open:
-//
-//   0x1800042a0  ExternalPtr<UI::StringTable>::Serialize   ALREADY A DOOR
-//                (goal_serialize.cpp:130, external_ptr_serialize.cpp:47)
-//   0x180004590  ExternalPtr<UI::SpriteSheet>::Serialize   ALREADY A DOOR
-//                (ui/dialog_vtable.cpp:167 — note its recorded COLLISION
-//                 HAZARD: 0x180004590 is a different function in
-//                 VideoDX11-x64.dll. Module::Runtime is explicit below.)
-//   0x180005110  Array<ExternalPtr<Goal>>::SetSize         *** NEW ***
-//   0x180005220  serialize N ExternalPtr<Goal>             *** NEW ***
-//   0x180009a20  serialize N InternalPtr<AchievementInstance> *** NEW ***
-//
-// 0x180008d60 (Array<InternalPtr>::SetSize) is NOT new and is NOT a DLL call:
-// Wave 9 lane Q ported it and registered the address, so
-// ResolveAddr(Module::Runtime, 0x180008d60) lands on our body
-// (reference_resolveaddr_consults_port_registry_first.md).
+// `AchievementManager::Persist` emits the int count through ReaderWriter slot
+// +0xA0 at 0x18009e988, before its tail (FUN_180009a20) serializes every
+// instance record.
 //
 // NEITHER SetSize CALL IS REACHED ON THE WRITE PATH — both are guarded by
 // `stream.direction == 0`. They are transcribed because the read path is the
-// one that loads every save, and the oracle above does not cover it. Said
-// plainly: the reading direction of both bodies is UNVERIFIED by this file.
+// one that loads every save.
 // ============================================================================
 
 #include <cstdint>
@@ -93,8 +57,6 @@ namespace {
 // null readerWriter, `enc->vtable[+0x18 / +0x20](enc, &ser, version)`, and
 // `if (rw) delete rw` at the end -- IS `IO::Serializer(Stream&, version)` and
 // `~Serializer` (serializer_class.cpp), so each body holds one IO::Serializer.
-// The ExternalPtr serialize bodies still take the `rt::io::Serializer` POD
-// view of the same bytes (object/External.h, not this block's).
 // The version argument is ZERO in both bodies: retail zeroes R8D at
 // 0x18009e094 / 0x18009e934 and never reloads it before the factory call.
 

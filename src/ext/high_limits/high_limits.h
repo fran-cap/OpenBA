@@ -1,6 +1,6 @@
 #pragma once
 // ============================================================================
-// src/ext/high_limits/high_limits.h -- ext.high_limits (class B, default OFF)
+// src/ext/high_limits/high_limits.h -- ext.high_limits (class B, default ON)
 // ============================================================================
 // NOT RETAIL. docs/extensions/handins/HIGHLIMITS.md.
 //

@@ -134,7 +134,7 @@ UNIT_TEST(ext_render_culling_registry_rows) {
     CHECK(batch.defaultOn);   // ON by default (ruled 2026-11-08 for 1.0.3)
     CHECK(batch.formatVersion >= 1);
 
-    // Defaults and the faithful profile: both off.
+    // A value-initialised State: both off.
     Ext::State s{};
     CHECK(!s.ext.render_culling && !s.ext.anim_batch);
     Ext::State all{};

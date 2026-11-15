@@ -23,19 +23,12 @@
 //
 // HIDDEN RETURN SLOTS. GetDataDirectory, GetSourceDirectory and
 // GetSaveDirectory all return `System::Filename` BY VALUE (`?AV` in the
-// mangling), so each has an RDX hidden-return-slot argument. Checked against
-// both the existing central engine_funcs.h typedefs (`fn_FileSystem_Get*Directory_t`,
-// already `(self, retval)` — correct) and the local one in
-// src/game/Game/w2_takescreenshot.cpp (`FS_GetSaveDirectory_t`, also correct).
-// No wild-write defect exists in this family. See WAVE4_LANE_D.md §2 for the
-// tools/abi_retslot_audit.py run.
+// mangling), so each has an RDX hidden-return-slot argument. No wild-write
+// defect exists in this family. See docs/history/runtime_port/WAVE4_LANE_D.md §2.
 //
-// STATE. All five functions here are read-only walks of the LIVE DLL
-// structures at their real addresses (the FileSystem/Modification objects
-// keep existing on the DLL's heap; nothing here replicates them). No
-// detour is installed — registering redirects our call sites only, which is
-// safe for a read-only walk exactly as it was for Wave 3's Object reflection
-// lane (WAVE3_LANE_A.md §6).
+// STATE. Exists, GetDataDirectory, GetSourceDirectory, GetPackfileId and Find
+// are read-only walks of the FileSystem / Modification objects; none writes a
+// field.
 //
 // NO ADDED NULL GUARDS. Exists, GetPackfileId and Find all deref fields
 // unconditionally exactly as retail's disassembly does; see each function's
@@ -44,7 +37,7 @@
 
 #include <cstdio>
 #include <cstring>
-#include <new>          // placement new into the retail hidden return slot
+#include <new>
 
 #include "io/FileSystem.h"
 #include "io/Modification.h"
@@ -62,7 +55,7 @@ using RtSystem::StringLength;
 // Case-insensitive ASCII compare, sign-preserving (needed by GetPackfileId's
 // tree descent, not just equality). Duplicated rather than shared from
 // filename.cpp's file-local StriCmpAscii for the same reason that one gives:
-// runtime/src stays free of a CRT `_stricmp` whose locale behaviour differs
+// src/engine stays free of a CRT `_stricmp` whose locale behaviour differs
 // between toolchains (PLAN.md §4.1 portability seam).
 static int StriCmpAscii(const char* a, const char* b) {
     for (;;) {
@@ -86,14 +79,8 @@ static int StriCmpAscii(const char* a, const char* b) {
 //     }
 //
 // ExistsInPackfile (0x1800ab180) and PlatformExists (0x1800adc70) are exported
-// but NOT in this lane's scope (our tree never calls either directly — only
-// through Exists), so they are called by resolved export, exactly as Wave 3's
-// Type::Serialize dispatched into the DLL's (also out-of-scope) ReaderWriter
-// vtable. That is a real transcription of Exists's own logic, not a
-// forwarder: the two gate reads and the short-circuit order are ours.
-//
-// DIFF: full oracle. Read-only on both sides (PlatformExists stats a file,
-// no mutation).
+// members whose bodies are in filesystem_find.cpp; Exists calls them as members.
+// The two gate reads and the short-circuit order are Exists's own.
 // ============================================================================
 // The body is the member `IO::FileSystem::Exists`, at the bottom of this file.
 
@@ -110,16 +97,9 @@ static int StriCmpAscii(const char* a, const char* b) {
 // and GetSourceDirectory (same CALL target) rather than assumed from the
 // pseudocode's `Filename::Filename(...)` name.
 //
-// DIFF: full oracle. The copy ctor only AddRefs a shared buffer, so running
-// both sides is safe as long as each result is released afterward — comparing
-// the resulting Filename BY VALUE necessarily has ours->data == theirs->data
-// (same shared string), which is exactly what this proves: our AddRef landed
-// on the DLL's own live dataDirectory buffer, not a stale or wrong one.
 // ============================================================================
 // The body is the member `IO::FileSystem::GetDataDirectory`, at the bottom of
-// this file. B.4 R-IO: the `RtIo_FileSystem_GetDataDirectory` door is gone;
-// its two callers (object/external_compiled.cpp, object/external_path.cpp)
-// call the member.
+// this file.
 
 // ============================================================================
 // ?GetSourceDirectory@FileSystem@IO@@QEBA?AVFilename@System@@XZ retail 0x180007b90
@@ -133,7 +113,6 @@ static int StriCmpAscii(const char* a, const char* b) {
 // FileSystem+0x00 IS a String/Filename object (see FileSystem.h); "source
 // directory" is the class's own first field, not a nested lookup.
 //
-// DIFF: full oracle, same reasoning as GetDataDirectory.
 // ============================================================================
 // The body is the member `IO::FileSystem::GetSourceDirectory`, at the bottom of
 // this file.
@@ -157,7 +136,6 @@ static int StriCmpAscii(const char* a, const char* b) {
 // only guard here, transcribed exactly; a match failure returns 0, which is
 // retail's own "in no package" sentinel — not an added defensive path.
 //
-// DIFF: full oracle. Read-only on both sides.
 // ============================================================================
 // The body is the member `IO::FileSystem::GetPackfileId`, at the bottom of this
 // file.
@@ -172,7 +150,6 @@ static int StriCmpAscii(const char* a, const char* b) {
 // Length-prefixed compare identical in shape to GetPackfileId's: compare
 // stored lengths first, then StriCmp only if they match.
 //
-// DIFF: full oracle. Read-only on both sides.
 // ============================================================================
 // The body is the member `IO::Modification::Find(const System::Filename&)`,
 // below.
@@ -185,17 +162,15 @@ static int StriCmpAscii(const char* a, const char* b) {
 // Defined outside `namespace RtIO` because a member of `IO::X` must appear in a
 // namespace ENCLOSING the class (B34_BRIEFS §A.2), and reaching this file's
 // `RtIO`-scoped helpers as `RtIO::X` is what lets it stay where it is rather
-// than moving to modification.cpp. It lives in filesystem.cpp because this is
-// where the door and its registration have always been.
+// than moving to modification.cpp.
 namespace IO {
 
 // ============================================================================
-// ENDGAME B.3.4 PACKAGE+FS — `IO::FileSystem`'s member bodies (PARTIAL)
+// ENDGAME B.3.4 PACKAGE+FS — `IO::FileSystem`'s member bodies
 // ============================================================================
-// Only the four members whose doors live in THIS file. The other fifteen are
-// still free functions in the eight sibling `filesystem*.cpp` files, nine of
-// them on the OPEN/READ path B34_BRIEFS section D binds; src/engine/io/
-// FileSystem.h's banner lists exactly which and where.
+// The five members this file holds: Exists, GetDataDirectory, GetSourceDirectory,
+// GetPackfileId and GetSaveDirectory. The others are members too, in the seven
+// sibling `filesystem_*.cpp` files; src/engine/io/FileSystem.h lists which and where.
 //
 // Defined outside `namespace RtIO` because a member of `IO::X` must appear in a
 // namespace ENCLOSING the class (B34_BRIEFS section A.2); this block reaches
@@ -227,10 +202,9 @@ bool FileSystem::Exists(const System::Filename& pathRef) const {
 
 System::Filename FileSystem::GetDataDirectory() const {
 
-    // ENDGAME B.3.1 step 2: retail's copy ctor, spelled as itself. `ret` is the
-    // hidden return slot — raw, uninitialised bytes — so the object is placement-
-    // constructed into it, which is exactly what the CALL at 0x180007c06 does.
-    // `_dataDirectory` is a `System::Filename` member (B4 X-R3).
+    // ENDGAME B.3.1 step 2: retail's copy ctor, spelled as itself. The result is
+    // constructed in the hidden return slot, which is what the CALL at 0x180007c06
+    // does. `_dataDirectory` is a `System::Filename` member (B4 X-R3).
     return System::Filename(_dataDirectory);
 
 }
@@ -253,7 +227,7 @@ uint32_t FileSystem::GetPackfileId(const System::Filename& path) const {
 
     if (dataDirLen < pathLen) {
         // Relative path = pathData + dataDirLen (a suffix of the SAME buffer,
-        // not a copy yet — String::Set below is what allocates the copy).
+        // not a copy yet — the Filename ctor below is what allocates the copy).
         // ENDGAME B.3.1 step 2: `Filename relPath(pathData + dataDirLen)` is
         // exactly retail's Set-then-AdjustDelimiters pair (the Filename
         // const char* ctor, 0x180026cf0). RAII replaces the manual release at
@@ -391,7 +365,7 @@ System::Filename FileSystem::GetSaveDirectory() const {
 }
 
 // ?_singleton@FileSystem@IO@@0PEAV12@EA (0x1801fc6a8) -- the class static
-// (ENDGAME B.3.9 IO, D7); RtIoPortInit redirects the minted row onto it.
+// (ENDGAME B.3.9 IO, D7).
 FileSystem* FileSystem::_singleton = nullptr;
 
 }  // namespace IO

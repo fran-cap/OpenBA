@@ -4,8 +4,7 @@
 //
 // `MarketComponent` (the market's produce side; the carrier routes live on
 // MarketLocationComponent) as a real C++ class with a compiler-generated vtable
-// (B38_RULES.md D1-D6). No fields beyond ResourceProduceComponent. The
-// engine/types POD is a forwarder.
+// (B38_RULES.md D1-D6). No fields beyond ResourceProduceComponent.
 //
 // RETAIL (B38_SLOTS.md §6, bytes read 2026-09-26):
 //   reflected "MarketComponent", parent "ResourceProduceComponent", ti 0x1401c44f0

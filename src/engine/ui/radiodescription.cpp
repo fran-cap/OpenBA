@@ -25,18 +25,16 @@
 // LAYOUT: src/engine/ui/RadioDescription.h — GroupDescription (0x78) plus
 // `_activeRadio` (+0x78, ctor -1); sizeof 0x80.
 //
-// ENDGAME B.3.6 block C2: every slot body is a MEMBER of `UI::RadioDescription`;
-// the registered doors are one-line QUALIFIED delegations. Serialize's base
-// call (by address 0x180117d00 before) is the qualified member
+// ENDGAME B.3.6 block C2: every slot body is a MEMBER of `UI::RadioDescription`.
+// Serialize's base call (by address 0x180117d00 before) is the qualified member
 // `GroupDescription::Serialize`.
 //
 // ENDGAME B.3.9 block UI-A (B39_RULES D1/D2): the class is CONCRETE; the slot
 // doors and the ??0 / ??1 doors, read only by the retired minted table, its
 // RT_DELDTOR row and ui_factory_wave28.cpp's row, are gone.
 //
-// DOORS THIS CLASS STILL REACHES BY ADDRESS, each because its member is not
-// defined in the real build yet:
-//   0x180112ed0 Dialog::CreateElement (dialog.cpp, fragment pass / block B)
+// CALLEES DEFINED ELSEWHERE, each called directly:
+//   0x180112ed0 Dialog::CreateElement (dialog.cpp)
 //   0x180076900 Array<InternalPtr>::SetSize (array.cpp)
 //   0x1800d5750 RadioElement::FindCheckBoxes (private; widgets_input.cpp)
 // ============================================================================

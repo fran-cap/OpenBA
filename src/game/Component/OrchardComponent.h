@@ -4,8 +4,7 @@
 //
 // `OrchardComponent` (an orchard: its tree slots and the plant/tend/harvest/cut
 // cycle) as a real C++ class with a compiler-generated vtable and its state
-// controller as an EMBEDDED MEMBER (B38_RULES.md D1-D6). The engine/types POD is
-// a forwarder.
+// controller as an EMBEDDED MEMBER (B38_RULES.md D1-D6).
 //
 // RETAIL (B38_SLOTS.md §2 / §6, bytes read 2026-09-26):
 //   reflected "OrchardComponent", parent "ControllerComponent", ti 0x1401c46b0

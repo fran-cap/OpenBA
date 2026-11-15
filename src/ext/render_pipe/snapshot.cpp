@@ -770,7 +770,8 @@ SnapshotResult BuildLean(Builder& b, int32_t slot, Graphics::Renderer& r) {
 
     // ---- pass C: every item at its copy, from the entry pass A recorded ------
     // The reference probed the table for the item's live geometry: the same entry, and
-    // kKeepLive exactly where it skipped (a WorldGeometry item of another mode, review F-219).
+    // kKeepLive exactly where it skipped (a WorldGeometry item of another mode, review F-219,
+    // or the Builder::keepLive geometry).
     size_t replayed = 0;
     for (int32_t gi = 0; gi < r._drawGroupsUsed && gi < r._drawGroups._size; ++gi) {
         for (auto& list : r._drawGroups._data[gi]._items) {

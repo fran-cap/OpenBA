@@ -1,5 +1,5 @@
 # Phase D.3 composite plan (dry-run validation of the whole move; the steps are applied one
-# top-level directory at a time with plan_1_game.py .. plan_4_dx11.py).
+# top-level directory at a time with plan_1_game.py .. plan_4_app.py).
 import subprocess
 
 SRC_ROOTS = ["code", "runtime", "standalone", "dx11", "tests"]

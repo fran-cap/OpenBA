@@ -14,7 +14,7 @@
 // - Finding empty pasture positions for animals
 // - Creating grazing work actions
 //
-// Slot7 is unique: tree insertion + clearing "flagged for removal" entity bits.
+// Slot7 is unique: tree removal + clearing "flagged for removal" entity bits.
 // Slot8/Slot9/Slot10/Serialize/Dtor are identical patterns to HuntWork.
 //
 // Decompiled from Application-x64.exe using Ghidra.
@@ -151,8 +151,7 @@ int PastureWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*
     }
 
     // -------------------------------------------------------
-    // Step 4: Check max workers (the tree's port of 0x14012e5c0 called here takes the
-    // component as an integer: LEFT)
+    // Step 4: Check max workers (0x14012e5c0, WorkComponent::CalcMaxWorkers)
     // -------------------------------------------------------
     if (local_58->workState == 0) {
         int iVar9 = local_58->CalcMaxWorkers();
@@ -188,8 +187,7 @@ int PastureWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*
     if (!bVar8) {
         GameUpdateLoop* gameWorld = GameUpdateLoop::_singleton;
         Map* map = gameWorld->m_game;
-        // The map helpers (0x14009ccf0, 0x1400a00f0, 0x14009f3e0) take the map as int*:
-        // LEFT.
+        // The map helpers (0x14009ccf0, 0x1400a00f0, 0x14009f3e0) are Map members.
         Map* piVar4 = map;
 
         // Get citizen position for pathfinding: CharacterComponent (+0x278) ->
@@ -209,8 +207,7 @@ int PastureWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*
         // Check if pasture is over its capacity (capacity < animal count)
         int pastureCount = local_a8->animals._size;
         if (local_a8->capacity < pastureCount) {
-            // Find an animal to remove via helper (0x140128350 takes the component as an
-            // integer: LEFT)
+            // Find an animal to remove (0x140128350, PastureComponent::FindOldestLivestock)
             int slotIdx = local_a8->FindOldestLivestock();
             if (slotIdx >= 0) {
                 // The livestock at that slot, its entity's AnimalComponent (0x140005500)
@@ -326,7 +323,7 @@ int PastureWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*
                         // Its WorkComponent (0x140003050)
                         WorkComponent* storageWork = occupant->FindComponent<WorkComponent>();
 
-                        // (0x1400f8620 takes the scheduler as an integer: LEFT)
+                        // (0x1400f8620, WorkScheduler::TryAssignWorkplace)
                         CitizenComponent* local_90_val = *citizenIBP;
                         WorkScheduler* storageWorkMgr = gameWorld->m_tutorial;
                         uint64_t overflowResult = storageWorkMgr->TryAssignWorkplace(&local_90_val,
@@ -420,8 +417,7 @@ int PastureWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*
                 }
 
                 // Register work with CitizenAI (CitizenAI_impl_1a30):
-                // (tree root = self+0x48, outResult = the GetTarget slot, key = citizen IBP;
-                // the helper takes the container as uintptr_t*: LEFT)
+                // (tree root = self+0x48, outResult = the GetTarget slot, key = citizen IBP)
                 WorkCitizenSetNode* inserted;   // the out-node slot (retail reuses workEnt's)
                 WorkBST_RegisterWork_1a30(&_citizens, &inserted, citizenIBP);
                 return 2;
@@ -436,9 +432,8 @@ int PastureWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*
 
 
 // ============================================================
-// PastureWork::Slot6 -- NOT HOOKABLE (RIP-relative CALL)
+// PastureWork::Slot6 / OnComplete
 // Thunk: sub rsp,0x28; add rcx,0x48; call CitizenAI_impl_5520; xor al,al; add rsp,0x28; ret
-// (The tree helper takes the container as uintptr_t*: LEFT.)
 // ============================================================
 int PastureWork::OnComplete(CitizenComponent** param2, ComponentEntity** /*arg2*/, int /*arg3*/) {
     WorkBST_BSTFindRemove_25520(&_citizens, param2);
@@ -509,7 +504,6 @@ int PastureWork::Cleanup() {
 // ============================================================
 // PastureWork::Slot9 / RemoveInvalid (0x1400F2090)
 // Identical to HuntWork::Slot9 -- BST traversal, validates, removes.
-// Hook DISABLED (bug class 3 -- MOV RAX,RSP).
 // ============================================================
 int PastureWork::Validate() {
     AssignmentNode* root = _citizens._root;
@@ -587,7 +581,7 @@ int PastureWork::Validate() {
         }
     }
 
-    // (keys compare unsigned; the tree helper takes the container as uintptr_t*: LEFT)
+    // (keys compare unsigned)
     if (removeCount > 0) {
         for (uint32_t i = 0; i < removeCount; i++) {
             AssignmentNode* searchNode = _citizens._root;
@@ -648,7 +642,6 @@ void PastureWork::Persist(IO::Stream& stream) {
 
     IO::Serializer serializer2(stream, 0);
 
-    // (the tree helper takes the container as uintptr_t*: LEFT)
     WorkBST_BST_Serialize_296b0(&_citizens, &serializer2);
 }
 
@@ -679,7 +672,6 @@ PastureWork::PastureWork() : AutoPickupWork() {
 // PastureWork tail: vtable, +0x48 BST root = 0, +0x50 count = 0.
 // The tree's port starts from the default shape (Work(): the zero fields and the two
 // -1s) and adds the entity-dependent fields on top; that is kept.
-// (The entity slot is void*, the caller's ABI: LEFT.)
 // ============================================================
 PastureWork::PastureWork(ComponentEntity* const* entityIBP) : AutoPickupWork() {
     _entity = *entityIBP;

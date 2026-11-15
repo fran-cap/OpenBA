@@ -5,15 +5,15 @@
 // Fields: +0x28=IBP, +0x30=Vector3, +0x3C=Vector3, +0x48=Time, +0x50=int
 //
 // Vtable at 0x14015a020. Two non-trivial overrides:
-//   Shutdown (0x14004fc40) — Serialize IBP + 2 Vector3 + int + Time
-//   OnCreate (0x14004fd20) — Register with nomad list
+//   Persist  (0x14004fc40) — Serialize IBP + 2 Vector3 + int + Time
+//   OnRemove (0x14004fd20) — Hand the owner entity to PlayerToolManager::OnEntityRemoved
 //
 
 #include "err_line.h"   // HITCH_POSTDRAIN: one write per diagnostic line
 #include "Dialog/EntityUI.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "Game/PlayerToolManager.h"
-#include "Dialog/exe_bodies.h"   // Toolbar_ShowGroup_Impl
+#include "Dialog/exe_bodies.h"
 #include "Player/exe_bodies.h"   // Avl38SetFindRemove (0x14002c690)
 #include "math/Math.h"
 #include "ui/UserInterface.h"
@@ -32,8 +32,8 @@
 #include "Component/exe_bodies.h"
 
 // Helpers, called by name (B3R): Object::Base::IsDerivedFrom (import slot 0x140152a98),
-// NomadComp_FUN_140103480 (0x140103480, below), Toolbar_ShowGroup_Impl (0x140102b60),
-// Avl38SetFindRemove (0x14002c690).
+// PlayerToolManager::OnEntityRemoved (0x140103480, below), PlayerToolManager::SelectTool
+// (0x140102b60), Avl38SetFindRemove (0x14002c690).
 
 // ============================================================
 // Reimpl of FUN_140103480 (Component reg wave "people")
@@ -45,8 +45,7 @@
 //   3. Walk the UI's open dialogs; for any whose controller derives from
 //      TypeId_PageToggleUI (DAT_1401c4f00) and whose bound entity (+0x30) == param_2,
 //      close that dialog and return.
-// Sub-deps + the member-return UI calls resolved via .rdata dispatch slots.
-// Non-static for registration. Faithful structural port of 0x140103480.
+// Faithful structural port of 0x140103480.
 // ============================================================
 // vtable+0x50 takes TWO arguments — (self, entityRef) — NOT one.
 //
@@ -67,8 +66,8 @@
 // VA dereferenced as a pointer" and sent the investigation after an unregistered slot.
 // The fault address was stale-register garbage, not a resolve failure. (Same trap family
 // as reference_byvalue_return_hidden_rdx.)
-// The slot is Tool [10] IsSelected(uint64_t* entityRef) (Player/Tool.h), called by name below.
-// 0x140102b60 is Toolbar_ShowGroup_Impl, 0x14002c690 Avl38SetFindRemove.
+// The slot is Tool [10] IsSelected(ComponentEntity* const* entityRef) (Player/Tool.h), called by name below.
+// 0x140102b60 is PlayerToolManager::SelectTool, 0x14002c690 Avl38SetFindRemove.
 // slot 0x140151768 -- member, non-trivial return AND a THIRD argument Ghidra hides.
 // Retail 0x140103480 at 0x140103517: `MOV R8D,[0x1401c4f00]` (EntityUI) immediately
 // before `CALL [0x140151768]`. The mangled name confirms it: ...@Object@@I@Z -- the
@@ -87,9 +86,9 @@ void PlayerToolManager::OnEntityRemoved(ComponentEntity* const* entity) {
         // active tool to mode 0 when the entity it was bound to goes away. This call
         // was DEAD for the whole life of the project (0x140102b60 was ported but never
         // registered); registering it for GameUpdateLoop::Shutdown woke it up. Waking
-        // it coincided with the workplace/residence panels going inert, so it is gated
-        // while that is confirmed: SetEditMode(pc, 0) tears down the live tool
-        // controller at +0x28, which is what those panels' spinners hang off.
+        // it coincided with the workplace/residence panels going inert: SetEditMode(pc, 0)
+        // tears down the live tool controller at +0x28, which is what those panels'
+        // spinners hang off. The call is not gated; only its log line is capped (16).
         if (active != '\0') {
             static int s_hits = 0;
             if (++s_hits <= 16) {
@@ -270,7 +269,7 @@ void NomadComponent::Persist(IO::Stream& stream) {
 // Retail, whole body:
 //     MOV RAX,[RCX+0x10]; MOV RCX,[0x1401c3dd8]; LEA RDX,[RSP+0x30]
 //     MOV RCX,[RCX+0x120]; MOV [RSP+0x30],RAX; CALL 0x140103480
-// Unguarded, as retail. The notify is NomadComp_FUN_140103480, called by name.
+// Unguarded, as retail. The notify is PlayerToolManager::OnEntityRemoved, called by name.
 void NomadComponent::OnRemove() {
     ComponentEntity* entityIBP = _entity.Get();
     GameUpdateLoop::_singleton->m_toolManager->OnEntityRemoved(&entityIBP);   // 0x140103480

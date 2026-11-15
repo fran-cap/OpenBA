@@ -15,15 +15,15 @@
 //   0x1400f8ff0  Tutorial::~Tutorial
 //
 // Everything here is teardown: array frees, BST frees, and one entity-removal
-// drain. The container-free leaves are shared with other subsystems, so they are
-// registered at their own retail addresses too rather than kept file-local.
+// drain. The container-free leaves are shared with other subsystems, so they have
+// external linkage rather than being kept file-local.
 //
 // Already ported elsewhere, called by name (B3R):
-//   0x1400c2ea0  MarkEntityForRemoval              (Action/exe_bodies.h)
+//   0x1400c2ea0  ComponentEntity::MarkForRemoval   (Entity/ComponentEntity.h)
 //   0x1400c38e0  EntityList::RemoveEntity          (Entity/EntityList.h)
-//   0x14000e320  WorkBase_TreeNodeFree_e320, kids +0x18/+0x20   (Work/exe_bodies.h)
-//   0x140014c30  WorkBase_TreeNodeFree_14c30, kids +0x10/+0x18  (Work/exe_bodies.h)
-//   0x140014b00  TradeWork_helper_14b00, kids +0x20/+0x28       (Player/exe_bodies.h)
+//   0x14000e320  WorkBase_TreeNodeFree, kids +0x18/+0x20        (Work/exe_bodies.h)
+//   0x140014c30  WorkBase_TreeNodeFree, kids +0x10/+0x18        (Work/exe_bodies.h)
+//   0x140014b00  Avl38FreeSubtree, kids +0x20/+0x28             (Player/exe_bodies.h)
 
 // ENDGAME B.3.2 step 2 (COLL-GAME sweep): every `MemFree(data); data = 0; one
 // qword over size+capacity = 0` triple below was a hand-inlined
@@ -36,9 +36,9 @@
 // the outer block. Trees ({root,count} pairs, 4-byte count store),
 // node chains and IBP payloads are NOT arrays and are untouched.
 #include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
-#include "Action/exe_bodies.h"          // MarkEntityForRemoval
-#include "Player/exe_bodies.h"          // TradeWork_helper_14b00
-#include "Work/exe_bodies.h"            // WorkBase_TreeNodeFree_e320 / _14c30
+#include "Action/exe_bodies.h"
+#include "Player/exe_bodies.h"          // Avl38FreeSubtree
+#include "Work/exe_bodies.h"            // WorkBase_TreeNodeFree
 #include "options.h"         // Opt().teardownHeapCheck
 #include "redzone_alloc.h"   // RedzoneAlloc_FindCorruptBlockNative
 #include "collection/Collection.h"

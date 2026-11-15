@@ -2,14 +2,13 @@
 // See tool_harness.h. Env-gated in-game tool-injection harness for the Player
 // last-8 debugger pass.
 //
-// Phase 1 (current): construct a RemovalTool, wire its fields against the live
-// EntityUI + a small valid cell rectangle, call Startup, then exercise the
-// already-reimplemented CalcCost (and the not-yet-ported CalcPath). This proves
-// the harness drives a dormant tool path end-to-end so the debugger can
-// validate it. CalcPath (0x1401035e0) is a passthrough (null in standalone)
-// until ported — calling it now is a safe no-op that returns 0.
+// The default mode ("removal"): construct a RemovalTool, wire its fields against the live
+// EntityUI + a small valid cell rectangle, call Startup, then exercise CalcCost; CalcPath
+// (RemovalTool::CalcPath, 0x1401035e0) runs only when Startup set removalDesc (+0x38).
+// This proves the harness drives a dormant tool path end-to-end so the debugger can
+// validate it.
 //
-// All tool invocation is via raw vtable slots (no C++ decls / name mangling):
+// The tool slots are called as virtual members (Tool.h, dragtool.h, RemovalTool.h):
 //   Tool/DragTool vtable index = byte-offset / 8.
 //     +0x20 Startup  = idx 4
 //     +0x68 CalcPath = idx 13   (DragTool slot13)
@@ -118,10 +117,11 @@ extern "C" void ToolbarUtility_HarnessDriveController(const char* controllerName
 // Open the in-game "Map" menu dialog (buttonMap id 11 → MapParamsDialog).
 extern "C" void MapParamsDialog_HarnessOpen();
 
-// Phase 3: the SetEditMode reimpl the toolbar case-1 click drives (entityui.cpp).
-// Walks the tool-mode tree at entityUI+0x10 (built by PlayerToolManager::Startup 0x140101ee0),
-// resolves PlacementTool from the descriptor's CreatePlacedDescription, CreateObject's
-// it + Startup, installs it at entityUI+0x28. Declared in Dialog/exe_bodies.h.
+// Phase 3: PlayerToolManager::SelectTool (0x140102b60, toolbardialog.cpp), the body the
+// toolbar case-1 click drives. Walks the tool-mode tree at entityUI+0x10 (built by
+// PlayerToolManager::Startup 0x140101ee0), resolves PlacementTool from the descriptor's
+// CreatePlacedDescription, CreateObject's it + Startup, installs it at entityUI+0x28.
+// Declared in Game/PlayerToolManager.h.
 
 // GUI: entity-selection (EditTool) harness (Player/edittool_funcs.h, edittool.cpp):
 // EditTool_HarnessSelectNearby scans the region map near centre and drives the EditTool
@@ -172,7 +172,7 @@ void Init() {
         return;
     }
     s_enabled  = true;
-    s_toolName = env;   // currently only "removal" is wired
+    s_toolName = env;   // the mode name ToolHarness_Tick dispatches on
     fprintf(stderr, "[ToolHarness] ENABLED (BANISHED_TOOL_HARNESS=\"%s\") — will fire "
            "the tool sequence at frame %d\n", env, s_settleFrame);
 }
@@ -219,12 +219,11 @@ void FireRemovalTool(PlayerToolManager* entityUI) {
            "(expect width=8 height=8 valid=0 ret=0)\n",
            (unsigned long long)cc, outValid, outB, outA, outLen);
 
-    // CalcPath (+0x68): now the LIVE ported RemovalCalc_Slot13 (0x1401035e0). It
+    // CalcPath (+0x68): RemovalTool::CalcPath (0x1401035e0). It
     // dereferences removalDesc (self+0x38) throughout, so it is only safe to call with a
     // real RemovalDescription. This harness leaves the description entity null (Startup ->
     // removalDesc=null), so we SKIP the call here to avoid a null-deref fault. Drive
-    // CalcPath via the real toolbar Remove button instead (BANISHED_LIVE_TOOLBAR=1
-    // BANISHED_GAME_PRELOAD=1 BANISHED_LIVE_TOOLS=1), which supplies a live descriptor.
+    // CalcPath via the real toolbar Remove button instead, which supplies a live descriptor.
     void* removalDesc = rt->removalDesc;
     if (removalDesc) {
         fprintf(stderr, "[ToolHarness] calling CalcPath (retail slot 13, +0x68) = RemovalCalc_Slot13...\n");
@@ -361,7 +360,7 @@ void FireActivatePlacement(PlayerToolManager* entityUI) {
     // BANISHED_PLACEMENT_TEMPLATE overrides the building this drives, so the harness can
     // reproduce a specific toolbar button. Needed for Template\FishermansDock.rsc: it is
     // the one placeable carrying a RadiusDescription, which arms PlacementTool's
-    // HighlightAdd path (see Player_HighlightAdd_55430).
+    // HighlightAdd path (see RadiusDescription::AddHighlight, 0x140055430).
     const char* kTemplate = "Template\\WoodHouse.rsc";
     if (const char* e = Opt().placementTemplate) {
         if (e[0]) kTemplate = e;
@@ -399,7 +398,7 @@ void FireActivatePlacement(PlayerToolManager* entityUI) {
 // drag needs a live OS cursor over the map (ScreenToCell), which the harness has none
 // of, so we set startCell/endCell directly and dispatch the two slots the drag would.
 //
-// CalcCost proves the road A* (RoadTool_sub_ce00) resolves a path and prices it;
+// CalcCost proves the road A* (Map::FindRoadPath, 0x14009ce00) resolves a path and prices it;
 // CalcPath is what actually commits the road. Env: BANISHED_TOOL_HARNESS=road.
 void FireRoadTool(PlayerToolManager* entityUI) {
     if (!entityUI) { fprintf(stderr, "[ToolHarness] ERROR: entityUI null\n"); return; }
@@ -627,7 +626,7 @@ void FirePastureTool(PlayerToolManager* entityUI) {
            *reinterpret_cast<void**>(tool),   // the vtable word, logged only  // CAST-OK: crash_walk
            fenced->fencedDesc, fenced->areaDesc, fenced->fenceDesc);
 
-    // Scan outward from the valley centre for a clear 8x8 block (min size is 7).
+    // Scan outward from the town centre for a clear fencedSide-square block (default 8; min size is 7).
     GameUpdateLoop* gw = GameUpdateLoop::_singleton;
     Map* mapGrid = gw ? gw->m_game : nullptr;
     MapCell* terrain = mapGrid ? mapGrid->cells.GetData() : nullptr;
@@ -832,7 +831,7 @@ void FirePreviewPlacement(PlayerToolManager* entityUI) {
 // GUI_PLAN Keystone F, Phase 4: exercise the Utility-dialog open path (toolbar
 // case 2). A utility toolbar item (statusbar/eventlog/map/profession/limit/help)
 // carries a Description ptr at item+0x58 (a resolved Template\Utility*.rsc);
-// Toolbar_Utility_Impl finds its UIDescription child, builds a DialogInstance with
+// PlayerToolManager::ToggleUtilityDialog finds its UIDescription child, builds a DialogInstance with
 // the ToolUI child vtable, and AddDialog's it. This fires that path with a resolved
 // template as the param — proving open + subsequent-frame render are crash-free
 // without a live cursor/click. Template overridable via BANISHED_UTILITY_TEMPLATE, which may
@@ -1031,7 +1030,7 @@ void FingerTapTick(int frameNum) {
 }
 
 // GUI (click building/citizen → info dialog): activate the default EditTool via the real
-// SetEditMode(pc, 0) path (mode-tree must be built — BANISHED_LIVE_TOOLS=1), then drive the
+// SetEditMode(pc, 0) path (the mode-tree must be built), then drive the
 // cursor-free select scan so an entity's info DialogInstance opens crash-free without a live
 // cursor. The live path (real mouse click) runs through EditTool::OnKey every frame.
 void FireSelectEntity(PlayerToolManager* entityUI) {
@@ -1081,15 +1080,15 @@ void FireSelectCitizen(PlayerToolManager* entityUI) {
 // Shared mark-for-removal BACKEND test ("markremoval")
 // ============================================================
 // Proves the resource-removal backend end-to-end WITHOUT the ClearAreaComponent
-// (track A) or RemovalTool::CalcPath (track B, still a passthrough). It fires the
+// (track A) or RemovalTool::CalcPath (track B). It fires the
 // exact 3-step pattern the retail ClearAreaDescription_helper_7d60 (0x140117d60)
 // uses per footprint cell, on ONE real map entity:
 //   1. FUN_1400c2ea0(entity)  — MarkForRemoval: notifies each component (slot+0x38)
-//      then sets flag bit 0x400 at entity+0x40. (registered: reg_action_hunt)
+//      then sets flag bit 0x400 at entity+0x40 (ComponentEntity::MarkForRemoval).
 //   2. FUN_140003110(&removalList, count+1, &entity) — push onto EntityList's
-//      pending-removal list at +0xD0. (registered: reg_action_hunt)
+//      pending-removal list at +0xD0 (IBPArray::SetSize).
 // Then EntityList::Update Step 5 (entitylist.cpp) drains removalList every tick via
-// EntityList_RemoveEntity and clears it. This harness marks one entity, verifies the
+// EntityList::RemoveEntity and clears it. This harness marks one entity, verifies the
 // flag + list count, then logs removalList._size + the tile slot across the next
 // frames so we can watch it drain to 0 and the entity vanish. If this works, both
 // track A and track B are just front-ends onto a proven backend.
@@ -1203,7 +1202,7 @@ void FireMarkRemoval() {
 // interlock: one-frame removal deferral + EditTool close-on-death + per-panel
 // guards. For a PINNED panel the close-on-death is SUPPRESSED — EditTool's
 // reposition bails on ToolUI+0x40 (the pin flag) before ever reaching the close
-// (edittool.cpp:528 vs :544). So on the frame AFTER the entity is freed, the
+// (edittool.cpp:293 vs :309). So on the frame AFTER the entity is freed, the
 // controller's +0x28 datasource weak-ref dangles and the guard reads freed memory.
 //
 // This scenario reproduces exactly that window: open a founding-house info dialog,
@@ -1227,7 +1226,7 @@ UI::DialogController* GetControllerByType(UI::DialogInstance* dialog, uint32_t t
 void FirePinPanel(PlayerToolManager* entityUI) {
     if (!entityUI) { fprintf(stderr, "[PinPanel] ERROR: entityUI null\n"); return; }
 
-    // 1. Activate the default EditTool (mode-tree needs BANISHED_LIVE_TOOLS=1).
+    // 1. Activate the default EditTool.
     EditTool* tool = EditTool_HarnessAcquire(entityUI);   // rejects a non-EditTool
     if (!tool) { fprintf(stderr, "[PinPanel] EditTool activation FAILED (set BANISHED_LIVE_TOOLS=1)\n"); return; }
 
@@ -1282,7 +1281,7 @@ void FirePinPanel(PlayerToolManager* entityUI) {
 }
 
 // ============================================================
-// House-panel-open soak ("housepanel") — open G from NEXT_SESSION_BRIEF.md
+// House-panel-open soak ("housepanel") — open G from docs/history/notes/NEXT_SESSION_BRIEF.md
 // ============================================================
 // The ResidenceUI_Slot7+0x295 crash has never been explained, and the autostart
 // soak never opens a residence panel — so "the row-bound guard never fired" was
@@ -1309,18 +1308,17 @@ void FirePinPanel(PlayerToolManager* entityUI) {
 //
 // WHAT ACTUALLY POPULATES `_userData` - read, not guessed. `_userData` (+0xa8)
 // and `_userFlags` (+0xb0) are pure ctor arguments
-// (src/engine/ui/dialog_create.cpp:781). Of the sixteen exe-side
-// `fn_DialogInstance_Ctor` call sites, FIFTEEN pass `nullptr, 0`. Exactly one
-// passes a real buffer - src/game/Dialog/edittool_select.cpp:233:
+// (src/engine/ui/dialog_create.cpp:335). The select path passes a real buffer -
+// src/game/Dialog/edittool_select.cpp:138:
 //
-//     ctrlCount = *(uint32_t*)(uiCompIBP + 0x30);
-//     ctrlData  = *(void**)  (uiCompIBP + 0x28);
-//     fn_DialogInstance_Ctor(dlg, ui, extRes, &nullParent, entityPtr,
-//                            ctrlData, (int)ctrlCount);
+//     ctrlCount = bytes.GetSize();   // bytes = uiComp->data (UIComponent +0x28)
+//     ctrlData  = bytes.GetData();
+//     newDialog = ::new (storage) UI::DialogInstance(ui, uiDesc->_dialog,
+//         Object::InternalPtr<UI::DialogInstance>(), entity, ctrlData, ctrlCount);
 //
 // So `_userData` is the SELECTED ENTITY'S UIComponent settings buffer -
 // UIComponent+0x28..+0x37 is a growable byte array (data@0x28, count@0x30,
-// cap@0x34) that src/game/Component/uicomponent.cpp:127 already identifies as
+// cap@0x34) that src/game/Component/uicomponent_serialize.cpp already identifies as
 // real, serialized state. That is why `housepanel` gave DLGV entries but never a
 // buffer: the EditTool route is the right one, and the buffer on the other end
 // of it is empty because nothing in our standalone ever grows it.
@@ -1354,9 +1352,9 @@ static void DlgSettings_InstallBuffer(ComponentEntity* entity, int idx) {
     int bytes = HarnessAtoi(e);
     if (bytes <= 1) bytes = 256;
 
-    // The same walk src/game/Dialog/edittool_select.cpp:93 does. It lives in an
-    // ANONYMOUS namespace there, so it cannot be linked against; the loop is
-    // repeated here rather than de-anonymising a file this lane does not own.
+    // The same lookup src/game/Dialog/edittool_select.cpp:125 makes with
+    // entity->FindComponent<UIComponent>(); the loop below walks the components by
+    // type id instead.
     // Entity+0x30 is the component-IBP array, +0x38 the count; a component's
     // type id is its vtable slot +0x10.
     const uint32_t tidUIComp = UIComponent::TypeId();
@@ -1483,7 +1481,7 @@ void FireHousePanel(PlayerToolManager* entityUI) {
 //
 // `_userData` is a DialogInstance CTOR ARGUMENT, and exactly one of the sixteen
 // exe-side ctor call sites passes anything but `nullptr, 0`:
-// src/game/Dialog/edittool_select.cpp:233, which passes the SELECTED ENTITY'S
+// src/game/Dialog/edittool_select.cpp:138, which passes the SELECTED ENTITY'S
 // UIComponent buffer (+0x28) and count (+0x30). So the first gate is not
 // "controllers" at all — it is "does the entity have a UIComponent". Nothing
 // downstream can run for an entity that has none.
@@ -1592,7 +1590,7 @@ static void FireUIComponentCensus() {
 //
 // B MUST BE AN ENTITY THAT ITSELF OPENS A DIALOG, and that is not a detail:
 // EditTool's select returns early when the entity has no UIDescription
-// (edittool_select.cpp:209), and an early return never reaches the close of the
+// (edittool_select.cpp:122), and an early return never reaches the close of the
 // previous panel. A founding house is used, because FireHousePanel already
 // proves a founding house opens one.
 //
@@ -1801,16 +1799,13 @@ void FirePasturePanel(PlayerToolManager* entityUI) {
 // ============================================================
 // BANISHED_TOOL_HARNESS=tradepanel — open the TRADING POST info panel.
 //
-// This is the observability half of Wave A. The TradeUI promotion in
-// ui_dialog_stub_factories.cpp wires the real slots but gates them behind
-// DepsReady(), and DepsReady() only runs on the FIRST SLOT DISPATCH — which needs
-// something to actually construct a TradeUI. Nothing in the autostart path clicks a
-// building, so until this exists the promotion is unobservable: "compiled and
-// deployed" is not "runs", and a stubbed accessor and a correct one produce the
-// same empty table.
+// This is the observability half of Wave A. Nothing in the autostart path clicks a
+// building, so without this route the TradeUI slots (tradeui.cpp) never dispatch:
+// "compiled and deployed" is not "runs", and a stubbed accessor and a correct one
+// produce the same empty table.
 //
 // Same shape as FirePasturePanel above: activate the EditTool, select the post's
-// entity (the real fn_EditTool_SelectEntity path an in-world click takes), then look
+// entity (the real EditTool::SelectEntity path an in-world click takes), then look
 // for a TradeUI among the resulting dialog's controllers.
 //
 // Needs a trading post in the world: BANISHED_BUILD_DEMO_TRADINGPOST=1
@@ -1944,9 +1939,8 @@ void FireTradePanel(PlayerToolManager* entityUI) {
     if (!tool) { fprintf(stderr, "[TradePanel] EditTool activation FAILED\n"); return; }
 
 
-    // Find the trading post by scanning the entity list for a TradeComponent. The
-    // raw .rdata type-id slot 0x1401c4b80 is unregistered in standalone, so match on
-    // the component's own vtable+0x10 GetTypeId (same approach as trade_probe.cpp).
+    // Find the trading post by scanning the entity list for a TradeComponent, matched by
+    // exact type id (comp->Type() == TradeComponent::TypeId()).
     GameUpdateLoop* gw = (GameUpdateLoop::_singleton != nullptr) ? GameUpdateLoop::_singleton : nullptr;
     if (!gw) { fprintf(stderr, "[TradePanel] gameWorld null\n"); return; }
     EntityList* entityList = gw->m_entityList;
@@ -2011,11 +2005,8 @@ void FireTradePanel(PlayerToolManager* entityUI) {
         return;
     }
 
-    // The setup slot (4) populates the element caches; if the gate let it through,
-    // tableSell(+0xC8)/tableBuy(+0xD0) become non-null. That is the single clearest
-    // signal of whether DepsReady() passed — and while the 10 leaves are unported it
-    // SHOULD read null, with the gate's own "STAYING STUBBED" block just above in
-    // stderr. Both null AND no gate message would mean the slot never dispatched.
+    // The setup slot (4, TradeUI::OnCreated in tradeui.cpp) populates the element
+    // caches, so tableSell(+0xC8)/tableBuy(+0xD0) read non-null once it has run.
     void* tableSell = tui->_tableSell;
     void* tableBuy  = tui->_tableBuy;
     fprintf(stderr, "[TradePanel] TradeUI=%p tableSell(+0xC8)=%p tableBuy(+0xD0)=%p -> setup %s\n",
@@ -2024,14 +2015,9 @@ void FireTradePanel(PlayerToolManager* entityUI) {
                                    : "did NOT run (gate held it stubbed, as expected "
                                      "while the 10 leaves are unported)");
     fflush(stderr);
-
-    // Dump the price-lookup analysis, if BANISHED_TRADE_PRICE_PROBE armed it. This
-    // runs unconditionally at the end of the tradepanel harness rather than on a
-    // sample threshold, so that "the panel opened and a520 was never called" prints
-    // as an explicit NOT-A-PASS instead of as silence.
 }
 
-// Track A: footprint-clear on placement. Runs ClearAreaComponent_FootprintSweep
+// Track A: footprint-clear on placement. Runs ClearAreaComponent::FootprintSweep
 // (the 0x140117d60 port) on each captured founding-house building, marking any
 // footprint resources for removal, then watches EntityList::Update drain them.
 void FireClearFootprint() {
@@ -2098,8 +2084,8 @@ void FireClearPlace() {
     if (rcRow < 0) { fprintf(stderr, "[ClearPlace] no resource cell found near centre\n"); return; }
     fprintf(stderr, "[ClearPlace] resource at cell=(%d,%d) entity=%p\n", rcRow, rcCol, resEnt);
 
-    // 2. Get a founding house and its footprint component (the rect at +0x28). The
-    //    finder's name says Build; its type id is MapComponent's (Entity/exe_bodies.h).
+    // 2. Get a founding house and its footprint component (MapComponent, the rect at
+    //    +0x28).
     ComponentEntity* house = StartTown_GetFoundingHouseCount() > 0 ? StartTown_GetFoundingHouseEntity(0) : nullptr;
     if (!house) { fprintf(stderr, "[ClearPlace] no founding house to borrow\n"); return; }
     MapComponent* bc = house->FindComponent<MapComponent>();
@@ -2138,8 +2124,7 @@ void FireClearPlace() {
     if (marked > 0) { s_mr_fired = true; s_mr_entity = 0; s_mr_tileSlot = 0; }
 }
 
-// Track A step-2 demonstration: with the LIVE ClearAreaComponent enabled
-// (BANISHED_CLEAR_FOOTPRINT=1), point a founding house's footprint at a resource cell so
+// Track A step-2 demonstration: point a founding house's footprint at a resource cell so
 // the GAME'S OWN per-frame component tick (not the harness) auto-clears it. Proves the
 // full automatic chain: EntityList ticks component -> FootprintSweep -> mark -> drain.
 void FireClearLive() {
@@ -2318,8 +2303,8 @@ void FireClearHarvest() {
 //      BANISHED_UPGRADE_CLICK_DELAY  frames between opening the dialog and clicking
 //                                    (default 15 — UpgradeUI binds its button in the
 //                                    slot-8 self-heal a frame or more after the open)
-// The whole rest of the sequence is observed through the DestroySM traces
-// (BANISHED_DESTROY_TRACE=1) — this only supplies the click.
+// The whole rest of the sequence is observed through the DestroySM traces — this only
+// supplies the click.
 
 // The demo foundation's owner entity (starttown.cpp; set alongside g_pConstructionDemoSite).
 extern "C" ComponentEntity* g_pConstructionDemoEntity;
@@ -2428,7 +2413,7 @@ bool UpgradeOpenDialog() {
 
 // Fire the upgrade button: UpgradeUI vtable slot 9 (self, &srcElement, msg, id, x, y)
 // with msg 0x12 / id 33000 / src == the controller's bound button (+0x30), which is
-// exactly the event UpgradeUI_OnRemove accepts. It then writes the target template
+// exactly the event UpgradeUI::OnElementEvent accepts. It then writes the target template
 // (UpgradeUIConfig+0x20) into DestroyComponent+0x60 and pumps the BuildState SM.
 void FireUpgradeClick() {
     UI::DialogInstance* dialog = s_up_tool
@@ -2478,7 +2463,7 @@ void UpgradeTick(int frameNum) {
         // BANISHED_UPGRADE_FORCE_FRAME=<n>: fire the click n frames after arming WITHOUT
         // waiting for the build to finish. The replacement-spawn branch needs
         // delivered != 0 and so will not run, but DestroySM state-4 enter still fires
-        // WorkPlaceComponent_EnterBuilderProfession (0x14012f520) — and mid-construction
+        // WorkPlaceComponent::EnterBuilderProfession (0x14012f520) — and mid-construction
         // is the only window where the site's WorkComponent still holds a scheduler work
         // id (+0x28 >= 0), which is the sole trigger for the profession re-key
         // (FUN_1400f8400). Once construction completes the id is cleared, so the normal
@@ -2992,9 +2977,9 @@ void FireBridgeTool(PlayerToolManager* entityUI) {
                         if (nCand < kMaxCand) {
                             cands[nCand++] = cand;
                         } else {
-                            // Keep the NEAREST kMaxCand: evict the current farthest rather
-                            // than dropping everything past the cap, which would silently
-                            // bias the pick towards whatever the scan happened to reach first.
+                            // Keep the best kMaxCand (NEAREST, or LONGEST in LONGEST-SPAN mode): evict the
+                            // current worst rather than dropping everything past the cap, which would
+                            // silently bias the pick towards whatever the scan happened to reach first.
                             int worst = 0;
                             if (wantLongest) {
                                 for (int q = 1; q < kMaxCand; ++q)
@@ -3012,7 +2997,8 @@ void FireBridgeTool(PlayerToolManager* entityUI) {
             }
         }
     }
-    // Insertion sort by distance — nCand is small and this keeps the harness allocation-free.
+    // Insertion sort by distance (by length, longest first, in LONGEST-SPAN mode) — nCand is small
+    // and this keeps the harness allocation-free.
     for (int i = 1; i < nCand; ++i) {
         Cand key = cands[i];
         int j = i - 1;
@@ -3111,7 +3097,7 @@ void BridgeCommit(DragTool* tool, int startCell, int endCell) {
 // children, is the entity that exercises it.
 //
 // Set BANISHED_BRIDGE_SELECT=1 (optionally =N for "N frames after the commit",
-// default 120) to fire it. BANISHED_OUTLINE_TRACE=1 shows where c4a0 lands per segment.
+// default 120) to fire it.
 
 int BridgeSelectDelay() {
     const char* e = Opt().bridgeSelect;
@@ -3483,8 +3469,7 @@ void PanelCloseTick(PlayerToolManager* toolManager, int frameNum) {
 
 }  // namespace
 
-// GameUpdateLoop's Update hands its m_toolManager over (gameupdateloop.cpp; its local
-// declaration still spells the parameter void*, C linkage).
+// GameUpdateLoop's Update hands its m_toolManager over (gameupdateloop.cpp, C linkage).
 extern "C" void ToolHarness_Tick(PlayerToolManager* entityUI, int frameNum) {
 
     Init();
@@ -3509,10 +3494,9 @@ extern "C" void ToolHarness_Tick(PlayerToolManager* entityUI, int frameNum) {
         }
     }
 
-    // pinpanel: after the mark fires, each frame compare the RAW datasource read
-    // (+0x28, what SA_DialogEntityAlive does) against a CheckPtr-hardened read, and
-    // track when the entity actually frees. rawDS staying non-null while checkedDS
-    // nulls == the current guard would read freed memory; the CheckPtr is the fix.
+    // pinpanel: after the mark fires, each frame log the datasource read (+0x28, what
+    // SA_DialogEntityAlive does) and track when the entity actually frees, until the
+    // drain closes the dialog.
     if (s_pin_fired && s_pin_ctrl) {
         int rel = frameNum - s_pin_fireFrame;
         if (rel >= 0 && rel <= 14) {
@@ -3539,8 +3523,7 @@ extern "C" void ToolHarness_Tick(PlayerToolManager* entityUI, int frameNum) {
             UI::DialogController* ctrl = s_pin_ctrl;
             // RAW +0x28 (guard's read) — pointer only, never dereferenced here.
             void* rawDS = ctrl->_dataSource;
-            // CheckPtr-hardened read: CheckPtr a COPY of the +0x28 IBP so the probe
-            // is non-destructive; it nulls if the weak-ref's target was freed.
+            // The same +0x28 read again, logged as checkedDS (see the NOTE below).
             void* checkedDS = ctrl->_dataSource;
             // NOTE: CheckPtr does NOT null this dangling ref (the datasource weak-ref
             // isn't generation-invalidated by a raw free) — so a guard-side CheckPtr is

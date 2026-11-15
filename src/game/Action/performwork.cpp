@@ -24,7 +24,7 @@
 
 #include "PerformWork.h"
 #include "object/TypeInfo.h"
-#include "Action/exe_bodies.h"   // ActMv_* helpers
+#include "Action/exe_bodies.h"
 #include "Game/exe_constants.h"  // kRdata_*
 #include "math/Math.h"           // Math::Vector3::FromYawPitch, Math::Scalar
 #include <cstring>
@@ -43,13 +43,13 @@
 
 // ============================================================
 // Helpers, called by name (B3R)
-//   0x1400012d0 ActMv_FindComponentFamily_12d0 (Entity_FindComponent_Family)
-//   0x14010a1f0 ActMv_SetAnimation_a1f0 (AnimalComponent_impl_a1f0) -- SetAnimation
+//   0x1400012d0 ComponentEntity::FindComponent<CharacterComponent>
+//   0x14010a1f0 CharacterComponent::SetAnimation -- SetAnimation
 //               (familyComponent, animId, param3, param4)
-//   0x14010a060 ActMv_SetFacingDirection_a060 (PerformWork_helper_a060) -- SetFacingDirection
+//   0x14010a060 CharacterComponent::SetFacingDirection -- SetFacingDirection
 //               (familyComponent, vector3)
 //   import slot 0x1401512a0 ?FromYawPitch@Vector3@Math@@ -> Math::Vector3::FromYawPitch
-//   0x140116650 ActMv_CitizenBreakCheck_116650 (PerformWork_helper_6650) -- citizen break
+//   0x140116650 CitizenComponent::BreakCheck -- citizen break
 //               check (entity) -- returns bool (true = needs break)
 //
 // Float constants (Game/exe_constants.h): 0x14017214c = 1.0f, 0x1401722a0 = -180.0f

@@ -10,12 +10,12 @@ BYTES and prints the sequence of ConstantBuffer calls with the string literals
 and immediates that reached them, so the port is transliterated from a
 machine-produced listing rather than from a human reading 1975 instructions.
 
-NO DISASSEMBLER IN THE LOOP. Three byte patterns are matched directly:
+NO DISASSEMBLER IN THE LOOP. Byte patterns are matched directly, among them:
 
     LEA r64,[rip+disp32]   48/4C  8D  modrm(mod=00,rm=101)  disp32
-    MOV r32d,imm32         B8+rd imm32,  or  41 B8+rd imm32 for r8d-r15d
+    MOV R9D,imm32          41 B9 imm32
     CALL rel32             E8 disp32, accepted only when the target is one of
-                           the six functions this table is built from
+                           the seven addresses in CALLS
 
 so a listing's typo cannot be inherited, and the same tool works with Ghidra
 shut down. The AddConstant row count is asserted against the DLL, so a scan that
@@ -109,9 +109,9 @@ def scan(pe):
         #
         # Peeking cannot desynchronise. It can over-report, which is why every
         # pattern below is narrow enough that a false positive is
-        # distinguishable: a CALL is kept only when its target is one of six
-        # exact addresses, an immediate only in the two encodings that put it in
-        # R9D or a stack argument slot, and a literal only when the bytes at the
+        # distinguishable: a CALL is kept only when its target is one of seven
+        # exact addresses, an immediate only in the narrow encodings matched
+        # below, and a literal only when the bytes at the
         # target really are a NUL-terminated ASCII string.
 
         # LEA r64,[rip+disp32]
@@ -198,7 +198,7 @@ def scan(pe):
             events.append((va, "lea[r15]", (
                 reg, int.from_bytes(data[i + 3:i + 7], "little"))))
 
-        # CALL rel32, kept only when it lands on one of the six.
+        # CALL rel32, kept only when it lands on one of the seven.
         elif b == 0xE8:
             disp = int.from_bytes(data[i + 1:i + 5], "little", signed=True)
             target = va + 5 + disp

@@ -115,9 +115,9 @@ static_assert(sizeof(AVLCompare) == 1, "policy struct, never stored");
 // ============================================================
 // Collection::Array<T> — {data, size, capacity}, 16 bytes. CONFIRMED.
 //
-// The exe port has assumed this triple for months (engine/types/EntityList.h
-// `IBPArray`, engine/types/MapGenerator.h `DynArray`); this is the independent
-// confirmation from Runtime-x64.dll that the Wave 2 brief asked for.
+// The exe port has assumed this triple for months (src/game/Entity/EntityList.h
+// `IBPArray`); this is the independent confirmation from Runtime-x64.dll that
+// the Wave 2 brief asked for.
 //
 // sizeof == 16 is pinned by Video::ShaderProgram::GetByteCode (0x18004e100),
 // a one-line `return _byteCode[i]` over an Array<Array<unsigned char>> that
@@ -174,8 +174,8 @@ static_assert(sizeof(AVLCompare) == 1, "policy struct, never stored");
 // THE TEMPLATE WRAPS THE PORTED BODIES; IT DOES NOT RE-DERIVE THEM.
 // `SetSize` calls `rtcoll::SetSizeCore` and `~Array` calls
 // `rtcoll::ArrayDtorImpl` — the same two bodies, driven by the same
-// `rtcoll::ArraySpec` rows, that the 27 registered addresses have driven since
-// Wave 9 lane Q. COLLECTION_INVENTORY.md §5.3 says why in one line: a body
+// `rtcoll::ArraySpec` rows, that array.cpp's per-address `RtColl_Array*`
+// entries run. COLLECTION_INVENTORY.md §5.3 says why in one line: a body
 // re-derived from Ghidra's C risks re-introducing an argument-count mismatch
 // this port already solved (feedback_ghidra_dropped_args.md).
 //
@@ -190,7 +190,7 @@ static_assert(sizeof(AVLCompare) == 1, "policy struct, never stored");
 //     already encode.
 //
 //   * `Array<uint8_t, DefaultAllocator, ExplicitSpec<&kSpec_X>>` keeps a
-//     HAND-DERIVED row. Every one of the registered addresses uses this form,
+//     HAND-DERIVED row. Every one of array.cpp's per-address SetSize entries uses this form,
 //     because a trait cannot express what those rows say: a fill of -1
 //     (kSpec_I32Neg1, 0x18007b960), an identity-Transform init
 //     (kSpec_Transform, 0x180059140), a PARTIAL init that deliberately leaves
@@ -204,12 +204,12 @@ static_assert(sizeof(AVLCompare) == 1, "policy struct, never stored");
 //     cannot produce at all, since `is_trivially_copyable` implies a trivial
 //     destructor (kSpec_PkgEntry 0x1800298f0, kSpec_StringExt 0x180061480).
 //     Step 1 therefore replaces NO spec: the shims name their row and the
-//     trait-derived form is used only by new typed instantiations (the unit
-//     tests today, converted callers in step 2).
+//     trait-derived form serves the typed instantiations (SoundEffect's
+//     `Collection::Array<Sample>` among them).
 //
 // WHAT IS DELIBERATELY *NOT* ON THE CLASS
 //   * `Serialize` is the EXE's, not the DLL's (hazard 6, corrected B9 RT2). None
-//     of the DLL's 339 registered rows is one, and DLL callers serialize array
+//     of the DLL's Collection instantiations is one, and DLL callers serialize array
 //     contents by iterating (COLLECTION_INVENTORY.md §4). The exe instantiates
 //     one, always inlined: EntityList's serializer 0x1400c44a0 opens it for its
 //     +0x08 array (0x1400c4542..0x1400c45af) and the template clone 0x140021ba0
@@ -440,8 +440,9 @@ public:
 }  // namespace Collection
 
 // The two ported bodies and the allocator boundary, declared here rather than
-// in array_internal.h so that the class above can call them. Both are defined
-// in src/engine/collection/array.cpp, unchanged.
+// in array_internal.h so that the class above can call them. SetSizeCore and
+// MemAlloc are defined in src/engine/collection/array.cpp; ArrayDtorImpl is
+// header-inline below.
 namespace rtcoll {
 
 // The 16-byte container header. `uint8_t` is chosen so `_data` is already the
@@ -624,9 +625,9 @@ inline void Array<T, Allocator, SpecPolicy>::Remove(const T& value) {
 // are defined ONCE in src/engine/collection/linkedlist.cpp, where the argument
 // that they are the same instruction sequence as the ported
 // `System::MemoryAllocator::MemAlloc`/`MemFree` (0x1800c7a50 / 0x1800c7ad0) is
-// written out in full. They are declared here — and not defined inline — so
-// this header stays free of the address-resolution seam and of <windows.h>
-// (PLAN.md §4.1 decision 1).
+// written out in full. They are declared here and defined there, so that under
+// BANISHED_UNIT_TEST linkedlist.cpp defines a counting test allocator instead;
+// this header stays free of <windows.h> (PLAN.md §4.1 decision 1).
 // ============================================================
 namespace detail {
 void* AllocateListNode(uint64_t bytes, int align);
@@ -638,8 +639,7 @@ void  ListNodeFree(void* p);
 //
 // ENDGAME B.3.2 step 1 (LIST core): this WAS a plain layout struct; it is now
 // the real class template, with the four ported bodies of
-// src/engine/collection/linkedlist.cpp moved onto it as members and the
-// registered free functions there reduced to one-line shims. Nothing about the
+// src/engine/collection/linkedlist.cpp moved onto it as members. Nothing about the
 // LAYOUT changed — every static_assert below is the one that was already here,
 // and the class is still standard-layout with public data (see "STEP 1 KEEPS
 // THE FIELDS PUBLIC" below), so every `offsetof` in the three headers that
@@ -708,15 +708,12 @@ void  ListNodeFree(void* p);
 // write head/tail/count as explicit stores, and a `LinkedList() {}` here would
 // silently turn `Foo f = {};` in every one of them into "links uninitialised".
 //
-// STEP 1 KEEPS THE FIELDS PUBLIC. Three files outside this batch still touch
-// `_head`/`_tail`/`_count` directly, and B.3.2 step 2 (callers) is what moves
-// them onto Add/Remove/Clear:
-//     src/engine/graphics/scene.cpp          (RtSceneFreeGlobals, AddGlobal,
-//                                              RemoveGlobal, the draw walk)
-//     src/engine/graphics/wave29_lane_gfxbody.cpp
-//     src/engine/ui/combodialog_ctor.cpp
-// Making them private now would break three files this batch does not own, for
-// no layout benefit — all-public and all-private are both standard-layout.
+// STEP 1 KEEPS THE FIELDS PUBLIC. Files outside this header still touch
+// `_head`/`_tail`/`_count` directly (src/engine/ui/userinterface.cpp,
+// src/engine/ui/combodialog_ctor.cpp, src/engine/ui/dialog_create.cpp,
+// src/engine/graphics/scene.cpp's constructor and src/ext/phone_menu/ among
+// them). Making them private now would break them, for no layout benefit —
+// all-public and all-private are both standard-layout.
 // ============================================================
 template <class T, class Allocator = DefaultAllocator>
 class LinkedList {
@@ -810,7 +807,7 @@ class LinkedList {
     // `_head` is the BACKMOST dialog and `_tail` the frontmost, per
     // src/engine/ui/UserInterface.h — so "add" is "bring to the front" for
     // that consumer and "append" for Graphics::Scene's global list, which
-    // inlines the same three stores (src/engine/graphics/scene.cpp:1239).
+    // inlines the same three stores (Scene::AddGlobalObject, src/engine/graphics/scene.cpp).
     void Add(const T& value) {
         Node* node = NewNode(value);
         if (Node* t = _tail) {
@@ -955,7 +952,7 @@ class LinkedList {
 //   +0x08 int32 node count    — Insert does `*(int*)(param_1+8) += 1` on every
 //                               successful insert
 //   +0x0c NOT PINNED (padding)
-// Independently corroborated on the exe side by engine/types/EntityList.h,
+// Independently corroborated on the exe side by src/game/Entity/EntityList.h,
 // which has TWO adjacent Sets: root +0x68 / count +0x70, root +0x78 / count
 // +0x80 — a 0x10 stride, live in-game for months.
 //
@@ -1006,11 +1003,12 @@ class LinkedList {
 // What changed: the POD above became a class with retail's member names
 // (`Insert`, `Find`, `Remove`, `Clear`, `GetCount`, `Iterator`). What did NOT
 // change: one byte of the layout, and not one of the AVL bodies. The class is a
-// WRAPPER around the three already-ported AVL cores, selected by
+// WRAPPER around the four already-ported AVL cores, selected by
 // `align8(sizeof(T))`:
 //
 //   | element width | node  | ported core                       | file |
 //   |---------------|-------|-----------------------------------|------|
+//   | 0x8           | 0x28  | 0x1800274c0/27e20/27f50           | src/engine/io/modification_avl8.cpp |
 //   | 0x10          | 0x30  | 0x18000adc0/b040/b170/aba0        | src/engine/collection/set_avl.cpp |
 //   | 0x18          | 0x38  | 0x180023170/23570/236a0           | src/engine/collection/set_avl_e24.cpp |
 //   | 0x30          | 0x50  | 0x180030540/307b0/308e0          | src/engine/collection/avl_trees.cpp |
@@ -1023,8 +1021,8 @@ class LinkedList {
 // `detail::AvlGeneric<Node>` is the SAME algorithm written once over a node
 // type instead of over baked-in offsets, and it is used for two things only:
 //   * a width retail never instantiated (there is no ported body to call), and
-//   * the host unit test (`BANISHED_UNIT_TEST`), which must not link the
-//     address-door machinery the ported bodies stand on.
+//   * the host unit test (`BANISHED_UNIT_TEST`), except
+//     tests/unit/set_ported_test.cpp (BANISHED_UNIT_PORTED_AVL).
 // It is a generalisation OF the ported bodies — set_avl.cpp's Recompute,
 // RotateLeft (0x18000b040), RotateRight (0x18000b170), Retrace (0x18000adc0)
 // and Erase (0x18000aba0), transcribed with `Node*` in place of the offsets —
@@ -1054,9 +1052,8 @@ namespace detail {
 // The node-allocation seam. Retail's Set nodes come from
 // `?MemAlloc@MemoryAllocator@System@@SAPEAX_KH@Z` (0x1800c7a50) and go back
 // through 0x180009c30, the allocator-lock Free wrapper WHOSE FIRST ARGUMENT IS
-// IGNORED (set_avl.cpp's "THE FIFTH HELPER" banner). Both are reached by
-// address, so the definitions live in src/engine/collection/set_core.cpp and
-// this header stays free of <windows.h> and of the registry (PLAN §4.1).
+// IGNORED (set_avl.cpp's "THE FIFTH HELPER" banner). Both seams are defined in
+// src/engine/collection/set_core.cpp, which calls the allocator by name.
 // ---------------------------------------------------------------------------
 void* SetNodeAlloc(uint64_t bytes, int align);
 void  SetNodeFree(void* node);
@@ -1310,9 +1307,8 @@ struct AvlGeneric {
 // three node types; the widths that have no ported body fall through to
 // AvlGeneric.
 //
-// Under BANISHED_UNIT_TEST every width uses AvlGeneric: the host test links
-// none of the address-door machinery the ported bodies stand on, and the
-// generic core IS those bodies (see the banner above). One host test,
+// Under BANISHED_UNIT_TEST every width uses AvlGeneric: the generic core IS
+// those bodies (see the banner above). One host test,
 // tests/unit/set_ported_test.cpp, defines BANISHED_UNIT_PORTED_AVL before this
 // header and links the four ported cores (set_avl.cpp, set_avl_e24.cpp,
 // avl_trees.cpp, modification_avl8.cpp): its element types are its own, so the
@@ -1322,8 +1318,8 @@ struct AvlGeneric {
 #if !defined(BANISHED_UNIT_TEST) || defined(BANISHED_UNIT_PORTED_AVL)
 // element 8 / node 0x28 — the `Set<System::Filename>` path set every
 // `IO::Modification::Mod` carries. ENDGAME B.3.2 closing pass; the three bodies
-// are src/engine/io/modification_refresh.cpp's (its PART 1 banner carries the
-// instruction-level evidence) and the forwarders are defined beside them.
+// are src/engine/io/modification_avl8.cpp's (its PART 1 banner carries the
+// instruction-level evidence).
 //
 // Its retrace's first argument is `&set.root`, not the set — that is what
 // `CMP RDX,[RCX]` at 0x180027f50's entry reads. `&set._root == (void*)&set`,
@@ -1331,7 +1327,7 @@ struct AvlGeneric {
 // pointer and the two spellings agree byte for byte. The retrace never touches
 // `_count`, exactly like the other three widths.
 //
-// The retrace is R-IO's port in modification_refresh.cpp, typed on its node
+// The retrace is R-IO's port in modification_avl8.cpp, typed on its node
 // (`RtIO::ModSetNode`), called by name; the one-line forwarder `PortedRetrace8`
 // was deleted in B.4 wave X. (Its two rotations, 0x180027e20 / 0x180027f50, had
 // no body and no caller left; their declarations were deleted in B.4 wave X.)
@@ -1578,8 +1574,7 @@ public:
     Set() : _root(nullptr), _count(0) {}
 
     // The class OWNS its nodes, so the destructor is Clear. Retail's containers
-    // are destroyed the same way (set_clear.cpp's 0x18000f7d0 is exactly this
-    // body, and the ported Clear is now a shim onto it).
+    // are destroyed the same way (retail's 0x18000f7d0 is exactly this body).
     ~Set() { Clear(); }
 
     Set(const Set&)            = delete;   // retail never copies one
@@ -1694,8 +1689,9 @@ public:
     }
 
     // retail 0x18000f890 / 0x180023130 / 0x180008340 — the recursive
-    // post-order destroy Clear stands on, exposed so the ported free functions
-    // can be one-line shims onto it. Both children are loaded BEFORE the free:
+    // post-order destroy Clear stands on, exposed so callers outside the class
+    // run it too (io/modification.cpp, io/filesystem_packages.cpp). Both
+    // children are loaded BEFORE the free:
     // the allocator writes a boundary tag into the block it takes back.
     static void DestroySubtree(Node* n) {
         if (!n) return;
@@ -1867,7 +1863,7 @@ static_assert(sizeof(S8) == 0x10,           "Collection::Set must be 0x10 bytes"
 static_assert(offsetof(S8, _root)  == 0x00, "Set::_root @ +0x00");
 static_assert(offsetof(S8, _count) == 0x08, "Set::_count @ +0x08");
 
-// T = 8: matches engine/types/EntityList.h EntityTreeNode exactly.
+// T = 8: matches src/game/Entity/EntityList.h EntityTreeNode exactly.
 static_assert(sizeof(S8::Node) == 0x28,            "Set::Node(T=8) is 0x28");
 static_assert(offsetof(S8::Node, parent)  == 0x08, "Set::Node::parent @ +0x08 for T=8");
 static_assert(offsetof(S8::Node, left)    == 0x10, "Set::Node::left @ +0x10 for T=8");
@@ -1893,11 +1889,10 @@ static_assert(offsetof(S24::Node, right)  == 0x28, "Set::Node::right @ +0x28 for
 }  // namespace LayoutProbe
 }  // namespace Collection
 
-// ==== B3R W0-P0c: Runtime bodies reached by retail address ====
-// ENDGAME B.3R (B3R_RULES R5): each body below is registered at the retail
-// address in its trailing comment and read through the registry today. It is
-// declared here, copied from its definition (linkage, namespace, types), so the
-// reader can call it by name. Nothing calls it through this declaration yet.
+// ==== B3R W0-P0c: Runtime bodies named by retail address ====
+// ENDGAME B.3R (B3R_RULES R5): each body below carries its retail address in
+// its trailing comment. It is declared here, copied from its definition
+// (linkage, namespace, types), so a caller can call it by name.
 namespace rtsetavl { struct Set; struct Node; }   // src/engine/collection/set_avl.h
 
 namespace rtcoll {

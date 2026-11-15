@@ -1,5 +1,5 @@
 // ============================================================================
-// src/ext/background_save/background_save.h -- ext.background_save (class A, default OFF)
+// src/ext/background_save/background_save.h -- ext.background_save (class A, default ON)
 // ============================================================================
 // NOT RETAIL. docs/extensions/handins/HITCH_SAVESNAP.md.
 //

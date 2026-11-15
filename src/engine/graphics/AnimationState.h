@@ -223,33 +223,17 @@ static_assert(offsetof(AnimationClipPrefix, _pad54) == 0x54, "AnimationClipPrefi
 // ############################################################################
 // ENDGAME B.3.5 step 5, block H1 — the REAL `Graphics::AnimationState`.
 //
-// The three `RtGraphics::` PODs that describe the same 0x48 bytes all KEEP
-// LIVING (B4b-1): `RtGraphics::AnimationState` above (lane GFXBIG's, the view
-// `Update` reads), `RtGraphics::AnimStateRec` in AnimationManager.h (the
-// serializer's view) and `RtGraphics::AnimationLayer` above (the nested record).
-// `tests/unit/graphics_animation_abi_test.cpp` cross-asserts the class against
-// all three so none of them can drift.
-//
-// *** THE 0x18-BYTE PREFIX RELATIONSHIP, RECORDED HERE BECAUSE THE OTHER END OF
-// IT IS NOT THIS BLOCK'S TO TOUCH. *** `src/engine/graphics/Mesh.h:134-139`
-// embeds a 0x18-byte prefix of this record inside `Graphics::MeshInstance` as
-// `MeshAnimationState` — the bool at +0x00, the `Array<Layer>` header at +0x08
-// and nothing past +0x18. That header belongs to block b35-E (the Geometry
-// tree) and block H1 does not edit it. The consequence a later block must
-// honour: `MeshAnimationState` is a PREFIX VIEW, not the class. It is NOT a
-// duplicate POD in B34_RULES section 1.5.2's sense that could be collapsed by
-// including this header, because it genuinely describes fewer bytes — a
-// `MeshInstance` carries the first 0x18 of an `AnimationState` inline and the
-// rest of the record lives in the AnimationManager's instance pool. B35_RULES
-// section 13's line about it ("a PREFIX view, not the class") stands, and the
-// unit test pins `offsetof(_rootOffset) == 0x18` so the boundary cannot move
-// without failing.
+// Two `RtGraphics::` PODs KEEP LIVING beside the class (B4b-1):
+// `RtGraphics::AnimStateRec` in AnimationManager.h (the serializer's view of the
+// 0x48 record) and `RtGraphics::AnimationLayer` above (the nested record).
+// `tests/unit/graphics_animation_abi_test.cpp` cross-asserts the classes against
+// both so neither can drift.
 //
 // NOTHING IS RETIRED. There is no `??_7AnimationState@Graphics@@6B@`, no
 // `_typeInfo`, no deleting-dtor row — the class is NON-POLYMORPHIC (both its
 // constructors and its destructor are `QEAA`). The `?_singleton@AnimationManager
-// @Graphics@@` cell three of these bodies read stays an `RT_DATA_SLOT` read per
-// B35_RULES section 9 / RULE B4b-4.
+// @Graphics@@` cell three of these bodies read is the class static
+// `Graphics::AnimationManager::_singleton`.
 //
 // GREP HAZARD: inside a `namespace Graphics {` block a bare `AnimationState` or
 // `AnimationLayer` now binds the CLASS. Spell the PODs `RtGraphics::` there.
@@ -335,15 +319,14 @@ public:
     AnimationState& operator=(const AnimationState&);
 
     // ?Serialize@AnimationState@Graphics@@QEAAXAEAVSerializer@IO@@@Z 0x1800fe250
-    //   PORTED HERE — the body moved out of animationstate.cpp's
-    //   `RtGraphics_AnimationState_Serialize`.
+    //   PORTED — the body is this member, defined in animationstate.cpp.
     //
     // *** IT SERIALIZES ONLY THE LAYERS AND THE BOOL. *** `_pose`, `_nodes` and
     // `_rootOffset` are derived state that `Update` recomputes next tick.
     void Serialize(IO::Serializer& s);
 
     // ?ResetAnimationState@AnimationState@Graphics@@QEAAXXZ  0x1800fd930
-    //   PORTED HERE — the body moved out of animationstate.cpp.
+    //   PORTED — the body is this member, defined in animationstate.cpp.
     void ResetAnimationState();
 
     // ?PlayAnimation@AnimationState@Graphics@@QEAAXV?$ExternalPtr@VAnimationGroup
@@ -351,8 +334,8 @@ public:
     // AEBVTime@System@@2M_N@Z   0x1800fdf50
     //
     // PORTED — the body IS this member, in animationstate_transforms.cpp's
-    // `namespace Graphics` block, and the registered door delegates to it
-    // (ENDGAME B.3.5 block GC). This note used to say the body stayed put
+    // `namespace Graphics` block (ENDGAME B.3.5 block GC). This note used to say
+    // the body stayed put
     // because it carried its lane's diff-oracle scaffolding and "moving a body
     // out from under its own scaffolding is a second change riding on this one".
     // THAT SCAFFOLDING IS GONE: the five replay captures in that file had no
@@ -410,19 +393,12 @@ public:
     // (`A` is the private access code). This DLL exports its private members
     // (reference_aeaa_is_private_not_unexported.md).
     //
-    // THEY ARE PUBLIC HERE, not private, and block GC changed that when it moved
-    // their bodies onto the members: each one's registered door is an
-    // `extern "C"` FREE function that has to make the qualified call, and a free
-    // function cannot be a friend of this class without a declaration this
-    // header does not need. That is exactly the reason and the wording block G
-    // recorded for `MaterialInstance::FindConstant` / `FindTexture`
-    // (`wave28_lane_gfxbody.cpp`), and retail's own access code is kept in the
+    // THEY ARE PUBLIC HERE, not private; retail's own access code is kept in the
     // comment rather than in the C++.
     //
-    // ALL THREE BODIES ARE NOW MEMBERS. `CopyInstancedToUnique` and
+    // ALL THREE BODIES ARE MEMBERS. `CopyInstancedToUnique` and
     // `UpdateNodes` are in `animationstate_transforms.cpp`, `UpdateRootOnly` in
-    // `wave28_lane_gfxbody.cpp` — each in that file's `namespace Graphics` block,
-    // with its lane's attendance counters left in the door.
+    // `wave28_lane_gfxbody.cpp` — each in that file's `namespace Graphics` block.
     //
     // ?CopyInstancedToUnique@ 0x1800fd4c0 — `this` IS NEVER READ (RCX is
     //   overwritten four instructions in); the parameter stays for the ABI.
@@ -533,11 +509,10 @@ static_assert(std::is_standard_layout<InstancedAnimationState>::value,
 
 }  // namespace Graphics
 
-// ==== B3R W0-P0c: Runtime bodies reached by retail address ====
-// ENDGAME B.3R (B3R_RULES R5): each body below is registered at the retail
-// address in its trailing comment and read through the registry today. It is
-// declared here, copied from its definition (linkage, namespace, types), so the
-// reader can call it by name. Nothing calls it through this declaration yet.
+// ==== B3R W0-P0c: Runtime bodies called by name ====
+// ENDGAME B.3R (B3R_RULES R5): each body below carries its retail address in its
+// trailing comment. It is declared here, copied from its definition (linkage,
+// namespace, types), so its readers call it by name.
 namespace rt { namespace io { struct Serializer; } }   // io/Serializer.h
 
 // ---- graphics/animationstate.cpp: three `Array<T>::Serialize` instantiations
@@ -555,8 +530,9 @@ void RtGraphics_SerializeTransformArray(Collection::Array<Math::Transform>* a,
 // B.4 Y RT: the hand-derived row of `Array<Graphics::AnimationState>`
 // (src/engine/collection/array_graphics_anim.cpp): SetSize 0x18005b1e0's
 // zeroing init, the copy ctor 0x18005b660, the element destroy 0x18005bce0 that
-// ~Array 0x18005bbb0 runs. The tree's AnimationState ctor / dtor are declared
-// and undefined (retail's are these rows), so `AnimationStateArray` names it.
+// ~Array 0x18005bbb0 runs. The tree's InstancedAnimationState ctor / dtor are
+// declared and undefined (retail's are these rows), so `AnimationStateArray`
+// names it.
 namespace rtcoll { namespace gfxanim {
 extern const ArraySpec kSpec_AnimState;
 } }

@@ -1,7 +1,7 @@
 // ============================================================================
 // src/engine/collection/set_core.cpp — ENDGAME B.3.2 step 1 (SET core)
 //   The out-of-line half of `Collection::Set<T, Compare, Allocator, Key>`:
-//   the two allocator doors, retail's inlined `strcmp`, and one forwarder per
+//   the two allocator calls, retail's inlined `strcmp`, and one forwarder per
 //   ported AVL core.
 // ============================================================================
 //
@@ -14,10 +14,9 @@
 //
 // WHAT IS AND IS NOT NEW CODE
 // ---------------------------
-// Nothing here is a new AVL body. Every function below is either an address
-// door that already existed in three copies (`MemAlloc` 0x1800c7a50,
-// `SetNodeFree` 0x180009c30) or a one-line forward into a body that was ported
-// in Wave 9 and is still registered at its retail address:
+// Nothing here is a new AVL body. Every function below is either an allocator
+// call (`MemAlloc` 0x1800c7a50, `SetNodeFree` 0x180009c30) or a one-line forward
+// into a body that was ported in Wave 9:
 //
 //   element 0x10 (node 0x30)  rtsetavl::   set_avl.cpp      0x18000adc0 / b040 / b170 / aba0
 //   element 0x18 (node 0x38)  rtsetavl24:: set_avl_e24.cpp  0x180023170 / 23570 / 236a0
@@ -58,16 +57,8 @@ namespace detail {
 // and array.cpp:159 all already make. Going through the one door keeps the heap
 // from being half ours.
 //
-// CACHE A HIT, RETRY A MISS (the RtResolveCached contract). Freezing a null
-// would make every later insert return nullptr for the life of the process —
-// the ordering defect Wave 9 attempt 14 fixed for `rtcoll::MemAlloc`.
 // ---------------------------------------------------------------------------
-//
-// ENDGAME B.3.2 closing pass: the resolution moved into `rtcoll::DoorAlloc`
-// (src/engine/collection/alloc_door.cpp) so this seam reaches the allocator
-// through the exe dispatch slot 0x140152b60 — the door the rest of the tree
-// uses and the one `BANISHED_REDZONE` rewrites — falling back to the runtime
-// address above. B3R RT-Core: the static, called by name.
+// B3R RT-Core: the static, called by name.
 void* SetNodeAlloc(uint64_t bytes, int align) {
     return System::MemoryAllocator::MemAlloc(bytes, align);   // 0x1800c7a50
 }
@@ -75,11 +66,11 @@ void* SetNodeAlloc(uint64_t bytes, int align) {
 // ---------------------------------------------------------------------------
 // The node free, retail 0x180009c30 — the allocator-lock Free wrapper.
 //
-// *** IT TAKES TWO PARAMETERS AND IGNORES THE FIRST. *** Registering a
-// one-argument `MemFree` there would free the ignored `this` and corrupt the
-// free list; `src/engine/system/allocator.cpp` is the single owner of that
-// registration (set_avl.cpp's "THE FIFTH HELPER" banner records the three-way
-// shadowed registration this rule came out of). Reached here through
+// *** IT TAKES TWO PARAMETERS AND IGNORES THE FIRST. *** A one-argument
+// `MemFree` in its place would free the ignored `this` and corrupt the free
+// list; its port is `rtalloc::FreeLockedIgnoringSelf` in
+// src/engine/system/allocator.cpp (set_avl.cpp's "THE FIFTH HELPER" banner
+// records the three-way shadowed registration this rule came out of). Reached here through
 // `rtsetavl::SetNodeFree`, which already speaks that contract, with the ignored
 // first argument passed as null — retail passes whatever the register held.
 // ---------------------------------------------------------------------------

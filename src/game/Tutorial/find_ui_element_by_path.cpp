@@ -5,10 +5,10 @@
 // This is the resolver behind every tutorial highlight and every "grey out the
 // UI except this one control" step. Four call sites, all previously guarded by
 // `if (!fn_FindUIElementByPath) DarkOnce(...)`:
-//   TutWave_ShowListedElements   (tutorial_wave.cpp)   — the unhide list
-//   TutWave_OpenHighlightDialog  (tutorial_wave.cpp)   — branch B target
-//   TutorialGoalButton_Check     (tutorialgoalbutton.cpp)
-//   TutorialGoalCount case 6/... (tutorialgoalcount.cpp)
+//   TutorialSetupDialog::ShowListedElements  (tutorial_wave.cpp)   — the unhide list
+//   TutorialSetupDialog::OpenHighlightDialog (tutorial_wave.cpp)   — branch B target
+//   TutorialGoalButton::IsComplete           (tutorialgoalbutton.cpp)
+//   TutorialGoalCount::IsComplete case 9     (tutorialgoalcount.cpp)
 //
 // The path is colon-separated and its LENGTH selects the lookup:
 //   "Dialog:element"                     find dialog by type, element by name

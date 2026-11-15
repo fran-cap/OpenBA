@@ -65,8 +65,8 @@ bool        Showroom_IsTree(int index);  // a "tree <species>" entry
 void Showroom_NotePlaced(int index, bool placed, int tileX, int tileY, int w, int h, int mapDim,
                          const float* worldBounds, const char* why);
 
-// starttown.cpp's resource scatter: true for a cell inside the showroom rectangle (every
-// placed footprint plus its free ring), which the scatter leaves bare.
+// starttown.cpp's resource scatter: true for a cell inside the showroom rectangle (the bounding
+// box of every placed footprint and the forest, widened by kAreaMargin tiles), which the scatter leaves bare.
 bool Showroom_InArea(int x, int y);
 
 // The "forest" line: false when the list has none; otherwise its species ("mixed" or one

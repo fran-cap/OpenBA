@@ -4,7 +4,7 @@
 //
 // `??_7ScrollElement@UI@@6B@` (retail 0x180156400):
 //
-//   0  vector deleting dtor  0x18003adc0  -> deleting_dtor.cpp row (this batch)
+//   0  vector deleting dtor  0x18003adc0  the compiler's (virtual ~ScrollElement)
 //   1  TypeName              0x18003a850  here
 //   2  Type                  0x18003a830  here
 //   4  ComputeSize           0x18011ad80  here
@@ -15,21 +15,22 @@
 // plus ??0ScrollElement (0x18011a7f0) and ??1ScrollElement (0x18011a900).
 //
 // NOT HERE: `?GetBarLayout@ScrollElement@UI@@AEBAXAEAH000@Z` (0x18011a2d0) —
-// on the UI non-slot callee list, reached by address by both Draw and Update.
+// its body is in element_bodies_b5.cpp; Draw and Update call the member.
 // Nor the three one-line setters 0x18003a9d0/0x18003a9f0/0x18003aa10.
 //
 // ---------------------------------------------------------------------------
 // LAYOUT. sizeof == 0x178 (deleting dtor `MOV EDX,0x178`). NINE UI::Sprites in
-// three 3-slice sets, then six scalars — every one written by the ctor at
-// 0x18011a7f0:
+// three 3-slice sets, then nine scalars — every one but +0x15C written by the
+// ctor at 0x18011a7f0:
 //
 //   +0xC0 / +0xD0 / +0xE0    _track{Start,Middle,End}   the groove
 //   +0xF0 / +0x100 / +0x110  _thumb{Start,Middle,End}   the thumb, idle
 //   +0x120 / +0x130 / +0x140 _hot{Start,Middle,End}     the thumb, live
 //   +0x150  _vertical        bool,   ctor 1
 //   +0x154  _barColor        uint32, ctor 0xFFFFFFFF   } one qword store
-//   +0x158  (unnamed)        uint32, ctor 0xFFFFFFFF   } of 0xFFFFFFFFFFFFFFFF
-//   +0x160  _current         float,  ctor 0
+//   +0x158  _highlightColor  uint32, ctor 0xFFFFFFFF   } of 0xFFFFFFFFFFFFFFFF
+//   +0x15C  _inset           int32,  not written by the ctor
+//   +0x160  _currentValue    float,  ctor 0
 //   +0x164  _displayPercent  float,  ctor 0.33333334f  ?SetDisplayPercent@
 //   +0x168  _maxValue        float,  ctor 4.0f         ?SetMaxValue@
 //   +0x16C  _dragAnchor      float,  ctor 0 (the qword store at +0x168)
@@ -43,10 +44,8 @@
 // assumed from the shape of the expression.
 //
 // ENDGAME B.3.6 block C4: the layout above moved to src/engine/ui/
-// ScrollElement.h (the real class). Every slot body below is a MEMBER; each
-// registered door is a one-line QUALIFIED delegation; ctor/dtor stay DOORS.
-// RULE B6-5: the vtable and type-info record are cached in namespace-scope
-// std::atomic slots.
+// ScrollElement.h (the real class). Every slot body below is a MEMBER; the ctor
+// is inline in ScrollElement.h and the dtor is below.
 // ============================================================================
 #include <new>
 
@@ -67,7 +66,7 @@ namespace {
 constexpr float kOne = 1.0f;
 
 // `?GetBarLayout@ScrollElement@UI@@AEBAXAEAH000@Z` (0x18011a2d0) — declared on
-// the class, body still element_bodies_b5.cpp's door (fragment pass).
+// the class, body in element_bodies_b5.cpp.
 
 }  // namespace
 
@@ -243,7 +242,7 @@ void ScrollElement::Update(const System::Time& time, UserInterface* ui,
     Object::InternalPtr<DialogInstance> dialogCopy = *dialog;
     UI::Element::Update(time, ui, &dialogCopy, state);         // qualified: 0x180116270
 
-    // Nothing to scroll and the default display fraction: park at zero.
+    // Nothing to scroll and the whole range visible (display fraction 1): park at zero.
     if (_maxValue == 0.0f && _displayPercent == kOne) {
         _currentValue = 0.0f;
         return;

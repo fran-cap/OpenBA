@@ -69,7 +69,8 @@
 // Two deliberate differences, both out-of-memory-only: the allocation goes
 // through the LOCKING static `?MemAlloc@MemoryAllocator@System@@` (same heap),
 // and a null `fill` does not fault (retail would). Every grow caller passes a
-// non-null entry (AddEventCore below, Component/diseasecomponent.cpp).
+// non-null entry (AddEventCore below, Component/diseasecomponent.cpp,
+// ext/boat_reach_notice/boat_reach_notice.cpp).
 namespace {
 
 // The element: EventLogEntry (EventLog.h), stride 0x28, align 8.
@@ -139,7 +140,7 @@ System::String EventLog::SeasonString() const {
     return seasons->GetText(idx);
 }
 
-// SeverityColor: severity -> ARGB text color (shared by both AddEvent variants).
+// SeverityColor: severity -> ARGB text color (shared by the three AddEvent variants).
 static uint32_t EventLog_SeverityColor(int severity) {
     switch (severity) {
         case 1:  return 0xFFFFFF00u;  // yellow
@@ -160,7 +161,7 @@ static int EventLog_PopupIndex(int eventType) {
 }
 
 // TileIndex (0x140095030): entity IBP -> map tile index for the message's
-// jump-to-location, from the entity's MapComponent (FUN_140004680, registered)
+// jump-to-location, from the entity's MapComponent (FUN_140004680)
 // footprint center: (y + h/2) * mapWidth + (x + w/2). mapWidth = the Map's size
 // (gw+0xF8). Null/stale entity or missing MapComponent => -1.
 static int EventLog_TileIndex(const ::Object::InternalBasePtr* entityIBP) {
@@ -180,7 +181,8 @@ static int EventLog_TileIndex(const ::Object::InternalBasePtr* entityIBP) {
     return ((h >> 1) + y) * game->size + (w >> 1) + x;
 }
 
-// B4 FORWARD: 1 outside caller file (Component/diseasecomponent.cpp).
+// B4 FORWARD: 2 outside caller files (Component/diseasecomponent.cpp,
+// ext/boat_reach_notice/boat_reach_notice.cpp).
 // The original 0x140095030 is (unused RCX, entityIBP RDX) — the first param is
 // dead (stack-reuse artifact).
 extern "C" int EventLog_TileIndex_Reg(void* /*unused*/, const ::Object::InternalBasePtr* entityIBP) {
@@ -243,8 +245,7 @@ void EventLog::AddEventCore(int eventType, int severity, const ::Object::Interna
         System::String formatted;
 
         // FormatIndexed(fmt=template, %0=season, %1=year, %2..=extra). Args are the
-        // String DATA pointers (char*). Fall back to the raw template if the export
-        // is unresolved.
+        // String DATA pointers (char*).
         const char* tmplData = templateStr._data;
         const char* seaData  = seasonStr._data;
         const char* yrData   = yearStr._data;

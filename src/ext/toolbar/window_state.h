@@ -10,7 +10,7 @@
 //
 // Plain state only: the save worker encodes it (savetail.h, ENCODE RUNS ON THE SAVE WORKER). The window
 // (toolbar_window.cpp) writes it from the UI thread, never during a frozen update.
-// Standard C++ (tests/unit/ext_savetail_host_test.cpp links it).
+// Standard C++ (tests/unit/ext_savetail_test.cpp links it).
 // ============================================================================
 #pragma once
 

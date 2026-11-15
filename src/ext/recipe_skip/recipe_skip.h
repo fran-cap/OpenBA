@@ -1,6 +1,6 @@
 // src/ext/recipe_skip/recipe_skip.h -- ext.recipe_skip's entry points (NOT RETAIL)
 //
-// docs/extensions/handins/RECIPESKIP.md. Class B, off by default: a workshop set to "every recipe" skips a
+// docs/extensions/handins/RECIPESKIP.md. Class B, on by default: a workshop set to "every recipe" skips a
 // recipe whose material is at its limit instead of stopping. Two seams: ConsumeProduceComponent::
 // PickConsumeRecipe (the draw) and the work's depletion test (Work/consumeproduce.cpp).
 #pragma once

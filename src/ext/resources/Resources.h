@@ -46,9 +46,10 @@ bool HasProvider(const char* path);
 
 // The load-miss seam. Walks the table in registration order and returns the
 // first provider's object, or null. Called by the engine's load path (one
-// `// EXT SEAM` line) only after the disk lookup failed; never in the
-// faithful profile (the profile has no Extensions button and no sharp_ui,
-// so no extension path is ever asked for).
+// `// EXT SEAM` line) only after the disk lookup failed; never under the
+// command-line faithful profile (`/profile:faithful`, Ext::GateProfileForced:
+// no provider registers at boot) until a save carrying an `ext:` pseudo-mod
+// is opened (SaveLoadDialog::DoLoad then calls InitText).
 Object::External* Provide(const char* path);
 
 // Sets the object's own path (External::_path, what GetPath returns and what

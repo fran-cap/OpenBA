@@ -33,7 +33,7 @@
 //
 // SORTCMP (docs/extensions/handins/SORTCMP.md): FEWER COMPARES, EXACT FOR THE
 // CONSUMER. After any correct sort, items with equal full keys are contiguous.
-// Equal keys mean equal flags, material, instance, arg5, arg10, userData and
+// Equal keys mean equal flags, material, instance, `_node`, `_animationInstanceId`, userData and
 // geometry; if their `_maxInstances` is equal too, the records agree on every field
 // `DrawItemList` reads (the pads and the raw `_sortKey` bits are never read),
 // so the order inside such a tie group cannot change a draw. `SortPlain`
@@ -165,7 +165,7 @@ inline void DrawItemSwap(RendererDrawItem* a, RendererDrawItem* b) {
 // The packed key. Bit string, most significant first:
 //   w0 = flags(16) | desc(sortKey)(32) | material[47:32](16)
 //   w1 = material[31:0](32) | instance[47:16](32)
-//   w2 = instance[15:0](16) | arg5(16) | arg10(32)
+//   w2 = instance[15:0](16) | _node(16) | _animationInstanceId(32)
 //   w3 = userData[47:0](48) | geometry[47:32](16)
 //   w4 = geometry[31:0](32) | index(32)          <- only the high 32 bits compare
 // ---------------------------------------------------------------------------

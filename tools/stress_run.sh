@@ -44,11 +44,11 @@
 #                 the centre, houses a quarter map east (BANISHED_STRESS_SETS=-N, N = --sets
 #                 or 3), so path requests dominate the run
 #   --lock LANE   deploy and run under tools/game_dir_lock.sh, held across the whole
-#                 run (OPT-IN, not the default -- see WAVE26_LANE_LOCK.md section 6)
+#                 run (OPT-IN, not the default -- see docs/history/runtime_port/WAVE26_LANE_LOCK.md section 6)
 #   --no-load     skip machine-load sampling
 #   STRESS_CPU_LIMIT=<mask>  the leg's sys.cpu_limit (0x55 / 0xf / 0 on this box; CPULIMIT)
 #   Any BANISHED_* variable already in the environment is passed through untouched and
-#   wins over the harness defaults (StressHarness_Init only fills in UNSET variables).
+#   wins over the harness defaults (ApplyStressDefaults in src/app/options.cpp only fills in UNSET ones).
 #
 # EXIT CODES
 #   0 run completed and report printed      1 bad usage / build failed
@@ -125,10 +125,8 @@ machine_sample() {   # $1 = seconds since start, $2 = 1 to take the CPU reading
 
 # ---- OPT-IN LOCK -------------------------------------------------------------
 # This script DEPLOYS and LAUNCHES -- exactly what tools/game_dir_lock.sh
-# protects -- and until Wave 26 it neither acquired nor asserted. Making it
-# mandatory now would turn a harness six lanes depend on into one that can
-# refuse to run, so it is opt-in and the default is unchanged. ADDRESSEE: the
-# Wave 26/27 integrator decides whether this becomes the default.
+# protects -- and until Wave 26 it neither acquired nor asserted. The lock is
+# opt-in (--lock) and the default is unchanged.
 #
 # Re-exec rather than acquire-here, so the acquire's exit status is checked
 # inside game_dir_lock.sh's own `run` where no caller's pipe can discard it.
@@ -255,7 +253,7 @@ PROFILE_ARG="/profile:${STRESS_PROFILE:-faithful}"
 if [ -n "${STRESS_EXT:-}" ]; then
     [ -n "$CFG_SAVED" ] || { echo "STRESS_EXT needs $CFG" >&2; exit 1; }
     sed -i 's/^\(ext\.[a-z0-9_]*\)=.*/\1=0/' "$CFG"
-    # The registry's VALUED keys (src/ext/registry.cpp kValueKeys: ext.ao_quality 1..3,
+    # The registry's VALUED keys (src/ext/registry.cpp kValueKeys: ext.ao_quality 1..4,
     # ext.ao_opacity 0..30) are settings, not toggles: put back what the file held, so a leg
     # can carry e.g. ext.ao_quality=3 (zeroed, it clamped to 1; found by AOCORE 2026-10-14).
     # (foliage_aa_mode and max_shadow_size added 2026-10-20: zeroed, a leg ran the 4096 map and

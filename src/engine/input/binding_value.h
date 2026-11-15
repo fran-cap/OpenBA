@@ -2,7 +2,7 @@
 //
 // Input::KeyMap::Load (retail 0x1800a7190, keymap_load.cpp) parses `Input<Name>[Alt]=<n>` and stores it
 // into one slot of the binding. The three-way store lives here, header-only, so
-// tests/unit/input_binding_value_test.cpp can drive it without the Persistence singleton (review
+// tests/unit/review_settings_input_test.cpp can drive it without the Persistence singleton (review
 // F-099, F-100).
 #pragma once
 

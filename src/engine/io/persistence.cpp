@@ -1,29 +1,24 @@
 // ============================================================================
 // src/engine/io/persistence.cpp — Wave 4 lane C: IO::Persistence
 // ============================================================================
-// Ports the 5 of 7 `IO::Persistence` exports our tree calls that can be
-// ported safely this wave: the two `Get` overloads, the two `Set` overloads,
-// and `GetSavePath`. `ReadSettings`/`WriteSettings` are NOT ported — see
-// docs/history/runtime_port/WAVE4_LANE_C.md for why (registry mutation with deletion
-// logic, no safe oracle, and getting it wrong corrupts the player's real
-// Windows registry). Both stay on the DLL exactly as before.
+// The two `Get` overloads, the two `Set` overloads and `GetSavePath` of
+// `IO::Persistence`. `ReadSettings`/`WriteSettings` are in
+// persistence_settings.cpp.
 //
 // All five retail bodies were decompiled at their real addresses (verified
-// non-phantom against the shipped DLL's export table, see the wave doc) and
-// are transcribed line-for-line below, including one documented deviation
-// (see RetailValueIsTrue). PLAN §6 step 8: this file corrects nothing outside
-// itself — see the wave doc's "comments to correct" section for two stale
-// comments in engine_funcs.h this lane found but does not own.
+// non-phantom against the shipped DLL's export table, see
+// docs/history/runtime_port/WAVE4_LANE_C.md) and are transcribed line-for-line
+// below, including one documented deviation (see RetailValueIsTrue).
 // ============================================================================
 
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <new>        // placement new into the retail hidden return slot
-#include <utility>    // std::move -- the pointer steal out of a POD out-param
+#include <new>
+#include <utility>
 #include "io/Persistence.h"
-#include "system/string_internal.h"   // RtString_ReleaseInline (Wave 2, lane String)
+#include "system/string_internal.h"
 #include "../collection/avl_trees.h"          // rtavl::StringMapInsert
 
 using RtIo::SettingsNode;
@@ -81,12 +76,11 @@ bool RetailValueIsTrue(const char* value) {
 
 // ============================================================================
 // bool IO::Persistence::Get(const char* section, const char* key, int& out)
-// retail 0x1800b81e0 — full RT_DIFF oracle (read-only: Map_Find + a transient
-// String::Format/MemFree pair, no persistent mutation).
+// retail 0x1800b81e0 — read-only: Map_Find + a transient
+// String::Format/MemFree pair, no persistent mutation.
 // ============================================================================
-// ENDGAME B.3.4 PACKAGE+FS commit 6: the five bodies in this file move onto
-// the real `IO::Persistence`, below. Each door keeps its name, its signature
-// and both registration lines, and delegates. No qualified `IO::` call is
+// ENDGAME B.3.4 PACKAGE+FS commit 6: the five bodies in this file are members
+// of the real `IO::Persistence`, below. No qualified `IO::` call is
 // needed: `IO::Persistence` has no vtable of its own -- the vptr at +0x10 is
 // the EMBEDDED worker's (src/engine/io/Persistence.h) -- so B34_BRIEFS
 // section A.1's re-entry hazard cannot arise.
@@ -114,7 +108,7 @@ bool RetailValueIsTrue(const char* value) {
 namespace IO {
 
 // ?_singleton@Persistence@IO@@0PEAV12@EA (0x1801fc6b8) -- the class static
-// (ENDGAME B.3.9 IO, D7); RtIoPortInit redirects the minted row onto it.
+// (ENDGAME B.3.9 IO, D7).
 Persistence* Persistence::_singleton = nullptr;
 
 // ??0Persistence@IO@@QEAA@XZ  retail 0x1800b8020 (B.4 wave X X7-RT). The three
@@ -146,7 +140,7 @@ bool Persistence::Get(const char* section, const char* key, int& outRef) const {
 
 // ============================================================================
 // bool IO::Persistence::Get(const char* section, const char* key, bool& out)
-// retail 0x1800b8290 — full RT_DIFF oracle, same shape as Get(int&).
+// retail 0x1800b8290 — same shape as Get(int&).
 // ============================================================================
 bool Persistence::Get(const char* section, const char* key, bool& outRef) const {
     bool* const out = &outRef;
@@ -166,11 +160,7 @@ bool Persistence::Get(const char* section, const char* key, bool& outRef) const 
 
 // ============================================================================
 // void IO::Persistence::Set(const char* section, const char* key, int value)
-// retail 0x1800b80c0 — MUTATES the shared live map, so "call ours, call
-// theirs, compare" would insert twice (WARNING 3 in the brief). Instead: run
-// ours for real, then verify with the DLL's OWN already-oracle-proven
-// Get(int&) that the value it now sees round-trips. the diff oracle: EQUAL is
-// our own verdict, computed from a real (read-only) call into the DLL.
+// retail 0x1800b80c0 — MUTATES the shared live map.
 // ============================================================================
 void Persistence::Set(const char* section, const char* key, int value) {
 
@@ -212,15 +202,14 @@ void Persistence::Set(const char* section, const char* key, bool value) {
 
 // ============================================================================
 // System::String IO::Persistence::GetSavePath() const
-// retail 0x180007ad0 — full RT_DIFF oracle. Pure read (a ref-counted copy of
-// a field) with no mutation, so both sides can run for real; only the
-// oracle's own temporary copy needs releasing afterward.
+// retail 0x180007ad0 — a pure read (a ref-counted copy of a field) with no
+// mutation.
 // ============================================================================
 System::String Persistence::GetSavePath() const {
 
     // `String(const String&)` (retail 0x180006cb0) is exactly the "adopt
     // savePath's buffer, AddRef if non-null" sequence the C body wrote out by
-    // hand; the DOOR's placement-new is retail's hidden-return-slot
+    // hand; returning it by value is retail's hidden-return-slot
     // construction, so this is still exactly one AddRef.
     return System::String(_savePath);
 }

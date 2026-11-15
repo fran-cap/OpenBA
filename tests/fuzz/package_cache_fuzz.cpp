@@ -9,8 +9,8 @@
 //   bits 0-1  package count - 1
 //   bit 2     CHAIN: a synthetic payload of N nodes, each the right child of the one before
 //             (N = the next 3 bytes, little-endian, at most 400000); byte 4 bit 0 = keys
-//             increasing (the decode succeeds) or all the same key (the decode refuses after
-//             building the chain). One package of N synthetic names.
+//             increasing (the decode succeeds up to N = 64, kMaxDepth in index_codec.cpp) or all the
+//             same key (the decode refuses after building the chain). One package of N synthetic names.
 //   bit 3     after a successful decode, insert one new name per entry (rtavl::FilenameSetInsert,
 //             the loop's own insert: its AVL retrace reads the decoded balance / height).
 //   bit 4     the target writes the 12-byte header (magic, node count = rest / 21, package count)

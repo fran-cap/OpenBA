@@ -355,7 +355,7 @@ char ClearAreaComponent::State0Update() {
 // clear-job's StatusIcon/Model/etc. components to finalize (remove the removal icon,
 // hide the felled model) when the area is cleared. The null entity / null slot tests
 // are the tree's (retail's 0x1400c2b70 has neither); kept (B9). The same body is
-// ModelComponentNotify_Reimpl in modelcomponent.cpp (not this block).
+// ComponentEntity::SendEvent in modelcomponent.cpp (not this block).
 // ============================================================
 static void ClearArea_BroadcastEvent(ComponentEntity* ownerEntity, int ev) {
     if (!ownerEntity) return;
@@ -374,7 +374,7 @@ static void ClearArea_BroadcastEvent(ComponentEntity* ownerEntity, int ev) {
 // the footprint then broadcasts event 5 to the owner's components. When clear (the
 // common case) it is a no-op.
 // ============================================================
-// CitizenAI_impl_e0e0 (0x14009e0e0) = Pf_RefreshRegionHeight_9e0e0, called directly.
+// CitizenAI_impl_e0e0 (0x14009e0e0) = Map::ResetTerrainHeights, called directly.
 void ClearAreaComponent::FinishClear() {
     ClearAreaDescription* desc = AsType<ClearAreaDescription>(_description);
     if (!desc) return;
@@ -475,7 +475,7 @@ extern "C" void ClearAreaCtrl_PopulateTable() {
 // Retail's orchard state 20 calls the very same two leaves this file already ports:
 //   * enter    0x1400504e0 builds a ClearArea work with ClearArea_Ctor (0x1400e6960)
 //   * trans38  0x140050430 gates its return-to-planting on FUN_140118440
-// Re-porting either one into orchardcomponent_states.cpp would fork two copies of the
-// grid-scan semantics, so they are exported here instead of duplicated.
+// Orchard state 20 (OrchardComponent::EnterClearing / TickClearing in
+// orchardcomponent_states.cpp) calls the ClearArea ctor and ClearAreaComponent::IsDone directly.
 // ============================================================
 

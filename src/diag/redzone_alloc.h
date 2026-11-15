@@ -12,8 +12,8 @@
 // MemoryAllocator::MemAlloc / MemFree, which every caller reaches by name) with
 // wrappers that over-allocate by a tail redzone and stamp a canary right after
 // the requested size. The bad
-// write trips the canary; RedzoneAlloc_ValidateAll(tag) — called at checkpoints
-// in MenuScene::Slot5 / Geometry::Serialize — reports the overflowing buffer by
+// write trips the canary; RedzoneAlloc_ValidateAll(tag), or the BANISHED_REDZONE_SCAN=<N>
+// auto-scan every N allocator ops, reports the overflowing buffer by
 // size + allocation backtrace BEFORE the displaced crash.
 //
 // Tail-only: the returned pointer is the allocator's real pointer (no head
@@ -29,7 +29,7 @@
 // No-op when the flag is unset.
 void RedzoneAlloc_Install();
 
-// True if the shim is active (env var was set and install succeeded).
+// True once Install armed the shim or, for BANISHED_REDZONE=watch, the heap watchdog.
 bool RedzoneAlloc_Enabled();
 
 // Scan every live (wrapper-allocated) block's tail canary. For each corrupted

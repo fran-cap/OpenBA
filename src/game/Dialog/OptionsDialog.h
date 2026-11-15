@@ -9,7 +9,7 @@
 //   reflected "OptionsDialog", parent literal "public UI::DialogInstance"
 //   (sic — B38_RULES section 1.3), ti 0x1401c5360
 //   create 0x140012df0 (MemAlloc(0x1c0, 8)), createInPlace 0x140012e30
-//   ctors 0x140075150 (the door the tree registers), 0x140075280
+//   ctors 0x140075150 (the one the tree ports), 0x140075280
 //   table 0x14015ceb0, 10 slots:
 //     [0] 0x140012f30 scalar deleting dtor  [1] TypeName  [2] Type
 //     [3] DialogInstance::Persist (import)  [4] 0x1400742d0 OnOpened

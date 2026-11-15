@@ -35,8 +35,8 @@
 // ENDGAME B.3 step 9, block ENG (B39_RULES.md D1/D2): both bases have their
 // own slot 0 (retail's VECTOR deleting destructors) and real constructors, and
 // no door stamps a MINTED table any more: the minted rows, their RT_DELDTOR
-// rows, the ??0 / ??1 doors and the slot doors are retired
-// (tools/rt_mint_retired/eng.txt). `GoalInstance` is concrete (retail's
+// rows, the ??0 / ??1 doors and the slot doors are retired. `GoalInstance`
+// is concrete (retail's
 // factory builds it); `Goal` stays abstract (slots 6-8 are `_purecall` in
 // retail) and its factory pair returns null, as retail's does.
 //
@@ -180,7 +180,7 @@ public:
     // ---- non-slot exported members -----------------------------------------
     // ?GetStringTable@Goal@Achievement@@QEBA?AV?$ExternalPtr@VStringTable@UI@@@Object@@XZ
     //   0x180001b90 — one store. Non-virtual retslot: the member returns the
-    //   prvalue; a door (none is registered today) would placement-new it.
+    //   prvalue.
     Object::ExternalPtr<UI::StringTable> GetStringTable() const { return _stringTable; }
     // ?GetText@Goal@Achievement@@QEBA?AVString@System@@XZ  0x180001ba0
     System::String GetText() const;
@@ -197,8 +197,8 @@ protected:
 
 public:
     // ---- the 0x10 bytes Goal adds ------------------------------------------
-    // PUBLIC for the reason Object::External's are: unconverted exe bodies
-    // (engine/types/AchievementGoals.h's `_goalBase[0x28]`) sit on these bytes.
+    // PUBLIC for the reason Object::External's are: game code reads these bytes
+    // directly (src/game/Dialog/goaldialog.cpp's `goal->_stringTable`).
     Object::ExternalPtr<UI::StringTable> _stringTable;   // +0x20
     System::String                       _text;          // +0x28  the goal's display text
 };
@@ -267,7 +267,7 @@ public:
     // ---- non-slot exported members -----------------------------------------
     bool HasFailed() const;                                       // 0x18009eec0
     bool IsMet() const;                                           // 0x18009eed0
-    // ?GetGoal@GoalInstance…QEBA?AV?$ExternalPtr@VGoal@… 0x180001fe0 — retslot door
+    // ?GetGoal@GoalInstance…QEBA?AV?$ExternalPtr@VGoal@… 0x180001fe0 — retslot
     Object::ExternalPtr<Goal> GetGoal() const { return _goal; }
     // ?SetGoal@GoalInstance…QEAAXV?$ExternalPtr@VGoal@… 0x18009eee0 — the
     // ExternalPtr arrives BARE in RDX (B7-5); not ported (no caller).
@@ -331,7 +331,7 @@ public:
     // ?GetGoalCount@GoalList@Achievement@@QEBAHXZ  0x180001700
     int GetGoalCount() const { return _goals.GetSize(); }
     // ?GetGoal@GoalList…QEBA?AV?$InternalPtr@VGoalInstance@… 0x180001710 —
-    // retslot, non-virtual: the registered door placement-news this prvalue.
+    // retslot, non-virtual: the member returns the prvalue.
     // No bounds check in retail; none here.
     Object::InternalPtr<GoalInstance> GetGoal(int index) const { return _goals._data[index]; }
 

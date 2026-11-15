@@ -2,8 +2,8 @@
 // Work action-queue builder for the Consume/Produce work task.
 //
 // 1:1 reverse-engineering port of FUN_1400bef70 @ 0x1400bef70 (Application-x64.exe)
-// -> WorkAct_ConsumeProduceCtor_bef70. Referenced from consumeproduce.cpp
-// (s_fn_SetupWorkChain). Transcribed literally from the Ghidra disassembly; no
+// -> WorkAct_ConsumeProduceCtor_bef70, called by name from consumeproduce.cpp.
+// Transcribed literally from the Ghidra disassembly; no
 #include "Work/exe_bodies.h"
 // refactoring / "improvement" of behavior.
 //
@@ -12,10 +12,6 @@
 // is stored at character+0x58 (DeletePtr of the prior one first). The rest are appended
 // to the stack via TaskListAppend (0x1400c54e0) or the inlined array-append the
 // original compiler emitted for the last two entries.
-//
-// LEFT: the caller (ConsumeProduce, WORK-b) hands the citizen / entity references as
-// void* and the description as an integer; the action ctors (ACT's C bodies) take
-// their references as uint64_t*.
 //
 // Every non-obvious offset/constant cites its disasm address.
 
@@ -47,25 +43,25 @@
 // ============================================================
 // Sub-callees, called by name (B3R)
 // ============================================================
-// Every exe sub-callee is one of our own bodies (Action/, Work/, Component/ exe_bodies.h):
-//   0x1400c5400 TaskListCleanup                       WorkBase_TaskListCleanup_c5400
-//   0x1400c54e0 TaskListAppend                        Pf_ActStackPush_54e0
-//   0x1400cb1d0 SendComponentMessage copy-ctor        Pf_SendComponentMessageCopyCtor_b1d0
+// Every exe sub-callee is one of our own bodies (Action/, Component/, Entity/ headers):
+//   0x1400c5400 TaskListCleanup                       ActionStack::Clear
+//   0x1400c54e0 TaskListAppend                        ActionStackPush
+//   0x1400cb1d0 SendComponentMessage copy-ctor        SendComponentMessage::SendComponentMessage
 //               (RCX=self, RDX=&entityInner, R8=&msgId, R9D=p4, [RSP+0x20]=&innerIbp, [RSP+0x28]=p6)
-//   0x1400c5da0 CompleteTask copy-ctor                Pf_CompleteTaskCopyCtor_5da0
-//   0x140042890 ShowTool ctor (R8D=toolType)          ActChild_ShowToolCtor_42890
-//   0x1400c71a0 CreateRawMaterial copy-ctor           Pf_CreateRawMaterialCopyCtor_71a0
+//   0x1400c5da0 CompleteTask copy-ctor                CompleteTask::CompleteTask
+//   0x140042890 ShowTool ctor (R8D=toolType)          ShowTool::ShowTool
+//   0x1400c71a0 CreateRawMaterial copy-ctor           CreateRawMaterial::CreateRawMaterial
 //               (disasm 0x1400bf12f..0x1400bf1a2: RCX=self, RDX=p2, XMM2=p3(float), R9=p4,
 //                [RSP+0x20]=p5, [RSP+0x28]=p6, [RSP+0x30]=p7, [RSP+0x38]=p8, [RSP+0x40]=p9(u8),
 //                [RSP+0x48]=p10, [RSP+0x50]=p11)
-//   0x1400c9720 PerformWork_Action_Ctor7              Pf_PerformWorkCtor7_9720
-//   0x1400c9170 MoveTo ctor                           Pf_MoveToCtor_9170
-//   0x1400c6440 ConsumeRawMaterial_Action_Ctor3       ActChild_ConsumeRawCtor3_c6440
-//   0x1400c64b0 consume-list append                   Entity_ConsumeListAppend_64b0
+//   0x1400c9720 PerformWork_Action_Ctor7              PerformWork::PerformWork
+//   0x1400c9170 MoveTo ctor                           MoveTo::MoveTo
+//   0x1400c6440 ConsumeRawMaterial_Action_Ctor3       ConsumeRawMaterial::ConsumeRawMaterial
+//   0x1400c64b0 consume-list append                   ConsumeRawMaterial::AddMaterial
 //   0x140006270 FindComponent<StorageComponent>
-//   0x1400012d0 Entity_FindComponent_Family           ActMv_FindComponentFamily_12d0
+//   0x1400012d0 Entity_FindComponent_Family           ComponentEntity::FindComponent<CharacterComponent>
 //   0x14000b6f0 FindComponent<ConsumeProduceComponent>
-//   0x140119470 WeightedRandomIndex                   WeightedRandomIndex_119470
+//   0x140119470 WeightedRandomIndex                   ConsumeProduceComponent::PickConsumeRecipe
 // 0x1400032e0 (task-list array grow) is Collection::Array<InternalPtr>::SetSize: the
 // member call on ActionStack::actions (kSpec_PtrZero).
 // Dispatch slots: 0x140152b60 MemAlloc -> System::MemoryAllocator::MemAlloc;
@@ -147,7 +143,7 @@ static void WCP_AppendInline(CharacterComponent* character, Action* ibpVal) {
 // ============================================================
 // WorkAct_ConsumeProduceCtor_bef70 (FUN_1400bef70)
 // ============================================================
-// Parameters (Win64 + stack), matching consumeproduce.cpp's s_fn_SetupWorkChain_t:
+// Parameters (Win64 + stack), as declared in Work/exe_bodies.h:
 //   param_1  RCX   citizen InternalBasePtr*
 //   param_2  EDX   priority/workId (u32)
 //   param_3  R8    entity InternalBasePtr* (the work target / raw-material source)

@@ -9,9 +9,8 @@
 namespace VideoVulkan {
 namespace SceneDepth {
 
-// DeviceData::Shutdown, the device idle: the copy (an engine ImageBuffer) is released and the copy
-// pass's pipelines, layouts, pools and shader modules are destroyed; the next device makes them again
-// (SceneDepthBackend::Supported, then the next Copy).
+// DeviceData::Shutdown, the device idle: the reference to this frame's copy is dropped (the copy and
+// its pass's objects go in DepthCopy::Shutdown); the next device copies again at the next Copy.
 void Shutdown();
 
 }  // namespace SceneDepth

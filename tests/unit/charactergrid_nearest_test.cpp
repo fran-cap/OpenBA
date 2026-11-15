@@ -20,7 +20,8 @@
 // float centers), z values around the walker's -1 / +1 pads, the type filter and the exclude.
 // Compared after every query: the returned character (pointer identity).
 // A mutation test proves the comparison has teeth: the reference with its tie rule flipped
-// (`<=`) or its child order flipped disagrees with the fast walk thousands of times.
+// (`<=`) or its child order flipped disagrees with the fast walk (more than 500 and more than
+// 30 times: the test's floors).
 // ============================================================================
 #include "unit.h"
 #include "Component/charactergrid_nearest.h"

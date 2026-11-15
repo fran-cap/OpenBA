@@ -8,7 +8,7 @@ usage: python -I tools/sharp_sprites/bake.py [--scale N] [--out DIR]
            re-measure: rewrite measurements.json from the mod kit's sprite PNGs (maintainer only)
 
 The icons are third-party SVGs (Phosphor, Tabler, Lucide, Bootstrap Icons -- MIT / ISC; game-icons.net --
-CC BY 3.0; each file under svg/ keeps its set's licence, svg/LICENSES.md) plus four shapes of our own
+CC BY 3.0; each file under svg/ keeps its set's licence, svg/LICENSES.md) plus five shapes of our own
 (svg/own/, written by this script), combined and recoloured by the rules in build_specs() and rendered with
 resvg. Nothing is traced or copied from the game.
 
@@ -574,7 +574,7 @@ def thick_variant(sprite, svg, kind, colour=None):
 
 
 def build_specs():
-    """sprite -> list of variants; a variant = {suffix, parts, transforms, fit, bbox_from, ops}."""
+    """sprite -> list of variants; a variant = {parts, transforms, fit, bbox_from, ops}."""
     PH = "phosphor/assets/"
     spec = {}
     for sp in ["ButtonIcons/Plus"]:

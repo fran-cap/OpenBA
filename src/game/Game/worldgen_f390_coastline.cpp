@@ -18,7 +18,7 @@
 //   heightmap at hf+0x08 at all (no reads, no writes). The ring it emits is
 //   consumed LATER by the feature-stamp stages (e910 / ec50, via the patchList),
 //   which carve/raise the heightmap along it. So the HEIGHT EFFECT of THIS stage
-//   in isolation is ZERO (see header RETURN item 3).
+//   in isolation is ZERO.
 //
 //   The whole stage is a rejection-sampling loop: keep generating a candidate
 //   closed ring (fractal midpoint-displaced loop) until one is produced that has
@@ -27,7 +27,7 @@
 //   count (hf+0x20) becomes nonzero — i.e. until exactly one ring lands.
 //
 // This file ADDS a self-contained reimpl of the coastline stage. All sub-workers
-// are file-local `static`. Shared engine functions go through fn_* pointers.
+// are file-local `static`. Shared engine functions are called by name.
 //
 // Field offsets verified against Ghidra disassembly of Application-x64.exe.
 
@@ -77,7 +77,7 @@ static constexpr float kOne           = 1.0f;       // 0x14017214c = 0x3f800000 
 static constexpr uint32_t kSignMask   = 0x80000000u;// 0x1401722c0  (float-negate XOR mask)
 
 // ============================================================
-// Late-bound Runtime resolves (not in engine_funcs.h yet).
+// Runtime members this stage calls by name.
 //   System::Random::RandFloatTol() -> float in [-1,1]
 //   System::Random::Rand(int max)  -> [0,max)
 //   System::Random::Rand(int min,int max) -> [min,max)
@@ -146,17 +146,15 @@ static inline float fnegate(float v) {
 // immediately after the resize and every x,y before any read — but "believed
 // unobservable" is not a licence to change world generation inside a refactor
 // whose contract is no behaviour change (B32_RULES / B31_RULES step 2). So each
-// site keeps ITS OWN arm: `kSpec_WgPathPointNoInit` here, and for ranges the
-// zeroing element `Collection::Array<Bytes<0x1C,4>>` (the old bridge element) it now spells
-// itself (ENDGAME B.3.2 closing pass — that arm's row was a whole-stride byte
+// site keeps ITS OWN arm: `kSpec_WgPathPointNoInit` here, and for ranges its own
+// zeroing row `kSpec_RgPathPointZeroInit` over TerrainPathPoint (a whole-stride byte
 // copy plus a whole-stride zero tail with no destroy and no untouched extent,
-// i.e. exactly what `SpecFor<Bytes<0x1C,4>>()` derives, so the shared row object
-// this file used to export for it is gone). Collapsing the two arms onto
+// i.e. exactly what `SpecFor<Bytes<0x1C,4>>()` derives). Collapsing the two arms onto
 // retail's single-QWORD arm is a separate, separately-verified change.
 // ============================================================
 // The rows this stage instantiates. EXTERNAL linkage on purpose:
-// worldgen.cpp (wg_FreePatchList, the hf+0x18 teardown) names the PathVec row
-// through an `extern` declaration — the same row instance.
+// TerrainHeightfield.h declares the PathVec row `extern` for TerrainPathList, the
+// hf+0x18 list worldgen.cpp's wg_FreePatchList tears down — the same row instance.
 static void AssignWgPathPoint(uint8_t* d, const uint8_t* s) {
     __builtin_memcpy(d, s, PATHPT_STRIDE);          // 7 dwords, the whole stride
 }

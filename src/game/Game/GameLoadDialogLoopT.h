@@ -28,8 +28,8 @@
 
 #include <cstdint>
 #include <cstddef>
-#include "engine/UpdateLoop.h"   // -Iruntime/types: Engine::DialogLoaderLoopT
-#include "system/Value.h"        // -Iruntime/types: System::Random (by value at +0x194)
+#include "engine/UpdateLoop.h"   // -Isrc/engine: Engine::DialogLoaderLoopT
+#include "system/Value.h"        // -Isrc/engine: System::Random (by value at +0x194)
 
 class GameLoadDialogLoopT final : public Engine::DialogLoaderLoopT {
 public:

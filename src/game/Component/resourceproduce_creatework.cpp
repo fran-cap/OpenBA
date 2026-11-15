@@ -1,6 +1,6 @@
 // src/game/Component/resourceproduce_creatework.cpp
-// Component vtable slot 18 (+0x90) — CreateWork — for the three food-production
-// ResourceProduceComponent subclasses.
+// Component vtable slot 18 (+0x90) — CreateWork — for the ResourceProduceComponent
+// subclasses: Fishing, Hunt, Herbalist, Forester, Market and ConsumeProduce.
 //
 // Slot 18 is `_purecall` on the ResourceProduceComponent base vtable (0x1401643f0),
 // i.e. pure virtual: every concrete subclass MUST override it. The shared state
@@ -36,7 +36,7 @@
 #include "Work/ConsumeProduce.h"
 #include "Component/MarketComponent.h"
 #include <new>
-#include "Action/exe_bodies.h"   // InteractNodeCount (0x140123070)
+#include "Action/exe_bodies.h"
 #include "Component/FishingComponent.h"
 #include "Component/HuntComponent.h"
 #include "Component/HerbalistComponent.h"
@@ -49,10 +49,8 @@
 #include "Entity/ComponentEntity.h"
 
 // ENDGAME B.3.8 MI-B: each work is now built as its REAL class (src/game/Work/<X>.h):
-// `new (mem) X()` runs the base init and the leaf's field zeroing, calls the work's
-// *_ResolveFuncs (the reason the hand builds had to call it themselves: a work posted
-// with null helper pointers died the first time the scheduler asked it anything), and
-// the compiler stamps the class's own table; then Work::InitFromEntity is the body of
+// `new (mem) X()` runs the base init and the leaf's field zeroing, and the compiler
+// stamps the class's own table; then Work::InitFromEntity is the body of
 // the entity-seeded base ctor 0x1400f72e0 (Work_Ctor25). Same bytes as the hand build,
 // with no read-back of the Work vtable addresses (0x140161320/620/5a0/3a0/710/220).
 namespace {
@@ -194,7 +192,7 @@ W* AllocWork(int size) {
     ForesterWork* work = AllocWork<ForesterWork>(0x60);
     if (!work) return WrapIBP(out, nullptr);
 
-    // The ctor zeroes +0x48/+0x50/+0x58 and runs ForesterWork_ResolveFuncs.
+    // The ctor zeroes +0x48/+0x50/+0x58.
     new (work) ForesterWork();
     work->InitFromEntity(&entity);
 
@@ -222,7 +220,7 @@ W* AllocWork(int size) {
 
     ComponentEntity* entity = _entity.Get();
 
-    // The ctor zeroes +0x48/+0x50 and runs MarketWork_ResolveFuncs.
+    // The ctor zeroes +0x48/+0x50.
     new (work) MarketWork();
     work->InitFromEntity(&entity);
 
@@ -247,7 +245,7 @@ W* AllocWork(int size) {
 //                                                  description's CHILD list here.
 //   cpDesc   = first child whose GetTypeId == ConsumeProduceDescription (0x1401c7388)
 //   work     = ConsumeProduceAction_Ctor(MemAlloc(0x78,8), &entity,
-//                                        &cpDesc->_toolType, cpDesc->_messageId)
+//                                        &cpDesc->_messageType, cpDesc->_messageId)
 //
 // ⚠ retail dereferences cpDesc UNGUARDED after the loop — with no matching child it
 // reads [0x38] off a null and faults. That deref is left faithful: a ConsumeProduce
@@ -268,9 +266,9 @@ static ConsumeProduce* ConsumeProduceAction_Ctor(ConsumeProduce* work, Component
                                                  const int* productIdx, int second) {
     if (!work) return nullptr;
 
-    // The REAL ConsumeProduce (Work/ConsumeProduce.h): base init, its field zeroing
-    // and ConsumeProduce_ResolveFuncs; then Work_Ctor25's body; then the 4-arg ctor's
-    // own seeding below (the same stores the hand build wrote).
+    // The REAL ConsumeProduce (Work/ConsumeProduce.h): base init and its field zeroing;
+    // then Work_Ctor25's body; then the 4-arg ctor's own seeding below (the same
+    // stores the hand build wrote).
     new (work) ConsumeProduce();
     work->InitFromEntity(entity);
 
@@ -313,9 +311,7 @@ extern "C" void ConsumeProduce_DumpRecipes(const ConsumeProduceDescription* cpDe
     const ComponentDescription* descRoot = entity->_description;
     ConsumeProduceDescription* cpDesc = nullptr;
     if (descRoot) {
-        const uint32_t want = ConsumeProduceDescription::TypeId();   // cell 0x1401c7388 (D5);
-                                                                      // TypeId_ConsumeProduceComponent
-                                                                      // is a documented misnomer.
+        const uint32_t want = ConsumeProduceDescription::TypeId();   // cell 0x1401c7388 (D5)
         const int    n   = descRoot->_subDescCount;
         Description** const arr = descRoot->_subDescs;
         for (int i = 0; i < n && arr; ++i) {

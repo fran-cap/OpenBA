@@ -72,8 +72,7 @@ static_assert(offsetof(WorkSchedulerNode20, right) == 0x20, "WorkSchedulerNode20
 
 class WorkScheduler {
 public:
-    // Better names (CAI-6, from the code; NOT renamed: readers in other blocks' files
-    // spell the field_0x.. names; known_port_issues 14f):
+    // Names from the code (CAI-6):
     int32_t           lastWorkId;       // +0x00 (Serialize int) the work-id counter (wraps at 0x7ffffffe)
     int32_t           nextQueueOrder;       // +0x04 (Serialize int) the queue-order counter
     uint32_t          stepCount;        // +0x08 ctor 1 (Serialize uint); +1 per simulation step

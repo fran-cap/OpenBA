@@ -18,16 +18,10 @@
 //     site (BuildStructure_ConstructForSite → the faithful full ctor sizes the build-position
 //     byte array from the site footprint) and drive its Execute when idle. Execute assigns the
 //     citizen a build position and enqueues the timed-labor action chain. A labor-progress
-//     bridge (BANISHED_BUILD_SYNC_LABOR, default on) credits BuildComp+0x48 toward target each
+//     bridge (CreditBuildProgress) credits BuildComp+0x48 toward target each
 //     tick — standing in for the PerformWork→component-message the SA executor never reaches —
 //     so State8Update advances the mesh frames and requests 8 → 2. The phase switches on the
 //     sub_8630 "all materials in site storage" predicate (HaveAllMaterials).
-//
-// DELIVERED-SYNC: GatherRawMaterials credits delivered (field_48) from its OnComplete, which
-// fires from the citizen's DropOff→CompleteTask action — a node the standalone CitizenAI
-// executor doesn't yet reach. So we force BANISHED_BUILD_SYNC_DELIVERED on (gatherrawmaterials.cpp
-// re-syncs field_48 from the live site storage each Execute), which lets the gather advance
-// through materials as they are physically delivered without the deep executor completion.
 //
 // CRASH SAFETY: single observable subject; refuse to drive until deps resolve; all foreign
 // reads go through ForceWork's VirtualQuery-backed probes.
@@ -157,8 +151,8 @@ extern "C" bool StartTown_ForcePushConstructionWork(CitizenComponent* citizen) {
 
     if (!s_buildPhase) {
         // ---- PHASE GATHER (state 1, BuildingState::GatherMaterials) ----
-        // One-time readiness gate: refuse to drive until every GatherRawMaterials::Execute
-        // dependency resolves, else Execute would null-deref a sub-fn / type-id.
+        // One-time readiness gate: refuse to drive until GatherRawMaterials_DepsReady() holds
+        // (GameUpdateLoop::_singleton is set).
         static ForceWork::DepsCheck s_verified = ForceWork::DepsCheck::Unchecked;
         if (static_cast<int>(s_verified) < 0) {   // DepsCheck::Unchecked
             bool ok = GatherRawMaterials_DepsReady();
@@ -191,7 +185,7 @@ extern "C" bool StartTown_ForcePushConstructionWork(CitizenComponent* citizen) {
     }
 
     // ---- PHASE BUILD (state 8, BuildingState::Construct) ----
-    // One-time readiness gate for BuildStructure::Execute (shares the engine_funcs globals).
+    // One-time readiness gate for BuildStructure::Execute.
     static ForceWork::DepsCheck s_buildVerified = ForceWork::DepsCheck::Unchecked;
     if (static_cast<int>(s_buildVerified) < 0) {   // DepsCheck::Unchecked
         bool ok = BuildStructure_DepsReady();

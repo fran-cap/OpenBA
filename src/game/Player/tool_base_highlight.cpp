@@ -1,25 +1,25 @@
 // src/game/Player/tool_base_highlight.cpp
 // Player wave 5 (TIER-2 geometry) — PlacementTool radius-highlight tessellation.
 //
-// Closure for HighlightAdd (0x140055430), called from PlacementTool::Serialize/Slot7
-// (placementtool.cpp) to draw a building's radius overlay. Worker-thread-free and
-// dialog-free (unlike RemovalTool CalcPath / OpenToolDialog). Registered bottom-up by
-// RegisterPlayerHighlightBatch (standalone/reg_player_highlight.cpp).
+// Closure for HighlightAdd (0x140055430), called from PlacementTool::Update
+// (placementtool.cpp) and RadiusUI::OnOpened (radiusui.cpp) to draw a building's radius
+// overlay. Worker-thread-free and dialog-free (unlike RemovalTool CalcPath /
+// OpenToolDialog).
 //
 //   0x140055430 FUN_140055430        HighlightAdd          -> 0x1400b0d80
-//   0x1400b0d80 TradeWork_impl_0d80  tile-slot manager     -> 0x14001fa80(reg), 0x1400ace40
-//   0x1400ace40 TradeWork_impl_ace40 radius tessellation   (separate file, agent draft)
+//   0x1400b0d80 TradeWork_impl_0d80  tile-slot manager     -> 0x14001fa80, 0x1400ace40
+//   0x1400ace40 TradeWork_impl_ace40 radius tessellation   (tool_base_highlight_tess.cpp)
 //   0x14001f6b0 TradeWork_impl_1f6b0 AVL insert            -> 0x14001f850, 0x140014b40
 //   0x14001fc00 TradeWork_impl_1fc00 AVL find              (leaf)
-//   0x140014b40 TradeWork_impl_4b40  AVL retrace+rebalance -> 0x140015000(reg), 0x140014ed0(reg)
+//   0x140014b40 TradeWork_impl_4b40  AVL retrace+rebalance -> 0x140015000, 0x140014ed0
 //   0x14001f850 TradeWork_impl_1f850 AVL node alloc        (leaf, static MemAlloc)
 //   0x140014b00 TradeWork_helper_14b00 recursive BST free  (leaf, static MemFree)
 //
 // AVL node = 0x38 bytes, key = the 6-int (0x18-byte) tile descriptor at node+0x00
 // (shorts @+0x00/+0x08, bytes @+0x10..+0x13): +0x18 parent / +0x20 left / +0x28 right
 // / +0x30 short balance / +0x32 short height. Same node shape + rotation helpers as
-// tool_base_trade.cpp (which exposes PlayerTrade_Rot_15000 = 0x140015000 pivot-left and
-// PlayerTrade_Rot_14ed0 = 0x140014ed0 pivot-right, both already registered).
+// tool_base_trade.cpp: Avl38RotateRight (0x140015000, pivot = the left child) and
+// Avl38RotateLeft (0x140014ed0, pivot = the right child), Player/exe_bodies.h.
 //
 // Port is 1:1 with the Ghidra decompile + disasm-verified — do NOT "improve".
 
@@ -212,9 +212,9 @@ DecalVertexNode* DecalVertexSetFind(const AvlTreeHead<DecalVertexNode>* set, con
 // 0x1400b0d80 — the decal slot manager: find a free 0x60-byte GeometryBatch in
 // WorldGeometry::_decals (+0x1F0), or grow the array by one from a zeroed
 // template (slot -1); write the decal; tessellate it via 0x1400ace40. Returns the
-// slot index (or -1 if the material is null). 1:1 port (19 args; param_18 is
-// unused/dead). A WorldGeometry member in retail; LEFT free: WorldGeometry.h is
-// block GAME-c-2's (running). Declared in Player/exe_bodies.h (DecalComponent calls it).
+// slot index (or -1 if the material is null). 1:1 port (19 args in retail; param_18 is
+// unused/dead and dropped here). A WorldGeometry member, declared in Game/WorldGeometry.h
+// (DecalComponent and RadiusDescription::AddHighlight call it).
 // ============================================================
 int WorldGeometry::AddDecal(int param_2, int param_3, int param_4,
              int param_5, uint8_t param_6, uint32_t param_7, Graphics::MaterialInstance* material,

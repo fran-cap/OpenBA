@@ -30,7 +30,7 @@ bool LowerBitFieldInsert(std::vector<uint32_t>* spirv, uint32_t* changed, std::s
 //   - the version word becomes 1.3;
 //   - OpEntryPoint lists only its Input / Output variables (1.4 widened the list to every global);
 //   - the VulkanMemoryModel and PhysicalStorageBufferAddresses capabilities get their OpExtension
-//     (core in 1.5; the device enables VK_KHR_vulkan_memory_model, vulkan11.h);
+//     (core in 1.5; the device enables VK_KHR_vulkan_memory_model, device.cpp);
 //   - OpDemoteToHelperInvocation (D3D's discard, core in 1.6) becomes OpKill, which ends the block, so
 //     only a demote followed by nothing but the block's OpBranch / OpReturn is lowered; any other
 //     shape fails the module. An OpPhi naming the killed block as a parent drops that pair. The

@@ -6,11 +6,11 @@
 //
 // Reached, once per town tick, via the ProcessPaths drain (before AssignCitizens):
 //   CitizenBehavior_Update (0x14008c2b0)
-//     -> CitizenBehavior_ProcessPaths (FUN_1400d6f00, citizenbehavior.cpp:402)
+//     -> PathGraph::ProcessPaths (FUN_1400d6f00, citizenbehavior.cpp)
 //        when pendingIdx < 0:
-//          fn_PathGraph_ReassignWorkers(pg)  <-- 0x1400d62a0 (THIS)
-//          fn_PathGraph_AssignCitizens(pg)   <-- 0x1400d43b0 (citizen_assign_citizens.cpp)
-//          fn_PathPairs_Clear(pg)            <-- 0x140025b30
+//          pg->ReassignWorkers()             <-- 0x1400d62a0 (THIS)
+//          pg->AssignCitizens()              <-- 0x1400d43b0 (citizen_assign_citizens.cpp)
+//          PathPairs_Clear_25b30(pg)         <-- 0x140025b30
 //
 // ============================================================================
 // WHAT IT DOES
@@ -59,18 +59,18 @@
 //     +0x28  item-entry array (ptr)   +0x30  item count(int)
 //     item entry (stride 0x10): +0x00 descriptor(ptr) +0x08 avail(int) +0x0c reserved(int)
 //
-// LEAF HELPERS (all reimplemented + registered elsewhere; resolved wholesale):
-//   Entity_impl_6c60          0x1400d6c60  — reimplemented in THIS file (called direct)
-//   CitizenComponent_AssignWorkplace 0x1401163d0  (reg_citizen_assignworkplace.cpp)
-//   StorageComponent_impl_cd80 0x14012cd80  == fn_StorageCanAdd
-//   FUN_14012d000              0x14012d000  == fn_StorageAddItem
-//   FUN_14012d150              0x14012d150  — storage subtract (resolved here)
-//   Entity_FindComponent_Position 0x140002ed0 == fn_Entity_FindComponent_Position
-//   Entity_impl_2e20          0x140122e20  == fn_Entity_GetPosition
-//   Entity_impl_7fb0          0x140087fb0  == fn_Entity_GetGridId
-//   FUN_1400a00f0             0x1400a00f0  == fn_Map_CanPathTo
-//   FUN_140008830             0x140008830  == fn_PathDistance
-//   type-ids DWORD_1401c7cf0 / DWORD_1401c7e78 (reg_economy_typeids.cpp)
+// LEAF HELPERS (called by name):
+//   Entity_ReassignCost_6c60   0x1400d6c60  — reimplemented in THIS file
+//   CitizenComponent::SetHome  0x1401163d0  (citizen_assignworkplace.cpp)
+//   StorageComponent::CanAdd   0x14012cd80
+//   StorageComponent::AddItem  0x14012d000
+//   StorageComponent::SubtractItem 0x14012d150
+//   FindComponent<InteractComponent> 0x140002ed0
+//   InteractComponent::NodePosition 0x140122e20
+//   EntityAnchorCell           0x140087fb0
+//   Map::ValidateCell          0x1400a00f0
+//   Map::CalcDistance          0x140008830
+//   type-ids DWORD_1401c7cf0 / DWORD_1401c7e78 (ResidenceComponent / StorageComponent)
 //
 // The retail AVL insert/rebalance/remove/free leaves (a8c0/e360/a6e0/e320/14c30)
 // only maintained the scratch-tree layout and are therefore intentionally NOT
@@ -103,8 +103,8 @@
 namespace {
 
 
-// The consumer leaves are called by name: CitizenComponent_AssignWorkplace
-// (0x1401163d0) and ActRm_StorageSubtract_d150 (0x14012d150).
+// The consumer leaves are called by name: CitizenComponent::SetHome
+// (0x1401163d0) and StorageComponent::SubtractItem (0x14012d150).
 // Row 330 (B7 RES): the component scans (cells 0x1401c7cf0 / 0x1401c7e78) are
 // ComponentEntity::FindComponent<T>()'s shape -- `[[slot]+0x10]` with no null-slot test,
 // IsDerivedFrom + CMOVNZ on the first match -- so the tree's FindComponentDerived (null
@@ -128,11 +128,11 @@ struct CostCmp {
 // ===========================================================================
 // Entity_impl_6c60 (0x1400d6c60) — relocation cost for a residence's occupants
 // ===========================================================================
-// param_2 -> residence whose mis-professioned, employed, healthy, idle occupants
+// param_2 -> residence whose adult, employed, non-laborer occupants not at school
 //            are summed; param_3 -> residence supplying the TARGET cell (its owner
 //            entity's position). Returns the summed path distance (0 when none
 //            qualify / unreachable). param_1 is dead (retail keeps it for ABI).
-extern "C" uint64_t Entity_ReassignCost_6c60(const void* /*param_1*/,   // LEFT: param_1 is dead in retail (never read) and its two callers hand different things: a ResidenceComponent::Family* and PathGraph_ReassignWorkers' own void* ctx (exe_bodies.h)
+extern "C" uint64_t Entity_ReassignCost_6c60(const void* /*param_1*/,   // LEFT: param_1 is dead in retail (never read) and its two callers hand different things: a ResidenceComponent::Family* and PathGraph::ReassignWorkers' own `this`
                                              ResidenceComponent* const* param_2,
                                              ResidenceComponent* const* param_3) {
     // Row 330 (B7 RES): 0x1400d6c60 reads [gw+0xf8] / [gw+0xb0] and their fields with no test.

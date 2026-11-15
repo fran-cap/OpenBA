@@ -4,11 +4,8 @@
 // IO::Visitor.   Wave 9 lane SERIAL.
 // ============================================================================
 //
-// Lane ENC-2 ported two members of this family (?Serialize@BinaryWriter@IO@@ at
-// 0x1800a8fb0 and 0x1800a8fd0, in binary_writer.cpp) and the framing tail around
-// them. This file is the other 73. Those two stay where they are and are NOT
-// re-registered here — a duplicate registration is last-binding-wins and would
-// silently make one of the two bodies dead code.
+// The two members ?Serialize@BinaryWriter@IO@@ at 0x1800a8fb0 and 0x1800a8fd0
+// are the writer's UInt and Int scalar bodies below, beside the rest.
 //
 // The three classes are the three concrete IO::ReaderWriter implementations the
 // engine produces (src/engine/io/Serializer.h names all three and explains
@@ -140,7 +137,7 @@
 // lands eight bytes earlier. Three identically-named GetVersion functions where
 // one reads a different offset is exactly the shape that gets "fixed" into
 // uniformity by the next person to tidy this file, so Visitor gets its own
-// struct below rather than borrowing BinaryCodec — the type system is made to
+// struct (VisitorCodec, Serializer.h) rather than borrowing BinaryCodec — the type system is made to
 // carry the fact instead of a comment.
 //
 // ----------------------------------------------------------------------------
@@ -159,7 +156,7 @@
 // So on the reading side `recordLength + recordStart` is the ONE-PAST-THE-END position of
 // the current record, and Skip is "abandon the rest of this record and jump to
 // the next one" — the reader's half of the length-prefixed, magic-bracketed
-// frame whose writing half lane ENC-2 documented in binary_writer.cpp. Serializer.h
+// frame whose writing half is BinaryWriter's constructor and destructor (Serializer.h). Serializer.h
 // describes the reader's +0x20 as "a dword read from the stream" and +0x24 as
 // "stream->vtable[+0x28]()", i.e. the back-patched LENGTH and the position just
 // after it; their sum being the record end is consistent with that and is the
@@ -170,18 +167,6 @@
 // is byte-faithful, not a stub.
 //
 // ----------------------------------------------------------------------------
-// DOOR ARITHMETIC — this lane opens NOTHING, and that is checkable
-// ----------------------------------------------------------------------------
-// Every body here is either a field read or a dispatch through a vtable pointer
-// the caller already handed us (the stream's, for shapes 1-2; our own, for shape
-// 3). **Not one of the 73 calls ResolveExport, the raw export door, ResolveAddr, or
-// RT_EXPORT_ONCE.** There is no MemFree, no vtable name, no helper. So the
-// predicted door set-diff for this file is the empty set in BOTH directions:
-// zero addresses or names OPENED, zero CLOSED. That prediction is recorded in
-// WAVE9_LANE_SERIAL.md before it was measured, and it is falsifiable by grepping
-// this file for `Resolve`.
-//
-// ----------------------------------------------------------------------------
 // WHY MACROS, IN A TREE THAT PREFERS SPELLING THINGS OUT
 // ----------------------------------------------------------------------------
 // Forty-four of these bodies differ from one another only in a type name and a
@@ -190,15 +175,9 @@
 // failure recorded in reference_uniform_population_is_not_a_verification.md,
 // where a ported inline strcmp returned 0 for every pair sharing a first byte and
 // read as fully verified. A macro cannot get the eleventh one wrong while the
-// other ten are right: there is one body, instantiated eleven times, and the
-// size immediate is `sizeof(T)` rather than a transcribed number.
-//
-// The registration table below is spelled out in full, because THAT is where a
-// transcription error is possible (a mangled name or an address can be wrong
-// without the compiler noticing) and where the probe cannot help — a
-// mis-registered body would be verified perfectly and then wired to the wrong
-// slot. serialize_family_probe.cpp checks the manglings against the shipped
-// export table for exactly this reason.
+// other ten are right: there is one body per class, instantiated once per type
+// (the reader's Bool pair is written out by hand below), and the size immediate
+// is `sizeof(T)` rather than a transcribed number.
 // ============================================================================
 
 #include <cstdint>

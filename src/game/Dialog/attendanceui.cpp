@@ -1,4 +1,4 @@
-// engine/src/ui/attendanceui.cpp
+// src/game/Dialog/attendanceui.cpp
 // Clean reimplementation of AttendanceUI game logic.
 //
 // AttendanceUI (0x38 bytes) — attendance progress bar panel.

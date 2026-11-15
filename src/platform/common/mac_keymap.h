@@ -6,8 +6,9 @@
 // Screen, Scroll Lock and Pause, hides Home / End / Page Up / Page Down / Delete behind fn,
 // and its primary shortcut modifier is Command, not Control. This header is the pure
 // (no SDL header, no OS header) rule set that turns SDL's per-scan-code key state into the
-// state the DIK table is read from (src/platform/darwin/input_darwin.cpp applies it on macOS,
-// both in ReadKeyboard and in the legacy AsyncKeyState). Documented for players in
+// state the DIK table is read from (src/platform/darwin/input_darwin.cpp applies it on macOS
+// as the ApplyKeyLayer hook, which src/platform/sdl/input_sdl.cpp's ReadKeyboard and the legacy
+// AsyncKeyState both read). Documented for players in
 // docs/reference/macos_input_window.md; tested in tests/unit/mac_keymap_test.cpp.
 //
 // THE RULES (state in -> state out; SDL scan code numbers, SDL_scancode.h)

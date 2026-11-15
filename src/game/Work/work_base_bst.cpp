@@ -18,10 +18,6 @@
 //   +0x22  int16   height       (leaf = 0; node = max(childHeight)+1 encoded as child.height+1)
 // Tree: the Set's header, _root (+0x00) and _count (+0x08).
 //
-// LEFT (every entry point): ONE retail body serves every 8-byte-key set (the Work
-// leaves' citizen sets, EntityList's two update trees, the leisure scan's local),
-// and every caller holds its set as a raw root + count (H5: Collection::Set has a
-// dtor). Each body views the set, the key and the node once, at the top.
 
 #include "object/TypeInfo.h"
 #include "system/MemoryAllocator.h"

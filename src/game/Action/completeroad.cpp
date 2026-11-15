@@ -12,7 +12,7 @@
 #include "object/Internal.h"
 #include "object/TypeInfo.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
-#include "Action/exe_bodies.h"   // the B4 FORWARD ctor door
+#include "Action/exe_bodies.h"
 #include "Game/Map.h"   // Map::FinishRoadCell 0x14009c640
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch C
 #include "Action/saved_bounds.h"

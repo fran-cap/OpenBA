@@ -52,39 +52,23 @@
 // address against this project's existing RegisterType/factory registrations
 // (see per-field comments below).
 //
-// Dependencies (all verified against the live tree; nothing here is stubbed):
+// Dependencies (all called by name; nothing here is stubbed):
 //   Collection::Array<T>::SetSize   — the exe's own monomorphisations
 //                                     (0x1400032e0/0x1400021d0/0x140001bb0): each
 //                                     member array's own SetSize.
-//   fn_InternalBasePtr_Serialize    — engine_funcs.h (0x140152aa0 dispatch slot)
-//   fn_InternalBasePtr_CheckPtr     — engine_funcs.h
-//   fn_IsDerivedFrom                — engine_funcs.h
-//   fn_ExternalPtr_BuildSerialize   — engine_funcs.h, resolves to registered 0x140002340
-//                                     (used as TREE #2's key resolver: Ghidra's
-//                                     "Object_ExternalPtr_BuildComponentRef_Serialize")
-//   FUN_140018020 (TREE #1's key resolver, "string-table" ExternalPtr variant) —
-//                                     registered at 0x140018020 (Reimpl_ExternalPtr_
-//                                     Serialize_StringTable); resolved locally here.
-//   fn_Serializer_SerializeBulk     — engine_funcs.h, used for the int-assoc arrays'
-//                                     inner int[] bulk serialize.
+//   Object::InternalBasePtr::Serialize (0x140152aa0 dispatch slot), Object::IsDerivedFromNullSafe
+//   Object::SerializeExternal<T>    — object/External.h; TREE #1's key resolver 0x140018020
+//                                     (Profession) and TREE #2's 0x140002340 (ComponentDescription).
+//   IO::Serializer::Serialize(count, int*, name) — the int-assoc arrays' inner int[] serialize.
 //   Avl38Retrace (0x140014b40) — the shared AVL retrace template (Player/exe_bodies.h).
-//   Reimpl_ExternalPtrArray_Serialize (0x1400049c0) — already ported+registered in
-//                                     src/game/Game/serialize_externals_array.cpp.
-//   TradeDescription_impl_e360 (0x14000e360) — DEAD-PATH ONLY (version<2 legacy tree,
-//                                     see below); already ported+registered in
+//   Object::SerializeExternalArray<T> (0x1400049c0) — object/External.h.
+//   CitizenAI_Reg_helper_e360 (0x14000e360) — DEAD-PATH ONLY (version<2 legacy tree,
+//                                     see below); Component/exe_bodies.h, instantiated in
 //                                     src/game/Component/citizenai_housing_idle.cpp.
 //
-// Newly ported in THIS file (none registered elsewhere):
-//   FUN_140017640 ("StatsArray::Init", stride-0x10 outer array resize + inner
-//                  deep-copy on grow) — also resolves engine_funcs.h's
-//                  fn_StatsArray_Init (used by CitizenBehavior_Ctor).
-//   FUN_1400177c0 ("ProfResArray::Init", stride-0x20 array resize)          — also
-//                  resolves fn_ProfResArray_Init.
-//   FUN_14000f9e0 (inner stride-4 array deep-copy helper for the above)     — file-local.
-//   FUN_140017f60 (stride-8 int-pair array resize)                          — file-local.
-//   Type-id storage cells for HealerComponent (0x1401c4330) and WellComponent
-//   (0x1401c4c28) — nobody registered these two .rdata cells yet; this file adds
-//   them (same pattern as reg_component_animal.cpp) so RegisterType fills them in.
+// The element rows of +0x130 (0x140017f60), +0x140 / +0x150 (0x140017640 with its inner
+// deep copy 0x14000f9e0) and +0x170 (0x1400177c0) are CitizenBehavior's members' rows
+// (Entity/citizenbehavior.cpp, CitizenBehaviorRows in Entity/CitizenBehavior.h).
 //
 // DEAD-CODE PATHS (ported best-effort for completeness; UNREACHABLE at our fixed
 // save version 6 — see `IO::Serializer::Serializer(local_1e8,param_2,6)` at the
@@ -93,8 +77,9 @@
 // version<4 short of a pre-release Banished save file):
 //   - version<2 legacy key/int BST (TradeComponent_helper_ebe0, 0x14000ebe0)
 //   - version<4 legacy Time-array -> ProfessionResourceEntry conversion block
-// Both are implemented but not soak-tested; if a genuinely ancient save ever
-// exercises them, verify against Ghidra before trusting the result.
+// The version<2 tree is implemented but not soak-tested; the version<4 block is left a
+// no-op (see CitizenBehavior::Serialize). If a genuinely ancient save ever exercises
+// them, verify against Ghidra before trusting the result.
 
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
@@ -127,9 +112,9 @@
 #include "system/Value.h"      // ENDGAME B.3.4b System caller batch (Random/Time/Color)
 #include "Game/exe_bodies.h"
 #include "Player/exe_bodies.h"              // Avl38Retrace (0x140014b40)
-#include "Component/exe_bodies.h"           // CitizenAI_Reg_helper_e360, StorageComponent_DynArrayResize
+#include "Component/exe_bodies.h"           // CitizenAI_Reg_helper_e360
 #include "Game/LegacyKeyIntNode.h"         // the version < 2 key -> int tree node
-#include "Work/exe_bodies.h"               // WorkBase_TreeNodeFree_e320 (B6 row 810: retail frees the legacy tree's subtrees)
+#include "Work/exe_bodies.h"               // WorkBase_TreeNodeFree (B6 row 810: retail frees the legacy tree's subtrees)
 #include "Game/Profession.h"   // B8 RT2: ::Object::SerializeExternal<Profession> (the downcast needs it complete)
 #include "Component/ComponentDescription.h"   // B8 RT2: ::Object::SerializeExternal<ComponentDescription> (the downcast needs it complete)
 #include "ext/registry.h"                           // EXT SEAM: Ext::Fix().unresolved_seeds
@@ -138,10 +123,10 @@
 // Already-ported sibling functions, called by name through their declaring headers:
 //   0x140014b40 Avl38Retrace (Player/exe_bodies.h), 0x14000e360
 //   CitizenAI_Reg_helper_e360 (Component/exe_bodies.h), 0x140018020 / 0x140002340
-//   Reimpl_ExternalPtr_Serialize_StringTable and 0x1400049c0
-//   Reimpl_ExternalPtrArray_Serialize (Game/exe_bodies.h), 0x14000f090
-//   StorageComponent_DynArrayResize (Component/exe_bodies.h), 0x140088a80
-//   WellComp_AddCellEntry_88a80 (Component/wellcomponent_funcs.h).
+//   ::Object::SerializeExternal<T> and 0x1400049c0
+//   ::Object::SerializeExternalArray<T> (object/External.h), 0x14000f090
+//   notifyEntries.SetSize, 0x140088a80
+//   CitizenBehavior::AddCellEntry (Entity/CitizenBehavior.h).
 
 namespace {
 
@@ -151,10 +136,6 @@ namespace {
 inline bool SerializerLoading(IO::Serializer* serializer) {
     return static_cast<int>(serializer->GetDirection()) == 0;   // IO::Serializer::GetDirection, retail 0x180006210
 }
-
-// The tree serializer's key resolver (TREE #1: 0x140018020, TREE #2: 0x140002340 --
-// one body, Reimpl_ExternalPtr_Serialize_StringTable).
-// B4 X7-GAME-A: the key resolver is typed on the bucket key (a Profession* / ComponentDescription* slot).
 
 // ------------------------------------------------------------
 // Registry census — the TownManager's 16 IBP registries in one line.
@@ -232,9 +213,9 @@ void SerializeIBPArray(CitizenIbpList<T>& list, IO::Serializer* serializer, uint
 namespace {
 
 // ------------------------------------------------------------
-// int-assoc array (stride-0x10 outer, resized via ResizeStride0x10; each
-// slot is itself a stride-4 int32[] array resized via Array<I32NoInit>::SetSize,
-// bulk-serialized via fn_Serializer_SerializeBulk). Used at +0x140 (v>4)
+// int-assoc array (stride-0x10 outer, resized via CitizenIntAssocArray::SetSize; each
+// slot is itself a stride-4 int32[] array resized via Collection::Array<int32_t>::SetSize,
+// serialized via SerializeIntArray, the int-array overload). Used at +0x140 (v>4)
 // and +0x150 ("stats").
 // ------------------------------------------------------------
 // IO::Serializer::Serialize(int count, int* data, name) — exe dispatch slot
@@ -393,7 +374,7 @@ void SerializeCompRefTree(CitizenBucketSet<Key>& tree, IO::Serializer* serialize
 // ------------------------------------------------------------
 // DEAD-PATH: version<2 legacy key/int BST (TradeComponent_helper_ebe0,
 // 0x14000ebe0). Node (0x30 bytes): {key@0,int32 value@8,parent@0x10,
-// left@0x18,right@0x20,balance@0x28}. Rebalance via TradeDescription_impl_e360.
+// left@0x18,right@0x20,balance@0x28}. Rebalance via CitizenAI_Reg_helper_e360.
 // Never reached at our fixed save version (6); ported for completeness only.
 // ------------------------------------------------------------
 // The node: Game/LegacyKeyIntNode.h (rebalanced by the shared 0x30 walk 0x14000e360).
@@ -513,7 +494,7 @@ void CitizenBehavior::Serialize(IO::Stream& stream) {
     SerializeIBPArray(buildComponents, ser, BuildComponent::TypeId());
 
     // ExternalPtr<ComponentDescription>[] arrays, resized via Array<Ptr8>::SetSize
-    // (FUN_140001bb0) then bulk-serialized via Reimpl_ExternalPtrArray_Serialize
+    // (FUN_140001bb0) then bulk-serialized via ::Object::SerializeExternalArray
     // (0x1400049c0), matching FUN_140001bb0(hdr,count) + FUN_1400049c0(ser,count,ptr,p4).
     {
         int32_t count = knownRawMaterials._size;
@@ -522,8 +503,6 @@ void CitizenBehavior::Serialize(IO::Stream& stream) {
         // new tail zeroed. Element is the 8-byte ExternalPtr<ComponentDescription>.
         if (SerializerLoading(ser))
             knownRawMaterials.SetSize(count);
-        // LEFT: the array body takes the element base as long long (Game/exe_bodies.h,
-        // serialize_externals_array.cpp).
         ::Object::SerializeExternalArray<ComponentDescription>(*ser, count, knownRawMaterials._data);   // 0x1400049c0
     }
     {
@@ -675,8 +654,7 @@ void CitizenBehavior::Serialize(IO::Stream& stream) {
 // Rebuilds a spatial grid-cell map (+0x140, stride-0x10 outer array
 // sized (mapWidth/8)^2) from the residence array (+0x138/+0x130) and the
 // well list (+0xe0/+0xe8), inserting each entity's grid cell into the map via
-// FUN_140088a80 (already ported+registered as WellComp_AddCellEntry_88a80 —
-// reused here as-is, same address/signature).
+// FUN_140088a80 (CitizenBehavior::AddCellEntry, Component/wellcomponent.cpp).
 // ============================================================
 // DWORD_1401c79e0 — the component type-id validated inside PostLoad's inner
 // scan (the "position"-like component providing cell coords at +0x28/+0x2a).
@@ -704,7 +682,7 @@ void CitizenBehavior::PostLoad() {
     int idx = 0;
     int32_t residenceCount = waterAccessPairs._size;
     if (residenceCount > 0) {
-        // +0x130 is the STRIDE-8 int-pair array (ResizeStride08Pair in Serialize
+        // +0x130 is the STRIDE-8 int-pair array (waterAccessPairs.SetSize in Serialize
         // above); retail walks it with `lVar11 += 8` and reads only the low int
         // of each pair (0x14008f5c8). Indexing it as int32[] read every second
         // element from the pair's HIGH half, which is not a cell index at all —

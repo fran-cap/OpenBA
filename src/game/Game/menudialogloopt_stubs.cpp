@@ -1,9 +1,9 @@
 // src/game/Game/menudialogloopt_stubs.cpp
-// Standalone-only stub vtable for MenuDialogLoopT (exe vtable @ 0x14015ed00).
+// Member bodies of MenuDialogLoopT (exe vtable @ 0x14015ed00).
 //
 // MenuDialogLoopT is the exe-internal subclass of Engine::DialogLoopT that drives
 // the main menu (Dialog\MainMenu.rsc). Its 13-slot vtable lives at 0x14015ed00 in
-// the original exe; in standalone mode we provide our own vtable here.
+// the original exe; here the class's compiler vtable serves.
 //
 // Slot layout (13 entries — UpdateLoop's 12 + DialogLoopT's CreateDialog at +0x60):
 //   +0x00  Destroy(self, flags)           — exe 0x14001A2E0 (scalar deleting dtor)
@@ -159,7 +159,7 @@ void MenuDialogLoopT::Startup() {
 
     // Phase A: by the time MenuDLT activates, the Loading splash's
     // ChunkedSceneLoader has already run LoadSceneA1 + chunked PhaseB +
-    // LoadSceneA3 (driven from GameLoadDialogLoopT::Startup / ::Update
+    // LoadSceneA3 (driven from GameLoadDialogLoopT::Update
     // across the splash's display period). MenuDLT::Startup
     // just confirms the work was done and falls back to synchronous
     // LoadScene_PhaseA recovery if some boot path skipped the splash chain
@@ -391,7 +391,7 @@ bool MenuDialogLoopT::Update(const System::Time& timeRef) {
     // GameLoadDialogLoopT -> Engine::Loader thread -> GameUpdateLoop::Load).
     // Mirrors retail
     // MenuDialogLoopT::Update (exe 0x14009b6e0) and our own GameUpdateLoop::Update
-    // transition (gameupdateloop.cpp:886). Without this the menu loop never
+    // transition (gameupdateloop.cpp, Update step 17). Without this the menu loop never
     // advances and we never reach the in-game world build. Done BEFORE the
     // DialogLoopT::Update tail-call, matching retail ordering (reads the fade
     // state the prior tick's UI::Update settled).
@@ -415,8 +415,8 @@ bool MenuDialogLoopT::Update(const System::Time& timeRef) {
     }
 
     // Wave 10D lane MOUSE: the menu half of the cursor route. The menu UI is
-    // MenuDLT+0x38 (DialogInstance) -> +0x10 (UserInterface), the same walk
-    // ModalDriver::RunSelfTest uses above. No-op unless BANISHED_MOUSE_INJECT.
+    // MenuDLT+0x38 (DialogInstance) -> +0x10 (UserInterface). No-op unless
+    // BANISHED_MOUSE_INJECT.
     UI::UserInterface* menuUI = nullptr;
     if (MouseInject::Enabled()) {
         UI::DialogInstance* menuDlg = _dialogInstance;
@@ -436,8 +436,8 @@ void MenuDialogLoopT::Draw(float alpha) {
     // it only SwitchToThread()s, so the menu otherwise spins one core to 100%.
     // Tick() at frame start paces us to (display refresh + headroom) FPS; it's a
     // no-op whenever an external limiter (vsync/G-Sync/RTSS) already holds the
-    // rate at or below refresh. This is the per-frame chokepoint we own, since
-    // the outer Frame loop lives in the Runtime DLL.
+    // rate at or below refresh. This is the menu's per-frame chokepoint; the
+    // outer Frame loop is MainLoop::Frame (src/engine/engine/mainloop_frame.cpp).
     FrameLimiter::Tick();
     // Mirror original MenuDLT::Draw (exe 0x14009B440):
     //   ctx = engine_singleton->m_context   (engine+0x10)
@@ -513,12 +513,12 @@ void MenuDialogLoopT::Load() {
     // the Loading splash's Startup, as in retail). Only thread-safe work
     // goes here:
     // DialogLoopT::Load is safe (it's a single-call resource load with internal
-    // refcounting). MenuDialogLoopT_LoadScene_PhaseA is NOT — it iterates 15K+
-    // calls to Graphics_Scene_AddGlobalObject which mutates global scene state in
+    // refcounting). LoadScene_PhaseA is NOT — its PhaseB makes 12K-15K
+    // Graphics::Scene::AddObject calls, which mutate global scene state in
     // a way that produced corrupted vtable reads on first Update tick when run on
-    // a worker thread. The PhaseA scene allocation has been moved to Startup
-    // (main thread, runs while screen is fully faded to black so the freeze is
-    // invisible to the user — see Startup above).
+    // a worker thread. The PhaseA scene load runs on the main thread: the Loading
+    // splash's ChunkedSceneLoader drives it from GameLoadDialogLoopT::Update, and
+    // Startup above falls back to a synchronous LoadScene_PhaseA.
     const void* dialogExtBefore = _dialogExternal;
     printf("[MenuDLT::Load] self=%p m_dialogExternal(before)=%p\n", (void*)this, dialogExtBefore);
     // QUALIFIED (slot 6 is VIRTUAL on the base; this is the class's own Load,
@@ -573,7 +573,7 @@ Object::InternalPtr<UI::DialogInstance>* MenuDialogLoopT::CreateLoopDialog(
     // (_dialogExternal) is populated with Dialog/MainMenu.rsc by the time
     // DialogLoopT::Startup invokes this slot. Delegate to the standalone
     // MainMenuDialog factory which mirrors the exe ctor at 0x14009BA30:
-    // builds the DialogInstance + patches our 20-slot vtable + writes the
+    // builds the MainMenuDialog and writes the
     // resulting IBP into retPtr.
     // The body (mainmenudialog.cpp, B4 FORWARD) returns its second argument on
     // every path; the slot returns that same pointer.

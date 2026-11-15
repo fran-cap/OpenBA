@@ -3,8 +3,7 @@
 //
 // Faithful 1:1 ports of small exe helpers referenced from the Action closure.
 // Each is transcribed literally from the Ghidra decompile (cross-checked against disassembly
-// for intricate index/field math). Do NOT "improve" — none of this is exercised on the
-// autostart path, so a wrong port is undetectable latent corruption.
+// for intricate index/field math). Do NOT "improve" — a wrong port is latent corruption.
 //
 // B.4 R0-EXE: the five action ctors that lived here and their by-address doors moved,
 // text unchanged, to the classes' files: CompleteTask (c5da0) completetask.cpp,
@@ -13,16 +12,15 @@
 // SendComponentMessage (cb1d0) sendcomponentmessage.cpp. What stays has no settled
 // class (B.4 inventory A: unattributed, or low confidence from the retail caller's class).
 //
-// Registration: RegisterPfCtorsBatch() in standalone/reg_pf_ctors.cpp.
 //
 // Sub-callees (called by name, B3R — body NOT duplicated):
-//   0x1400032e0  array-grow (component_people)               — c54e0
-//   0x1400c4f10  action-stack walk/clear (THIS file)         — c54e0
-//   0x1400c3470  NotifyEntityChanged (action_hunt)           — 107260
-//   0x1400012d0  Entity_FindComponent_Family (action_move)   — 107260
+//   0x1400032e0  Collection::Array<InternalPtr>::SetSize     — c54e0
+//   0x1400c4f10  ActionStackWalkClear (THIS file)            — c54e0
+//   0x1400c3470  ComponentEntity::RefreshEntityFlags         — 107260
+//   0x1400012d0  FindComponent<CharacterComponent>           — 107260
 #include "Action/exe_bodies.h"
-//   0x1400c5400  TaskListCleanup (work_base)                 — 107260
-//   0x140006270  Entity_FindComponent_Storage (work_base)    — 116760 / 1167c0
+//   0x1400c5400  ActionStack::Clear (work_base)              — 107260
+//   0x140006270  FindComponent<StorageComponent>             — 116760 / 1167c0
 //   0x14012d150  StorageComponent::SubtractItem (rawmat)     — 116760
 //
 // Engine helpers: Object::IsDerivedFromNullSafe, RtSystem_Time_Ctor
@@ -32,7 +30,7 @@
 #include "object/TypeInfo.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "system/Value.h"      // ENDGAME B.3.4b System callers
-#include "Work/exe_bodies.h"          // WorkBase_TaskListCleanup_c5400, WorkBase_FindComponent_6270
+#include "Work/exe_bodies.h"
 #include "Game/exe_constants.h"       // kRdata_*
 #include <cstring>
 #include <cstdint>
@@ -50,8 +48,6 @@
 #include "Entity/ComponentEntity.h"
 #include "Action/PathSearch.h"   // RawArray (the drop-target lists)
 #include "Game/Map.h"
-// For the BANISHED_LIVE_STORAGE eat-message typeid heal in the
-// SendComponentMessage copy-ctor (see Pf_SendComponentMessageCopyCtor_b1d0).
 #include "Object/factory_registration.h"           // ::Object::GetTypeIdByName
 
 // ============================================================
@@ -203,15 +199,3 @@ int CitizenComponent::StorageCountDelta(const ComponentDescription* material) {
     }
     return 0;
 }
-
-// ===========================================================================
-// B4 FORWARD: the C spellings other blocks' files still call, one line each.
-// ===========================================================================
-
-// B4 FORWARD: outside callers in ~20 files (Component, Dialog, Entity, Game, Player, Work)
-
-// ---- action_pf_roots_route.cpp's C spellings (kept here: that file's reinterpret column
-// has no room for them).
-
-
-

@@ -15,7 +15,7 @@ g++ $FL -c -o "$D/erosion.o" src/game/Game/worldgen_f390_erosion.cpp || exit 1
 g++ $FL -c -o "$D/bench.o" "$B/bench.cpp" || exit 1
 g++ $FL -c -o "$D/pf.o" src/engine/system/parallel_for.cpp || exit 1
 g++ $FL -c -o "$D/thr.o" src/platform/win/thread_win.cpp || exit 1
-# every symbol the two objects leave undefined that the bench does not define: an aborting stub
+# every IO::, rtcoll:: or kSpec* symbol the two objects leave undefined that the bench does not define: an aborting stub
 { nm "$D/erosion.o"; nm "$D/bench.o"; } | awk '$1=="U"{print $2}' | sort -u > "$D/undef.txt"
 nm "$D/bench.o" | awk '$2=="T"{print $3}' | sort -u > "$D/def.txt"
 { echo '#include <stdlib.h>'; comm -23 "$D/undef.txt" "$D/def.txt" | grep '^_ZN2IO\|^_ZN6rtcoll\|^kSpec' | sed 's/.*/void &(void){abort();}/'; } > "$D/stubs.c"

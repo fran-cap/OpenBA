@@ -13,18 +13,12 @@
 //   Serialize(ser, self+0x34, null)      // rh      (int)
 //   ~Serializer
 //
-// These are exactly the fields AmbientEnvironmentComponent_InitRegion (in
+// These are exactly the fields AmbientEnvironmentComponent::InitRegion (in
 // ambientenvironmentcomponent.cpp) already writes at spawn time (gridX/gridY/
 // rw/rh at +0x28.. +0x34, and the Vector3 region-center position at +0x38),
 // so this body round-trips real per-instance state through save/load, not
 // filler.
 //
-// ⚠ NOT WIRED as an opt-in feature: slot 3 is wired UNCONDITIONALLY (see
-// AmbientEnvironmentComponent_FinishLiveVtable in ambientenvironmentcomponent.cpp)
-// per the save/load wave — serialize round-trip is not behind BANISHED_AMBIENT_AUDIO.
-// Standalone has no save/load driver yet (GameUpdateLoop::SaveRestore is a no-op
-// stub), so this is unreachable today; it brings the class to parity with the
-// rest of the save/load wave for when the driver lands.
 #include "math/Math.h"
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch A
 #include <cstdint>

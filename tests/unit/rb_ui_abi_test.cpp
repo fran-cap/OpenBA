@@ -21,8 +21,8 @@
 //   (the exe's 0x140020cb0: ~DialogInstance, MemFree on flags & 1).
 //
 // NOT PROVEN HERE: the real `InitFields` / `ReleaseFields` bodies. They live in
-// src/engine/ui/{dialog_create.cpp, dialog.cpp, element.cpp}, which stand on
-// the port registry and cannot link into a host test, so they are defined
+// src/engine/ui/{dialog_create.cpp, dialog.cpp, element.cpp}, which do not
+// link into this host test, so they are defined
 // below AS RECORDING MARKERS. The bodies were MOVED from the doors unchanged;
 // the real run and the resave gate verify them.
 // ============================================================================
@@ -94,7 +94,7 @@ Seen g_di, g_el, g_ed;
 // ===========================================================================
 // The shared bodies, AS MARKERS (see the banner). Each records the vptr it
 // runs under and writes a recognisable pattern into fields the real body also
-// writes, so PART B can compare what the two entry points leave behind.
+// writes.
 // ===========================================================================
 namespace UI {
 void DialogInstance::InitFields(UserInterface* ui, const Dialog* dialog,
@@ -434,7 +434,7 @@ UNIT_TEST(rb_ui_bases_shape) {
 // ===========================================================================
 // PART D — the two UI resources the exe instantiates itself (B38_SLOTS
 // section 4: SpriteSheet 0x14015c3b0, SpriteCapture 0x14015d550). Their
-// InitFields are inline (the REAL retail bodies, 0x18011d600 / 0x1800d9140);
+// ctors are inline (the REAL retail bodies, 0x18011d600 / 0x1800d9140);
 // their virtuals and the out-of-line dtors are ui_resources_abi_test.cpp's
 // markers. Slot 0 is the exe scalar deleting dtor (0x1400121e0 / 0x140013f80).
 // ===========================================================================

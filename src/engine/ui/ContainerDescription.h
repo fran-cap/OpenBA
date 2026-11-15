@@ -7,15 +7,14 @@
 // PARENT `UI::ElementDescription` — READ, not inferred:
 //     ?_ParentTypeName@ContainerDescription@UI@@CAPEBDXZ @0x1800398a0 -> "ElementDescription"
 //
-// RULE B5-15 / B6-7 — THE TWO NAME LITERALS, RECORDED, NOT USED (no
-// `DEFINE_TYPE` in step 6; slots 1/2 keep reading the minted
-// `?_typeInfo@ContainerDescription@UI@@0VBaseTypeInfo@Object@@A`, 0x1801f9da0):
+// RULE B5-15 / B6-7 — THE TWO NAME LITERALS, which the class's DEFINE_TYPE
+// (containerdescription.cpp) carries:
 //     ?_TypeName@ContainerDescription@UI@@CAPEBDXZ       @0x180039890 -> "ContainerDescription"
 //     ?_ParentTypeName@ContainerDescription@UI@@CAPEBDXZ @0x1800398a0 -> "ElementDescription"
 //
 // `??_7ContainerDescription@UI@@6B@` @ 0x180156510, TEN slots (B36_SLOTS.md
 // section 1; sizeof from `MOV EDX,0x90` in slot 0):
-//   [0] 0x180039c00  vector deleting dtor  (deleting_dtor.cpp row)
+//   [0] 0x180039c00  vector deleting dtor  (the class's own)
 //   [1] 0x1800398d0  TypeName        [2] 0x1800398b0  Type
 //   [3] 0x1800ccfe0  GetFileVersion  [4] 0x1800066e0  External::Compile INHERITED
 //   [5] 0x1800cced0  Serialize       [6] 0x180039a50  Reconstruct
@@ -27,17 +26,13 @@
 // ctor (retail's 0x1800cd060 stores), its own slot 0 and the factory pair as
 // the class's own statics: every live description wears the COMPILER's table.
 // The minted `??_7ContainerDescription@UI@@6B@`, its RT_DELDTOR row 0x180039c00,
-// the FACTUI1 row, the ??0 / ??1 doors and the slot doors are retired
-// (tools/rt_mint_retired/ui-b.txt).
+// the FACTUI1 row, the ??0 / ??1 doors and the slot doors are retired.
 //
-// LAYOUT — the layout was already documented by the POD
-// `RtUI::ContainerDescription` in DescriptionsBatch1.h (0x90, agrees with
-// B36_SLOTS). That header is shared by four clusters and is NOT edited here
-// (RULE B6-4.4): this class repeats the tail under names taken from what
+// LAYOUT — `RtUI::ContainerDescription` in DescriptionsBatch1.h is an alias of
+// this class (0x90, agrees with B36_SLOTS). The tail is named after what
 // `CreateInstance` (0x1800ccb90) copies each field INTO on the ContainerElement
-// (src/engine/ui/ContainerElement.h), and cross-asserts every offset against
-// the POD. The base already owns `_width`/`_height`/`_childDesc`, so the POD's
-// tail names cannot be reused without hiding them.
+// (src/engine/ui/ContainerElement.h). The base already owns
+// `_width`/`_height`/`_childDesc`, so those names are not reused for the tail.
 //
 // Stores of `??0ContainerDescription@UI@@QEAA@XZ` (0x1800cd060), tail:
 //   MOV dword [RCX+0x68],0x64 ; MOV dword [RCX+0x6c],0x64 ; MOV word [RCX+0x70],DX
@@ -49,7 +44,7 @@
 #include <cstdint>
 
 #include "ElementDescription.h"
-#include "DescriptionsBatch1.h"   // kVtbl* names; RtUI::ContainerDescription aliases this class
+#include "DescriptionsBatch1.h"   // RtUI::ContainerDescription aliases this class
 
 namespace UI {
 
@@ -98,7 +93,7 @@ public:
     // ---- exported, not ported: declared, deliberately undefined ------------
     ContainerDescription(const ContainerDescription& src);        // 0x180039a90
     ContainerDescription& operator=(const ContainerDescription&); // 0x180039b10
-    // 0x1800398c0 -- over the minted `?_typeInfo@` record until the W3 fold.
+    // 0x1800398c0 -- TypeId (DECLARE_TYPE).
     // Retail's factory pair (B39_RULES D2), containerdescription.cpp.
 
 private:

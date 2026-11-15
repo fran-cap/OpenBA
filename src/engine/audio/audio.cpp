@@ -8,30 +8,9 @@
 // Runtime-x64.dll (image base 0x180000000, read 2026-09-07); addresses and the
 // oracle shape for each function are in docs/history/runtime_port/WAVE8_LANE_C.md.
 //
-// STILL HELD BACK, with reasons (docs/history/runtime_port/WAVE8_LANE_C.md has Wave
-// 8's argument; PLAN §6: a held-back function with a stated reason is a
-// result). THREE, down from seven — see the Wave 8.5 close-out block further
-// down this file for why the other four moved and what each of their stated
-// blockers turned out to be worth:
-//
-//   ?Update@Scene@Audio@@…             0x1800df6c0 — ~150 decompiled lines
-//       spatialising every live emitter against Device::PlayPlatform, mixing
-//       in System::Random state and calling back into Device's channel
-//       objects. The synthetic-scene technique that unblocked the teardown
-//       family does NOT reach this one: putting the device out of reach still
-//       leaves the RNG, and a replay that draws twice from System::Random
-//       diverges by construction. What it needs is a snapshot/restore of the
-//       Random state as well, which is a real and bounded next step rather
-//       than a missing tool. It does NOT need SoundBuffer/SoundEffect PORTS —
-//       Wave 8 said it did; what it needs from them is LAYOUT, and a faithful
-//       body may call them by address exactly as the teardown family calls
-//       Device::Stop.
-//   ?Update@Device@Audio@@…            0x1800de520 — Device internals
-//       (platform channel completion callbacks). Here the device IS the
-//       subject, not an unreachable callee, so no synthetic Scene helps.
-//   ?FreeChannelPlatform@Device@Audio@@…ord2380 (0x1800de6f0) — PRIVATE
-//       member, COM vtable call at (**channel)+0x90, critical section at
-//       Device+0xa50. Same class as Device::Update, and for the same reason.
+// Scene::Update (0x1800df6c0) is ported in audio_scene_update.cpp; Device::Update
+// (0x1800de520) and Device::FreeChannelPlatform (0x1800de6f0) in audio_device.cpp.
+// docs/history/runtime_port/WAVE8_LANE_C.md has Wave 8's reasons for holding them back.
 //
 // PORTED SINCE, and the blockers that did not survive being re-read (each was
 // correct on the evidence its lane had — WAVE8_5.md §10 is about transport,
@@ -51,21 +30,14 @@
 //       8.5's close-out with an exhaustive side-by-side probe.
 //
 // `?_singleton@Configuration@Audio@@0PEAV12@EA` (ord 4801) is a DATA export,
-// not a function — nothing to register; engine_funcs.cpp already resolves it
-// (g_pAudioConfigSingleton) exactly as WAVE3/4 record for other DLL globals.
+// not a function: the class static `Audio::Configuration::_singleton`, defined at
+// the end of this file.
 //
 // THE PHANTOM NAME. `?PlayEffect@Scene@Audio@@QEAIV?$ExternalPtr@VSoundEffect
 // @Audio@@@Object@@W4SoundType@12@VTime@System@@@Z` (spelled QEAI, not QEAA)
-// does not exist in the shipped DLL — one of only 3 phantoms left in the
-// whole tree (tools/export_name_audit.py). engine_funcs.cpp's
-// `fn_Audio_Scene_PlayEffect` already has its own
-// `if (!fn) fn = ResolveAddr(Module::Runtime, 0x1800def60)` fallback, so this
-// was NEVER a functional gap — the real, correctly-spelled export
-// (`?PlayEffect@Scene@Audio@@QEAAIV?$ExternalPtr@VSoundEffect@Audio@@@Object@
-// @W4SoundType@12@AEBVTime@System@@@Z`, retail 0x1800def60, ord 3423) is what
-// every call actually reached. Fixed at its source in engine_funcs.cpp (the
-// ResolveExport string, not the working fallback) rather than left as a live
-// landmine for the next person who trusts the string over the behaviour.
+// does not exist in the shipped DLL. The real export is
+// `?PlayEffect@Scene@Audio@@QEAAIV?$ExternalPtr@VSoundEffect@Audio@@@Object@
+// @W4SoundType@12@AEBVTime@System@@@Z` (retail 0x1800def60, ord 3423).
 // ============================================================================
 
 #include <cstdint>
@@ -88,11 +60,6 @@
 extern "C" void RtAudio_Scene_SerializeEffectSlots(IO::Serializer* ser, int32_t count,
                                                    Audio::Scene::AttenutedEffect* data);
 
-// ----------------------------------------------------------------------------
-// ResolveAddr / Module, forward-declared rather than pulled in from
-// standalone/resolve.h — same reason input.cpp does it (windows.h leaks
-// engine-colliding macros). Must stay byte-identical to resolve.h.
-
 using RtAudio::Scene;
 using RtAudio::Configuration;
 using RtAudio::Channel;
@@ -102,22 +69,8 @@ using RtAudio::EmitterInstance;
 namespace {
 
 // ----------------------------------------------------------------------------
-// Dependencies out of this lane's scope.
-//
-// WAVE 9 LANE V2, 2026-09-07: these two were the raw DLL door, with the reason
-// "never through ResolveExport, or a diff would compare ours to ours". That
-// reason is right for an ORACLE and wrong for these: nothing diffs MemAlloc /
-// MemFree here, they are the allocation the ported bodies actually perform, so
-// they are a REAL DEPENDENCY and belong on the port door. The raw door is
-// the raw DLL door, which returns NULL the moment Runtime-x64.dll is absent —
-// i.e. a null call at cutover, not a degradation (rawdoor_audit.py).
-//
-// RT_EXPORT_ONCE keeps the one-resolve-per-call-site caching that made
-// the raw DLL door attractive here in the first place
-// (reference_rtoriginal_is_getprocaddress.md) and routes through the registry,
-// so when `RT_ALLOC` arms the allocator port these allocate on the
-// same heap as the ~20 `code/` sites that already resolve these two names with
-// ResolveExport. A heap cannot be half-ours (WAVE9.md sec3).
+// MemAlloc / MemFree, the allocation the ported bodies perform. A heap cannot be
+// half-ours (docs/history/runtime_port/WAVE9.md §3).
 // ----------------------------------------------------------------------------
 using MemAllocFn = void* (*)(uint64_t size, int align);
 using MemFreeFn  = void  (*)(void* p);
@@ -226,8 +179,8 @@ Scene::Scene() : time(0), playGeneration(1), channels(), effects() {
 
 }  // namespace Audio
 
-// The in-place door the exe's two raw-storage holders still call
-// (GameUpdateLoop::Load's MemAlloc(0x38,8), MenuDialogLoopT +0xb30): it runs
+// The in-place constructor GameUpdateLoop::Load calls on its raw 0x38-byte
+// allocation (gameupdateloop_load.cpp): it runs
 // the constructor above. Global placement new: the class's own placement
 // `operator new` (0x180050920) is declared, not ported.
 Scene* RtAudio_Scene_Ctor(Scene* self) {
@@ -247,9 +200,7 @@ Scene* RtAudio_Scene_Ctor(Scene* self) {
 
 // ============================================================================
 // void Audio::Scene::AddEmitter(uint id, const Vector3& pos, float volume)
-// retail 0x1800dedf0. Mutates the live EffectSlot::positions array — SHADOW
-// oracle (verified against the DLL's own read-only GetEmitterCount on the
-// SAME slot afterward, since both implementations share one Scene object).
+// retail 0x1800dedf0. Mutates the live EffectSlot::positions array.
 // ============================================================================
 namespace Audio {
 
@@ -265,7 +216,7 @@ void Scene::AddEmitter(uint32_t id, const Vector3& pos, float volume) {
 // ============================================================================
 // void Audio::Scene::MoveEmitter(uint id, const Vector3& oldPos, const Vector3& newPos)
 // retail 0x1800dec40 — finds the FIRST instance whose position exactly equals
-// oldPos and overwrites its xyz (volume untouched). SHADOW oracle.
+// oldPos and overwrites its xyz (volume untouched).
 // ============================================================================
 void Scene::MoveEmitter(uint32_t id, const Vector3& oldPos, const Vector3& newPos) {
     EffectSlot* slot = FindEffectSlot(this, id);
@@ -284,7 +235,7 @@ void Scene::MoveEmitter(uint32_t id, const Vector3& oldPos, const Vector3& newPo
 // void Audio::Scene::RemoveEmitter(uint id, const Vector3& pos)
 // retail 0x1800decf0 — removes every instance whose position exactly equals
 // pos (retail's inner shift loop re-checks the index it just compacted into,
-// so a duplicate position is fully removed in one call). SHADOW oracle.
+// so a duplicate position is fully removed in one call).
 // ============================================================================
 void Scene::RemoveEmitter(uint32_t id, const Vector3& pos) {
     EffectSlot* slot = FindEffectSlot(this, id);
@@ -308,7 +259,7 @@ void Scene::RemoveEmitter(uint32_t id, const Vector3& pos) {
 // ============================================================================
 // void Audio::Scene::SetEmitterVolume(uint id, const Vector3& pos, float volume)
 // retail 0x1800ded60 — finds the FIRST instance whose position exactly equals
-// pos and overwrites its volume. SHADOW oracle.
+// pos and overwrites its volume.
 // ============================================================================
 void Scene::SetEmitterVolume(uint32_t id, const Vector3& pos, float volume) {
     EffectSlot* slot = FindEffectSlot(this, id);
@@ -325,7 +276,7 @@ void Scene::SetEmitterVolume(uint32_t id, const Vector3& pos, float volume) {
 
 // ============================================================================
 // int Audio::Scene::GetEmitterCount(uint id) const — retail 0x1800dec00.
-// Pure read. Full replay oracle.
+// Pure read.
 // ============================================================================
 int32_t Scene::GetEmitterCount(uint32_t id) const {
     const EffectSlot* slot = FindEffectSlot(this, id);
@@ -336,7 +287,7 @@ int32_t Scene::GetEmitterCount(uint32_t id) const {
 // ============================================================================
 // bool Audio::Scene::IsEffectPlaying(uint handle) const — retail 0x1800df680.
 // Pure read of the Channel table (a DIFFERENT table/handle space than the
-// EffectSlot functions above — see the header note). Full replay oracle.
+// EffectSlot functions above — see the header note).
 // ============================================================================
 bool Scene::IsEffectPlaying(uint32_t handle) const {
     uint32_t idx = (handle >> kHandleIndexShift) & kChannelIndexMask;
@@ -349,7 +300,7 @@ bool Scene::IsEffectPlaying(uint32_t handle) const {
 // ============================================================================
 // uint Audio::Scene::FindEffect3D(ExternalPtr<SoundEffect> soundRef) const
 // retail 0x1800dee70. Pure linear scan of the 4096-slot EffectSlot table for
-// a matching soundEffectRef. Full replay oracle.
+// a matching soundEffectRef.
 // ============================================================================
 uint32_t Scene::FindEffect3D(Object::ExternalPtr<SoundEffect> effect) {
     uint32_t ours = 0;
@@ -368,9 +319,7 @@ uint32_t Scene::FindEffect3D(Object::ExternalPtr<SoundEffect> effect) {
 // retail 0x1800def60 (the REAL, QEAA-spelled export — see the phantom-name
 // note at the top of this file). Allocates a free Channel slot; no Device
 // call happens here (that is Scene::Update, audio_scene_update.cpp), so the only side
-// effect is on Scene-owned state. Consuming a channel slot is a real mutation
-// — calling both implementations would consume two — so SHADOW, verified via
-// the DLL's own read-only IsEffectPlaying on the handle we just minted.
+// effect is on Scene-owned state.
 // ============================================================================
 uint32_t Scene::PlayEffect(Object::ExternalPtr<SoundEffect> effect, SoundType soundType,
                            const System::Time& time) {
@@ -419,8 +368,7 @@ uint32_t Scene::PlayEffect(Object::ExternalPtr<SoundEffect> effect, SoundType so
 // Two field offsets are not a class layout, and nothing else about SoundEffect
 // is read, written, or dispatched through. There is no vtable call, no
 // allocation, and no store of any kind: this is a PURE CONST READER over the
-// Scene's own 4096-entry effect table, which is why it gets a FULL call-both
-// oracle rather than a shadow. Same shape as
+// Scene's own 4096-entry effect table. Same shape as
 // reference_const_reader_needs_a_caller_not_a_human.md.
 //
 // TRANSCRIBED FROM THE DISASSEMBLY, not the decompiler's C, for three reasons
@@ -446,9 +394,6 @@ uint32_t Scene::PlayEffect(Object::ExternalPtr<SoundEffect> effect, SoundType so
 // exactly representable, so the two spellings agree here, and the bits are
 // recorded so a future edit cannot quietly change that.
 //
-// ORACLE: FULL. No stores, no allocation, no callee — call ours, call theirs on
-// the same unmodified inputs, compare the returned int. `calls=` therefore
-// counts real work: a zero means no positional sound was played, not agreement.
 // ============================================================================
 int32_t Scene::FindFree3DEffect(Object::ExternalPtr<SoundEffect> effect,
                                const System::Time& time, const Vector3& pos) const {
@@ -495,14 +440,6 @@ int32_t Scene::FindFree3DEffect(Object::ExternalPtr<SoundEffect> effect,
     if (!early)
         ours = firstFree;
 
-    // EFFECTIVENESS CONTROL. `calls=` on the port says only that the body ran.
-    // This function has three outcomes and they exercise different code: the
-    // early -1 is the ONLY path that reaches the distance test and the reuse
-    // window (i.e. the only one that touches SoundEffect+0x20/+0x28 for real),
-    // and "no free slot" is the 4096-iteration boundary. A green summary made
-    // entirely of the first-free case would leave the arithmetic this port was
-    // written for completely unverified -- the SetValueInt shape.
-
     return ours;
 }
 
@@ -520,9 +457,7 @@ int32_t Scene::FindFree3DEffect(Object::ExternalPtr<SoundEffect> effect,
 // existed and is FALSE at cutover, where the call is through null. It is now
 // PORTED, immediately above, and the blocker did not survive reading the body:
 // the SoundEffect "internals" are two scalars at +0x20 and +0x28, and the
-// function makes no store of any kind. RT_EXPORT_ONCE below therefore now
-// reaches our own body rather than falling through to a null.
-// SHADOW oracle (mutates the slot; verified via read-only FindEffect3D after).
+// function makes no store of any kind; PlayEffect3D calls it directly.
 // ============================================================================
 uint32_t Scene::PlayEffect3D(Object::ExternalPtr<SoundEffect> effect, SoundType soundType,
                              const System::Time& time, const Vector3& pos) {
@@ -549,12 +484,7 @@ uint32_t Scene::PlayEffect3D(Object::ExternalPtr<SoundEffect> effect, SoundType 
 
 // ============================================================================
 // void Audio::Configuration::Save() — retail 0x1800dde10. Four
-// IO::Persistence::Set(int) calls, already ported (Wave 4 lane C,
-// src/engine/io/persistence.cpp) but called here via the raw DLL door
-// against the shipped DLL, matching this project's convention that a lane
-// stands alone against the DLL rather than depending on another lane's port
-// being enabled. SHADOW oracle: verified via IO::Persistence::Get(int) — a
-// full round trip, same shape as Wave 4's own Set(int) oracle.
+// IO::Persistence::Set(int) calls (src/engine/io/persistence.cpp), called by name.
 // ============================================================================
 void Configuration::Save() {
 
@@ -575,10 +505,8 @@ void Configuration::Save() {
 // bool Audio::Configuration::Startup() — retail 0x1800ddee0. Retail does NOT
 // call the exported Persistence::Get(int) here — it inlines its own
 // "%s%s"-formatted key lookup straight against Persistence's map (Map_Find,
-// retail 0x18002ace0) and a bare strtol. Transcribed exactly rather than
-// routed through Get(int), since that is what retail's own bytes do; the two
-// are functionally identical (same key format, same map, same strtol), which
-// is exactly what the diff below checks.
+// retail 0x18002ace0) and a bare strtol. The port calls Get(int) instead; the
+// two are functionally identical (same key format, same map, same strtol).
 // ============================================================================
 bool Configuration::Startup() {
 
@@ -601,9 +529,6 @@ bool Configuration::Startup() {
     return true;
 }
 
-// ============================================================================
-// Registration.
-// ============================================================================
 // ============================================================================
 // Audio::Scene::Serialize(IO::Serializer&)   retail 0x1800e0050  ord 3730
 // ============================================================================
@@ -634,47 +559,21 @@ bool Configuration::Startup() {
 //   * the ReaderWriter is released through its scalar-deleting dtor with
 //     flags == 1.
 //
-// The two unexported callees are ordinary Collection internals, called by
-// address exactly as Input::KeyMap::ClearAll and RegisterInput already do:
-//   0x180051390  Collection::Array<EffectSlot>::Resize(int)   0x40-byte
-//                elements, 3x growth heuristic, allocator-locked free
-//   0x180052640  the bulk element serialize
-// Neither is reimplemented here; both are shared Collection code whose own port
-// belongs to whoever ports Collection, not to Audio.
-//
-// *** CORRECTED, BATCH 8b: 0x180052640 IS NOT Collection CODE. *** It is an
-// Audio body -- it walks Audio::Scene::EffectSlot and calls the SoundEffect
-// ExternalPtr serialize -- and it is now ported and registered in
-// src/engine/audio/audio_effectslot_serialize.cpp together with its inner-array
-// callee 0x180051e00. Only the resize it reaches on the read path
-// (0x180052330) is Collection code, and that one is in
-// src/engine/collection/array.cpp as kSpec_EmitterInstance. The
-// `ResolveAddr(Module::Runtime, 0x180052640)` below therefore lands on our body
-// now, because the resolver consults the port registry first; the call site
-// needs no change.
-// WAVE 9 LANE Q did that for the first of the two: 0x180051390 is now a
-// registered port (kSpec_EffectSlot in src/engine/collection/array.cpp) and
-// still calls retail's per-element copy-assign 0x180051650 and destroy-range
-// 0x180052110 by address. 0x180052640 WAS untouched and still the DLL's; as of
-// BATCH 8b it is ours (audio_effectslot_serialize.cpp).
-// One fact from that reading matters to this file: the EffectSlot default
-// element leaves bytes +0x2c..+0x2f UNWRITTEN, so a byte comparison of a
-// freshly grown _effects array must skip that window per element.
-//
-// ORACLE: the Wave 9 lane S save-stream A/B harness
-// (the Wave 9 lane S emission oracle). There is no call-level replay for anything on
-// the save path -- ours then theirs would emit twice into one stream -- but on
-// the WRITE path a Serialize is a PURE READ of the object, so the two calls can
-// be replayed into two INDEPENDENT recording sinks and their emission sequences
-// compared. That is what the emission oracle does, and it is why this port
-// is not held back for "no oracle".
-// ENDGAME B.3.2 step 2 — the 0x180051390 by-address forwarder (`arrayResize`)
-// is GONE: `scene->effects` is already `Collection::Array<EffectSlot>`
-// (src/engine/audio/Audio.h), and 0x180051390 IS that instantiation's
-// SetSize — `kSpec_EffectSlot` (src/engine/collection/array.cpp), NON-TRIVIAL
-// (a real per-element copy-assign and destroy-range, not a byte trait), so it
-// stays a hand-derived `rtcoll::AsArray<&kSpec_EffectSlot>` bridge rather than
-// a plain `.SetSize(n)`. The row stays registered in array.cpp.
+// The two unexported callees:
+//   0x180051390  Collection::Array<EffectSlot>::SetSize   0x40-byte elements,
+//                3x growth heuristic, allocator-locked free -- `kSpec_EffectSlot`
+//                (src/engine/collection/array.cpp), NON-TRIVIAL (a real
+//                per-element copy-assign 0x180051650 and destroy-range
+//                0x180052110, not a byte trait), so it is a hand-derived
+//                `rtcoll::AsArray<&kSpec_EffectSlot>` bridge rather than a plain
+//                `.SetSize(n)`
+//   0x180052640  the bulk element serialize, an Audio body (it walks
+//                Audio::Scene::EffectSlot and calls the SoundEffect ExternalPtr
+//                serialize), in src/engine/audio/audio_effectslot_serialize.cpp
+//                together with its inner-array callee 0x180051e00. The resize it
+//                reaches on the read path (0x180052330) is kSpec_EmitterInstance
+//                in src/engine/collection/array.cpp.
+// The EffectSlot default element leaves bytes +0x2c..+0x2f UNWRITTEN.
 void Scene::Serialize(IO::Serializer& serializer) {
     IO::Serializer* ser = &serializer;
 
@@ -726,8 +625,7 @@ void Scene::Serialize(IO::Serializer& serializer) {
 // So a SYNTHETIC Scene whose 256 channels have null `platformChannel[]` puts
 // the device out of reach BY CONSTRUCTION, and both implementations can then
 // be run side by side over the whole state space — no interposer, no recorder,
-// no fake. That is what `ProbeAudioScene` in standalone/rt_orphan_probe.cpp
-// does, and it is why these three CALLED holdbacks land here rather than
+// no fake. That is why these three CALLED holdbacks land here rather than
 // waiting on a tool. The remaining three (`Scene::Update`, `Device::Update`,
 // `Device::FreeChannelPlatform`) were NOT unblocked by it: the first consumes
 // System::Random state and the other two are device internals, where the
@@ -739,16 +637,7 @@ void Scene::Serialize(IO::Serializer& serializer) {
 // claim over these functions failed per-function checking. Recorded, not fixed
 // silently.
 //
-// WHAT THE LIVE PATH GETS. On a real scene the platform channels are NOT null,
-// so there is no call-level replay: running both bodies would fire every live
-// effect's completion callback twice (§9's point, which stands). Each function
-// below therefore carries a SHADOW check instead — after our body runs, the
-// DLL's own read-only observer is asked whether the resulting state is what it
-// should be — exactly the pattern `PlayEffect` above already uses. The full
-// state comparison is the probe's job; the shadow's job is to give the live
-// path a `calls=` number and catch a port that stopped agreeing with reality.
-//
-// RETAIL READS UNINITIALISED STACK, and a byte oracle must know it.
+// RETAIL READS UNINITIALISED STACK.
 // `StopEffect` (0x1800df5e6) and `StopAll` (0x1800df2af) both build the reset
 // Channel by writing a DWORD to a stack slot and reading a QWORD back out:
 //     MOV dword ptr [RSP+0x28],EDX      ; 4 bytes written
@@ -756,11 +645,7 @@ void Scene::Serialize(IO::Serializer& serializer) {
 //     MOV qword ptr [RSI+RCX+0x8],RAX   ; soundType=0, _pad0c=STACK GARBAGE
 // and the same shape at [RSP+0x88] for +0x68 (handleTag=0, started=0,
 // _pad6d[3]=garbage). Both landing fields are the padding this file's type
-// header already documents as never read. We write zeroes; the probe EXCLUDES
-// those 7 bytes per channel rather than pretending to reproduce a caller's
-// stack (reference_oracle_must_not_compare_unwritten_bytes.md, in reverse —
-// there the trap was comparing bytes NEITHER side wrote, here it is bytes only
-// one side can write meaningfully).
+// header already documents as never read. We write zeroes.
 // ============================================================================
 
 // Audio::Device::Stop(AudioChannel*) — retail 0x1800de200, ord 4105. The one
@@ -851,13 +736,6 @@ void Scene::StopEffect(uint32_t handle) {
     if (!matched) return;
     ReleasePlatformChannels(this, idx, /*clearSlots=*/false);
     ResetChannel(&channels._data[idx]);
-
-    // POST-CONDITION. Stated as "the record was zeroed", NOT as "the handle no
-    // longer validates" -- the first attempt said the latter and it is FALSE
-    // for a handle whose generation bits are all zero, which validates against
-    // a zeroed tag in retail too. That predicate reported 2 divergences in 236
-    // live calls and every one of them was the PREDICATE being wrong about
-    // retail, not the port (reference_shadow_predicate_must_name_its_failing_term.md).
 }
 
 // ============================================================================
@@ -879,8 +757,7 @@ void Scene::StopEffect(uint32_t handle) {
 //
 // The leading early-out (`if (paused[soundType] == paused) return;`) is the
 // reason a naive ours-then-theirs replay would report green having compared
-// nothing — WAVE8_5.md §9's observation, and the `RegisterInput` trap. The
-// probe steps INDEPENDENT scenes, so it does not apply there.
+// nothing — WAVE8_5.md §9's observation, and the `RegisterInput` trap.
 //
 // `soundType` is sign-extended (MOVSXD RSI,EDX) and used unchecked as an index
 // into `paused[5]`; a negative or >4 value reads and writes out of bounds in
@@ -917,8 +794,7 @@ void Scene::Pause(int32_t soundType, bool paused) {
 // ============================================================================
 // Stops the Channel a 3D effect is playing on (if any) and resets its
 // EffectSlot to default. The slot's `positions` array is released through
-// Collection's own array-assign-from-empty, called by address exactly as
-// Scene::Serialize calls its two Collection internals.
+// Collection's own array-assign-from-empty (`Collection::Array<EmitterInstance>::operator=`).
 //
 // The guard is spelled differently from FindEffectSlot's and means the SAME
 // THING. Retail compares the generation halves (`id >> 13` against
@@ -944,17 +820,6 @@ void Scene::StopEffect3D(uint32_t id) {
     uint32_t idx = (id >> kHandleIndexShift) & kEffectIndexMask;
     EffectSlot* slot = &effects._data[idx];
     if ((slot->idTag >> kEffectGenerationShift) != (id >> kEffectGenerationShift)) {
-        // SHADOW on the reject path -- reported rather than returned silently,
-        // for the same reason as Pause's early-out: `calls=` must mean
-        // "entered". The DLL's GetEmitterCount uses a guard one bit WIDER than
-        // this one (0xffffe000 against the generation-only compare here), so a
-        // reject here does NOT imply a reject there; what it does imply is that
-        // the slot is untouched, which is what is asserted.
-        // The DLL's GetEmitterCount validates with `(idTag ^ id) & 0xffffe000`,
-        // which is bits 13..31 -- the generation, and NOTHING ELSE. That is the
-        // same predicate this guard spells as `(idTag >> 13) != (id >> 13)`, so
-        // a reject here means a reject there and GetEmitterCount must answer 0.
-        // A full replay of the guard, against the DLL, on live ids.
         return;
     }
 
@@ -983,14 +848,13 @@ void Scene::StopEffect3D(uint32_t id) {
     // harmless only because `tmp.positions` is always empty, but still wrong).
     // One destruction per path, per the locals rule.
 
-    // SHADOW: the DLL's read-only GetEmitterCount on the id we just retired
-    // must report 0 -- the slot is default and its idTag no longer validates.
 }
 
 // ============================================================================
 // void Audio::Scene::StopAll() — retail 0x1800df150, ord 4107
 // ============================================================================
-// Called once, from GameUpdateLoop teardown (gameupdateloop.cpp:2880).
+// Called from GameUpdateLoop::Shutdown (gameupdateloop.cpp) and MenuDialogLoopT::StopMusic
+// (menudialogloopt.cpp).
 //
 // It is `StopEffect` applied to all 256 channels, with `Device::Stop`'s body
 // INLINED rather than called — and the inlining is exact: 0x1800df1eb's
@@ -1009,14 +873,7 @@ void Scene::StopEffect3D(uint32_t id) {
 // ============================================================================
 void Scene::StopAll() {
 
-    // The set this call is OBLIGED to retire, computed BEFORE any of it runs
-    // and computed with the DLL's OWN predicate (IsEffectPlaying is
-    // `((storedTag ^ handle) & 0xfffffe00) == 0` on the channel the handle
-    // names -- exactly the test at 0x1800df1ac). Deciding the obligation after
-    // the fact is what made the first version of this shadow wrong: "no channel
-    // still has a tag" is FALSE of retail, because a channel whose tag names a
-    // DIFFERENT channel keeps its own tag while the other one is reset. That
-    // predicate reported 8 divergences in 9 calls and all 8 were the predicate.
+    // ChannelHandleMatches is retail's inline handle test at 0x1800df1ac.
 
     for (int32_t i = 0; i < kChannelCount; ++i) {              // 0x7000 bytes, hardcoded
         uint32_t tag = channels._data[i].handleTag;
@@ -1055,19 +912,13 @@ void Scene::StopAll() {
 // (0x1801FE758, ord 4801) - one of this lane's own DATA rows. That identity is
 // not a guess: the export directory maps ord 4801 to exactly 0x1801FE758.
 //
-// SO THE STORE GOES THROUGH THE DOOR, not through a hard-coded address. With
-// the DATA row unpromoted the door IS the DLL's slot and this is byte-identical
-// to retail; if the row is ever promoted, this writer moves with it instead of
-// being stranded writing a slot nobody reads. That is the whole point of
-// porting a two-instruction function: it converts retail's un-interceptable
-// RIP-relative store into a door. See this lane's report for why the row is
-// NOT promoted today regardless.
+// SO THE STORE IS TO THE CLASS STATIC `_singleton` (defined below), not to a
+// hard-coded address.
 // ---------------------------------------------------------------------------
 // `this` is genuinely unused - retail's two instructions never touch RCX.
 Audio::Configuration::~Configuration() {
     _singleton = nullptr;
 }
 
-// ?_singleton@Configuration@Audio@@0PEAV12@EA (0x1801fe758) -- the class static (ENDGAME B.3.9 ENG, B39_RULES D7);
-// RtAudioPortInit redirects the minted storage row onto it.
+// ?_singleton@Configuration@Audio@@0PEAV12@EA (0x1801fe758) -- the class static (ENDGAME B.3.9 ENG, B39_RULES D7).
 ::Audio::Configuration* ::Audio::Configuration::_singleton = nullptr;

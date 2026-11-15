@@ -9,8 +9,8 @@
 //
 // Nothing links the Vulkan loader (vk_api.h): VMA's static and dynamic function fetching are both
 // off, and ResourcesStartup (resources.cpp) hands it the backend's own run-time resolved pointers.
-// The API version is pinned at 1.3, the backend's floor, whatever the Vulkan-Headers submodule
-// declares.
+// The API version is pinned at 1.3, the highest the backend uses, whatever the Vulkan-Headers submodule
+// declares; ResourcesStartup asks VMA for 1.1 on the 1.1 path (vulkan11.h).
 // ============================================================================
 #include "vk_api.h"
 

@@ -4,15 +4,15 @@
 //   Audio::SoundBuffer   : Object::CompiledExternal  0x80  9 slots, Compile INHERITED
 //   Audio::SoundEffect   : Object::External          0x40  9 slots, Compile OVERRIDDEN
 //   Audio::Stream        : System::Thread            0x88  2 slots (Run, OnCompleted)
-//   Audio::Device        : non-polymorphic           0x1298, holds the Stream POD
+//   Audio::Device        : non-polymorphic           0x1298, holds the Stream by value
 //   Audio::Scene         : non-polymorphic           0x38, held by value (exe)
 //   Audio::Configuration : non-polymorphic           0x10
 //
 // Built to the contract of pathfinding_picking_abi_test.cpp (block B6).
 //
 // PART A — LAYOUT: sizeof / alignof / offsets are the headers' static_asserts
-//   (only the three Audio::Stream offsets no header pins are here); the parent
-//   edge, abstract / not default-constructible.
+//   (only the three Audio::Stream offsets Stream.h does not pin are here; Device.h
+//   pins them through Device::_stream); the parent edge, concrete, the destructor shape.
 // PART B — SLOT ORDER: a probe subclass of the REAL class; each slot is
 //   raw-called by byte offset and the marker that runs names the member.
 //   SoundBuffer's slot 4 IS Object::External's Compile (B7-1.7); SoundEffect's
@@ -24,7 +24,7 @@
 //   retail DLL, cited in each header).
 //
 // The classes' out-of-line members are defined HERE as markers
-// (src/engine/audio does not link into a host test).
+// (the src/engine/audio files that define them do not link into a host test).
 // ============================================================================
 #include "unit.h"
 #include "slot_check.h"
@@ -207,7 +207,7 @@ UNIT_TEST(audio_soundeffect_layout) {
 
 UNIT_TEST(audio_stream_layout_and_shape) {
     // sizeof / alignof / _buffers / _bufferEvent / _bytePosition / _channel are Stream.h's
-    // static_asserts; the three offsets no header pins are below.
+    // static_asserts; the three offsets Stream.h does not pin (Device.h pins them) are below.
     CHECK((std::is_base_of<System::Thread, Audio::Stream>::value));
     CHECK(std::is_polymorphic<Audio::Stream>::value);
     CHECK(!std::is_abstract<Audio::Stream>::value);
@@ -221,7 +221,7 @@ UNIT_TEST(audio_stream_layout_and_shape) {
 UNIT_TEST(audio_device_layout_holds_the_stream_pod) {
     // sizeof / the channel structs / the four offsets are Device.h's static_asserts.
     CHECK(!std::is_polymorphic<Audio::Device>::value);
-    // B7-12: the Device holds the Stream POD, not the polymorphic class.
+    // B7-12: the Device holds the polymorphic Audio::Stream class by value.
     CHECK((std::is_same<decltype(Audio::Device::_stream), Audio::Stream>::value));
 }
 
@@ -396,7 +396,7 @@ UNIT_TEST(b39_eng_soundeffect_slot_order_by_pmf) {
 
 // SoundBuffer's factory stores (0x18000ba03..a6a): word +0x20, dword +0x24,
 // qwords +0x28/+0x30, 0x28 bytes from +0x54, qword +0x38, dword +0x40, qword
-// +0x48, dword +0x50. +0x22, +0x44, +0x4c and +0x7c..+0x7f are NOT written.
+// +0x48, dword +0x50. +0x22, +0x44 and +0x7c..+0x7f are NOT written.
 UNIT_TEST(b39_eng_soundbuffer_ctor_makes_retails_stores) {
     alignas(8) uint8_t buf[0x80];
     std::memset(buf, 0xCD, sizeof buf);

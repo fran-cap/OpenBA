@@ -32,7 +32,7 @@ public:
     int  AbstractImpl(ActionStack* actionStack) override;             // [4] 0x1400c98d0
     bool GetTarget(ComponentEntity** param) override;                      // [9] 0x1400c9860
 
-    // ---- fields, retail order (PUBLIC: the slot bodies are C functions) ----
+    // ---- fields, retail order (PUBLIC) ----
     Object::InternalPtr<CitizenComponent> _citizen;   // +0x20 the carrying citizen (Persist checks CitizenComponent)
     Object::InternalPtr<ComponentEntity>  _pile;   // +0x28 the raw-material pile (Persist checks ComponentEntity)
 };

@@ -23,7 +23,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
-#include <utility>    // std::move -- the pointer steal out of a POD out-param
+#include <utility>
 #include "io/Persistence.h"
 #include "platform_sync.h"   // Platform::EventReset / EventSet
 #include "collection/Collection.h"   // ENDGAME B.3.2 step 2
@@ -58,7 +58,7 @@
 // o.
 //
 // NOTHING ELSE CHANGED: same callees in the same order, the refusal test on bit
-// 0 of `_flags` still first, the two array teardowns still between the filename
+// 0 of `_runFlags` (IsWorking) still first, the two array teardowns still between the filename
 // and the command fields, the guarded String assignment still guarded on the
 // BUFFER, and ResetEvent before SetEvent. The `GetSaveFilename` call, which was
 // already a DIRECT call into the sibling file's door (retail's 0x1800b789f is a

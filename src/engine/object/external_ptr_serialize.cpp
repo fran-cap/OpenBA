@@ -34,11 +34,11 @@
 // and RIP displacement wildcarded, 165 of 748 bytes — then finds all 25 copies
 // and reads each one's type-id global back out. The table is in the lane doc.
 //
-// So the port is ONE function with the type id as a parameter, and each address
-// gets a two-line thunk that supplies its own `BaseTypeInfo`.
+// So the port is ONE function with the type id as a parameter, and the typed
+// template wrappers in External.h supply each T's own `BaseTypeInfo`.
 //
 // ---------------------------------------------------------------------------
-// WHAT IS REGISTERED HERE, AND WHAT IS DELIBERATELY NOT
+// FOUR OF THE TWENTY-FIVE
 // ---------------------------------------------------------------------------
 // FOUR of the twenty-five:
 //
@@ -49,73 +49,28 @@
 //   0x180005dc0  ExternalPtr<Achievement::Goal>        GoalInstance+0x18
 //
 // The first three are the recipe's three: they are exactly what
-// `Serialize@ElementDescription` dispatches, and registering them is what
-// unblocks that row. The FOURTH is not in the recipe and is the reason this
-// port is verifiable at all — see the ORACLE section below.
+// `Serialize@ElementDescription` dispatches. The FOURTH is not in the recipe.
 //
-// The other twenty-one are measured, named and tabulated in the lane doc, and
-// they are NOT registered. That is a deliberate scope call, not an oversight:
-// they reach Video / Graphics / Audio / Collision2D resource loading (meshes,
-// materials, shaders, sounds, fonts), the oracle route below does not cover
-// them, and a defect in this body would land on all of them at once. They are a
-// one-line-each follow-on for whoever owns those namespaces, and the evidence
-// they need is already written down.
+// The other twenty-one are measured, named and tabulated in the lane doc. They
+// reach Video / Graphics / Audio / Collision2D resource loading (meshes,
+// materials, shaders, sounds, fonts). All twenty-five reach the one body below
+// through the typed wrappers in External.h.
 //
 // ---------------------------------------------------------------------------
-// THE FindOrLoad DEPENDENCY: NO LONGER THE DLL'S, AND THE NAME DOOR IS WHY
+// THE CALLEES
 // ---------------------------------------------------------------------------
-// (Updated 2026-09-13, ENDGAME B.3.1 step 2. This block previously said
-// `FindOrLoad` was unported and still fell through to the shipped DLL. That is
-// stale: the port landed, and the prediction the old text made came true
-// without a single edit in this file. The prediction is kept below because it
-// is the reason the outcome was free.)
-//
 // `?FindOrLoad@ExternalFactory@Object@@QEAAPEBVExternal@2@AEBVFilename@System@@@Z`
 // (0x1800bf320) IS PORTED. `RtObject_ExternalFactory_FindOrLoad` in
-// src/engine/object/external_compiled.cpp is the body, and that file registers
-// it BOTH ways: by mangled name via `RegisterRuntimeExport` and at the retail
-// address via `RegisterRuntimeAddr(0x1800bf320, ...)`.
+// src/engine/object/external_compiled.cpp is the body, reached here through
+// `ExternalFactory::FindOrLoadAs`.
 //
-// This file's one call site (`CallFindOrLoad`, below) reaches it through
-// `RT_EXPORT_ONCE`, i.e. by EXPORTED NAME through the PORT-AWARE resolver —
-// never by address. The resolver consults the port registry first
-// ([[reference_resolveaddr_consults_port_registry_first]]), so the name now
-// resolves to our own ported body. That is exactly the outcome the original
-// text predicted for the day the name got registered: "the moment that name is
-// registered, this call site picks that body up with no edit here." It did, and
-// no edit was needed.
-//
-// So this file still opens NO ADDRESS DOOR — not onto the DLL and not onto
-// anything else — which is the [[reference_porting_can_grow_the_cutover_surface]]
-// failure the gate doc flagged. Every callee it reaches, `FindOrLoad` included,
-// is reached by name and is therefore visible to
-// tools/unsatisfied_export_scan.py.
-//
-// Everything else this body calls is already ours: `External::GetPath`,
-// `Base::IsDerivedFrom`, `ExternalFactory::GetReferenceId` and
-// `ExternalFactory::GetPathForReferenceId` are all registered by name today.
-// Two former name doors are not doors any more — `Filename::AdjustDelimiters`
-// and `String::Serialize` are called as members of `System::Filename` /
-// `System::String` since B.3.1 step 2, so they are ordinary C++ calls.
+// `External::GetPath`, `Base::IsDerivedFrom`, `ExternalFactory::GetReferenceId`
+// and `ExternalFactory::GetPathForReferenceId` are member calls, and
+// `String::Serialize` is called as a member of `System::String`.
 //
 // ---------------------------------------------------------------------------
-// THE ORACLE
+// THE WRITE PATH
 // ---------------------------------------------------------------------------
-// Lane S's emission oracle (deleted with the DLL in ENDGAME A.4,
-// `the old DLL-era switch`) on the WRITE path, and it reaches this body
-// WITHOUT a new harness, because `src/engine/achievement/goal_serialize.cpp`
-// already probes the two functions that call it:
-//
-//     Achievement::Goal::Serialize   -> 0x1800042a0 over Goal+0x20
-//     GoalInstance::Persist          -> 0x180005dc0 over GoalInstance+0x18
-//
-// Both probes run OUR outer body against RETAIL's outer body into two recording
-// sinks. Registering these two addresses makes the `ours` side call THIS file
-// while the `theirs` side keeps calling the DLL's copy — so the comparison
-// becomes a real end-to-end test of this port, where before registration it
-// compared retail's inner body with itself. That is the difference between an
-// oracle and a self-check ([[reference_shadow_marker_is_not_an_oracle]]).
-//
 // IS THE WRITE PATH REPLAYABLE? RE-MEASURED, NOT INHERITED. The recipe warns
 // that `GetReferenceId` can register a NEW id and says to cap the prefix with
 // `stopAfter` as `SerializeReferenceTable` does. Read at 0x1800bf100 rather
@@ -125,18 +80,6 @@
 // factory. So the emission sequence is idempotent and the WHOLE body replays;
 // no `stopAfter` is needed and none is used. (`SerializeReferenceTable` needs
 // one because it WRITES an id into every node — a different function.)
-//
-// WHAT THE ORACLE DOES NOT REACH, stated because a partial oracle that reads
-// like a full one is worse than none:
-//   * the `Encoding` type == 3 arm. Lane S's sink binds all 16 Encoding slots
-//     to a recording thunk that returns the stub ReaderWriter POINTER, never 3.
-//   * both `FindOrLoad` call sites and the whole READ path: the sink pins
-//     `stream.direction = 1` (writing), and every load-side branch is behind
-//     `direction == 0`.
-//   * the reference-mode arm, unless the live factory's `+0x40` is set on the
-//     run. Both sides read the same live global, so whichever arm is taken is
-//     taken by both — but only ONE of the two is exercised per run, and the
-//     probe's own report is what says which.
 //
 // ---------------------------------------------------------------------------
 // LAYOUT NOTES A READER WILL WANT
@@ -321,9 +264,7 @@ bool ExternalPtrSerializeBody(External* cur, IO::Serializer& ser,
         External* result = nullptr;
         if (found != nullptr && found->IsDerivedFrom(typeInfo.typeId)) {
             // CMOVNE: the loaded object survives only if it IS a T. A resource
-            // of the wrong type is dropped, not kept — this is the check the
-            // exe-side sibling in src/game/Component/ambient_externalptr_serialize.cpp
-            // deliberately relaxes, and this one must not. `FindOrLoad` is
+            // of the wrong type is dropped, not kept. `FindOrLoad` is
             // retail's `QEAAPEBV` (const result); FindOrLoadAs drops it once.
             result = found;
         }

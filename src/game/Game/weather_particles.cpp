@@ -26,9 +26,7 @@
 // slots 4..8 (inherited).
 
 // ENDGAME B.3.5 Video/Graphics caller batch: Graphics::Geometry and
-// Graphics::Scene are real classes. Ahead of "resolve.h" — resolve.h pulls
-// <windows.h>, whose <wingdi.h> declares a global `Rectangle` FUNCTION that
-// hides `Volume::Rectangle`'s class name inside Volume.h's own static_asserts.
+// Graphics::Scene are real classes.
 #include "Game/WeatherParticleGeometry.h"
 #include "Game/Weather.h"          // caller batch CB6: the descriptor's fields
 #include "Game/WeatherSimulation.h"
@@ -87,10 +85,8 @@ inline uint8_t ShowWeatherSetting() {
 // 0x24-byte element (four qword stores + one dword) and whose prefix arm copies
 // nine dwords. The body below instead memsets [0, newCount) of the buffer
 // AFTER the grow — on an in-place grow or shrink from a non-zero count that
-// also wipes the surviving prefix, which the reference never touches. Only
-// the element row (`WeatherParticleElem`, below) is retail's; it is used by the
-// geometry destructor. Reconciling this body with retail is a separate,
-// deliberate change.
+// also wipes the surviving prefix, which the reference never touches.
+// Reconciling this body with retail is a separate, deliberate change.
 // ============================================================
 namespace {
 // The element is WeatherParticle (WeatherParticleGeometry.h); the geometry's
@@ -158,9 +154,9 @@ WeatherParticleGeometry::~WeatherParticleGeometry() {
 // ============================================================
 // Caller batch CB6: the geometry's and the descriptor's fields are read by name.
 // `geo` is a WeatherParticleGeometry (WeatherEffect_SetEnabled builds it just
-// before; DebugUI's combo through the 0x1400d3f10 ctor door); `descriptor` is a
+// before; DebugUI's combo through the 0x1400d3f10 ctor); `descriptor` is a
 // Weather — the entry of EnvironmentDescription's weather array, serialized as
-// ExternalPtr<Weather> (Reimpl_ExternalPtr_Serialize_Weather, type-validated).
+// ExternalPtr<Weather> (::Object::SerializeExternal<Weather>, type-validated).
 void WeatherParticleGeometry::Configure(Weather* d) {
     _descriptor = d;      // +0xC8
     _intensity = 0.0f;    // +0xC0
@@ -257,7 +253,7 @@ void WeatherParticleGeometry::Configure(Weather* d) {
 void WeatherParticleGeometry::Update(const System::Time& timeRef) {
     const System::Time* time = &timeRef;
     // Caller batch CB6: the fields are read by name (the descriptor is a Weather,
-    // see WeatherParticle_Config).
+    // see WeatherParticleGeometry::Configure).
     if (!_descriptor) return;
     const Weather* const d = _descriptor;   // +0xC8
 

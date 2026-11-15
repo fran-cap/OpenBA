@@ -3,9 +3,9 @@
 // CropUI: the three pure virtuals of the SelectResourceUI base, CropUI's own idx4/idx7,
 // and the standalone vtable promotion.
 //
-// ⚠ The Slot4/Slot7/Slot8 bodies in cropui.cpp are the ABSTRACT BASE's
-// (0x140078be0 / 0x140078cb0 / 0x140078d30), not CropUI's — the file's comments
-// attribute them to CropUI, which is wrong. Read byte-wise from retail's vtable at
+// ⚠ The Slot7 body in cropui.cpp (0x140078cb0) is the ABSTRACT BASE's, not CropUI's; the
+// base's Slot4 / Slot8 (0x140078be0 / 0x140078d30) are in selectresourceui.cpp. Read
+// byte-wise from retail's vtable at
 // 0x14015f270 (14 slots), CropUI's own table is:
 //   idx4  (+0x20) 0x1400b2b50  CropUI_Startup — base idx4, then bind "yield"
 //   idx7  (+0x38) 0x1400b2a50  CropUI_Update  — maturity into the bar, then base idx7
@@ -31,8 +31,8 @@
 #include "Dialog/exe_bodies.h"
 #include "system/String.h"
 #include "Object/factory_registration.h"
-#include "Work/exe_bodies.h"        // B3R: WorkAcc_FindComponent_5380
-#include "Component/exe_bodies.h"   // B3R: CropFieldComponent_Maturity
+#include "Work/exe_bodies.h"
+#include "Component/exe_bodies.h"
 #include <cstdint>
 #include <cstdlib>
 #include <cstdio>
@@ -143,7 +143,7 @@ void CropUI::OnCreated() {
 void CropUI::OnUpdateLayout() {
     if (!SA_DialogEntityAlive(this)) return;
 
-    // Self-heal, same as orchardui.cpp: Slot4 may not have run for this instance yet.
+    // Self-heal: Slot4 may not have run for this instance yet.
     if (!yield) {
         CropUI::OnCreated();
         if (!yield) return;

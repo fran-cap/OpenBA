@@ -14,7 +14,7 @@
 //   int          @ +0x4c = 0
 //   int/enum     @ +0x50 = 0xb (11)
 // Serialize (vtable +0x28, 0x1401190e0), stream order (verified disasm CALLs):
-//   ExternalPtr @ +0x20  (FUN_14000bf40 -> Reimpl_ExternalPtr_Serialize_StringTable)
+//   ExternalPtr @ +0x20  (FUN_14000bf40 -> Object::SerializeExternal<UI::StringTable>)
 //   int count   @ +0x30 -> resize +0x28 outer array (stride 0x28), per outer element:
 //        inner int count @+0x08 -> resize inner array @+0x00 (stride 0x10):
 //             per inner element: ExternalPtr @+0x00 (FUN_140002340), int @+0x08
@@ -31,11 +31,8 @@
 // ToolKit fields: inputs / outputs / work time / tool.
 // Decompiled READ-ONLY from Application-x64.exe.
 //
-// NOTE for orchestrator: the Type field @ +0x38 uses Object::Type::Serialize via
-// IO::Serializer dispatch slot 0x1401516b0. We resolve that slot inline below; it
-// is filled from Runtime-x64.dll at startup (same mechanism as g_fn_String_Serialize
-// = slot 0x140151238). If it is unfilled in standalone the Type read is skipped,
-// which would desync the stream — register/wire slot 0x1401516b0 if needed.
+// NOTE: the Type field @ +0x38 uses Object::Type::Serialize (import slot 0x1401516b0),
+// called directly below as RtObject::RtObject_Type_Serialize (src/engine/object/Type.h).
 //
 // ENDGAME B.3.8 K1: a REAL class (ConsumeProduceDescription.h) with a compiler-generated vtable;
 // the hand-built 11-slot table and its RegisterExeAddr(0x140162b30) row are gone
@@ -103,7 +100,7 @@ ConsumeProduceDescription::~ConsumeProduceDescription() {
 
 // [5] 0x1401190e0: stream order as retail.
 bool ConsumeProduceDescription::Serialize(IO::Stream& stream) {
-    if (!::System::MemoryAllocator::_singleton) return true;   // standalone: unwired doors
+    if (!::System::MemoryAllocator::_singleton) return true;
     IO::Serializer ser(stream, 0);
     ::Object::SerializeExternal<UI::StringTable>(ser, _stringTable);
     // outer recipe array @ +0x28 (count @ +0x30, element stride 0x28)

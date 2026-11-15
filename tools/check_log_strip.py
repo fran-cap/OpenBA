@@ -3,7 +3,7 @@
 
 WHY THIS EXISTS
 ---------------
-`make standalone` and `make standalone-perf` both compile with
+The perf and release builds (CMakeLists.txt) both compile with
 `-DBANISHED_STRIP_LOGS -include src/app/log_strip.h`, which does:
 
     #define printf(...) ((void)0)

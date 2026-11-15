@@ -11,16 +11,16 @@
 // HEADER IS AUTHORED, NOT MOVED *** — the second and last place step 5 has to
 // author a layout (B5-2.2 authored `Video::VertexLayout.h`, block A).
 //
-// Two descriptions already covered PARTS of these bytes and BOTH ARE KEPT and
-// cross-asserted below, because both have live users outside block G's file set:
+// Two descriptions already covered PARTS of these bytes. The first is KEPT and
+// cross-asserted in `tests/unit/graphics_material_abi_test.cpp`:
 //
 //   * `RtGraphics::GraphicsMeshView` (`Mesh.h`) — a read-only overlay of the
 //     four offsets Wave 6 lane E needed (+0x50, +0x60, +0x70, +0x80). Its own
 //     banner says "do not `sizeof` it".
-//   * `src/engine/graphics/graphicsmesh_vtable.cpp`'s eleven `constexpr
-//     uint32_t k*` offsets, read from the constructor's stores
-//     (0x1800ff181..0x1800ff256) and cross-checked against the destructor and
-//     `Serialize`. Every one of them is reproduced here as a named field.
+//   * the eleven offsets `src/engine/graphics/graphicsmesh_vtable.cpp` read
+//     from the constructor's stores (0x1800ff181..0x1800ff256), cross-checked
+//     against the destructor and `Serialize`. Every one of them is a named
+//     field here, and that file keeps none of them.
 //
 // WHAT THIS PASS ADDED, all read from RETAIL DISASSEMBLY this pass (block G,
 // 2026-09-19) rather than from either of those:
@@ -109,24 +109,11 @@
 // it must not have, which is the exact mistake B35_RULES section 2.1 warns about
 // for `Video::VideoProgram`.
 //
-// RULE B5-15 — the two literals, COPIED from B35_SLOTS.md and recorded, not
-// used. No `_typeInfo` row is retired and no `DEFINE_TYPE` is introduced
-// (B35_RULES section 11); slots 1/2 keep reading
-// `?_typeInfo@GraphicsMesh@Graphics@@0VBaseTypeInfo@Object@@A` (0x1801fa708).
+// RULE B5-15 — the two literals, COPIED from B35_SLOTS.md. The record is
+// `DEFINE_TYPE`d in `src/engine/graphics/graphics_type_records.cpp` (retail's
+// `?_typeInfo@GraphicsMesh@Graphics@@0VBaseTypeInfo@Object@@A`, 0x1801fa708).
 //     ?_TypeName@GraphicsMesh@Graphics@@       -> "GraphicsMesh"
 //     ?_ParentTypeName@GraphicsMesh@Graphics@@ -> "Object::CompiledExternal"
-//
-// ABSTRACT (B34_BRIEFS A.4 as amended): nothing in the tree holds a
-// `GraphicsMesh` BY VALUE as a C++ member, and slot 0's body (0x180012bd0) is a
-// row in `src/engine/object/deleting_dtor.cpp` that B35_RULES section 11
-// forbids retiring in step 5, so slot 0 stays `= 0`.
-//
-// NO REAL CONSTRUCTOR (B4b-2): `??0GraphicsMesh@Graphics@@QEAA@XZ` @0x1800ff170
-// OPEN-CODES the whole base chain as four vptr stamps plus three zero stores and
-// does NOT call a base constructor, and the stamps name the MINTED tables, which
-// is right for the objects that reach it. A member constructor there would stamp
-// GCC's tables and would additionally run `??0CompiledExternal@Object@@`'s own
-// stores, which are not these.
 //
 // PORTABILITY: no <windows.h>, per PLAN.md section 4.1 decision 1.
 // ============================================================================
@@ -217,7 +204,7 @@ public:
         // ??4TriangleList@…QEAAAEAU012@AEBU012@@Z  0x180012940 — not ported
         // ?Serialize@TriangleList@…QEAAXAEAVSerializer@IO@@@Z 0x1800ff300 —
         //   not ported. NOT the same function as the unexported 0x1800a4670 that
-        //   `graphicsmesh_vtable.cpp` registers: that one is the WHOLE
+        //   `graphicsmesh_vtable.cpp` ports: that one is the WHOLE
         //   DETAIL LEVEL's inline-geometry pass, and this one is one 0x18-byte
         //   element of the array inside it. The helper at 0x180014850 loops this
         //   body over `n` elements.
@@ -229,7 +216,7 @@ public:
     // parent index. See the file banner for the two readings behind every field.
     //
     // THE SECOND TRANSFORM IS THE BIND POSE, AND THE TREE ALREADY SAID SO.
-    // `src/engine/graphics/animationstate.cpp:306` describes the element of
+    // `src/engine/graphics/animationstate.cpp:271` describes the element of
     // `Array<GraphicsMesh::Node>::Serialize` as
     // "{String name, int parent, Transform local, Transform bind}, stride 0x48"
     // — written by the batch that ported that element loop, independently of this
@@ -263,7 +250,7 @@ public:
         // ?Serialize@Node@…QEAAXAEAVSerializer@IO@@@Z       0x1800ff0d0 — not ported
         // ??0Node@GraphicsMesh@Graphics@@QEAA@XZ            0x180012550 — not ported
         // ??0Node@GraphicsMesh@Graphics@@QEAA@AEBU012@@Z    0x1800127f0 — PORTED,
-        //   registered in `src/engine/graphics/animationstate.cpp` (the one
+        //   defined in `src/engine/graphics/animationstate.cpp` (the one
         //   `GraphicsMesh` fragment in that file, B35_FILEMAP.md:97)
         // ??1Node@GraphicsMesh@Graphics@@QEAA@XZ            0x1800127b0 — not ported
         //
@@ -341,14 +328,9 @@ public:
         Video::IndexBuffer  _indexBuffer;       // +0x38  ?GetIndexBuffer@      0x1800125c0
         Video::VertexBuffer _skinVertexBuffer;  // +0x58  ?GetSkinVertexBuffer@ 0x180012620
         Video::IndexBuffer  _skinIndexBuffer;   // +0x78  ?GetSkinIndexBuffer@  0x180012600
-        // Array<TriangleList>. A RAW 16-byte header, for `AnimationGroup.h`'s
-        // reason: element construction, copy and destruction run through the
-        // REGISTERED `kSpec_*` rows in `src/engine/collection/array.cpp` at
-        // retail's own addresses (`SetSize` 0x1800136f0, `~Array` through
-        // `array_graphics_mesh.cpp`), and the typed form would make the compiler
-        // emit a SECOND element lifecycle beside the ported one.
-        // B.4: typed. TriangleList is trivially destructible, so the implicit
-        // member dtor is the same Clear-then-J1 as the raw header's.
+        // Array<TriangleList>, typed; retail sizes it with `SetSize` 0x1800136f0.
+        // TriangleList is trivially destructible, so the implicit member dtor is
+        // the same Clear-then-J1 as a raw header's.
         Collection::Array<TriangleList> _triangleLists;   // +0x98  ?GetTriangleLists@
         int32_t  _maxInstances;          // +0xa8  ?GetMaxInstances@
         uint32_t _padAC;                 // +0xac  no body read touches it
@@ -356,11 +338,11 @@ public:
 
     // ---- ENDGAME B.3 step 9 (block GFX, B39_RULES D1/D2): CONCRETE ----------
     // A real public ctor (retail 0x1800ff170), its own vector slot 0, a
-    // protected non-virtual ~GraphicsMesh holding the retired ??1 door's body,
+    // virtual ~GraphicsMesh holding the retired ??1 door's body,
     // the factory pair as the class's own statics; Construct / Reconstruct
     // placement-new the class. The minted `??_7GraphicsMesh@Graphics@@6B@`, its
     // RT_DELDTOR row 0x180012bd0, the FACTREST row and the ctor / dtor / slot
-    // doors are retired (tools/rt_mint_retired/gfx.txt).
+    // doors are retired.
     //
     // ??0GraphicsMesh@Graphics@@QEAA@XZ 0x1800ff170 -- the REAL ctor (retail
     // also calls it from both factories and tail-jumps it from Construct).
@@ -467,7 +449,7 @@ public:
     GraphicsMesh(const GraphicsMesh& src);                 // 0x180012970  not ported
     GraphicsMesh& operator=(const GraphicsMesh& src);      // 0x180012a90  not ported
 
-    // The three operators stay declared and undefined (placement is `::new`);
+    // The two operator news stay declared and undefined (placement is `::new`);
     // the factory pair is the class's own (B39_RULES D2, graphicsmesh_vtable.cpp).
     static void* operator new(std::size_t bytes);           // 0x1800123a0
     static void* operator new(std::size_t bytes, void* place);// 0x180012410
@@ -515,9 +497,8 @@ public:
                                       //        align to +0x50 and silently push the
                                       //        three arrays out by 8 (it did, and the
                                       //        size assert caught it).
-    // The three arrays, all RAW 16-byte headers for `AnimationGroup.h`'s reason
-    // (see `DetailLevel::_triangleLists`). The true element types and the
-    // registered `SetSize` addresses are named beside each.
+    // The three arrays, typed (below). The element types and the retail
+    // `SetSize` addresses are named beside each.
     //
     // B.4 (R-GFX, H5 `behaviour:` commit): `_detailLevels` and `_skinMaterials`
     // carry their element types. What that makes run, against retail:
@@ -647,9 +628,9 @@ static_assert(offsetof(GraphicsMesh::DetailLevel, _name)   == 0x00 &&
 // Defined in src/engine/collection/array_graphics_mesh.cpp (given external
 // linkage for their direct readers in src/engine/graphics/).
 namespace rtcoll {
-void* Rt_ArrayDtor_180013fb0(void* a);  // 0x180013fb0 ~Array<TriangleList>
+void* Rt_ArrayDtor_180013fb0(void* a);  // 0x180013fb0 ~Array<DetailLevel>
 void* Rt_ArrayDtor_180014160(void* a);  // 0x180014160 ~Array<Array<T>>
-void Rt_SetSize_18005d840(void* a, int n);  // 0x18005d840 Array<TriangleList>
+void Rt_SetSize_18005d840(void* a, int n);  // 0x18005d840 Array<DetailLevel>
 void Rt_SetSize_18005cda0(void* a, int n);  // 0x18005cda0 Array<Array<T>>
 void* Rt_TriangleListCtor_1800fefc0(void* p);  // 0x1800fefc0
 void* Rt_TriangleListCopyCtor_180013c50(void* d, const void* s);  // 0x180013c50

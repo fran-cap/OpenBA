@@ -52,8 +52,8 @@
 //   1800b5fbe  CALL 0x1800298f0                  ; Array<Entry>::SetSize(a,n,fill)
 //
 // `_size + 1`, as §87 predicted — and R13 is `this + 0xb0` (set at 0x1800b5b86),
-// which independently re-confirms the `entries` / `entryCount` pair at +0xB0 /
-// +0xB8 that FileSystem.h carries.
+// which independently re-confirms the `_entries` data / size pair at +0xB0 /
+// +0xB8 that PackageFile.h carries.
 //
 // ---------------------------------------------------------------------------
 // §92. FOUR CORRECTIONS TO THE RECORDED DECODE. Three change what gets written.
@@ -62,7 +62,7 @@
 // (a) **The +0xAC read is ONE BYTE, not four.** §75's table lists eight fields
 //     as "4 each" and +0xac is in that list. At 0x1800b4b4b the count register
 //     is `MOV ESI,0x1`, not `MOV ESI,0x4`; every other field in the run is 4.
-//     +0xAC is `overridable`, a `uint8_t` in FileSystem.h — so retail reads a
+//     +0xAC is `_overridable`, a one-byte `bool` in PackageFile.h — so retail reads a
 //     one-byte bool, and a 4-byte read there would have consumed three bytes of
 //     the next field (`crc`, +0xA8) and desynced everything after it. This is
 //     the transcription's single most consequential correction.
@@ -168,40 +168,18 @@
 //     arms omitted.
 //
 // ---------------------------------------------------------------------------
-// §95. THE ORACLE, AND THE ONE EXCLUSION §76 REQUIRES
+// §95. WHICH STRINGS ARE DETERMINISTIC
 // ---------------------------------------------------------------------------
-// `ReadPackfile` is not pure, but it is REPLAYABLE: everything it produces
-// lands in `*this`, and `this` can be a second, freshly-constructed scratch
-// object. So the oracle runs our body on the real object, then constructs a
-// scratch `PackageFile` with our own (byte-proven, §5) constructor and runs the
-// SHIPPED body on it with the same filename, then compares field by field.
-//
-// EXCLUSIONS, each with the instruction that justifies it:
-//
-//  * `_fileInfo.winHandle` (+0xD8) — two independent `CreateFileW` calls return
-//    two different HANDLEs. Compared as "both valid or both -1", not by value.
-//  * `_fileInfo._unk04` (+0xC4) — `?OpenFile@` never writes it
-//    (filesystem_openfile.cpp §4); comparing memory neither side wrote is
-//    reference_oracle_must_not_compare_unwritten_bytes.md.
-//  * `_fileInfo._name0/_name1` — different String objects; compared by TEXT.
-//  * **AND THE ONE THAT MATTERS: a string whose real data does not terminate
-//    inside the bytes actually read.** §76: retail decodes `2 * len` bytes out
-//    of a buffer it filled with `len`, so the tail comes from whatever was on
-//    the stack. Ours and theirs decode from DIFFERENT stack frames with
-//    DIFFERENT stale contents, and the resulting `strlen` — and therefore the
-//    whole String, not just its tail — is legitimately allowed to differ.
-//
-//    This file does NOT hand-wave that as "compare up to the terminator". It
-//    DECIDES it, per string, from data both sides read identically: a string is
-//    DETERMINISTIC iff a terminator appears within the region actually read
-//    (a zero 16-bit unit fully inside `[0, len)` on the UTF-16 arm, a zero byte
-//    inside `[0, len)` on the raw arm). Deterministic strings are compared
-//    strictly. Non-deterministic ones are counted and reported by name in the
-//    census line, and excluded from the verdict. A run in which that count is
-//    zero has NO exclusion in force at all, and says so.
+// §76: retail decodes `2 * len` bytes out of a buffer it filled with `len`, so
+// the tail of a string whose real data does not terminate inside the bytes
+// actually read comes from whatever was on the stack. A string is
+// DETERMINISTIC iff a terminator appears within the region actually read
+// (a zero 16-bit unit fully inside `[0, len)` on the UTF-16 arm, a zero byte
+// inside `[0, len)` on the raw arm). ReadStringUtf16 and ReadStringRaw return
+// that answer; ReadPackfile does not use it.
 //
 // ---------------------------------------------------------------------------
-// §96. COVERAGE — READ THE CENSUS LINE, NOT THE `divergences=0`
+// §96. COVERAGE
 // ---------------------------------------------------------------------------
 // Two conditionals gate large amounts of code and a corpus of shipped `.pkg`
 // files probably cannot cover both sides of either (§72, §81):
@@ -211,11 +189,7 @@
 //     separate string implementations, TWICE (metadata and per-entry names),
 //     and in the entry loop the arms are in the OPPOSITE order.
 //
-// So this file counts, INSIDE ITS OWN BODY, how many times each arm was taken,
-// and prints them. A branch with `0` is UNTESTED and the report must say so; a
-// green run over one arm is not coverage of the other. Counting branches taken
-// inside the function rather than proxies observed outside it is the correction
-// §65 earned twice.
+// A green run over one arm is not coverage of the other.
 // ============================================================================
 
 #include <cstdint>
@@ -236,11 +210,6 @@
 #include "system/Configuration.h"   // System::kGameVersion (the uncompressed default)
 #include "system/Value.h"           // System::kColorWhite (the placeholder icon ink)
 
-// ---- the ported callees, called DIRECTLY --------------------------------
-// Every one of these is this lane's own port from an earlier rung. They are
-// called by name, not through a resolver door: a door here would only be a way
-// to reach the shipped body by accident
-// (reference_bypassed_port_needs_a_source_checker.md).
 namespace RtIO {
 }  // namespace RtIO
 
@@ -351,8 +320,7 @@ void BuildStringFrom(const uint8_t* buf, System::String& tmp) {
 // entry-loop use was the inlined Filename copy ctor of the entry's name.)
 
 // ---- §95's determinism test ------------------------------------------------
-// "Did a terminator appear inside the bytes actually read?" — decided from data
-// both sides read identically, so the answer itself cannot diverge.
+// "Did a terminator appear inside the bytes actually read?"
 bool Utf16TerminatorInRead(const uint8_t* buf, int32_t len) {
     for (int32_t i = 0; i + 1 < len; i += 2)
         if (buf[i] == 0 && buf[i + 1] == 0) return true;
@@ -853,8 +821,7 @@ bool PackageFile::ReadPackfile(const System::Filename& name) {
 teardown:
     // §70 proves this Commit is unreachable on the read path: `?Open@` sets
     // direction = 0 and only direction == 1 gets here. The GUARD is
-    // transcribed and the arm is COUNTED, so "provably dead" is measured on
-    // every run rather than asserted once.
+    // transcribed.
     if (cs->_headerSize > 0 && cs->_direction == 1) {          // 1800b6023/29
         cs->Commit();                                          // 1800b6035
     }

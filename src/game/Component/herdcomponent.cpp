@@ -25,7 +25,7 @@
 
 // graphics/Mesh.h FIRST: it pulls src/engine/volume/Volume.h, whose
 // global-scope `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()` once
-// <windows.h> has been seen through resolve.h.  ENDGAME B.3.5 caller batch I2.
+// <windows.h> has been seen.  ENDGAME B.3.5 caller batch I2.
 #include "graphics/Mesh.h"
 #include "err_line.h"   // HITCH_POSTDRAIN: one write per diagnostic line
 #include "Component/HerdComponent.h"
@@ -37,9 +37,9 @@
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "Game/Map.h"              // Map::size (GameUpdateLoop::m_game)
 #include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
-#include "Action/exe_bodies.h"            // Pf_HerdStartMigration_122340
-#include "Game/exe_bodies.h"              // Reimpl_MapGetTerrainPos
-#include "Player/exe_bodies.h"            // ToolTile_SetTransformFromYaw_3870
+#include "Action/exe_bodies.h"
+#include "Game/exe_bodies.h"
+#include "Player/exe_bodies.h"
 #include "Entity/ComponentEntity.h"   // ComponentEntity(ComponentDescription*) (0x1400c3720)
 #include "Entity/EntityList.h"        // EntityList::RegisterEntity (0x1400c48a0)
 #include "Entity/ComponentEntity.h"
@@ -67,7 +67,7 @@
 // ============================================================
 //   0x140053f20 PopulationComponent::HerdCellFood     -- food availability check (below)
 //   0x140121450 HerdComponent::AdjustSize             -- adjusts herd population (below)
-//   0x140122340 Pf_HerdStartMigration_122340          -- starts herd migration
+//   0x140122340 HerdComponent::StartMigration         -- starts herd migration
 //   0x140121980 HerdComponent::CheckMigrationDone     -- checks if migration complete (below)
 // .rdata (Game/exe_constants.h):
 //   0x140172234 = 300.0f — the minutes->seconds scale every herd/growth timer multiplies its
@@ -78,21 +78,20 @@
 //
 // Sub-helpers used by AdjustSize (deep spawn path), by name:
 //   0x1400c3720 ComponentEntity(ComponentDescription*)   import slot 0x140152a30 Math::Vector3(x,y,z)
-//   0x14009f3e0 Reimpl_MapGetTerrainPos                  0x14012e510 WildAnimalComponent::SetHerd (below)
-//   0x1400c48a0 EntityList_RegisterEntity_Impl           0x140106b10 AnimalComponent::IsInWanderBox (below)
+//   0x14009f3e0 Map::GetTerrainPos                       0x14012e510 WildAnimalComponent::SetHerd (below)
+//   0x1400c48a0 EntityList::RegisterEntity               0x140106b10 AnimalComponent::IsInWanderBox (below)
 //   0x140107400 is AnimalComponent::Place in this file.
 // .rdata: 0x140172220 = 180.0f, spawn yaw scale; 0x140172110 = 0.4f, populate jitter.
 // Deps of AnimalComponent::Place (0x140107400), by name:
 //   0x140003f60 FindComponent<ModelComponent>
-//   0x140003870 ToolTile_SetTransformFromYaw_3870    0x1400c2b70 ComponentEntity::SendEvent
+//   0x140003870 ModelComponent::SetTransformFromYaw  0x1400c2b70 ComponentEntity::SendEvent
 //   0x1400c3470 ComponentEntity::RefreshEntityFlags  0x140107320 AnimalComponent::UpdateBehavior
 // DynArray<InternalBasePtr> ops used by OnAdd/OnRemove: 0x140003110 was
 // Collection::Array<void*>::SetSize(n, fill) monomorphised into the exe (ENDGAME B.3.2
 // step 2) — converted at its call sites below; 0x140002cc0 is Array<T>::Remove
 // (DynArray8_EraseByValue).
 //
-// LEFT (B.4 P2 COMP-45): 0x140003870 (ModelComponent's transform-from-yaw) is PLAYER's
-// free body taking an integer receiver (wave X).
+// 0x140003870 is ModelComponent::SetTransformFromYaw (body in Player/tool_base_tile.cpp).
 
 // Reimpl of FUN_140106b10: per-animal "has this animal reached its migration target
 // tile?" test. Finds the CharacterComponent on the owning entity (0x1400012d0), reads
@@ -308,7 +307,6 @@ void HerdComponent::AdjustSize(int targetSize) {
         HerdComponent* self = this;
         wild->SetHerd(&self);   // 0x14012e510
 
-        // LEFT: GameUpdateLoop::m_entityList is void* (W0 header); the forwarder takes it.
         GameUpdateLoop::_singleton->m_entityList->RegisterEntity(&entity,
                                        descr->_category);   // 0x1400c48a0
         if (members._size <= countBefore) {
@@ -402,9 +400,8 @@ void HerdComponent::Populate(int count) {
 
     // StartMigration picks the grazing tile into +0x4c, or leaves -1 when the
     // herd's cell has no habitable ground at all (a water/mountain cell — a
-    // normal outcome, and also what an unregistered StartMigration looks like).
-    // Retail never guards this because its StartMigration always runs; without
-    // the check every tile computed below would be negative.
+    // normal outcome). Retail never guards this; without the check every tile
+    // computed below would be negative.
     int mapDim = map ? map->size : 0;
     if (mapDim <= 0 || tile < 0) {
         return;
@@ -489,7 +486,6 @@ void HerdComponent::Populate(int count) {
         HerdComponent* self = this;
         wild->SetHerd(&self);   // 0x14012e510
 
-        // LEFT: GameUpdateLoop::m_entityList is void* (W0 header); the forwarder takes it.
         gw->m_entityList->RegisterEntity(&entity, descr->_category);   // 0x1400c48a0
         spawned++;
     }

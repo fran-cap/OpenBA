@@ -14,9 +14,12 @@
 //
 // Both `MainLoop` members are the DEVICE-LOST PAIR: `OnVideoError` tears the
 // GPU-side resources down after the device is gone, `OnVideoRestart` rebuilds
-// them. Their only callers in the whole process are the two static thunks the
-// `MainLoop` ctor installs into `Video::Device` +0x50 / +0x58, which
-// src/render/dx11/contextdata.cpp invokes off the Present-failure path.
+// them. Their callers are the two static thunks the `MainLoop` ctor installs
+// into `Video::Device` +0x50 / +0x58, which the renderers invoke off their
+// device-lost paths (src/render/dx11/contextdata.cpp, render_pipe_finish.cpp,
+// src/render/vulkan/device.cpp), the options dialog's full video restart
+// (src/game/Dialog/optionsdialog.cpp) and ext.render_backend's backend switch
+// (src/ext/render_backend/render_backend.cpp).
 //
 // ---------------------------------------------------------------------------
 // 1. THE INHERITED BLOCKER WAS STALE, AND SO WAS HALF OF ITS REPLACEMENT
@@ -37,11 +40,10 @@
 //   0x1800be9d0  ?FindNext@ExternalFactory@Object@@         ours
 //   0x1800f16e0  ??1Context@Video@@                         ours
 //   0x180033880  ~Array<VideoResource>                      ours (array_destroy.cpp)
-//   0x18004f620  Array<VideoResource>::SetSize(n, fill)     THE ONLY ONE LEFT
+//   0x18004f620  Array<VideoResource>::SetSize(n, fill)     ours (below)
 //
-// ENGIO'S COUNT HOLDS. `0x18004f620` is closed below, and it needs one further
-// address, `0x180034440`, which is ALREADY PORTED and deliberately unregistered
-// — see §3. So `OnVideoError` closes with ZERO new address doors.
+// ENGIO'S COUNT HOLDS. `0x18004f620` is ported below, and it needs one further
+// address, `0x180034440`, which array_destroy.cpp already ports — see §3.
 //
 // `OnVideoRestart` has eight as well, and here ENGIO's list is right in
 // substance but its arithmetic ("4 of 8") is not reproducible:
@@ -50,138 +52,54 @@
 //   0x1800c6970  ?AdjustDelimiters@Filename@System@@        ours
 //   0x1800c7ad0  ?MemFree@MemoryAllocator@System@@          ours
 //   0x1800c6c00  ?Free@MemoryAllocator@System@@             ours
-//   0x180034440  elem-destroy(String) stride 0x18           ours after §3
-//   0x1800bc620  ?Load@External@Object@@                    NOT OURS
-//   0x1800bec10  ?GetCompiledPath@ExternalFactory@Object@@  NOT OURS
-//   0x1800c0f10  ?OnVideoRestart@SaveLoad@Save@@            NOT OURS
+//   0x180034440  elem-destroy(String) stride 0x18           ours (§3)
+//   0x1800bc620  ?Load@External@Object@@                    ours
+//   0x1800bec10  ?GetCompiledPath@ExternalFactory@Object@@  ours
+//   0x1800c0f10  ?OnVideoRestart@SaveLoad@Save@@            ours
 //
-// FIVE of eight are ours, not four — and the three that are not are exactly the
-// three ENGIO named. The correction is small and it is written down only
-// because a number nobody re-derives is a number that gets inherited again.
-//
-// ---------------------------------------------------------------------------
-// 2. WHAT PORTING `OnVideoRestart` COSTS, MEASURED BEFORE IT WAS WRITTEN
-// ---------------------------------------------------------------------------
-// The three above are EXPORTED — ordinals 3202, 2496 and 3296, read out of the
-// shipped export directory with pefile — and `tools/unsatisfied_export_scan.py`
-// says NOTHING in our tree resolves any of them today. So this port closes one
-// name and opens three:
-//
-//     unsatisfied 117 -> 119   (-OnVideoRestart@MainLoop, +Load@External,
-//                               +GetCompiledPath@ExternalFactory,
-//                               +OnVideoRestart@SaveLoad)
-//
-// That is a REGRESSION on the wave's headline metric, taken deliberately, for
-// one reason: all three are NAMED doors that the scanners can see and count,
-// while the thing they replace — a whole exported member living on the DLL —
-// is invisible to them. Trading one silent dependency for three loud ones is
-// the direction PLAN §5 wants, but a reader who sees 117 become 119 and is not
-// told why will read it as damage.
-//
-// `OnVideoError` carries no such cost: 117 -> 116, and every one of its callees
-// is ours.
+// All eight are ported: `Load` and `GetCompiledPath` in src/engine/object/
+// (external_load.cpp, external_compiled.cpp), `SaveLoad::OnVideoRestart` in
+// src/engine/save/saveload_update.cpp.
 //
 // ---------------------------------------------------------------------------
-// 3. WHY `0x180034440` IS REGISTERED FROM *THIS* FILE
+// 3. `0x180034440`, DEFINED IN *THIS* FILE
 // ---------------------------------------------------------------------------
 // `array_destroy.cpp` already PORTS this body — it is Body B with `kD_Str_18`
 // (stride 0x18, one String at +0x10), and 0x180033880, which this file also
-// calls, reaches it through that same spec. It is one of "the eight
-// ported-but-unregistered helpers" that file lists, and the stated reason for
-// leaving it unregistered was exact and was true until today: nothing in our
-// tree reached it BY ADDRESS, and a registration nothing calls reports calls=0
-// forever (reference_uncalled_port_is_not_verified.md).
+// calls, reaches it through that same spec.
 //
-// Two things in this file now reach it by address — `SetSizeCore`'s destroy arm
-// for `kSpec_VideoResource`, and `OnVideoRestart`'s own tail — so the reason is
-// discharged, exactly as it was for 0x1800419b0 / 0x180011010 (lane UIW) and
-// 0x180026b50 (lane DESTROY).
-//
-// It is registered HERE rather than as a sixth `B_ENTRY` in array_destroy.cpp
-// only to keep this lane out of a 900-line file another live lane is editing in
-// the same wave. The BODY IS NOT DUPLICATED: `ReleaseStringsCore` and
-// `kD_Str_18` are reached through array_destroy_internal.h, which exists for
-// exactly this reuse and already has a third includer (set_clear.cpp) for the
-// same reason.
-//
-// INTEGRATOR: if any other lane also registers 0x180034440 this wave, the two
-// registrations SHADOW and the later binding wins, silently making one body
-// dead code (reference_grep_for_the_port_before_writing_it.md). Grep for it
-// across the merged tree; tools/addr_door_audit.py reports SHADOWED addresses.
+// Two things in this file call it — `SetSizeCore`'s destroy arm for
+// `kSpec_VideoResource`, and `OnVideoRestart`'s own tail. The BODY IS NOT
+// DUPLICATED: `ReleaseStringsCore` and `kD_Str_18` are reached through
+// array_destroy_internal.h.
 //
 // ---------------------------------------------------------------------------
-// 4. THE ELEVEN `_typeInfo` GLOBALS, AND WHY SEVEN WERE NOT IN THE MINT
+// 4. THE ELEVEN `_typeInfo` GLOBALS
 // ---------------------------------------------------------------------------
 // `OnVideoError` opens by building a `Collection::Array<int>` of ten resource
-// type ids, each read as the FIRST DWORD of an `Object::BaseTypeInfo` static.
-// Lane ENGIO flagged these as unchecked against the mint. Checked — it is a
-// real gap with a benign cause:
+// type ids, each read as the FIRST DWORD of an `Object::BaseTypeInfo` static;
+// the eleventh is the External record FindNext filters on:
 //
-//   0x1801fa548  ImageBuffer@Video              ord 4872   MINTED
-//   0x1801fa698  VertexProgram@Video            ord 4925   not minted
-//   0x1801fa580  PixelProgram@Video             ord 4894   not minted
-//   0x1801fa5f0  RenderState@Video              ord 4901   not minted
-//   0x1801fa660  VertexLayout@Video             ord 4924   not minted
-//   0x1801fa5b8  VideoProgram@Video             ord 4926   not minted
-//   0x1801f99b0  EdgeMesh@Graphics              ord 4853   MINTED
-//   0x1801fa708  GraphicsMesh@Graphics          ord 4869   MINTED
-//   0x1801f9a90  ReflectionImageBuffer@Graphics ord 4900   not minted
-//   0x1801f99e8  FrameCopyImageBuffer@Graphics  ord 4863   not minted
-//   0x1801f9b38  External@Object (FindNext's)   ord 4859   MINTED
+//   0x1801fa548  ImageBuffer@Video              ord 4872
+//   0x1801fa698  VertexProgram@Video            ord 4925
+//   0x1801fa580  PixelProgram@Video             ord 4894
+//   0x1801fa5f0  RenderState@Video              ord 4901
+//   0x1801fa660  VertexLayout@Video             ord 4924
+//   0x1801fa5b8  VideoProgram@Video             ord 4926
+//   0x1801f99b0  EdgeMesh@Graphics              ord 4853
+//   0x1801fa708  GraphicsMesh@Graphics          ord 4869
+//   0x1801f9a90  ReflectionImageBuffer@Graphics ord 4900
+//   0x1801f99e8  FrameCopyImageBuffer@Graphics  ord 4863
+//   0x1801f9b38  External@Object (FindNext's)   ord 4859
 //
-// All eleven are EXPORTED DATA. None is "unexported", which the note in
-// engine.cpp asserts twice; corrected there in place (PLAN §6 step 8).
-//
-// THE CAUSE IS NOT A DEFECT IN THE MINT. tools/rt_mint_gen.py does not read a
-// frozen list: it shells out to tools/runtime_census.py and mints the DLL data
-// OUR TREE REFERENCES. Nothing referenced these seven, so nothing minted them.
-// This port references all eleven through `RT_DATA_SLOT`, which the census DOES
-// see (RE_MACRO_DOOR, added after the blind spot in
-// reference_census_cannot_see_the_macro_doors.md), so REGENERATING THE MINT
-// AFTER THIS PORT ADDS THE SEVEN ROWS. That regeneration is part of this lane's
-// commit and its before/after is in the lane doc — a port that referenced them
-// and left the mint alone would have moved `unsatisfied` by +7 and closed
-// nothing. Measured, not predicted: BaseTypeInfo rows 46 -> 53 on this tree.
-//
-// THIS BANNER SAID SIX UNTIL THE REGENERATION SAID SEVEN. The six was written
-// by counting the table above by eye and it was wrong by one -- the exact
-// failure this wave keeps finding, a number nobody re-measured. The
-// generator's own output is the source of the seven.
-//
-// This is reference_porting_can_grow_the_cutover_surface.md a fourth time in
-// Wave 9, and the generator's own banner predicts it.
+// All eleven are EXPORTED DATA, reached here as each class's `TypeId()`.
 //
 // ---------------------------------------------------------------------------
-// 5. THE ORACLE, AND WHY IT IS THREE DIFFERENT KINDS
+// 5. DRIVING IT
 // ---------------------------------------------------------------------------
-// REPLAY IS INVALID for both members, and not marginally: `OnVideoError`
-// destroys the `Video::Context` and releases every GPU resource in the process,
-// and `OnVideoRestart` recreates them. Running ours then theirs would double-
-// free the context on the first call and crash before a byte could be compared.
-// So:
-//
-//   * `Array<VideoResource>::SetSize` — FULL BYTE-EXACT REPLAY against the
-//     SHIPPED body on a synthetic array, through the existing
-//     src/engine/collection/array_probe.cpp (ONE row added to
-//     `kJ3NonTrivial`). That probe already carries the effectiveness counters,
-//     the seeded non-zero element fill, the unwritten-extent windows and the
-//     `WrongSetSize` negative control, so the strongest oracle in this lane
-//     cost one table row and nothing was re-derived. This is the part of the
-//     lane that is VERIFIED rather than merely exercised.
-//
-//   * `OnVideoError` / `OnVideoRestart` — SHADOW oracles on the post-conditions
-//     their callees guarantee, in the shape `RtEngine_MainLoop_Dtor` uses in
-//     engine.cpp. Every term is read back OUT of the object after the body and
-//     none is written by our own arithmetic: they are written by the ported and
-//     DLL helpers we called. That is what keeps the check from restating the
-//     code above it.
-//
-//   * COVERAGE — driven live by lane ENGIO's `BANISHED_FORCE_DEVICE_LOST=<n>`,
-//     which substitutes one synthetic DXGI_ERROR_DEVICE_RESET for a Present
-//     result and lets the real teardown/recreate run. READ `calls=` AND
-//     `worked=` on both sites: the pair runs ONCE per forced event, so a
-//     healthy run reports calls=1, and calls=0 here means the drive did not
-//     reach us — not that the port is fine.
+// `BANISHED_FORCE_DEVICE_LOST=<n>` (src/app/options.h) injects one device loss
+// on Present #n (DXGI_ERROR_DEVICE_RESET on dx11, VK_ERROR_DEVICE_LOST on
+// Vulkan) and lets the real teardown/recreate run, which calls this pair once.
 // ============================================================================
 
 #include <cstdint>
@@ -212,15 +130,6 @@
 #include "video/Context.h"     // B3R: RtVideo_Context_Dtor
 #include "collection/Collection.h"   // B3R: rtcoll::RtColl_ArrayDtorElem_180033880
 
-// ----------------------------------------------------------------------------
-// ResolveAddr, forward-declared rather than pulled in from standalone/resolve.h
-// ----------------------------------------------------------------------------
-
-// ----------------------------------------------------------------------------
-// Ported callees in other translation units of this same port, declared rather
-// than pulled through a header — the convention external_set.cpp states, since
-// a header per free function is a header per function.
-// ----------------------------------------------------------------------------
 // ENDGAME B.3.1 step 2: the two Filename entry points this file used to
 // forward-declare (`CtorCopy` 0x1800067d0 and `AdjustDelimiters` 0x1800c6970)
 // are members of `System::Filename` now and are reached as such — the copy ctor
@@ -241,9 +150,9 @@
 // put there. A parameter three unrelated callers never set is not a parameter.
 //
 // One function serves two jobs on purpose: it IS `kSpec_VideoResource`'s
-// destroy arm (its signature is `rtcoll::ElemDestroy` exactly) and it IS the
-// registered entry point for the address. Two spellings of one body would be
-// two places for the spec to drift from the registration.
+// destroy arm (its signature is `rtcoll::ElemDestroy` exactly) and it IS what
+// `OnVideoRestart`'s step 7 calls. Two spellings of one body would be two
+// places for them to drift apart.
 extern "C" void RtEngine_VideoResourceDestroyRange_180034440(void* ignoredThis,
                                                              uint8_t* base, int count) {
     (void)ignoredThis;
@@ -278,8 +187,7 @@ using RtEngine::VideoResourceEntry;
 //
 // Each is the FIRST DWORD of an `Object::BaseTypeInfo`: retail issues
 // `MOV EAX, dword ptr [<addr>]`, a 4-byte load at offset 0 of the object, not a
-// pointer load. Reached BY NAME so unsatisfied_export_scan and the mint
-// generator can both see the dependency (§4).
+// pointer load. Reached as each class's `TypeId()` (§4).
 // ---------------------------------------------------------------------------
 uint32_t TypeIdImageBuffer() {
     return Video::ImageBuffer::TypeId();     // ENDGAME B.3.9 TI-REST
@@ -415,7 +323,6 @@ const ArraySpec kSpec_VideoResource = {           // 0x18004f620
 // crash with a null check"). If either faults, the fault is upstream and that
 // is the bug worth finding.
 //
-// ORACLE: shadow. Replay is invalid — see §5.
 // EXT SEAM (NOT RETAIL, docs/extensions/handins/HITCH_SAVESNAP.md, HITCH_BGSAVE.md): ext.background_save's barrier, null by default (MainLoop.h).
 Engine::MainLoop::ExtVideoErrorBarrierFn Engine::MainLoop::_extVideoErrorBarrier = nullptr;
 Engine::MainLoop::ExtVideoLostFn Engine::MainLoop::_extVideoLost = nullptr;
@@ -603,15 +510,6 @@ void Engine::MainLoop::OnVideoError() {
     // point, unlike the always-empty stack temp in audio.cpp's equivalent
     // case), so nothing is added here beyond the retyping above.
 
-    // ---- oracle -----------------------------------------------------------------
-    // Three post-conditions, none of them produced by the arithmetic above:
-    // `_context` is nulled here but the DESTRUCTION is the DLL's ~Context and
-    // the free is the allocator's; `types` is emptied by its own destructor at
-    // scope exit; and `_videoResources` must be left self-consistent by
-    // SetSizeCore. The last term is the one with teeth — `_size <= _capacity`
-    // with a non-null `_data` whenever `_size > 0` is a property SetSizeCore
-    // could violate and this body cannot fake, because it never writes those
-    // three fields itself.
 }
 
 // ============================================================================
@@ -621,9 +519,7 @@ void Engine::MainLoop::OnVideoError() {
 //
 //   1. `CreateVideoContext(MainLoop::_singleton)` — note the SINGLETON, not
 //      `this`: 0x1800dc3d3 loads 0x1801fe750 into RCX. They are the same object
-//      in every run we have, and the port keeps the indirection anyway, because
-//      "they are always equal" is exactly the assumption that stops being true
-//      at cutover.
+//      in every run we have, and the port keeps the indirection anyway.
 //   2. `_currentLoop`'s vtable +0x48.
 //   3. `Save::SaveLoad::OnVideoRestart(SaveLoad::_singleton)`.
 //   4. for each recorded resource: look its type id up in `Object::Factory`'s
@@ -640,12 +536,10 @@ void Engine::MainLoop::OnVideoError() {
 // Steps 4-5 are ONE loop in retail and 6 is a SECOND loop over the same array
 // (0x1800dc410 and 0x1800dc4b0 are separate loop heads with separate counters).
 // The two are not merged here. Merging them would re-bind and re-Load each
-// resource in a different interleaving, and `External::Load` is not ours, so
-// nothing in this tree could tell us whether that mattered.
+// resource in a different interleaving.
 //
-// THE AVL LOOKUP IN STEP 4 IS TRANSCRIBED, NOT TYPED. `Object::Factory`'s node
-// layout is not in our tree, and minting a header for four offsets read once
-// would be a second place for them to drift. The listing
+// THE AVL LOOKUP IN STEP 4 is `Set::Find` over `Object::Factory::_types`
+// (TypeInfo.h). The listing
 // (0x1800dc418..0x1800dc444) is unambiguous: root at `[singleton+0x00]`, key as
 // an UNSIGNED dword at `[node+0x00]`, left at `[node+0x38]`, right at
 // `[node+0x40]`, value at `[node+0x10]`. The comparison is `JC`/`JNC` — a pair
@@ -660,8 +554,6 @@ void Engine::MainLoop::OnVideoError() {
 // from `OnVideoError` step 3 recording a class the Factory does not know. Kept
 // faithful.
 //
-// ORACLE: shadow. Replay is invalid — running theirs after ours would create a
-// second Video::Context and re-Load every resource.
 void Engine::MainLoop::OnVideoRestart() {
 
     Collection::Array<VideoResourceEntry>& arr = _videoResources;
@@ -728,8 +620,8 @@ void Engine::MainLoop::OnVideoRestart() {
         for (int i = 0; i < arr._size; ++i) {
             VideoResourceEntry* const r = &arr._data[i];
             System::Filename compiled = ::Object::ExternalFactory::GetCompiledPath(r->_path);
-            // External::Load's entry point still takes the RtObject::External
-            // POD (external_load.cpp; X-R1's mirror family).
+            // External::Load's entry point is `RtObject_External_Load`
+            // (external_load.cpp), declared in External.h.
             RtObject::RtObject_External_Load(&compiled, r->_object);
             // `compiled` releases here — retail's 0x1800dc4fe, now ~Filename.
         }
@@ -747,9 +639,4 @@ void Engine::MainLoop::OnVideoRestart() {
     arr._size = 0;
     // _capacity is DELIBERATELY not touched — see the banner.
 
-    // ---- oracle ---------------------------------------------------------------------
-    // `capKept` is the term worth having: it is the only one whose expected
-    // value is a STALE number rather than a zero, so a port that "tidied up" by
-    // clearing _capacity fails here and nowhere else. `contextOk` is not our
-    // own write either — CreateVideoContext stores it.
 }

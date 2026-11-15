@@ -2,8 +2,8 @@
 // BANISHED_STRESS — large-scale stress test + performance baseline. See stress_harness.h
 // for the knob list. Three responsibilities live here:
 //
-//   1. ENV BUNDLE (StressHarness_Init, from WinMain before anything reads env): turn the
-//      single BANISHED_STRESS=1 into the autostart/medium-map/uncapped/pinned-camera
+//   1. ENV BUNDLE: src/app/options.cpp's ApplyStressDefaults turns the single
+//      BANISHED_STRESS=1 into the autostart/medium-map/uncapped/pinned-camera
 //      configuration a baseline needs, without overriding anything the user set.
 //      The WORLD content (buildings, citizens, food) is built by starttown.cpp, which
 //      asks this module for its targets — see StartTown_StressSpawnStructures and the
@@ -39,7 +39,7 @@
 #include <vector>
 #include "Component/CitizenAIComponent.h"
 #include "Component/CitizenComponent.h"
-#include "Component/exe_bodies.h"   // AttendanceComponent_GetJobHostComponent (0x140002e10)
+#include "Component/exe_bodies.h"   // CitizenEmploy_SeatWorkers
 #include "Work/exe_bodies.h"
 #include "Entity/ComponentEntity.h"         // B4: FindComponent<T>
 #include "Entity/EntityList.h"              // B4: GameUpdateLoop::m_entityList
@@ -2049,7 +2049,7 @@ extern "C" void CompProf_End(int slot, long long qpcTicks) {
 
 // OFFSCREEN (char_prof.h). Token 0 = not counted, 1 = a CharacterComponent tick, 2 = the
 // ModelComponent tick of an entity that has a CharacterComponent, 3 = a StateMachineComponent
-// tick (SMMEMO's /sm row).
+// tick (SMMEMO's /sm row), 4 = a ParticleComponent tick (PARTREPEAT's /part row).
 extern "C" int CharProf_Begin(Object::Base* comp, int slot) {
     if (slot < 0) return 0;
     CharProfResolveTids();

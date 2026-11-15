@@ -21,13 +21,13 @@
 // its single non-CheckPtr callee is 0x14002ac40, which frees memory and decrements the
 // element count.  It is erase(key).  Both of its callers are one-line vtable thunks that
 // forward the SAME tree object:
-//   0x1400eff50 (Ghidra "MarketWork_OnCreate", MarketWork vtable Slot6)
+//   0x1400eff50 (Ghidra "MarketWork_OnCreate", MarketWork vtable Slot7)
 //        -> MarketWork_sub_aaa0(this + 0x48, keyIBP); returns void
-//   0x1400eff60 (Ghidra "MarketWork_Draw",     MarketWork vtable Slot7)
+//   0x1400eff60 (Ghidra "MarketWork_Draw",     MarketWork vtable Slot6)
 //        -> MarketWork_sub_aaa0(this + 0x48, keyIBP); returns 0 (undefined1 -> bool false)
 // So Slot6 and Slot7 do the same work and differ only in the return value -- the classic
 // Work "CancelWork(entity)" / "RemoveWork(entity) -> bool" pair.  Naming either of them
-// "insert" in marketwork.cpp's typedef table would be wrong, and Ghidra's undefined1
+// "insert" would be wrong, and Ghidra's undefined1
 // return on 0x1400eff60 is a REAL return value, not void (trap #3).
 //
 // ---------------------------------------------------------------------------
@@ -63,22 +63,21 @@
 // * Ghidra shows 0x14002aee0 as (undefined8 param_1, void *param_2) and never uses
 //   param_1.  That is correct and deliberate: aee5 homes RDX, and the RCX home slot is
 //   never loaded back.  RCX is a DEAD parameter (the callee is a node destructor that
-//   ignores its "this").  Kept in the exported signature so the registered function is
-//   ABI-identical to retail.
+//   ignores its "this").  Kept in the signature, typed as the owning tree.
 // * 0x14002ac40's "right == 0" path does NOT call 0x14002aee0 -- the compiler INLINED the
 //   destructor there (acbc-acd1).  Same stores, same order; shared here as DestroyNodeBody.
 //
 // ---------------------------------------------------------------------------
 // Cross-check
 // ---------------------------------------------------------------------------
-// 0x14002ac40 is the 0x38-node twin of 0x140025740 (PlayerTrade_BSTRemove_25740, ported
-// in src/game/Player/tool_base_trade.cpp), which does the identical unlink dance on the
-// simpler 0x20-node tree.  The only structural difference is the payload free at +0x08.
+// 0x14002ac40 is the twin of 0x140025740 (Avl38Remove, ported in
+// src/game/Player/tool_base_trade.cpp), which does the identical unlink dance on the
+// same 0x38-byte node shape.  The only structural difference is the payload free at +0x08.
 // The two ports were derived independently and agree instruction-for-instruction on the
 // unlink/rebalance logic, which is the strongest available check on this one.
 //
 // ---------------------------------------------------------------------------
-// Runtime primitives (reached through .rdata dispatch slots, exactly as retail does)
+// Runtime primitives (retail reaches them through .rdata dispatch slots)
 // ---------------------------------------------------------------------------
 //   [0x140152b68] System::MemoryAllocator::MemFree  (static 1-arg)
 // B3R: called by name. The REDZONE / ALLOC_STATS instruments sit on the allocator's
@@ -156,8 +155,6 @@ extern "C" void MarketBst_ac40(MarketWork::ClaimTree* tree, MarketWork::ClaimNod
     // ac6a: DEC dword ptr [RCX+8].  The count really is a 32-bit field sharing the
     // header's second 8-byte slot -- this is a 4-byte RMW in retail, NOT a narrowed
     // 8-byte store (trap #2 cuts both ways: widening it would smash the upper half).
-    // (The Set container is two raw fields of MarketWork: the count is reached from
-    // the root field's address: LEFT.)
     tree->count -= 1;
 
     ClaimNode* const right = z->right;
@@ -265,11 +262,10 @@ extern "C" void MarketBst_ac40(MarketWork::ClaimTree* tree, MarketWork::ClaimNod
 //   aada  MOV RAX,[RDI] / aadd CMP [RBX],RAX / aae0 JNC ab01  ; node.key >= key -> HIT
 //   aae2  MOV RBX,[RBX+0x28]                 ; else RIGHT
 //
-// Both CheckPtr calls sit BEFORE the read they protect, and CheckPtr may rewrite the
-// InternalBasePtr in place (that is its whole job -- it revalidates a weak handle).  So
-// both keys are RE-READ after each CheckPtr rather than cached in a local; caching would
-// compare stale handles.  The asymmetry (node revalidated every iteration, keyIBP only on
-// the >= arm) is retail's, and is preserved.
+// Both CheckPtr calls sit BEFORE the read they protect.  CheckPtr is a bare RET
+// (object/Internal.h), so neither call is reproduced here; both keys are read fresh at
+// each compare.  The asymmetry (node checked every iteration, keyIBP only on the >= arm)
+// is retail's.
 //
 // Reaching the hit arm means key >= node.key AND node.key >= key, i.e. equality.
 extern "C" void MarketBst_aaa0(MarketWork::ClaimTree* tree, CitizenComponent** key) {

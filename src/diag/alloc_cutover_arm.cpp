@@ -14,7 +14,7 @@
 // and therefore take no lock, exactly as retail's do. The instrument seat's pair
 // below composes them with the allocator critical section at self+0x640 (and the
 // ALLOCSTATS record and the teardown heap check). Composing it here rather than
-// inside the port keeps runtime/src free of <windows.h> and free of non-retail
+// inside the port keeps src/engine free of <windows.h> and free of non-retail
 // behaviour. (B3R W2-RES: the composed pair used to be handed back through the
 // cutover armer for registration under ?Allocate@ / ?Free@; the registry is
 // gone, and SwapAllocate, whose one use that was, with it.)
@@ -32,13 +32,13 @@
 #include <cstdint>
 #include <cstdio>
 
-#include "system/MemoryAllocator.h"   // -Iruntime/types
+#include "system/MemoryAllocator.h"   // -Isrc/engine
 #include "options.h"
 #include "alloc_cutover_arm.h"        // RtAllocInstrument_MemAlloc / _MemFree (B3R W2-EZ)
 
 using rt::system::MemoryAllocator;
 
-// allocator_lock.cpp / redzone_alloc.cpp — the diagnostics the composed stub
+// alloc_stats.cpp / redzone_alloc.cpp — the diagnostics the composed stub
 // must keep, in the order the lock's own wrappers ran them.
 extern "C" void RedzoneAlloc_TeardownOp(const char* what);
 extern "C" void AllocStats_RecordAlloc(void* p, uint64_t size, void* caller);

@@ -4,11 +4,12 @@
 // EditTool (0x38 bytes) extends Tool (0x28 bytes) directly.
 // Handles entity selection and editing in-game.
 //
-// Vtable at 0x140161ca0 (13 slots). Four are reimplemented here:
-//   Slot0   Dtor       (0x14002db00) — scalar deleting destructor
+// Vtable at 0x140161ca0 (14 slots). Four are reimplemented here:
+//   Slot5   Shutdown   (0x1400fd2e0) — deselect + close the info dialog
 //   Slot6   OnKey      (0x1400fd030) — entity selection via ray picking
-//   Slot7   Startup    (0x1400fcda0) — dialog positioning near entity
-//   Slot10  Serialize  (0x1400fd290) — compare entity reference
+//   Slot7   Update     (0x1400fcda0) — dialog positioning near entity
+//   Slot10  IsSelected (0x1400fd290) — compare entity reference
+// Slot0, the scalar deleting destructor (0x14002db00), is defaulted in EditTool.h.
 //
 // Decompiled from Application-x64.exe.
 
@@ -84,18 +85,18 @@ bool EditTool::IsSelected(ComponentEntity* const* ref) {
 }
 
 // ============================================================
-// Exe helpers for Startup and OnKey, called by name (Player/exe_bodies.h unless
+// Exe helpers for Update and OnKey, called by name (Player/exe_bodies.h unless
 // noted):
-//   0x140100380 PlayerScreenRect_Entity_0380 -- entity screen bounding rectangle
-//   0x140098210 PlayerScreenRect_WorldToScreen_098210 -- project a world Vector3
-//               through the camera (citizen fallback, TryProjectEntityModelPos)
+//   0x140100380 PlayerScreenRect_EntityRect_0380 -- entity screen bounding rectangle
+//   0x140098210 PlayerController::WorldToScreen (Game/PlayerController.h) -- project a
+//               world Vector3 through the camera (citizen fallback, TryProjectEntityModelPos)
 //   0x140066800 EntityUI::SetPinned -- check the pin box, sync the pin
 //   0x1401005a0 PlayerRay_GetMouseRay_1005a0 -- camera ray from the mouse position
-//   0x1400aa530 PlayerRay_TerrainMarch_aa530 -- map hit test (was a dropped-page
-//               typo 0x14010a530 once; the CALL at 0x1400fd12a in EditTool_Draw)
-//   0x1400a0280 PlayerEdit_EntityAtCell_a0280 -- entity at a world cell
-//   0x1400fcb40 HighlightClear_Impl -- clear the selection highlight
-//   0x1400fd3b0 EditTool_SelectEntity_Impl (Dialog/exe_bodies.h)
+//   0x1400aa530 WorldGeometry::TerrainMarch (Game/WorldGeometry.h) -- map hit test (was a
+//               dropped-page typo 0x14010a530 once; the CALL at 0x1400fd12a in EditTool::OnKey)
+//   0x1400a0280 Map::EntityAtCell (Game/Map.h) -- entity at a world cell
+//   0x1400fcb40 EditTool::HighlightClear (tool_base_render.cpp) -- clear the selection highlight
+//   0x1400fd3b0 EditTool::SelectEntity (Dialog/edittool_select.cpp)
 // Import slots: 0x1401528a8 Volume::Rectangle's ctor (RtVolume_Rectangle_Ctor),
 // 0x140152a98 Object::Base::IsDerivedFrom (Object::IsDerivedFromNullSafe),
 // 0x140152a90 Object::InternalBasePtr's ctor (placement new).
@@ -106,7 +107,7 @@ bool EditTool::IsSelected(ComponentEntity* const* ref) {
 // ============================================================
 
 // ============================================================
-// EditTool::Startup (vtable +0x38, Slot7) — Dialog positioning near entity
+// EditTool::Update (vtable +0x38, Slot7) — Dialog positioning near entity
 // ============================================================
 // Gets dialog controller via IBP at self+0x28, casts with IsDerivedFrom
 // to ToolUI and PageToggleUI types. If ToolUI controller's flag at +0x40
@@ -114,13 +115,11 @@ bool EditTool::IsSelected(ComponentEntity* const* ref) {
 //
 // Original: 0x1400fcda0
 // Per-frame selection-outline follow re-sync (tool_base_render.cpp). Keeps a
-// moving selected entity's yellow outline glued to it as it walks. Self-gates on
-// BANISHED_SELECTION_OUTLINE, so it is a no-op on the shipping default path.
+// moving selected entity's yellow outline glued to it as it walks. A no-op when
+// nothing is selected or the selected entity's highlight is not active.
 extern "C" void HighlightFollow_Impl(EditTool* self);
 
-// Resolve the ModelComponent class type-id: prefer the raw .rdata DWORD; in the
-// standalone exe that constant is null, so fall back to the live factory tree by
-// name (the same reason 0x140003f60's registered reimpl finds nothing in SA).
+// Resolve the ModelComponent class type-id from the class's record.
 static uint32_t ModelComponentTypeId() {
     return ModelComponent::TypeId();   // ENDGAME B.3.8 callers: the class's record
 }
@@ -137,7 +136,7 @@ static bool TryProjectEntityModelPos(const ComponentEntity* entityObj, float* ou
     if (!entityObj) return false;
 
     // Scan the entity's components (+0x30 array, +0x38 count) for its ModelComponent.
-    // This mirrors 0x140003f60 with the type id taken from the factory tree.
+    // This mirrors 0x140003f60 with the type id from ModelComponent::TypeId().
     const uint32_t modelTid = ModelComponentTypeId();
     if (!modelTid) return false;
 
@@ -186,8 +185,8 @@ static bool TryProjectEntityModelPos(const ComponentEntity* entityObj, float* ou
 // Callers, as retail's: EditTool::Update (0x1400fcda0) on the dead-entity branch and
 // when the entity has no screen rect, and Shutdown (slot 5, the 0x1400fd2e0 thunk).
 void EditTool::CloseInfoDialog() {
-    // (1) clear selection highlight (0x1400fcb40, registered unconditionally by
-    // RegisterPlayerRenderBatch).
+    // (1) clear selection highlight (0x1400fcb40, EditTool::HighlightClear in
+    // tool_base_render.cpp).
     HighlightClear();
 
     // The open dialog, read once after the clear (0x1400fcc9e MOV RAX,[RBX+0x28]).
@@ -230,7 +229,7 @@ void EditTool::CloseInfoDialog() {
     fflush(stdout);
 }
 
-// One-shot bounded reposition tracer (BANISHED_SELECT_DIAG). Startup runs every
+// One-shot bounded reposition tracer (BANISHED_SELECT_DIAG). Update runs every
 // frame, so cap output to a handful of lines.
 static bool RepoDiag() {
     if (!SelDiagOn()) return false;
@@ -425,7 +424,7 @@ void EditTool::Update(const System::Time*, char) {
 // ============================================================
 // If param2 is true and tool is in a valid state, reads KeyMap,
 // computes camera ray, does map hit test + picking scene intersection
-// to find entities under cursor. Calls fn_EditTool_SelectEntity to
+// to find entities under cursor. Calls EditTool::SelectEntity to
 // select/deselect the found entity.
 //
 // Original: 0x1400fd030
@@ -483,7 +482,7 @@ char EditTool::OnKey(char param2) {
     PlayerRay_GetMouseRay_1005a0(keyMap, rayOrigin, rayDir);
 
     // Map hit test to find world position under cursor
-    // MUST be 4 floats, matching retail EditTool::Draw's `float local_58[4]` (0x1400fd030).
+    // MUST be 4 floats, matching retail EditTool::OnKey's `float local_58[4]` (0x1400fd030).
     // MapHitTest's callee (retail 0x1400aaa20) writes a full Vector3 through this out-param
     // on EVERY call, hit or miss — its tail is
     // `MOVSS [RCX],XMM1 / [RCX+4],XMM0 / [RCX+8],XMM2` at 0x1400aad2a-33. On a MISS t == 0,
@@ -639,8 +638,7 @@ char EditTool::OnKey(char param2) {
 // that is HOW retail clears the selection outline AND closes the panel when the
 // player right-clicks. NOT the same as registering 0x1400fcc90 by address: that
 // address also backs a per-frame deactivate slot on a DIFFERENT table
-// (0x1401ee710), and registering it made cc90 run every frame
-// (reg_player_render.cpp records the measurement). Retail reads the dialog IBP
+// (0x1401ee710), and registering it made cc90 run every frame. Retail reads the dialog IBP
 // from +0x28 itself.
 void EditTool::Shutdown() { CloseInfoDialog(); }
 
@@ -678,7 +676,7 @@ extern "C" bool EditTool_IsEditTool(Tool* tool) {
 // edit mode first — SetEditMode(pc, 0) destroys that tool and installs an EditTool —
 // rather than reinterpreting it. Returns null if no EditTool could be activated.
 // B4 P2 T1: typed (the tool manager in, the EditTool out). extern "C" keeps the link name
-// the harnesses' local declarations bind to (several still spell the two pointers void*).
+// edittool_funcs.h declares for the harnesses.
 extern "C" EditTool* EditTool_HarnessAcquire(PlayerToolManager* entityUI) {
     if (!entityUI) return nullptr;
     PlayerToolManager* manager = entityUI;
@@ -722,11 +720,11 @@ extern "C" int EditTool_HarnessSelectEntity(EditTool* editTool, ComponentEntity*
 }
 
 // Drive the select path on a CITIZEN. Citizens aren't in the region-map cell array
-// (they move) — they register in the Picking::Scene via PickingComponent OnAdded /
-// the move-tick (see citizenai_executor.cpp RegisterCitizenPickMesh). Their pick
+// (they move) — they register in the Picking::Scene via PickingComponent::OnAdded at
+// RegisterEntity; the move-tick (citizenai_executor.cpp) pushes their transform. Their pick
 // userData is the entity backref we can recover with Picking::Scene::GetUserData.
 // This bypasses the cursor ray (headless harness) but exercises the exact chain a
-// real click uses: pick userData -> EditTool_SelectEntity -> CitizenUI dialog.
+// real click uses: pick userData -> EditTool::SelectEntity -> CitizenUI dialog.
 extern "C" int EditTool_HarnessSelectCitizen(EditTool* editTool) {
     if (!editTool) { printf("[EditSel] no active EditTool\n"); return 0; }
     Picking::Scene* scene = GameUpdateLoop::_singleton->m_pickingScene;

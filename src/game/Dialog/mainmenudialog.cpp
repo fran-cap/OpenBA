@@ -44,7 +44,7 @@
 #include "Dialog/SaveLoadDialog.h"      // SaveLoadDialog's constructor 0x1400b8270
 #include "Dialog/OptionsDialog.h"       // OptionsDialog's constructor 0x140075150
 #include "system/Configuration.h"      // B3R: System::Configuration, RtSystem_Configuration_CurrentBuildId
-#include "openba_build_info.h"         // OPENBA_GIT_HASH / OPENBA_BUILD_DATE (generated into build/<flavour>/gen)
+#include "openba_build_info.h"         // OPENBA_GIT_HASH / OPENBA_BUILD_DATE (generated into <build dir>/gen)
 #include "save/SaveLoad.h"             // B3R: RtSave_SaveLoad_Dtor
 #include "Dialog/dialog_exe_helpers.h"
 #include "system/String.h"
@@ -56,7 +56,7 @@
 #include "object/Internal.h"   // ENDGAME B.3.3 step 6B
 #include "object/TypeInfo.h"   // ENDGAME B.3.3 step 6C
 #include "Dialog/exe_bodies.h"
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc
 
 // ============================================================
 // Button element IDs (assigned in OnOpened, dispatched in OnElementEvent)
@@ -86,7 +86,6 @@ enum MainMenuButtonId {
 
 static UI::Dialog* LoadDialogResource(const char* rscPath) {
     System::Filename filenameBuf(rscPath);
-    // The dialog doors of the other blocks take the resource as a non-const void*.
     ::Object::External* resource =
         ::Object::ExternalFactory::_singleton->FindOrLoadAs<::Object::External>(filenameBuf);
     printf("[LoadDialogResource] '%s' -> FindOrLoad=%p\n", rscPath, (const void*)resource);
@@ -630,9 +629,7 @@ void MainMenuDialog::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*
         OpenOptions();
         break;
     case kButton_Load:
-        // Save/load wave 2026-08-27: SaveLoadDialog ctor + vtable are now
-        // registered, the menu-side Save::SaveLoad exists (+0xb70) and is
-        // ticked — the retail load-from-save path is standalone-ready.
+        // The menu-side Save::SaveLoad is MenuDialogLoopT::_saveLoad (+0xb70).
         printf("[MainMenuDialog::OnCommand] -> OpenLoad (SaveLoadDialog)\n");
         OpenLoad();
         break;
@@ -645,8 +642,8 @@ void MainMenuDialog::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*
         StandaloneOpenMapParams_UI(_ui);
         break;
     case kButton_Tutorial:
-        // The main menu .rsc has NO buttonScenario - the [Setup] log prints it
-        // "NOT FOUND". Scenarios live behind the Tutorial button, which opens the same
+        // The main menu .rsc has NO buttonScenario - the [MainMenu] OnOpened line prints a
+        // null scenario= pointer. Scenarios live behind the Tutorial button, which opens the same
         // ScenarioDialog with difficulty=1.
         printf("[MainMenuDialog::OnCommand] -> OpenTutorial (ScenarioDialog, difficulty=1)\n");
         OpenTutorial();
@@ -666,7 +663,6 @@ void MainMenuDialog::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*
         break;
     case kButton_Mod:
         // ModDialog/ModDetailsDialog live in src/game/Dialog/mod_dialog_vtables.cpp.
-        // Default-on since 2026-09-05 (BANISHED_LIVE_MODDIALOG=0 is the kill-switch).
         // FIX mods_persist (docs/retail_bugs.md section 23), NOT RETAIL: in a game, a Yes / No
         // warning first (a change reloads the town; turning off a mod it uses can damage it).
         if (game != nullptr && Ext::Fix().mods_persist && !Ext::ModsInGameWarning::Confirm(_ui)) break;
@@ -757,7 +753,7 @@ MainMenuDialog::MainMenuDialog(UI::UserInterface* ui, const UI::Dialog* dialog,
 }
 
 
-// Public entry called from MenuDLT::CreateDialog (standalone/menudialogloopt_stubs.cpp).
+// Public entry called from MenuDLT::CreateDialog (src/game/Game/menudialogloopt_stubs.cpp).
 // The loop's dialog resource is always loaded by then; a loop without one
 // keeps the tree's bare-bones fallback (a default-constructed dialog, no element
 // tree) instead of the Runtime ctor faulting on a null Dialog — a standalone-only

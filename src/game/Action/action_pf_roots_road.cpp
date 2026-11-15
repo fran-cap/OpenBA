@@ -6,14 +6,12 @@
 // decompile. Do NOT "improve" or simplify.
 #include "Action/exe_bodies.h"
 //
-// Registration point: RegisterPfRootsRoadBatch() in standalone/reg_pf_roots_road.cpp.
-//
 // B.4 ACT-a: the four bodies are Map's members (FillZones 0x14009c480, SetTerrainType
 // 0x14009f2f0, ResetTerrainHeights 0x14009e0e0, FinishRoadCell 0x14009c640) and call:
 //   0x14009c170 Map::FillZone               0x1400a8c90 RegionGraph::MarkCellDirty
 //   0x1400a6fe0 PathfinderThread::SetCellTerrain
 //   0x1400ab150 WorldGeometry::MarkChunksDirty   0x1400af370 WorldGeometry::RebuildRoadMesh
-//   0x14009f3e0 Reimpl_MapGetTerrainPos     0x14001a6e0 WorkBST_BSTRemove_a6e0
+//   0x14009f3e0 Map::GetTerrainPos          0x14001a6e0 WorkBST_BSTRemove_a6e0
 
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "Game/Map.h"
@@ -24,7 +22,7 @@
 #include "Game/terrain_sidecar.h"
 #include "stress_harness.h"   // PFBENCH: PfMainTimer (ph_fillzones_ms; stress harness only)
 #include "Work/exe_bodies.h"       // WorkBST_BSTRemove_a6e0
-#include "Game/exe_bodies.h"       // Reimpl_MapGetTerrainPos
+#include "Game/exe_bodies.h"
 #include "Game/exe_constants.h"    // kRdata_*
 #include <cstring>
 #include "math/Math.h"

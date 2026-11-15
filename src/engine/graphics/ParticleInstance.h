@@ -12,23 +12,14 @@
 // `src/engine/volume/Volume.h` for `Box`. `Volume.h` declares
 // `struct Rectangle`, and `<wingdi.h>` declares a FUNCTION called `Rectangle`,
 // so `Volume.h` cannot be reached from a translation unit that has already
-// pulled in `<windows.h>`. That is the same collision `src/engine/graphics/
-// scene.cpp` and five of its siblings dodge by forward-declaring `ResolveAddr`
-// by hand instead of including `standalone/resolve.h`.
+// pulled in `<windows.h>`.
 //
-// `src/engine/graphics/vtbatch7_animgroup_particlesystem.cpp` DOES include
-// `standalone/resolve.h`, and it includes `Particle.h`. That file belongs to
-// block H2, not to block E, so adding `Geometry.h` to `Particle.h` would have
-// broken another block's file with a `Volume::Rectangle must be 0x10 bytes`
-// static-assert failure — measured, not predicted: it was the first build error
-// of this block. Keeping the classes here means `Particle.h` is byte-for-byte
-// as `vtbatch7` has always seen it, and only the files that want the real
-// classes pay for `Volume.h`.
+// Keeping the classes here means only the files that want the real classes pay
+// for `Volume.h`.
 //
-// Everything else about these two classes — the slot lists, their verification
-// against `standalone/rt_data_mint_tables.inc`, and the layout evidence — is in
-// the banner below and in `Particle.h`'s own banners for the PODs they are
-// cross-asserted against.
+// Everything else about these two classes — the slot lists and the layout
+// evidence — is in the banner below and in `Particle.h`'s own banners for the
+// PODs they are cross-asserted against.
 // ============================================================================
 
 #include <cstdint>
@@ -132,7 +123,7 @@ static_assert(offsetof(ParticleBoundsRecord, _totalTicks) == 0x38, "ParticleBoun
 // stays abstract (slot 1 `_purecall`, as retail), ParticleSystemInstance is
 // CONCRETE with a public real ctor. The ??0 / ??1 doors, `DoorBody`, both
 // RT_DELDTOR rows (0x180020310 / 0x180020ce0) and both minted tables are
-// retired (tools/rt_mint_retired/gfx.txt).
+// retired.
 // ############################################################################
 
 namespace Graphics {
@@ -176,7 +167,7 @@ namespace Graphics {
 // overload resolution handles them once they are in ONE scope) and a `using`
 // declaration pulls the base's spelling back into view at each level. The
 // non-virtual `Update` is PORTED in `src/engine/graphics/animation.cpp`, which
-// is NOT this block's file: its door and its body stay where they are.
+// is NOT this block's file.
 // ============================================================================
 class ParticleInstance : public Geometry {
 public:
@@ -218,7 +209,7 @@ public:
 
     // `?Update@ParticleInstance@Graphics@@QEAA_NXZ` @ 0x180104180 — NON-VIRTUAL,
     // returns bool, takes nothing. PORTED, body in `animation.cpp` (NOT this
-    // block's file), so the door keeps it and this member is declared only.
+    // block's file).
     bool Update();
 
     // `?RemoveState@ParticleInstance@Graphics@@IEAAXXZ` @ 0x1801040b0.
@@ -236,11 +227,9 @@ public:
 
     // ?_frameIndex@ParticleInstance@Graphics@@1HA  0x1801fe77c — retail's
     // PROTECTED static int (`1`). ENDGAME B.3.9 block GFX (B39_RULES D7 row
-    // A37): the class static, defined in animation.cpp and REDIRECTED onto the
-    // mint's storage row by RtGraphicsPortInit, so the doors the foreign
-    // readers use (particlecomponent.cpp, reg_unreg_lane3.cpp's import slot)
-    // and this member are ONE int. Public because a reader in this block is a
-    // free-function body (wave28_lane_partsys.cpp).
+    // A37): the class static, defined in animation.cpp; gameupdateloop.cpp
+    // advances it and particlecomponent.cpp reads it by name. Public because a
+    // reader in this block is a free-function body (wave28_lane_partsys.cpp).
     static int _frameIndex;
 
 protected:
@@ -323,8 +312,7 @@ public:
     ParticleSystemInstance() { _emitter = nullptr; }
 
 public:
-    // +0xd8  B.4: typed -- the emitter record (Particle.h); the name stays,
-    // tests/unit/graphics_geometry_abi_test.cpp pins it. Borrowed from
+    // +0xd8  B.4: typed -- the emitter record (Particle.h). Borrowed from
     // `ParticleSystem::_pool[_index]` when the resource is active, owned
     // (built by SetParticle, freed by ~ParticleSystemInstance) when it is not.
     RtGraphics::ParticleEmitter* _emitter;

@@ -38,7 +38,8 @@ struct Choices {
 Choices& Choose();
 
 // Begins a screenshot of the map being played. False, with Status() saying why, when there is no game, a
-// screenshot is already being taken, or the view is a citizen's.
+// screenshot is already being taken, the view is a citizen's, the window is too small for a tile, or there is
+// not enough memory for the picture.
 bool Start();
 // Saves a screenshot of what is on the screen now, the game's own (the request its screenshot key raises, so
 // the file is Screenshot<N>.bmp, without the interface). False, with Status() saying why, when there is no

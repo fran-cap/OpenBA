@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Find which .rdata vtable contains a given .text address, and at which slot.
 
-The dialog-wiring sweep needs the exe .rdata address of a class's vtable so it can
-be RegisterExeAddr'd to a standalone array.  What we usually know instead is one
+This finds the exe .rdata address of a class's vtable.  What we usually know
+instead is one
 reimplemented method's retail address (e.g. "ScenarioDialog::Slot4 was 0x140078010").
 This walks .rdata for that qword and, for each hit, walks BACKWARDS while the
 qwords still look like .text pointers to find the table's base.

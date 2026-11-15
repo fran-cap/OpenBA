@@ -3,8 +3,7 @@
 // src/game/Component/CitizenAIComponent.h — ENDGAME B.3.8 block CIT
 //
 // `CitizenAIComponent` (a citizen's decision state machine) as a real C++ class
-// with a compiler-generated vtable (B38_RULES.md D1-D4). The engine/types POD
-// is a forwarder to this file.
+// with a compiler-generated vtable (B38_RULES.md D1-D4).
 //
 // RETAIL (Application-x64.exe, B38_SLOTS.md §6):
 //   reflected "CitizenAIComponent", parent "Component", ti 0x1401c70e8

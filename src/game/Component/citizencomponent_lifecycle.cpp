@@ -2,29 +2,26 @@
 // Citizen-lifecycle quartet (openfuncs step 2.5a) — sibling of the (huge)
 // citizencomponent.cpp. Faithful ports, Ghidra-verified against Application-x64.exe:
 //
-//   0x140112040  CitizenComp_LeaveRoster_2040     — unlink from the workplace worker
-//                roster (doubly-linked ring at node +0x268/+0x270, head cache self
-//                +0x260), then clear the workplace slot (AssignWorkplace(null,-1)) and
-//                the current-workplace link (+0x258).
-//   0x1401168a0  CitizenComp_JoinRoster_68a0      — inverse: splice a citizen into the
-//                roster before the head (or seed a singleton ring), then read the
-//                workplace descriptor (self +0x238 IBP / +0x240 slot) and AssignWorkplace.
+//   0x140112040  CitizenComponent::RemoveChild    — unlink a child from this parent's
+//                children ring (links at child +0x268/+0x270, head cache self
+//                +0x260), then take it out of its home (SetHome(null,-1)) and clear
+//                its parent link (+0x258).
+//   0x1401168a0  CitizenComponent::AddChild       — inverse: splice a child into the
+//                ring before the head (or seed a singleton ring), then move it into the
+//                parent's home (self +0x238 IBP / +0x240 slot) with SetHome.
 //   0x1400302a0  CitizenComp_SortByProfession_02a0 — sort an entity-handle array by
 //                profession priority (see note on the sort below).
-//   0x140117080  CitizenComp_DeferredInit_117080  — per-citizen deferred init:
+//   0x140117080  CitizenComponent::Initialize      — per-citizen deferred init:
 //                name/age/gender/appearance-variant/lifespan/housing/employment.
 //
-// Registered by standalone/reg_citizen_25.cpp; the callers already ResolveAddr these
-// four addresses in citizencomponent.cpp (s_fn_sub_2040 / s_fn_helper_68a0 /
-// s_fn_helper_02a0 / s_fn_FUN_140117080), so registering wires them live.
 //
 // The 0x1400302a0 sort is the shipped MSVC sort skeleton (rtsort::Introsort,
 // collection/introsort_msvc.h) over 8-byte entity handles, comparator 0x140110330
 // (`prio(a) < prio(b)`) and, for ranges of 8 or fewer, the max-to-high selection sort
 // 0x140030b90 (Ghidra's "InsertionSortByProfession" is a misnomer). Comparator and
 // fallback both reduce a handle to a profession priority (resolve the entity's
-// WorkComponent, read its profession key at comp+0x28, look that key up in the world
-// priority RB-tree at GameWorld+0x118 and read priority at record+0x24). The sort is
+// WorkComponent, read its posted work id at comp+0x28, look that id up in the work
+// scheduler's id tree at GameWorld+0x118 and read priority at record+0x24). The sort is
 // unstable and workplaces of equal priority are common, so the swap sequence decides
 // their order: it is retail's (rtsort::SelectionSortMaxToHigh for the fallback), not
 // std::sort's. The shared priority predicate is ProfessionPriorityOf below.
@@ -135,9 +132,9 @@ void CitizenComponent::AddChild(CitizenComponent* child) {
 }
 
 // ============================================================
-// Profession-priority predicate (shared by comparator 0x140110330 and insertion-sort
-// fallback 0x140030b90). Resolve the entity's WorkComponent, read its profession key
-// (comp+0x28), then look that key up in the world priority RB-tree (GameWorld+0x118).
+// Profession-priority predicate (shared by comparator 0x140110330 and selection-sort
+// fallback 0x140030b90). Resolve the entity's WorkComponent, read its posted work id
+// (comp+0x28), then look that id up in the work scheduler's id tree (GameWorld+0x118).
 // ============================================================
 // As retail (0x140110330): the WorkComponent, the world, the scheduler (+0x118) and the
 // found Work are used with no test; every workplace candidate carries a WorkComponent
@@ -209,7 +206,7 @@ void CitizenComponent::Initialize(const Math::Vector3* pos, uint32_t gender, cha
     this->gender = static_cast<int32_t>(gender);
 
     // 5. random name -> +0x28 (faithful: temp String, operator=, ~String); `name` is
-    // H5 raw storage for a System::String (CitizenComponent.h).
+    // a System::String member (CitizenComponent.h).
     char nameBuf[0x100] = {0};
     if (rng) GenerateCitizenName(rng, gender == 0, nameBuf, static_cast<int>(sizeof(nameBuf)));
     {
@@ -221,7 +218,7 @@ void CitizenComponent::Initialize(const Math::Vector3* pos, uint32_t gender, cha
     if (rng)
         appearanceVariant = static_cast<int32_t>((rng->Rand(8u) + rng->Rand(8u)) & 7);
 
-    // 7. employment: unemployed unless forced or the world "start-employed" flag (bit 9) is set
+    // 7. schooling: unschooled unless forced or the world flag bit 9 is set (then maxEducation)
     CitizenDescription* desc = description;
     uint32_t worldFlags = world ? world->m_gameFlags : 0;
     if (forceEmploy == 0 && ((worldFlags >> 9) & 1) == 0) {
@@ -236,7 +233,7 @@ void CitizenComponent::Initialize(const Math::Vector3* pos, uint32_t gender, cha
     // against desc+0x44). This argument was long declared `int`, which only worked
     // because every caller passed literal 0 (same bit pattern as 0.0f); the founding
     // spawn port (open H) passes real ages, so the typedef trap is now fixed at every
-    // declaration (see NEXT_SESSION_BRIEF.md section 4).
+    // declaration (see docs/history/notes/NEXT_SESSION_BRIEF.md section 4).
     this->age = age;
 
     // 9. link into family (the parent IBP is dereffed once by the caller, as retail does)

@@ -39,12 +39,12 @@
 // State 7's two, 0x14011d2a0 (rebuild/reclaim) and 0x14011d1a0 (remove), are now
 // PORTED below; they were null, and a null handler is a graceful no-op in the
 // ControllerLive dispatcher, so every click on a destroyed building's panel was
-// swallowed. Still DEFERRED (null): 0x14011d390 (state 6 event 2) and 0x14011bcc0
-// (states 4 and 5, event 0).
+// swallowed. 0x14011d390 (state 6 event 2) and 0x14011bcc0 (states 4 and 5, event 0)
+// are ported and registered below as well.
 //
 // The live DFA cursor lives on the entity's StateMachineComponent; the pump
 // that the UpgradeUI click handler calls (0x14011dfa0, ported disasm-faithfully
-// as RemovalCalc_StateMachine_dfa0 in keystone_a_removalcalcpath.cpp) drives
+// as DestroyComponent::RunStateMachine in keystone_a_removalcalcpath.cpp) drives
 // these handlers through the node linked at DestroyComponent+0x28.
 //
 // Handler placement (Ghidra-verified record layout for sub_3e50(state,A,B,C,D),
@@ -62,9 +62,6 @@
 // NOW PORTED: sub_c530 contents-scatter (0x14011c530) — reclaimed goods spill as
 // RawMaterial ground piles over the footprint (was: dropped). See below.
 //
-// Default-ON via the default-on table (graduated 2026-07-25, upgrade path verified
-// end-to-end); BANISHED_LIVE_DESTROY is now a kill-switch (=0). See
-// destroycomponent.cpp.
 
 #include <new>
 #include "object/TypeInfo.h"
@@ -72,7 +69,7 @@
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "Work/ClearStorage.h"   // B.3.8 CB1a (Vtable)
 #include "Work/Work.h"           // B.3.x W0: Work::GetPriority by name
-#include "Work/BuildStructure.h"   // B4 X4-WORK: BuildStructure_CreateInPlaceFull returns the typed work
+#include "Work/BuildStructure.h"   // B4 X4-WORK: BuildStructure (the 0x1400e59c0 ctor)
 #include "Component/RawMaterialDescription.h"   // B.3.8 CB1a (TypeId)
 #include "Component/DestroyDescription.h"       // ENDGAME B.3.9 C1: 0x1401c7628 cell class
 #include "Component/ModelDescription.h"         // ENDGAME B.3.9 C1: 0x1401c7a88 cell class
@@ -125,14 +122,14 @@
 //     0x140002e10 WorkPlaceComponent (0x1401c80e0)   0x140004740 MultiObjectComponent (0x1401c7ac0)
 //     0x140004680 MapComponent (0x1401c79e0)         0x140003f60 ModelComponent (0x1401c7a50)
 //     0x140002f90 StatusIconComponent (0x1401c7e08)  0x140006270 StorageComponent (0x1401c7e78)
-//   0x14012c3f0 mesh state flag  CitizenComp_FUN_14012c3f0
-//   0x14012ead0 / 0x14012eb50    WorkComponent_CheckWorkSlot / _RegisterWorkSlot
-//   0x14012ec60 CitizenAI_WorkScheduler_Post
-//   0x14012f670 WorkPlaceComponent_LeaveBuilderProfession, 0x14012f520 WorkPlaceComponent::EnterBuilderProfession
-//   0x140103480 trade notify     NomadComp_FUN_140103480
-//   0x1400c2ea0 ActHunt_MarkEntityRemoval_c2ea0
-//   0x1400c3720 ComponentEntity_CtorFromDescription, 0x1400c48a0 EntityList_RegisterEntity_Impl
-//   0x140003870 ToolTile_SetTransformFromYaw_3870, 0x1401253d0 ActCNR_NR_SetVariant_1253d0
+//   0x14012c3f0 mesh state flag  StatusIconComponent::SetFlag
+//   0x14012ead0 / 0x14012eb50    WorkComponent::IsWorkPosted / CancelWork
+//   0x14012ec60 WorkComponent::PostWork
+//   0x14012f670 WorkPlaceComponent::LeaveBuilderProfession, 0x14012f520 WorkPlaceComponent::EnterBuilderProfession
+//   0x140103480 trade notify     PlayerToolManager::OnEntityRemoved
+//   0x1400c2ea0 ComponentEntity::MarkForRemoval
+//   0x1400c3720 ComponentEntity(ComponentDescription*), 0x1400c48a0 EntityList::RegisterEntity
+//   0x140003870 ModelComponent::SetTransformFromYaw, 0x1401253d0 ModelComponent::SelectMesh
 // 0x140003110 was Collection::Array<void*>::SetSize(n, fill) monomorphised
 // into the exe (ENDGAME B.3.2 step 2) — converted at its call site below.
 // WARNING: THE THIRD ARG OF 0x140003870 IS A FLOAT. It reads it from XMM2 (`movaps xmm6,xmm2`
@@ -162,9 +159,9 @@ static void Destroy_ReleaseDemoSite(BuildComponent* buildComp) {
     }
 }
 
-// keystone_a_removalcalcpath.cpp — RemovalCalc_helper_8d50, the disasm-verified
+// keystone_a_removalcalcpath.cpp — WorkScheduler::FindWorkAtCell (0x1400f8d50), the disasm-verified
 // work-manager AVL lookup (walks the tree at param_1+0x30 for payload key == param_3).
-// buildstructure.cpp — BuildStructure_CreateInPlaceFull, the full retail BuildStructure
+// buildstructure.cpp — BuildStructure(ComponentEntity* const*, bool), the full retail BuildStructure
 // ctor (0x1400e59c0 port).
 
 // ============================================================
@@ -242,18 +239,16 @@ bool DestroyComponent::TargetIsCurrent() {
 }
 
 // ============================================================
-// Scatter-path helpers (0x14011c530 dependencies), resolved once.
-//   0x14009f3e0  grid->world terrain query (returns out3, [2]=height). Registered
-//                mapquery, exercised in-game by ~100 sites.
+// Scatter-path helpers (0x14011c530 dependencies), called directly.
+//   0x14009f3e0  grid->world terrain query (returns out3, [2]=height):
+//                Map::GetTerrainPos.
 //   0x140129760  CreateRawMaterial_helper_9760 (PositionEntity) — places the
-//                cloned pile on a cell with a yaw. Registered (reg_action_rawmat).
+//                cloned pile on a cell with a yaw: Component::PositionRawMaterial.
 //   0x1401c7cb8  RawMaterialDescription type-id; 0x1401c7040 BuildDescription.
 // .rdata float constants (exe values verified via read_memory):
 //   DAT_140172114 = 0.5f  (cell-centre offset), DAT_1401720fc = 0.2f (max tile
 //   height for a valid drop), DAT_140172204 = 90.0f (RandTol yaw scale).
 // ============================================================
-// 0x14009f3e0 is Reimpl_MapGetTerrainPos and 0x140129760 ActRm_PositionEntity_9760,
-// both called directly.
 
 // Find the RawMaterialDescription in a resource TEMPLATE's component-description
 // array via GetTypeId (vtable+0x10). Its +0x48 caps each dropped pile at
@@ -569,12 +564,11 @@ char DestroyComponent::State5Enter() {
     ComponentEntity* entity = _entity.Get();
     BuildComponent* prod = FindOn<BuildComponent>(entity);
 
-    // Diagnostic: the refund+BuildStructure branch (which sets the +0x58 progress
-    // target that gates the replacement spawn) fires ONLY when the building has a
-    // live BuildComponent (d6c0) with Delivered(+0x48) != 0. When it doesn't, we
-    // fall to the ELSE branch: scatter + immediate mark-for-removal, NO spawn — the
-    // "building just vanishes" symptom. Log the decision inputs so a live upgrade
-    // shows exactly why (prod null vs Delivered==0).
+    // The refund+BuildStructure branch (which sets the +0x58 progress target that
+    // gates the replacement spawn) fires ONLY when the building has a live
+    // BuildComponent (d6c0) with Delivered(+0x48) != 0. When it doesn't, we fall to
+    // the ELSE branch: scatter + immediate mark-for-removal, NO spawn — the
+    // "building just vanishes" symptom.
 
     if (prod && Yard_Delivered(prod) != 0) {
         // Half-materials refund into +0x58.
@@ -624,7 +618,7 @@ char DestroyComponent::State5Enter() {
 char DestroyComponent::State5Tick() {
     // 0) RETAIL GATE (0x14011c120 first branch): wait for the demolition work.
     // +0x54 = progress (credited one unit per completed builder PerformWork via
-    // vtable slot 15 / DestroyComponent_MsgReceive), +0x58 = the target the
+    // vtable slot 15 / DestroyComponent::OnMessage), +0x58 = the target the
     // state-5 enter computed. Until progress reaches the target the tick is a
     // pure no-op — no worker release, no trade notify, no mark-for-removal, no
     // spawn. Missing this gate raced the whole teardown on the first tick
@@ -647,7 +641,7 @@ char DestroyComponent::State5Tick() {
 
     // 1) Capture the OLD footprint (grid cell + rotation) and world transform.
     // FUN_140004680 is the MAPCOMPONENT finder — the same component
-    // DecalComponent_Draw reads its decal rect from (mapComp +0x28 minX, +0x2a minY,
+    // DecalComponent::OnAdded reads its decal rect from (mapComp +0x28 minX, +0x2a minY,
     // +0x2c width, +0x2e height, +0x30 rotation).
     //
     // ⚠ `rot` is 32-BIT. Retail c120 reads `*(int*)(fp + 0x30)` and writes
@@ -655,7 +649,7 @@ char DestroyComponent::State5Tick() {
     // in DEGREES, the ONLY one of these five fields that is not a short. This port
     // had it as int16_t on both sides: the low half landed correctly (0/90/180/270
     // all fit), so the rebuilt building's MESH looked right, but the high half was
-    // left as whatever ComponentEntity_CopyCtor put there. DecalComponent_Draw reads
+    // left as whatever ComponentEntity_CopyCtor put there. DecalComponent::OnAdded reads
     // the field as a full uint32_t, so the decal got `garbage<<16 | rot` and painted
     // its foundation at the wrong orientation — the "rebuilt house's decal footprint
     // doesn't match" report (2026-08-23). Same class as the narrowed-store trap in
@@ -685,7 +679,7 @@ char DestroyComponent::State5Tick() {
     }
 
     // 2) Release workers from the old workplace, i.e. leave the BUILDER profession
-    //    (FUN_14012f670 = workplacecomponent.cpp WorkPlaceComponent_LeaveBuilderProfession,
+    //    (FUN_14012f670 = workplacecomponent.cpp WorkPlaceComponent::LeaveBuilderProfession,
     //    called directly). Skipping it is what would leave the roster half-torn-down
     //    on the entity we are about to remove.
     WorkPlaceComponent* wp = FindOn<WorkPlaceComponent>(entity);
@@ -786,8 +780,8 @@ char DestroyComponent::State5Tick() {
 // State 6 (collapse/rubble) — PORTED in destroycomponent_state6.cpp.
 // ============================================================
 // enter 0x14011d4d0 / update 0x14011d400 / trans38-tick 0x14011d490, plus the
-// rubble step 0x14011d5d0 and the material re-point 0x140125020. Gated at runtime
-// by BANISHED_LIVE_DESTROY_COLLAPSE; see that file's header for the mechanism.
+// rubble step 0x14011d5d0 and the material re-point 0x140125020; see that file's
+// header for the mechanism.
 
 // ============================================================
 // State-7 EVENT handlers — the destroyed-building panel's buttons.
@@ -814,7 +808,7 @@ char DestroyComponent::State5Tick() {
 // Both bodies are near-identical: re-seat the workplace onto the Builder profession,
 // then request state 5 (the rebuild/demolish worker state). They differ only in how
 // they set the DestroyComponent's +0x51 "has a build yard" flag, and in whether they
-// clear the queued upgrade target at +0x60.
+// re-point the queued upgrade target at +0x60.
 
 // Shared prologue: retail's FUN_14012f520 on the 2e10 (WorkPlaceComponent) match.
 static void Destroy_ReseatWorkplaceOnBuilder(ComponentEntity* entity) {

@@ -15,8 +15,8 @@
 // PARENT `UI::ButtonElement` — READ (B36_SLOTS.md section 3), an INTERMEDIATE
 // leaf (RULE B6-9):
 //     ?_ParentTypeName@ComboElement@UI@@CAPEBDXZ  @0x180074f00 -> "ButtonElement"
-// RULE B5-15 / B6-7 — RECORDED, NOT USED (`?_typeInfo@ComboElement@UI@@…`
-// 0x1801faa50 stays the minted record):
+// RULE B5-15 / B6-7 — the two literals, which the class's DEFINE_TYPE
+// (comboelement.cpp) carries:
 //     ?_TypeName@ComboElement@UI@@CAPEBDXZ        @0x180074ef0 -> "ComboElement"
 //     ?_ParentTypeName@ComboElement@UI@@CAPEBDXZ  @0x180074f00 -> "ButtonElement"
 //
@@ -44,8 +44,8 @@
 // LAYOUT — 0x128 bytes
 // ---------------------------------------------------------------------------
 // `??0ComboElement@UI@@QEAA@XZ` (0x1801123f0) inlines ButtonElement's ctor
-// (stamp, +0xc0 = -1, +0xc4 = 0), stamps its own table, then (the rows in
-// src/engine/ui/factory_ui1_tables.inc, srcVa in that function):
+// (stamp, +0xc0 = -1, +0xc4 = 0), stamps its own table, then (addresses in
+// that function):
 //     +0xd8 q 0 (0x180112432)   +0xe0 q 0 (0x180112439)
 //     +0xe8 q 0 (0x180112440)   +0xf0 q 0 (0x180112447)
 //     +0xf8 q 0 (0x18011244e)   +0x100 q 0 (0x180112455)
@@ -62,8 +62,7 @@
 // (0x180075170) reads `*(void**)(*(long*)(this+0x108) + index*8)`, and
 // `?RemoveAllItems@` (0x180075120) tears all three down and resets +0x118 to -1.
 // `Collection::Array<T>` is T-INDEPENDENT in size (always 16 bytes). `_strings`
-// is typed `Array<void*>` purely for the CONTAINER shape (H5: the String is raw
-// char* storage); `_sprites` carries its element type, UI::Sprite (B4).
+// and `_sprites` carry their element types, System::String and UI::Sprite (B4).
 //
 // ENDGAME B.3 step 9 (block UI-A, B39_RULES D1/D2): CONCRETE. The real public
 // ctor is retail's `??0ComboElement@UI@@QEAA@XZ` (0x1801123f0) minus its vptr stores;
@@ -122,7 +121,7 @@ public:
     // [8] Enable — ButtonElement's, inherited.
 
     // ---- PORTED; the member bodies are DEFINED in widgets_input.cpp (moved
-    // there by the fragment pass), whose registered doors delegate to them.
+    // there by the fragment pass).
     int32_t AddItem(const UI::Sprite& sprite, const System::String& text,
                     void* userData);                              // 0x1800750b0
     int32_t GetCurrentItem() const;                               // 0x180075160
@@ -142,9 +141,9 @@ public:
 
 public:
     // `?UpdateText@ComboElement@UI@@AEAAXXZ` (0x180112180, `AEAA` = private —
-    // EXPORTED, not "unexported" as widgets_input.cpp's banner says). PUBLIC
-    // here only because its registered door delegates to it (fragment pass F1;
-    // access is not part of the GCC ABI). Body: widgets_input.cpp.
+    // EXPORTED). PUBLIC here because ComboDescription::CreateInstance calls it
+    // (combodescription.cpp; access is not part of the GCC ABI). Body:
+    // widgets_input.cpp.
     void UpdateText();
 
 private:

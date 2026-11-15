@@ -6,23 +6,20 @@
 //
 // THE RECORDED BLOCKER, AND WHAT WAS WRONG WITH IT
 //
-// WAVE10_UI_CENSUS.md §6 and WAVE10_LANE_UI1.md §4 record this row as blocked
-// because "`BANISHED_MODAL_ANSWER` is NOT a route -- it is a BYPASS. Both
-// harness call sites skip `fn_UI_ShowDialog` entirely."
+// WAVE10_UI_CENSUS.md §6 and WAVE10_LANE_UI1.md §4 (docs/history/runtime_port/)
+// record this row as blocked because "`BANISHED_MODAL_ANSWER` is NOT a route --
+// it is a BYPASS. Both harness call sites skip `fn_UI_ShowDialog` entirely."
 //
 // The MECHANISM in that sentence is exactly right and is re-derived below. The
-// ENUMERATION is wrong: there are FOUR call sites, not two, and the two UI1 did
-// not name are not bypassed at all --
-//
-//     src/game/Dialog/optionsdialog.cpp:1646   (the input-bind capture dialog)
-//     src/game/Dialog/optionsdialog.cpp:1759   (the binding-conflict confirm)
-//
-// both call `fn_UI_ShowDialog` unconditionally. And the two that ARE bypassed
-// are bypassed CONDITIONALLY: `moddialog.cpp:697` takes the bypass only when
-// `BANISHED_MODAL_ANSWER` is set, and `saveloaddialog.cpp:938` only when it is
-// set or the run is unattended. So the body was always reachable; what did not
-// exist was a way to make the nested pump TERMINATE, which is what
-// `src/diag/modal_driver.cpp` now provides.
+// ENUMERATION is wrong: the two call sites in src/game/Dialog/optionsdialog.cpp
+// (the input-bind capture dialog and the binding-conflict confirm) call
+// `ShowDialog` unconditionally, and the bypassed ones are bypassed
+// CONDITIONALLY: `moddialog.cpp` and `extensionsdialog.cpp` take the bypass only
+// when `BANISHED_MODAL_ANSWER` is set, and `saveloaddialog.cpp` and
+// `src/ext/mods_persist/mods_in_game_warning.cpp` only when it is set or the run
+// is unattended. So the body was always reachable; what did not exist was a way
+// to make the nested pump TERMINATE, which is what `src/diag/modal_driver.cpp`
+// now provides.
 //
 // ---------------------------------------------------------------------------
 // WHAT THE BODY DOES (shipped bytes; see modal_driver.cpp for the full trace)
@@ -51,8 +48,7 @@
 //    the caller's InternalPtr were rewritten during the modal, retail would read
 //    the new one. Reproduced faithfully (`*(int*)(*dialogPtr + 0x24)`).
 //
-//  * **+0x24 is the RESULT, not `_flags2`.** `src/engine/ui/DialogInstance.h`
-//    currently calls it "_flags2 ... no ported body reads it". It is the field
+//  * **+0x24 is the RESULT** (`DialogInstance::_result`). It is the field
 //    `?GetResult@DialogInstance@UI@@QEBAHXZ` (0x1800455c0, two instructions:
 //    `MOV EAX,[RCX+0x24]; RET`) returns and `?SetDialogResult@` (0x1800455d0,
 //    `MOV [RCX+0x24],EDX; RET`) writes, and it is what this function returns.
@@ -75,16 +71,11 @@
 //    `MOV R8D,0x4`. It pins sizeof(UI::UserInterface) at 0x128.
 //
 // ---------------------------------------------------------------------------
-// WHAT IS AND IS NOT VERIFIED -- read this before reading the switch as a claim
+// WHAT IS AND IS NOT VERIFIED
 // ---------------------------------------------------------------------------
-// A PREDICTIVE oracle over this body is worth almost nothing, and UI1 said so
-// correctly: everything it writes other than one flag bit is an address the
-// allocator chose. This lane therefore uses the TWIN-SUBJECT DIFFERENTIAL in
-// `src/diag/modal_driver.cpp` instead -- two identically-built dialogs, one
-// shown through the shipped DLL body and one through ours, comparing the return
-// value, the flag bit, and MainLoop's two callback counts back at their
-// pre-call values. See docs/history/runtime_port/WAVE10B_LANE_SHOW.md for the numbers
-// and for the list of effects that instrument does NOT cover.
+// docs/history/runtime_port/WAVE10B_LANE_SHOW.md section 5 records the
+// twin-subject differential this body was checked with (the return value, the
+// flag bit, MainLoop's two callback counts) and the effects it did not cover.
 // ============================================================================
 
 #include <cstdint>
@@ -225,24 +216,15 @@ void DefectNoop(const System::Time&, void*) {}
 }  // namespace
 
 // ---------------------------------------------------------------------------
-// NEGATIVE CONTROL FOR THE TWIN-SUBJECT DIFFERENTIAL
+// NEGATIVE CONTROL KNOB
 // ---------------------------------------------------------------------------
-// `src/diag/modal_driver.cpp` sets this immediately before the OURS cell and
-// clears it after, so each round injects ONE defect aimed at ONE screen of the
-// comparison. Scoring the screens separately is deliberate: a control scored on
-// the UNION of several screens reads 3/3 while hiding that one screen caught
-// nothing (reference_union_control_hides_a_blind_screen.md).
+// A non-zero value injects ONE defect into ShowDialog:
 //
-//   1  append an extra BENIGN callback pair and never remove it
-//        -> must be caught by drawCount / updCount
-//        (benign on purpose: leaking one of OUR OWN entries would leave retail's
-//         Frame calling UpdateStandAloneUI on a freed nested UI every tick)
+//   1  append an extra BENIGN no-op callback pair and never remove it
 //   2  return the dword at +0x28 instead of the result at +0x24
-//        -> must be caught by `return`
 //   3  additionally set flags bit 0x80000000 (nothing reads it) alongside 0x20
-//        -> must be caught by `flags`
 //
-// Zero in every shipping configuration; nothing but the self-test writes it.
+// Nothing in the tree writes it, so it stays zero.
 extern "C" { int g_RtShowDialogDefect = 0; }
 
 // ENDGAME B.3.6 block E: the body is the member. `dialogArg` is the ADDRESS of
@@ -310,7 +292,7 @@ int32_t UI::UserInterface::ShowDialog(Object::InternalPtr<DialogInstance>* dialo
     }
 
     // 7 + 8. Register the draw and update callbacks, in that order. The entries
-    //    are the registered DOORS (see the includes).
+    //    are the class's own static members DrawStandAloneUI / UpdateStandAloneUI.
     const ::Engine::MainLoop::PostDrawFunc   drawFn = &UI::UserInterface::DrawStandAloneUI;
     const ::Engine::MainLoop::PostUpdateFunc updFn  = &UI::UserInterface::UpdateStandAloneUI;
 

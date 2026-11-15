@@ -9,7 +9,7 @@
 // This closes the row three lanes declined (Z, UIC, UID). The chain that had to
 // land first was: IO::Encoding's two factories and the two codec constructors
 // (lane ENC), then BinaryWriter's two Serialize slots, its back-patching
-// destructor and its deleting destructor (lane ENC-2, binary_writer.cpp). Only
+// destructor and its deleting destructor (lane ENC-2; io/Serializer.h, serialize_family.cpp). Only
 // then does SaveSettings reach real bodies rather than minted traps.
 //
 // ----------------------------------------------------------------------------
@@ -118,20 +118,7 @@
 // enum's existing `kControllerVtblGetTypeId` describes it correctly, and the
 // name is left as is.)
 //
-// ----------------------------------------------------------------------------
-// NOT NEW CUTOVER SURFACE — the arithmetic that makes this a six-body lane
-// ----------------------------------------------------------------------------
-// SaveSettings dispatches `self->vtable[+0x48]` and the controllers' +0x10 and
-// +0x50; OnClosed dispatches +0x30. **None of those is surface this port adds.**
-// Those vtables are minted whether or not anything here is ported, so the
-// bodies behind them are already whatever they already are. What porting
-// SaveSettings would have added, and what binary_writer.cpp removed first, is
-// the BinaryWriter tail — which is reached only because SaveSettings builds a
-// writer. Distinguishing the two is what stopped this row from being either a
-// two-body underestimate or an open-ended refusal.
 //
-// ----------------------------------------------------------------------------
-// ORACLE: dialog_settings_probe.cpp. Read its HONEST LIMITS.
 // ============================================================================
 
 #include <cstddef>
@@ -171,10 +158,8 @@ namespace {
 // ?OnOpened@DialogInstance@UI@@UEAAXXZ   0x180114fb0     WAVE 10B LANE DLGV
 // ---------------------------------------------------------------------------
 // The READ half of the round-trip whose WRITE half is SaveSettings/OnClosed
-// above, and the second of the two abort traps that kept
-// `??_7DialogInstance@UI@@6B@` off the promoted list. It lives here rather than
-// in dialog.cpp because it is the same round-trip, reusing every constant this
-// file already pinned.
+// above. It lives here rather than in dialog.cpp because it is the same
+// round-trip, reusing every constant this file already pinned.
 //
 // It is NOT `LoadSettings(); for each controller OnOpened()` — the symmetry
 // OnClosed has. `?LoadSettings@DialogInstance@UI@@` (0x180114450) exists at its
@@ -235,18 +220,8 @@ namespace {
 // decorative. The write half's header explains why the framing exists; this is
 // the reader that consumes it.
 //
-// NOT NEW CUTOVER SURFACE, with one exception that is. Everything this body
-// dispatches — the dialog's own +0x48, the controllers' +0x10 / +0x50, the
-// ReaderWriter's +0x00 / +0x10 / +0x98 / +0xa0 — is already dispatched by the
-// write half three functions above, so porting this adds no vtable surface. It
-// DOES add two by-name callees the write half does not use: the MemoryStream
-// constructor and destructor exports, which retail inlined here. Both are
-// resolved BY NAME through RT_EXPORT_ONCE, so neither is an address door.
 // ---------------------------------------------------------------------------
-// ATTENDANCE COUNTER for OnOpened — the EFFECTIVENESS CONTROL for the
-// ??_7DialogInstance@UI@@6B@ promotion, and NOT a verification of anything.
-// Without it, "the candidate boot reached the same place as the control" cannot
-// distinguish a safe promotion from one that was never exercised. Counts
+// ATTENDANCE COUNTER for OnOpened, NOT a verification of anything. Counts
 // ENTRIES, on every build.
 // The three sub-counters split the body's three exits, so an entry that always
 // bailed on the magic cannot read as full coverage.
@@ -279,9 +254,8 @@ OpenCounts g_openCounts;
 //   controller +0x10/+0x28/+0x30/+0x50 -> c->Type() / OnOpened() / OnClosed() /
 //                                      OnSerializeSettings(&ms)  (VIRTUAL)
 //   RtUi_DialogInstance_SaveSettings -> SaveSettings()
-// The ReaderWriter / MemoryStream / Serializer calls are IO's (other classes'
-// doors) and stay as they were, reached through the file-scope helpers below
-// so that no member keeps a static of its own (RULE B6-5).
+// The ReaderWriter / MemoryStream / Serializer calls are IO's own members, on
+// the stack IO::MemoryStream and IO::Serializer objects the note below describes.
 // ############################################################################
 namespace {
 
@@ -295,7 +269,7 @@ namespace {
 
 namespace UI {
 
-// ?SaveSettings@DialogInstance@UI@@QEAAXXZ   0x180114240 — see the door.
+// ?SaveSettings@DialogInstance@UI@@QEAAXXZ   0x180114240 — see the header.
 void DialogInstance::SaveSettings() {
     using namespace RtUi;
     if (_userData == nullptr) return;
@@ -337,14 +311,14 @@ void DialogInstance::SaveSettings() {
     // ~Serializer (`if (rw) delete rw`), then ~MemoryStream.
 }
 
-// ?OnClosed@DialogInstance@UI@@UEAAXXZ   0x180115330 — see the door.
+// ?OnClosed@DialogInstance@UI@@UEAAXXZ   0x180115330 — see the header.
 void DialogInstance::OnClosed() {                              // [5]
     SaveSettings();
     for (int32_t i = 0; i < _controllers._size; ++i)
         _controllers._data[i]->OnClosed();                     // controller slot 6
 }
 
-// ?OnOpened@DialogInstance@UI@@UEAAXXZ   0x180114fb0 — see the door.
+// ?OnOpened@DialogInstance@UI@@UEAAXXZ   0x180114fb0 — see the block above.
 void DialogInstance::OnOpened() {                              // [4]
     using namespace RtUi;
     ++g_openCounts.entries;

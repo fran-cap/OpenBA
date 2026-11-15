@@ -1,15 +1,12 @@
 #pragma once
 // ============================================================================
-// src/engine/system/widestring_internal.h — the registered `System::WideString` doors
+// src/engine/system/widestring_internal.h — String.h and WideString.h for its includers
 // ============================================================================
-// ENDGAME B.3.4b SYSTEM (4a): the LAYOUT and the class moved to
+// ENDGAME B.3.4b SYSTEM (4a): the LAYOUT and the class are in
 // `src/engine/system/WideString.h`, which is where a type header belongs and
-// where `tests/unit/system_abi_test.cpp` can reach it. This file keeps exactly
-// what it always was for its three includers (platform_startup_win.cpp,
-// application_win.cpp, updateloop_loadresources.cpp, value_types.cpp): the POD
-// spelling and the free-function doors, whose names, signatures and
-// registration rows are unchanged. The doors now DELEGATE to the class members;
-// see the bodies in widestring.cpp.
+// where `tests/unit/system_abi_test.cpp` can reach it. This file declares
+// nothing of its own; its includers get System::String and System::WideString
+// through it.
 // ============================================================================
 
 #include <cstddef>

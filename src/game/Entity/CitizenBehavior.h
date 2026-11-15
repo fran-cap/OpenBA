@@ -32,9 +32,6 @@
 // serializer's validated cells; an InternalPtr<T> element is an InternalPtr<T>
 // (B4 S4 IBP), an ExternalPtr<T> element the bare `T*`.
 //
-// The engine/types/CitizenBehavior.h header forwards here and still carries the
-// `CitizenBehaviorRaw` accessor mirror its bodies use (H10: it goes with its last
-// user).
 // ============================================================================
 
 #include <cstdint>
@@ -419,7 +416,7 @@ public:
     CitizenBehavior(const CitizenBehavior&) = delete;
     CitizenBehavior& operator=(const CitizenBehavior&) = delete;
 
-    // ---- members (B4 WORK-a; bodies in citizenbehavior.cpp) ----
+    // ---- members (B4 WORK-a; bodies in citizenbehavior.cpp, the water search in Work/firework_search.cpp) ----
     void Update(const System::Time* deltaTime);   // 0x14008c2b0
     void CountResources();                 // 0x140089ed0
     void CheckThresholds(const System::Time* deltaTime); // 0x14008c100

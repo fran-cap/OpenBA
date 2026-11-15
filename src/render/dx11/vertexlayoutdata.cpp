@@ -158,9 +158,9 @@ void VertexLayoutData::Bind(void* /*Video::Context& — ignored*/) {
 //     failing HRESULT, which the original ignores too (the return value is
 //     never tested).
 //
-// The one deliberate divergence in this file: the original has no bound on the
-// element count against its 64-descriptor stack buffer, so a layout with more
-// than 64 elements would smash its own frame. We clamp and log instead. This
+// A deliberate divergence (the format check in the body is the other one): the
+// original has no bound on the element count against its 64-descriptor stack buffer,
+// so a layout with more than 64 elements would smash its own frame. We clamp and log instead. This
 // is unreachable in practice (a D3D11 input layout is limited to 32 input
 // slots and Banished's layouts are single digits), and "reproduce a stack
 // overflow exactly" is not a useful fidelity goal.

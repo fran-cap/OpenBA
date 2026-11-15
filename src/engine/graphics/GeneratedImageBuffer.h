@@ -45,7 +45,7 @@ namespace Graphics { class Renderer; class Scene; class Camera; }   // slot [11]
 // dtor touches nothing of its own — it restamps the vtable and tail-jumps
 // ~ImageBuffer. `_pad6c` is NEVER WRITTEN by either body; it is the four bytes
 // MSVC leaves before the 8-aligned tail of the derived classes. Recorded, not
-// zeroed (FrameCopyImageBuffer.h says the same of its own +0x6c).
+// zeroed.
 
 
 // ---------------------------------------------------------------------------
@@ -87,11 +87,6 @@ namespace Graphics { class Renderer; class Scene; class Camera; }   // slot [11]
 // ############################################################################
 // THE REAL CLASSES — `Graphics::GeneratedImageBuffer` and
 // `Graphics::ReflectionImageBuffer`. ENDGAME B.3.5 block C.
-//
-// The two PODs above STAY: `GeneratedImageBuffer`'s because it is the layout
-// `RtGraphics::ReflectionImageBuffer` and `RtGraphics::FrameCopyImageBuffer`
-// mirror by embedding `::ImageBuffer base`, and `FrameCopyImageBuffer`'s because
-// `src/engine/graphics/wave23_lane_gfxbody.cpp` (block H1's) still uses it.
 // ############################################################################
 
 namespace Graphics {
@@ -129,7 +124,7 @@ namespace Graphics {
 // vector deleting dtor; the class stays ABSTRACT (slots 10 / 11 `_purecall`, as
 // retail). The ctor / dtor doors, the four slot doors, the FACTREST row, the
 // RT_DELDTOR row 0x18001eee0 and the minted `??_7GeneratedImageBuffer@Graphics@@6B@`
-// are retired (tools/rt_mint_retired/gfx.txt); the "stay registered DOORS"
+// are retired; the "stay registered DOORS"
 // paragraph above is history. The factory pair is retail's abstract one.
 class GeneratedImageBuffer : public Video::ImageBuffer {
 public:
@@ -172,8 +167,7 @@ protected:
 protected:
 
     // `IEBA` = PROTECTED const, not private. Neither is ported: nothing in the
-    // tree calls either, and they exist only as rows in
-    // `standalone/rt_export_addrs.inc`. They are the latch protocol the two
+    // tree calls either. They are the latch protocol the two
     // subclasses' `Generate` arms would use.
     bool BeginGeneration(int32_t generation) const;   // ?BeginGeneration@ — not ported
     void EndGeneration(int32_t generation) const;     // ?EndGeneration@   — not ported
@@ -218,8 +212,7 @@ static_assert(offsetof(GeneratedImageBuffer, _generation) == 0x68, "_generation 
 // ~ReflectionImageBuffer holding the retired ??1 door's body, the factory pair
 // as the class's own statics; Construct / Reconstruct placement-new the class.
 // The minted `??_7ReflectionImageBuffer@Graphics@@6B@`, its RT_DELDTOR row
-// 0x180022600, the FACTREST row and the ctor / ??1 / slot doors are retired
-// (rt_mint_retired/gfx.txt).
+// 0x180022600, the FACTREST row and the ctor / ??1 / slot doors are retired.
 // ============================================================
 class ReflectionImageBuffer : public GeneratedImageBuffer {
 public:

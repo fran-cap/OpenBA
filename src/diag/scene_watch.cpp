@@ -512,7 +512,7 @@ void SceneWatch_LodCensus(Graphics::Scene* scene, const Graphics::Camera* camera
             // +0x10c..+0x118 is the MeshInstance's own RGBA tint (1,1,1,1 from its ctor).
             // +0x10c..+0x118 is the growth VISUAL SCALE (GrowthComponent writes it as
             // ModelComponent+0x134, and the MeshInstance sits at ModelComponent+0x28, so
-            // the two are the same four floats). The Geometry ctor seeds it to
+            // the two are the same four floats). The MeshInstance ctor seeds it to
             // (1,1,1,1), i.e. UNWRITTEN READS AS FULLY GROWN — so a plant that has not
             // been ticked yet draws mature and then SNAPS to its real size the moment
             // the growth pass first reaches it. That snap is a tree changing size in one
@@ -625,10 +625,10 @@ void SceneWatch_LodCensus(Graphics::Scene* scene, const Graphics::Camera* camera
         //     mat = matInstance+0x28;  requires 0 <= idx < *(int*)(mat+0x30)
         //     and the variant's +0x20/+0x28/+0x30 programs must all be non-null
         //     with a positive size at +0x48.
-        // For the main scene pass that index is renderer+0x3c, which THIS PORT writes
-        // every frame from VideoConfig+0x30 (the shadow-quality setting). A setting
-        // past a material's variant count drops every draw item using that material,
-        // with no error anywhere - the model is simply absent.
+        // For the main scene pass that index is the scene entry's +0xec (AddScene's shader
+        // argument, MaterialPass::Normal = 0); renderer+0x3c, which THIS PORT writes every frame
+        // from VideoConfig+0x30, is the shader-detail level. A material with no variant at the
+        // index drops every draw item using it, with no error anywhere - the model is simply absent.
         {
             Object::ExternalPtr<Graphics::MaterialInstance>* matInsts = mi->_materials.GetData();  // +0xc8
             if (Readable(matInsts)) {
@@ -805,7 +805,7 @@ void SceneWatch_DrawItemCensus(Graphics::Renderer* renderer) {
             std::fprintf(stderr, "[DrawCensus] frame=%d NO GROUPS: renderer=%p groups=%p "
                                  "used(+0x38)=%d cap(+0x18)=%d scenes(+0x8)=%d\n",
                          s_frame, static_cast<void*>(renderer), static_cast<void*>(groups), used,
-                         renderer->_drawGroups.GetCapacity(),   // +0x18
+                         renderer->_drawGroups.GetCapacity(),   // +0x1c
                          renderer->_sceneGroups.GetSize());     // +0x08
             std::fflush(stderr);
         }

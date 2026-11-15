@@ -6,21 +6,20 @@
 //                                             259 bytes, 0x1800e1b50..0x1800e1c53
 // ============================================================================
 //
-// The Win32/DirectInput teardown half of `Input::Device`. Its own `_win` .cpp
-// for the reason input_win.cpp gives: <windows.h> and COM must not appear in
-// input.cpp (PLAN.md §4.1 decision 1).
+// The DirectInput teardown half of `Input::Device`, OS-free: no <windows.h> or
+// COM here (docs/runtime_port/PLAN.md §4.1 decision 1); Unacquire and Release
+// are Platform::Input primitives.
 //
 // ---------------------------------------------------------------------------
-// `AEAA` IS *PRIVATE*, NOT UNEXPORTED — SO THIS IS A PLAIN NAME DOOR
+// `AEAA` IS *PRIVATE*, NOT UNEXPORTED
 // ---------------------------------------------------------------------------
 // This DLL exports its private members
 // (reference_aeaa_is_private_not_unexported.md records three silent address
 // doors that survived review because a comment said "unexported"). Checked, not
-// assumed: the name is in the shipped export directory at ordinal 3395, and our
-// own tree already reaches it BY NAME —
-// `src/engine/engine/engine_lifecycle.cpp:847` and
-// `src/game/Game/game_main.cpp:265` both spell the mangled name. So the name
-// door is the primary one and the address door is the belt-and-braces second.
+// assumed: the name is in the shipped export directory at ordinal 3395. Our
+// own tree calls it as a member —
+// `src/engine/engine/engine_lifecycle.cpp:729` and
+// `src/game/Game/game_main.cpp:188`.
 //
 // ---------------------------------------------------------------------------
 // ABSENCE ESTABLISHED FIRST
@@ -60,7 +59,7 @@
 // It is not an anomaly, it is the type system: COM index 2 (+0x10) is
 // `IUnknown::Release`, which all three have; COM index 8 (+0x40) is
 // `IDirectInputDevice8::Unacquire`, which only a DEVICE has. +0x11D8 is the
-// `IDirectInput8` FACTORY (pinned in src/engine/input/Input.h by its
+// `IDirectInput8` FACTORY (pinned in src/engine/input/Device.h by its
 // `DirectInput8Create` writer, added by this lane), and a factory was never
 // acquired, so there is nothing to unacquire. The three slots being released in
 // the order mouse, keyboard, factory — children before parent — is the same
@@ -68,7 +67,7 @@
 //
 // THE THREE KEYS ARE WIN32 MESSAGES: 7 = WM_SETFOCUS, 8 = WM_KILLFOCUS,
 // 0x20A = WM_MOUSEWHEEL. Independently corroborated by
-// src/engine/input/Input.h, which already names
+// src/engine/input/Device.h, which already names
 // `Input::Device::OnFocusMessage` and `::OnLostFocusMessage` as the two
 // `_hasFocus` writers — so the callbacks this body removes are the ones that
 // header says exist. `PlatformStartup` registers them; this removes them, which
@@ -77,54 +76,21 @@
 //
 // THE DESCENT IS NOT REIMPLEMENTED FROM SCRATCH. It is instruction-for-
 // instruction `?UnregisterMessageCallback@Application@1@QEAAXI@Z` (0x18009fa20),
-// which message_callbacks.cpp:267 already ports — same unsigned compare, same
+// which message_callbacks.cpp:235 already ports — same unsigned compare, same
 // LEFT=+0x18 / RIGHT=+0x20, same tail into the erase at 0x18000aba0, same
 // silent return on a miss. Retail INLINES it here rather than calling it; this
 // port calls our ported copy, so there is one descent in the tree instead of
-// two. The AVL erase itself (0x18000aba0) is PORTED and registered
-// (src/engine/collection/set_avl.cpp:428), so this body has ZERO unported
+// two. The AVL erase itself (0x18000aba0) is PORTED
+// (src/engine/collection/set_avl.cpp:306), so this body has ZERO unported
 // callees.
 //
 // ---------------------------------------------------------------------------
-// ORACLE — WHAT THIS LANE COULD AND COULD NOT BUILD
+// ATTENDANCE COUNTERS
 // ---------------------------------------------------------------------------
-// PROBE SHAPE (WAVE24_KICKOFF §1c): **shadow/diff site**, labelled a SELF-CHECK,
-// exercised by lane DIFF's armed sweep. The other shapes, each ruled out by a
-// named fact rather than by "no run, therefore STRUCTURAL":
+// `g_erased` counts how many of the three descents HIT a node and `g_missed` how
+// many found nothing; the summary line reports both, so a run in which none of
+// them hit says `erased=0`.
 //
-//   * INPUT SWEEP — not a pure function. It mutates a live AVL tree and calls
-//     COM `Release`, which is a refcount decrement that cannot be undone.
-//   * TWO-SIDED A/B — structurally impossible here, and not for lack of a run:
-//     this is a ONCE-ONLY teardown. Running the shipped body after ours would
-//     double-Release three COM objects and erase three tree nodes that are
-//     already gone. Replay is exactly what a shutdown path forbids.
-//   * SYNTHESISED ORACLE — would need three fake `IDirectInputDevice8`s. That is
-//     buildable (a vtable of stubs is cheap) and it is the RIGHT follow-up, but
-//     it needs the harness-side driver this lane has no room to add; handed
-//     forward below rather than claimed.
-//   * WRITE-PATH REPLAY — not a Serialize.
-//
-// WHAT THE SELF-CHECK ASSERTS: the three callbacks really are gone from the
-// tree afterwards, and the Set's `count` fell by exactly the number of nodes
-// that were actually found. That second half is the EFFECTIVENESS CONTROL —
-// `g_erased` counts how many of the three descents HIT, so a run in which none
-// of them hit reports `erased=0` and says so, instead of printing a clean
-// `divergences=0` that means nothing (KICKOFF §3 rule 3; and
-// reference_probe_needs_an_effectiveness_control.md).
-//
-// NEGATIVE CONTROL: `RT_INPUTSHUTDOWN_CONTROL=1` skips the
-// WM_MOUSEWHEEL (0x20A) erase. The post-condition check looks up all THREE keys
-// afterwards, so the control corrupts a subject the predicate actually examines
-// (reference_control_must_pick_a_compared_subject.md), and it leaves the COM
-// slots alone — which the predicate must NOT examine, because after Release the
-// pointers are dangling and reading through them is a use, not a check.
-//
-// ---------------------------------------------------------------------------
-// ONE KILL SWITCH: RT_INPUTSHUTDOWN
-// ---------------------------------------------------------------------------
-// Its own switch rather than riding RT_INPUT: this is on the process
-// SHUTDOWN path, and a shutdown-only row should be bisectable without moving
-// Input::Device::Update and the KeyMap bodies with it.
 // ============================================================================
 
 // Phase D.4 SDL I1: no <windows.h> / <dinput.h>: Unacquire / Release are
@@ -161,7 +127,7 @@ uint64_t g_entries   = 0;
 uint64_t g_erased    = 0;   // EFFECTIVENESS: descents that actually HIT a node
 uint64_t g_missed    = 0;   // EFFECTIVENESS: descents that found nothing
 uint64_t g_released  = 0;   // control: COM slots that were non-null
-uint64_t g_checks    = 0;   // EFFECTIVENESS: self-check actually evaluated
+uint64_t g_checks    = 0;   // nothing increments it; the summary line prints 0
 constexpr uint64_t g_noApp = 0;   // control: the singleton was null (never since B6 D G20: kept for the summary line)
 
 struct ShutdownSummary {
@@ -269,8 +235,7 @@ void Device::PlatformShutdown() {
         ++g_released;
     }
 
-    // ---- SELF-CHECK --------------------------------------------------------
-    // The COM pointers are deliberately NOT examined: after Release they may be
+    // The COM pointers are deliberately NOT examined after Release: they may be
     // dangling, and reading through one is a use, not a check.
 }
 

@@ -7,20 +7,13 @@
 // in its own body: src/app/res_load_lock.h. Read that first.
 //
 // INITIALIZATION. `InitializeCriticalSection` on a recursive CS, run exactly
-// once, from whichever thread gets here first. The old code initialized inside
-// `InstallFindOrLoadWatch()`, which is a place that does not necessarily run —
-// and at cutover definitely does not do anything useful. A ported body taking
+// once, from whichever thread gets here first. A ported body taking
 // an uninitialized CRITICAL_SECTION is undefined behaviour that would present
 // as a random hang or a corrupt wait list, i.e. exactly the failure mode the
 // lock exists to remove, so the init cannot be anybody's install-time
 // side effect.
 //
-// `InitOnceExecuteOnce` (Platform::OnceRun) is used rather than a function-local `static` because
-// this may be entered from a Runtime-created loader thread, and MinGW's
-// thread-safe-statics guard pulls in the GCC runtime's own once machinery on a
-// thread whose stack and TLS were not set up by our CRT (PLAN.md §4.3 risk 5,
-// "keep C++ exceptions and CRT-dependent machinery out of detoured code").
-// The Win32 primitive has no such dependency.
+// `InitOnceExecuteOnce` (Platform::OnceRun) is used rather than a function-local `static`.
 // ============================================================================
 
 #include "res_load_lock.h"
@@ -37,9 +30,8 @@ Platform::OnceFlag    g_resOnce = {nullptr}; // INIT_ONCE_STATIC_INIT
 bool                  g_armed   = true;      // valid only after the once-init has run
 
 void ResLoadInitOnce() {
-    // Read the kill switch ONCE and cache it. Reading it per call would let a
-    // mid-run _putenv_s turn the lock off between an acquire and its release —
-    // a leaked lock rather than an A/B.
+    // Read the kill switch ONCE and cache it, so lock and unlock agree for the
+    // whole process.
     g_armed = !Opt().noFolLock;
     if (g_armed) {
         // Spin count 0: contention here is a real load on another thread doing

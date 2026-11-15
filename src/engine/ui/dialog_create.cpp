@@ -34,32 +34,30 @@
 //     src/engine/collection/array.cpp made exactly this call three waves ago
 //     and states the argument: "calling it IS retail's body minus the inlining,
 //     and it keeps <windows.h> out of src/engine/". This file follows it and
-//     uses the SAME two accessors, by address, for the same reason.
+//     calls `System::MemoryAllocator` by name, for the same reason.
 //
 //  2. "The node it allocates is freed by `??1DialogInstance`, which stays in
 //     the DLL." BOTH HALVES ARE NOW FALSE. `??1DialogInstance@UI@@` (0x180114d40)
-//     was ported by Wave 9 lane UID and is registered in dialog.cpp. And even
-//     when the DLL's own dtor runs (it still does, through the DLL's own direct
-//     near-CALLs, which no registry can redirect), it frees into the SAME heap:
-//     `MemAlloc`/`MemFree` reach 0x1800c7a50/0x1800c7ad0, which is the DLL's
-//     allocator port. THERE IS NO CONFIGURATION IN WHICH THE TWO SIDES SEE
-//     DIFFERENT HEAPS. That is the whole of the "split ownership" objection.
+//     was ported by Wave 9 lane UID: it is `UI::DialogInstance::~DialogInstance`,
+//     whose ReleaseFields body is in dialog.cpp, and it frees through the same
+//     `System::MemoryAllocator` (0x1800c7a50/0x1800c7ad0) this file allocates
+//     from. THERE IS NO CONFIGURATION IN WHICH THE TWO SIDES SEE DIFFERENT
+//     HEAPS. That is the whole of the "split ownership" objection.
 //
 //  3. "`MemFree` is Wave 2's allocator port, which shipped opt-in with a NO-GO."
 //     EXPIRED. docs/history/runtime_port/WAVE10_LANE_ALLOC.md returns GO: armed with
 //     the DLL present, 901,685 allocations and 540,750 frees served by the
 //     ported bodies in 30 s, a 3,000-frame redzone stress town with ZERO
-//     violations, and an unarmed run byte-identical in behaviour. It remains
-//     OPT-IN, which is why point 2 above is stated for BOTH settings.
+//     violations, and an unarmed run byte-identical in behaviour.
 //
 // ---------------------------------------------------------------------------
-// TWO UNEXPORTED ARRAY HELPERS, AND WHY REGISTERING THEM IS NOT NEW WORK
+// TWO UNEXPORTED ARRAY HELPERS
 // ---------------------------------------------------------------------------
 // `?StartTimer@` tail-calls 0x180076250 and the 4-arg `?AddController@`
 // tail-calls 0x180076370. Neither is an export. Neither needed porting:
 //
-//   0x180076250  ≡  0x18005fb00   (registered, `kSpec_Node18`, stride 0x18)
-//   0x180076370  ≡  0x180076900   (registered, `kSpec_Fill8Z`, stride 8)
+//   0x180076250  ≡  0x18005fb00   (`kSpec_Node18`, stride 0x18)
+//   0x180076370  ≡  0x180076900   (`kSpec_Fill8Z`, stride 8)
 //
 // "≡" is a MEASUREMENT, not an impression: both pairs were compared
 // instruction-for-instruction with the leading address stripped and every
@@ -70,10 +68,7 @@
 // instructions. THE INSTRUMENT WAS CONTROLLED — the same comparison between
 // the stride-8 body and the stride-0x18 body reports 62 differing instructions,
 // so it is not structurally incapable of saying "different"
-// (reference_diagnostic_field_cannot_express_the_answer.md). The two extra
-// `RegisterRuntimeAddr` lines live in src/engine/collection/array.cpp beside
-// the bodies they name, NOT here, because a private second registration of a
-// body another file owns is the drift that parameterisation exists to prevent.
+// (reference_diagnostic_field_cannot_express_the_answer.md).
 //
 // ---------------------------------------------------------------------------
 // FAITHFULNESS NOTES A "TIDY" PORT WOULD DESTROY
@@ -92,27 +87,18 @@
 //    CLAUDE.md: retail's unguarded derefs are load-bearing; a guard does not
 //    restore the behaviour, it skips it.
 //  * The 6-arg `?AddController@` calls `Array::SetSize` on `RBX+0xa0` and then
-//    ORs `[RBX+0x34]` with RBX possibly null, for the same reason.
+//    ORs `[RBX+0x34]` with RBX possibly null. NOT reproduced: the port tests
+//    the target for null first (NOT RETAIL, stated at the body).
 //  * The 6-arg's element-name test compares LENGTHS FIRST and only then calls
 //    `StrCompare`, and its "lengths equal" arm re-tests the pointer and the
 //    length a second time. Transcribed as written.
 //  * `?StartTimer@`'s appended element leaves bytes +0x14..0x17 of the 0x18-byte
 //    record UNWRITTEN — retail builds the fill record on the stack and never
-//    touches that word. The differential oracle EXCLUDES those four bytes per
-//    element; comparing them would fail 100 % of calls and read as a
-//    catastrophic port defect
-//    (reference_oracle_must_not_compare_unwritten_bytes.md).
+//    touches that word. StartTimer below leaves `tmp` uninitialised there too.
 //
 // PORTABILITY: no <windows.h>, per PLAN.md §4.1 decision 1.
 // ============================================================================
 
-// *** INCLUDE ORDER IS LOAD-BEARING. ***
-// `src/engine/object/External.h` opens `namespace RtObject {` and then
-// `#include "TypeInfo.h"` INSIDE it, so whichever translation unit pulls
-// External.h first nests every TypeInfo declaration into `RtObject::RtObject`
-// for the whole TU — which is why dialog.cpp records that TypeInfo.h "IS NOT
-// INCLUDABLE HERE". Including it FIRST fixes that for this TU: `#pragma once`
-// then makes External.h's nested include a no-op. Do not move this line.
 #include "object/TypeInfo.h"
 
 #include <cstddef>
@@ -146,12 +132,6 @@ void* MemAlloc(uint64_t bytes, int align) {
     return System::MemoryAllocator::MemAlloc(bytes, align);
 }
 
-// ---- Probe scheduling ------------------------------------------------------
-//
-// *** THE DIFFERENTIAL MUST NOT RUN FROM THE REGISTER FUNCTION. *** That runs
-// inside `RuntimePortInit()`, immediately after `ResolveInit()`'s LoadLibrary —
-// at which point the DLL's `MemoryAllocator` has been CONSTRUCTED but not
-// STARTED (`Engine::Startup` does that later). `?StartTimer@` allocates, so a
 // ============================================================================
 // Callees, called by name (B3R RT-UI).
 // ============================================================================
@@ -173,12 +153,14 @@ void* MemAlloc(uint64_t bytes, int align) {
 //   0x180076900  kSpec_Fill8Z, same reasoning, == SpecFor<Element*>() for
 //                `Element::_children`.
 //
-// No `ExplicitSpec` bridge needed at any of the three call sites below.
+// No `ExplicitSpec` bridge is needed at the two `SetSize` call sites below; the
+// 6-arg AddController's `Element::_children` append goes through
+// `rtcoll::AsArray<&rtcoll::kSpec_Fill8Z>`.
 
 // ??0Dialog@UI@@QEAA@XZ 0x180112db0 / ??1Dialog@UI@@UEAA@XZ 0x180112e40: the
 // 6-arg AddController builds a default UI::Dialog on its stack with both
-// bodies INLINED. ENDGAME B.3.9 UI-D: `::new (p) UI::Dialog()` and
-// `~T()` (slot 0, flags 0) (the door pair is retired).
+// bodies INLINED. ENDGAME B.3.9 UI-D: `::new (p) UI::Dialog()` and the
+// qualified `UI::Dialog::~Dialog()` (the door pair is retired).
 
 // The two type ids the bodies test against. Retail loads the FIRST DWORD of
 // each class's `_typeInfo` (`MOV EDX,dword ptr [0x1801f9e48]` for
@@ -206,8 +188,7 @@ void* MemAlloc(uint64_t bytes, int align) {
 //
 // The loop cursor is a BYTE offset stepped by 0x18 (`ADD RAX,0x18`), and the id
 // it compares lives at record+0x10 — the two facts DialogInstance.h pinned
-// `DialogTimer` from, and the two the displacement oracle re-pins out of the
-// shipped bytes below.
+// `DialogTimer` from.
 //
 // THE FALL-THROUGH IS THE SHIPPED BEHAVIOUR. After rewriting a matching entry
 // the body does NOT return; it walks to the end of the loop and appends another
@@ -231,9 +212,7 @@ void* MemAlloc(uint64_t bytes, int align) {
 //   R8   Object::Base* dataSource          -> controller+0x28
 //   R9   the ExternalPtr's 8 bytes BY VALUE -> controller+0x10
 //   [rsp+0x28]  a POINTER to the InternalPtr — 0x180113416 loads the argument
-//   and 0x18011341b DEREFERENCES it before storing. engine_funcs.h's
-//   `fn_DialogInstance_AddControllerTab_t` already spells it that way and its
-//   exe call sites pass an address; the two agree.
+//   and 0x18011341b DEREFERENCES it before storing.
 //
 // THE TWO UNGUARDED NULL DEREFERENCES ARE RETAIL'S. See the banner.
 // ============================================================================
@@ -390,8 +369,8 @@ void DialogInstance::InitFields(UserInterface* uiArg, const Dialog* dialogArg,
 // and the calls onto THIS block's classes became member calls:
 //   controller vtable +0x20 (slot 4)     -> c->OnCreated()      (VIRTUAL)
 //   ResolveAddr(Module::Runtime, 0x1801133b0) -> AddController(...) (4-arg)
-// Element / Factory / SpriteSheet / Dialog-temporary calls stay as they were
-// (other blocks' classes, or ctor/dtor doors). Evidence: the doors' banners.
+// Element / Factory / SpriteSheet calls are member calls; the Dialog temporary is
+// `::new (p) UI::Dialog()` and `UI::Dialog::~Dialog()`.
 // ############################################################################
 namespace UI {
 

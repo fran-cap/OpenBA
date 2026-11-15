@@ -30,9 +30,9 @@
 
 #include <cstdint>
 #include <cstddef>
-#include "engine/UpdateLoop.h"   // -Iruntime/types: Engine::UpdateLoop
-#include "system/String.h"       // -Iruntime/types: System::String (by value at +0x28)
-#include "object/Internal.h"     // -Iruntime/types: Object::InternalPtr (the ctor's scenario reference)
+#include "engine/UpdateLoop.h"   // -Isrc/engine: Engine::UpdateLoop
+#include "system/String.h"       // -Isrc/engine: System::String (by value at +0x28)
+#include "object/Internal.h"     // -Isrc/engine: Object::InternalPtr (the ctor's scenario reference)
 
 // B.4 W0-H2 / GAME-a (H4): every pointer member is typed; forward declarations
 // only (layout-neutral, proven by the offset asserts below). The member names
@@ -125,11 +125,10 @@ public:
     Save::SavedState* m_savedState;    // +0x58  non-null = loading from save (ctor p2)
 
     // Rendering subsystems (created in Load, destroyed in Shutdown)
-    // B.4 GAME-a (H4): typed. Load / Shutdown still build and destroy the
-    // Graphics three and Audio::Scene through the Runtime ctor / dtor doors
-    // (RtGraphics_* on the POD mirrors, RtAudio_Scene_*): the real classes'
-    // ctors / dtors are declared and undefined (src/engine/graphics/Scene.h,
-    // Camera.h, AnimationManager.h), so the order of calls is main's.
+    // B.4 GAME-a (H4): typed. Load builds Graphics::Scene with its ctor and Audio::Scene,
+    // Picking::Scene and the AnimationManager through RtAudio_Scene_Ctor /
+    // RtPicking_Scene_Ctor / RtGraphics_AnimationManager_Ctor; Shutdown runs the three
+    // Scene dtors and RtGraphics_AnimationManager_Dtor.
     Graphics::Scene*            m_graphicsScene;    // +0x60  MemAlloc(0x78) in Load
     Graphics::AnimationManager* m_animationManager; // +0x68  MemAlloc(0x9d8) in Load
     Picking::Scene*             m_pickingScene;     // +0x70  MemAlloc(0x60) in Load

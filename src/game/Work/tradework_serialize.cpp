@@ -8,7 +8,7 @@
 // rotation / retrace / remove leaves src/game/Player/tool_base_trade.cpp ports:
 //   +0x00 Assignment {citizen, resource, quantity}   +0x18 parent
 //   +0x20 left   +0x28 right   +0x30 int16 balance   +0x32 int16 height
-// Tree: TradeWork::bstRoot (+0x48) and its count TradeWork::workerCount (+0x50).
+// Tree: TradeWork::assignments.root (+0x48) and its count assignments.count (+0x50).
 //
 // Type-id global (reads 0 until filled after Engine::Startup):
 //   DWORD_1401c7158 = "CitizenComponent" (node-key object validation in c8a0).
@@ -120,8 +120,8 @@ void TradeWork::SerializeAssignments(IO::Serializer& ser) {
             Assignment rec;
             rec.citizen = nullptr; rec.resource = nullptr; rec.quantity = 0; rec._pad14 = 0;
 
-            // LEFT: the key is an InternalPtr retail serializes through
-            // InternalBasePtr::Serialize; the field is declared T*.
+            // The key is an InternalPtr retail serializes through
+            // InternalBasePtr::Serialize.
             rec.citizen.InternalBasePtr::Serialize(ser);
             // Validate the deserialized object against CitizenComponent (DWORD_1401c7158,
             // ENDGAME B.3.9 D5: by cell, read directly).

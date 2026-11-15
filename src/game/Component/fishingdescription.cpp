@@ -8,7 +8,7 @@
 //   int/enum    @ +0x28 = 5
 //   int/enum    @ +0x2c = 0x180  (384)
 // Serialize (vtable +0x28, 0x14011f170) — Serializer ctor with version=1, stream order:
-//   ExternalPtr @ +0x20  (FUN_140002340 -> fn_ExternalPtr_BuildSerialize)
+//   ExternalPtr @ +0x20  (FUN_140002340 -> ::Object::SerializeExternal)
 //   enum        @ +0x2c  (serializer encoding vcall +0x98)
 //   if (serializer.GetVersion() > 0): enum @ +0x28 (encoding vcall +0x98)
 // Decompiled READ-ONLY from Application-x64.exe.

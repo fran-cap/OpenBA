@@ -24,27 +24,19 @@
 //       self+0x40 = CharMgr_sub_83f0(gameWorld+0x88, &ibp);   // re-register char index
 //   }
 //
-// This mirrors CharacterComponent_BodyInit's own field derivation
-// (charactercomponent.cpp) — on load retail re-derives +0x78/+0x40 exactly the
-// same way Startup does, so we reuse CharMgr_sub_83f0 (already a real C++
-// function, charmanager.cpp) rather than re-deriving it.
+// On load retail re-derives +0x78 from the description and re-registers the char index
+// +0x40 through CharacterGrid::Register (charmanager.cpp), the same call OnAdded makes
+// (charactercomponent.cpp).
 //
-// Sub-callees: all through already-resolved engine_funcs.h globals
-// (g_fn_Serializer_Ctor/Dtor/GetVersion is NOT used here — version is fixed 0
-// and retail never re-reads it) plus Math::Vector3::Serialize,
-// fn_Serializer_Serialize_Float, g_fn_Serialize_Bool, g_fn_Serialize_Int,
-// fn_InternalBasePtr_Serialize, fn_IsDerivedFrom, fn_InternalBasePtr_Ctor, and
-// the array-resize helper FUN_1400032e0 (already ported/registered elsewhere —
-// see animalwave_serialize.cpp's s_Resize8 use of the same address).
+// Sub-callees are plain C++ calls (the Serializer version is fixed 0 and retail never
+// re-reads it): Math::Vector3::Serialize, IO::Serializer::Serialize,
+// InternalBasePtr::Serialize, Object::IsDerivedFromNullSafe, and the array-resize
+// helper FUN_1400032e0, which is Collection::Array SetSize (below).
 // The base serialize (0x1401189b0) is Component::Persist, called qualified.
 //
-// Validation type ids resolved locally (self-contained, matching the house
-// pattern in animalwave_serialize.cpp): 0x1401c7a50 = ModelComponent,
-// g_BaseTypeInfo_PickingComponent's raw slot, Action's cell (Action::TypeId()), and
-// 0x1401c70b0 = CharacterDescription. These are the SAME raw .rdata addresses
-// already resolved (under different local names) by other files
-// (action_pf_ctors.cpp, boatcomponent_route.cpp, animalcomponent.cpp) — we
-// resolve our own copies rather than share their statics, per house convention.
+// Validation type ids: 0x1401c7a50 = ModelComponent, 0x1401c7c10 = PickingComponent,
+// 0x1401c5da8 = Action and 0x1401c70b0 = CharacterDescription, each read as the
+// class's TypeId().
 
 #include "math/Math.h"
 #include "object/TypeInfo.h"

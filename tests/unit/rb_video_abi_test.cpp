@@ -3,18 +3,18 @@
 //
 // The exe instantiates `Video::ImageBuffer` itself (its table copy
 // 0x14015c8c0: ModDialog, NoiseUI, TradeWork), so B38_RULES D1/D2 make it
-// CONCRETE with a PUBLIC real constructor (0x1800f2580) whose body is ONE body
-// with the ctor door (`InitFields`), a destructor sharing `ReleaseFields` with
-// the dtor door, and slot 0 = the exe's scalar deleting dtor 0x1400129d0
+// CONCRETE with a PUBLIC real constructor (0x1800f2580) whose body is
+// `InitFields`, a destructor whose body is `ReleaseFields`, and slot 0 = the
+// exe's scalar deleting dtor 0x1400129d0
 // (~ImageBuffer; MemFree on flags & 1).
 //
 // PART A — construction runs the shared body under ImageBuffer's compiler
 //   table (CompiledExternal() and the stamp first, External's three zero
-//   stores before it), and the object ends on the subclass's table.
+//   stores before it), and the object ends on ImageBuffer's own table.
 // PART B — slot 0 destroys (ReleaseFields under ImageBuffer's table) and frees.
 // (PART C, the doors reaching the same bodies, went with the doors and the
 // minted row at ENDGAME B.3.9 VS.) PART D (b39_vs_*) — B9-16: the retired
-// row's shape (not abstract, protected non-virtual dtor) and the ctor's
+// row's shape (not abstract, public virtual dtor) and the ctor's
 // retail stores.
 //
 // MARKERS: the class's virtuals, ~ImageBuffer and the two shared bodies live

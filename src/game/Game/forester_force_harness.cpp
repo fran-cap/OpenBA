@@ -6,18 +6,18 @@
 // gate (it only flips a priority-flag bit). ForesterWork is an ACTION on the citizen's
 // CharacterComponent action stack (charComp = citizen+0x278, stack @+0x48, top-index @+0x60),
 // ticked by the executor FUN_1400c4c50 — which runs every frame from
-// CharacterComponent::MoveTick (CharacterComponent_MoveTick_1094c0, env
-// BANISHED_LIVE_CHARACTER_MOVETICK) when the top-index is >= 0. Organically the building's
+// CharacterComponent::MoveTick (CharacterComponent_MoveTick_1094c0) when the top-index is
+// >= 0. Organically the building's
 // ResourceProduceComponent controller clones a ForesterWork template onto each present
 // worker's stack; that controller is inert in standalone, so nothing ever pushes the work.
 //
 // This harness (env BANISHED_FORCE_FORESTERWORK, default OFF) replaces that inert controller
-// for ONE force-worked citizen: when the citizen's action stack is idle it constructs a
-// ForesterWork (faithful to ForesterWork_CopyCtor 0x14011f780 == Work_Ctor25 + vtable + zero
-// +0x48/+0x50/+0x58) with the work-area set to the force-worked ForesterLodge, and pushes it
-// onto the stack. MoveTick then ticks ForesterWork::Execute, which scans the lodge radius for
-// a harvestable tree and pushes a cut PerformWork sequence (-> produces logs ->
-// RegisterRawMaterial, the Phase-B-verified accounting tail).
+// for ONE force-worked citizen: it constructs one ForesterWork (faithful to ForesterWork_CopyCtor
+// 0x14011f780 == Work_Ctor25 + vtable + zero +0x48/+0x50/+0x58) with the work-area set to the
+// force-worked ForesterLodge and, when the citizen's action stack is idle, drives
+// ForesterWork::Execute directly with the citizen's IBP (ForceWork::DriveWhenIdle). Execute scans
+// the lodge radius for a harvestable tree and pushes a cut PerformWork sequence (-> produces logs
+// -> RegisterRawMaterial, the Phase-B-verified accounting tail).
 //
 // Work_Ctor25 (verified vs disasm) computes the work fields from the work-area entity:
 //   +0x10 = work-area IBP (the lodge)
@@ -53,14 +53,11 @@
 #include <cstdlib>
 #include "object/Internal.h"   // ENDGAME B.3.3 step 6B
 
-// The force-worked ForesterLodge (starttown.cpp, BANISHED_LIVE_WORKPLACE).
+// The force-worked ForesterLodge (starttown.cpp).
 extern ComponentEntity* g_pForceWorkBuilding;
 
-// ForesterWork Execute-readiness (src/game/Work/foresterwork.cpp): true once every sub-fn /
-// type-id global / .rdata float that ForesterWork::Execute actually derefs is resolved
-// (excludes the Dtor-only parent vtables + serialize-only ids, which Execute never touches and
-// which are unregistered in standalone). We refuse to push until it's true, so Execute can
-// never null-deref a dependency.
+// ForesterWork Execute-readiness (src/game/Work/foresterwork.cpp): true once the game world
+// (GameUpdateLoop::_singleton) exists. We refuse to push until it's true.
 extern bool ForesterWork_ExecuteReady();
 
 // The ForesterWork factory is the class's own CreateNewObject (create 0x14002a310,
@@ -144,9 +141,7 @@ extern "C" bool StartTown_ForcePushForesterWork(CitizenComponent* citizen) {
     static DepsCheck s_verified = DepsCheck::Unchecked;
     if (static_cast<int>(s_verified) < 0) {   // DepsCheck::Unchecked
         ForesterComponent* fc = VerifyLodgeForester(lodge, /*dump*/true);
-        // Refuse to push unless EVERY ForesterWork dependency (sub-fns, type-id globals,
-        // .rdata floats) resolved — else Execute would null-deref. ResolveFuncs prints the
-        // missing sub-fns in _DEBUG, so a FAIL here pinpoints the next domino.
+        // Refuse to push unless ForesterWork_ExecuteReady() holds (the game world exists).
         bool depsOk = ForesterWork_ExecuteReady();
         s_verified = (fc && depsOk) ? DepsCheck::Usable : DepsCheck::Unusable;
         // The ForesterComponent's cut/plant toggles (+0x50 plant-enabled, +0x51 cut-enabled)

@@ -94,7 +94,7 @@ bool Active(const CameraHold& h) {
            h.dragY != 0.0f || h.yawDegrees != 0.0f;
 }
 
-// The cluster's held control and its zoom repeat.
+// The cluster's held control and how long it has been held (the release line).
 Control g_held = kNone;
 float g_heldSeconds = 0.0f;
 Capture g_capture;

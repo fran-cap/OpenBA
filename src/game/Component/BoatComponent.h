@@ -4,7 +4,7 @@
 //
 // `BoatComponent` as a real C++ class with a compiler-generated vtable and its
 // state controller as an EMBEDDED MEMBER (B38_RULES.md D1-D6; there is no
-// multiple inheritance). The engine/types POD is a forwarder to this file.
+// multiple inheritance).
 //
 // RETAIL (Application-x64.exe, B38_SLOTS.md §2 and §6, bytes read 2026-09-26):
 //   reflected "BoatComponent", parent "ControllerComponent", ti 0x1401c4020
@@ -41,7 +41,7 @@ class CharacterComponent;   // Component/CharacterComponent.h
 
 struct BoatCtrlTag { using Owner = class BoatComponent; };   // the handlers' receiver (controller_state_table.h)
 
-// The boat controller's state ids (table 0x140158f40, built by BoatCtrl_PopulateTable). The table API
+// The boat controller's state ids (the state table built by BoatCtrl_PopulateTable). The table API
 // takes the enum (the controller_state_table.h overloads); GetDefaultState returns SmId(BoatState::X).
 enum class BoatState : int32_t {
     Outbound      = 0,   // follow the route to the dock (0x1400453f0 / 0x140045250); the default state

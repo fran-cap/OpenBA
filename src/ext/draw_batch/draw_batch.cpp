@@ -29,8 +29,8 @@
 // render texture, whose pass's vertex program has its rewritten copy (smoke_vs_rewrite.h: the
 // emitter's transform slot is read from the vertex's +0x0C as well as SV_InstanceID). The items are
 // cut into retail's instancing groups by retail's own rule (DrawItemList's batch loop: the same
-// instance, _node, _userData and _arg10, at most _maxInstances, not past the list's end), and a group is
-// added while the run's slots stay <= 52 and its vertices pass the capacity tests and 65536.
+// instance, _node, _userData and _animationInstanceId, at most _maxInstances, not past the list's end),
+// and a group is added while the run's slots stay <= 52 and its vertices pass the capacity tests and 65536.
 // Faithfully each group is one draw: Setup, the group's transforms in slots 0..n-1 (GetInstanceTransform
 // + SetTransform; a group of one gets the same matrix from Draw's SetTransformScale), then the head's
 // particles written once and drawn n instances. The merged run gives group g the slots s_g..s_g+n-1
@@ -523,7 +523,7 @@ void ExtDrawItemList(const Renderer& renderer, Video::Context& context, int grou
 
     const bool counting = g_counting.load(std::memory_order_relaxed);   // issue #253
     BatchCounters tally;
-    // Issue #253: the backend's bank (52 on DX11 / Metal and at kVulkanInstanceCap 52: today's path).
+    // Issue #253: the backend's bank (52 on DX11 / Metal; on Vulkan kVulkanInstanceCap, cut to the device).
     const int32_t bankCap = InstanceBank::Cap();
     const bool verify = g_verifyOn != 0;
     if (verify) g_drawn.assign(static_cast<size_t>(count), DrawnItem{});

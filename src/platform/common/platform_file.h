@@ -79,7 +79,8 @@ int32_t  DirCreate(const PathChar* path);                         // CreateDirec
 // NOT RETAIL: DirCreate on every prefix of `dir` (either separator), so the missing parents are made
 // too; an existing directory, a drive ("C:") or a UNC host fail harmlessly. true when `dir` is a
 // directory afterwards. One body over DirCreate / PathAttributes (src/platform/common/dir_chain.cpp):
-// the settings twins' WriteFileAtomic and the derived cache's Store::Open.
+// the settings twins' WriteFileAtomic, the derived cache's Store::Open, the Vulkan pipeline cache
+// and ext.town_screenshot's WriteFileBytes.
 bool     EnsureDirChain(const PathChar* dir);
 
 // ---- settings.cfg's file layer (D4_RULES C3; not retail) ---------------------

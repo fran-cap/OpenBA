@@ -54,7 +54,7 @@ HANDLE g_thread = nullptr;
 volatile LONG g_stop = 0;
 int g_hz = 1000;
 long long g_total = 0, g_failed = 0;
-ModInfo g_mods[3];                   // exe, Runtime, VideoDX11
+ModInfo g_mods[3];                   // the exe (Sampler_Init's AddMod)
 int g_nMods = 0;
 FILE* g_out = nullptr;
 
@@ -95,7 +95,7 @@ void AddMod(const char* name, char prefix, bool withExports) {
 }
 
 // One frame -> "E:0x140xxxxxx" (exe, rebased to the link-time image base so addr2line
-// works), "R:<export>+0xoff" (Runtime nearest export), "V:0xoff", or "?:<module>+off".
+// works), or "?:<module>+off" for any other module.
 void PrintFrame(FILE* o, uintptr_t rip) {
     for (int i = 0; i < g_nMods; ++i) {
         const ModInfo& m = g_mods[i];
@@ -288,7 +288,7 @@ void Sampler_Init() {
     g_tracked.reserve(64);
     g_tracked.push_back(Tracked{ GetThreadId(g_mainThread), DiagThreads::kMain, g_mainThread,
                                  false, -1, 0, false });
-    AddMod(nullptr, 'E', false);   // engine DLLs are added at the first flush (loaded later)
+    AddMod(nullptr, 'E', false);   // the exe, the one module in g_mods
     std::fprintf(stderr, "[Sampler] on: %d Hz\n", g_hz);
     g_thread = CreateThread(nullptr, 0, SamplerThread, nullptr, 0, nullptr);
     std::atexit(AtExitFlush);

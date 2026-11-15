@@ -17,18 +17,14 @@
 // `Video::Device`, `Video::Device::{RefreshRate,DisplayMode,Adapter,
 // GraphicsInterface,InterfaceSlot}`, `Video::Configuration` and
 // `Video::RenderBuffer` are now REAL C++ classes under their retail names, in
-// `namespace Video`, with their exported members declared as members and the
-// registered doors delegating to them with a qualified non-virtual call.
+// `namespace Video`, with their exported members declared as members.
 //
 // ONE DEFINITION, NOT TWO (B34B_RULES B4b-1, and the brief's "where class and
 // POD are field-identical prefer ONE definition and an alias"). The old PODs
 // lived in `namespace RtVideo` and were FIELD-IDENTICAL to the retail classes,
 // so there is nothing to duplicate: `RtVideo::Device` & co. are now ALIASES of
-// the real classes. `src/engine/engine/singleton_ctors.cpp`,
-// `src/engine/graphics/sunlight.cpp`, `src/engine/save/saveload_draw.cpp`,
-// `src/engine/video/companion_data.cpp` and
-// `src/engine/video/context_lifecycle.cpp` — five files in four other owners'
-// sets — keep compiling untouched because of those aliases. Nested types get an
+// the real classes; `src/engine/engine/singleton_ctors.cpp` and
+// `tests/unit/video_device_abi_test.cpp` still spell them that way. Nested types get an
 // alias too: `RtVideo::Adapter` is `Video::Device::Adapter`, which is where
 // retail's `??0Adapter@Device@Video@@` says it lives.
 //
@@ -43,8 +39,8 @@
 //   * `RenderBuffer`, `IndexBuffer`, `VertexBuffer` (Buffers.h) — their
 //                       ctors/dtors maintain the `_firstRenderBuffer` /
 //                       `_firstBuffer` intrusive lists under the Device lock,
-//                       and the list head is an `RT_DATA_SLOT` read, not a C++
-//                       static (RULE B4b-4, B35_RULES §9).
+//                       and the list heads are C++ class statics defined in
+//                       dynamic_resources.cpp.
 //   * `Configuration` — `??0Configuration@Video@@QEAA@XZ` (0x1800f6f10) is
 //                       UNPORTED; retail constructs the singleton from a static
 //                       initializer, never through an allocation (measured this
@@ -56,7 +52,7 @@
 //                       §1.4's `System::Compression` precedent).
 //   * `DisplayMode` / `RefreshRate` — retail exports NO default `DisplayMode`
 //                       constructor (only `@HH@Z` and the copy ctor), while
-//                       `video_mode_sort.cpp:169` default-constructs one as a
+//                       `video_mode_sort.cpp:166` default-constructs one as a
 //                       swap temporary exactly as retail leaves it
 //                       uninitialised — a declared ctor set would forbid the
 //                       faithful spelling. So their ctor/dtor DOORS stay free
@@ -81,11 +77,10 @@
 //
 // AGREEMENT WITH src/app/video_interface.cpp
 // ---------------------------------------------
-// That file writes DIRECTLY into the live Device object at hardcoded offsets
-// (`kSlot0 = 0xb0`, `kSlotStride = 0x18`, module/+0x00, GetDeviceName/+0x08,
-// CreateDeviceData/+0x10) to pre-fill the DX11 plugin slot. `Device::dllSlots`
-// below is that same array, at the same offset, with the same stride and the
-// same member order, and the static_asserts pin it. `src/app/main.cpp`
+// That file fills the DX11 plugin slot and the DX9 placeholder slot of the live
+// Device object through `Device::dllSlots` below, by the named fields `module`,
+// `getDeviceName` and `createDeviceData`; the static_asserts pin the array's
+// offset (+0xb0), stride (0x18) and member order. `src/app/main.cpp`
 // (+0xf8 active interface index, +0x100 DeviceData*) and `src/render/dx11/*.cpp`
 // (+0x100) agree too. Nothing in this header contradicts a hardcoded offset
 // anywhere else in the tree — see docs/history/runtime_port/WAVE6_LANE_B.md §3.
@@ -153,25 +148,26 @@ class VideoProgramData;
 // The critical section is declared as an opaque byte block on purpose — RULE
 // B5-6. This header is included from src/engine/, which PLAN §4.1 decision 1
 // keeps free of <windows.h>, and the owner-tid/depth words at +0x88/+0x8c are
-// read at those exact offsets by src/render/dx11/contextdata.cpp and by the four
-// `{Image,Index,Vertex,Render}Buffer::Platform{Construct,Destruct}` bodies. It
+// read and written by name in src/engine/video/buffers_lock.cpp, whose lock the four
+// `{Image,Index,Vertex,Render}Buffer::Platform{Construct,Destruct}` bodies take. It
 // is NOT a `std::mutex` and NOT a scoped guard; the hand-rolled recursive
 // acquire lives in src/engine/video/buffers_lock.cpp.
 //
 // LIFECYCLE EXPORTS — DOORS, NOT MEMBERS (RULE B5-6):
-//   ??0Device@Video@@QEAA@W4DeviceType@01@@Z   0x1800f7160  UNPORTED
+//   ??0Device@Video@@QEAA@W4DeviceType@01@@Z   0x1800f7160  rtengine::Ctor_VideoDevice
+//                                                           (engine/singleton_ctors.cpp)
 //   ??0Device@Video@@QEAA@AEBV01@@Z            0x18000ced0  UNPORTED (copy ctor)
 //   ??1Device@Video@@QEAA@XZ                   0x1800f7290  Video_Device_Dtor
 //                                                           (video_resources.cpp)
 //   ??4Device@Video@@QEAAAEAV01@AEBV01@@Z      0x18000d0b0  UNPORTED (operator=)
-//   ??2Device@Video@@SAPEAX_K@Z                0x18000c9b0  UNPORTED (operator new)
+//   ??2Device@Video@@SAPEAX_K@Z                0x18000c9b0  RtVideo_Device_OperatorNew
 //   ??2Device@Video@@SAPEAX_KPEAX@Z            0x18000ca20  UNPORTED (placement new)
-//   ??3Device@Video@@SAXPEAX@Z                 0x18000ca30  UNPORTED (operator delete)
+//   ??3Device@Video@@SAXPEAX@Z                 0x18000ca30  RtVideo_Device_OperatorDelete
+//                                                           (both engine/engine_lifecycle.cpp)
 //
 // STATIC DATA — `?_singleton@Device@Video@@0PEAV12@EA` @ 0x1801fe7a8 is the
-// class static `Device::_singleton` (ENDGAME B.3.9 VID, B39_RULES D7): the
-// minted row is redirected onto it, so the name door, the address door and the
-// member are the same bytes while foreign readers still reach it by name.
+// class static `Device::_singleton` (ENDGAME B.3.9 VID, B39_RULES D7), defined
+// in device.cpp.
 // ----------------------------------------------------------------------------
 class Device {
 public:
@@ -300,7 +296,7 @@ public:
         // OTHER side of the seam. Wave 6 lane B could only say "ctor = -1,
         // meaning not recovered" from the Runtime bodies, which merely copy the
         // pair into Device+0x14/+0x18. `src/render/dx11/devicedata.cpp`'s
-        // `DeviceData_EnumerateInterfaces` is the WRITER, and it writes the DXGI
+        // `DeviceData::EnumerateInterfaces` is the WRITER, and it writes the DXGI
         // enumeration coordinates: `rec.dxgiAdapterIndex = adapterIndex` from
         // `IDXGIFactory1::EnumAdapters1`'s loop counter and `rec.dxgiOutputIndex =
         // outputIndex` from `IDXGIAdapter1::EnumOutputs`'s. The shipped plugin's
@@ -444,12 +440,12 @@ public:
     // ?GetCurrentDisplayMode@Device@Video@@QEBAHXZ 0x18000d440  NOT PORTED
     int  GetCurrentDisplayMode() const;
     // ?GetDefaultResolution@Device@Video@@QEBAHAEBUAdapter@12@@Z 0x1800f7540
-    //   device_startup.cpp (member) -> device_window.cpp (EnumDisplaySettingsW)
+    //   device_window.cpp (EnumDisplaySettingsW)
     int  GetDefaultResolution(const Adapter& adapter) const;
     // ?GetDefaultRefreshRate@Device@Video@@QEAAHAEBVDisplayMode@12@H@Z 0x1800f7600  NOT PORTED
     int  GetDefaultRefreshRate(const DisplayMode& mode, int hz);
     // ?AdjustDisplay@Device@Video@@QEAAXXZ       0x1800f7e20
-    //   device_enum_types.cpp (member) -> device_adjustdisplay.cpp
+    //   device_adjustdisplay.cpp
     void AdjustDisplay();
     // ?LogDisplay@Device@Video@@QEBAXXZ          0x1800f7640  NOT PORTED
     void LogDisplay() const;
@@ -459,9 +455,9 @@ public:
 
     // ---- configuration ------------------------------------------------------
     // ?ValidateConfiguration@Device@Video@@QEAAXAEAH0000000@Z 0x1800f7370  device.cpp
-    //   The EIGHT-int& out-parameter overload. THE DOOR DECIDES THE OVERLOAD:
-    //   this one is registered from device.cpp, the no-argument one from
-    //   device_startup.cpp, and the two ordinals are adjacent (4532 / 4533).
+    //   The EIGHT-int& out-parameter overload, defined in device.cpp; the
+    //   no-argument one is in device_startup.cpp, and the two ordinals are
+    //   adjacent (4532 / 4533).
     void ValidateConfiguration(int& renderer, int& adapterIdx,
                                int& width, int& height,
                                int& refreshNum, int& refreshDen,
@@ -496,7 +492,7 @@ public:
     //   (declared `void*` rather than `HWND`: this header stays <windows.h>-free.)
     void* GetWindow();
     // ?SizeWindow@Device@Video@@SAHPEAUHWND__@@I_K_J@Z 0x1800f7d20
-    //   device_startup.cpp (member) -> device_window.cpp. A WM_SIZE
+    //   device_window.cpp. A WM_SIZE
     //   callback whose ADDRESS PlatformStartup hands to the Application.
     static int SizeWindow(void* hwnd, unsigned msg, uint64_t wparam, int64_t lparam);
     // ?MoveWindow@Device@Video@@SAHPEAUHWND__@@I_K_J@Z 0x1800f7d90  ditto (WM_EXITSIZEMOVE)
@@ -511,7 +507,7 @@ public:
     // Each of the eleven `Create*Data` members is a one-line forward into a
     // `Video::DeviceData` vtable slot by BYTE OFFSET (B35_RULES §1, and
     // CompanionData.h tabulates the slot per factory). None is ported: our tree
-    // reaches those slots directly, by offset, from the owner's constructor.
+    // calls those `DeviceData` virtuals directly, by name, from the owners' bodies.
     // ?GetData@Device@Video@@QEAAPEAVDeviceData@2@XZ 0x18000cb20  NOT PORTED
     DeviceData* GetData();
     // ?CreateContextData@Device@Video@@...        0x1800f85d0  NOT PORTED  (slot  9, +0x48)
@@ -588,7 +584,7 @@ public:
     // The two adapter fields were "meaning not recovered" until B.3.5 block D2
     // read the WRITER on dx11's side — see Adapter::dxgiAdapterIndex /
     // dxgiOutputIndex above. `src/render/dx11/devicedata.cpp` reads THESE two copies
-    // back (its `Dev::kOutputIndex` is +0x18) to re-find the output it enumerated.
+    // back (`dev->dxgiOutputIndex`, +0x18) to re-find the output it enumerated.
     int32_t           refreshRateIndex;    // +0x10  index into the chosen mode's refresh list, or -1
     int32_t           dxgiAdapterIndex;    // +0x14  copied verbatim from Adapter+0x2C
     int32_t           dxgiOutputIndex;     // +0x18  copied verbatim from Adapter+0x30
@@ -618,8 +614,8 @@ public:
     int32_t           lockRecursionCount GUARDED_BY(lock);   // +0x8C  ditto
     void*             windowHandle;        // +0x90  HWND, copied from Application::_singleton[0] by Startup
     int32_t           maxAnisotropy;       // +0x98  max anisotropic filter level; read by
-                                           //        src/game/Dialog/optionsdialog.cpp:359 as
-                                           //        `*(int*)(vidDev + 0x98)`. Not written by the
+                                           //        src/game/Dialog/optionsdialog.cpp:318 as
+                                           //        `vidDev->maxAnisotropy`. Not written by the
                                            //        ctor — adapter enumeration fills it.
     uint8_t           settingsChanged;     // +0x9C  ApplyChangedSettings sets it to 1
     uint8_t           adjustingDisplay;             // +0x9D  ctor zeroes it in the same 2-byte store
@@ -627,7 +623,7 @@ public:
     void*             monitor;             // +0xA0  HMONITOR: AdjustDisplay hands it to GetMonitorInfoW
                                            //        (0x1800f7e68); the ctor zeroes it
     uint8_t           unusedMonitorPair[8];            // +0xA8  the ctor zeroes it; meaning not recovered
-    InterfaceSlot     dllSlots[3];         // +0xB0  DX9, DX11, GL — src/app/video_interface.cpp writes slot 1 here
+    InterfaceSlot     dllSlots[3];         // +0xB0  DX9, DX11, GL — src/app/video_interface.cpp writes slots 0 and 1 here
     int32_t           activeInterface;     // +0xF8  ctor = -1; Startup copies it back into Configuration::interfaceIndex
     int32_t           padFC;               // +0xFC
     DeviceData*       deviceData;          // +0x100 src/render/dx11/ reads this at exactly this offset
@@ -674,14 +670,15 @@ public:
 // `tests/unit/video_device_abi_test.cpp` restates the bound at runtime.
 //
 // LIFECYCLE EXPORTS — DOORS, NOT MEMBERS (see the header banner):
-//   ??0Configuration@Video@@QEAA@XZ                 0x1800f6f10  UNPORTED
+//   ??0Configuration@Video@@QEAA@XZ                 0x1800f6f10  Ctor_VideoConfiguration
+//                                                                (engine/singleton_ctors.cpp)
 //   ??1Configuration@Video@@QEAA@XZ                 0x1800f6f80  Video_Configuration_Dtor
 //                                                                (video_resources.cpp)
 //   ??4Configuration@Video@@QEAAAEAV01@AEBV01@@Z    0x18000d520  UNPORTED
 //
 // STATIC DATA — `?_singleton@Configuration@Video@@0PEAV12@EA` @ 0x1801fe7a0
 // is the class static `Configuration::_singleton` (ENDGAME B.3.9 VID, B39_RULES
-// D7): the minted row is redirected onto it.
+// D7), defined in device.cpp.
 // ----------------------------------------------------------------------------
 class Configuration {
 public:
@@ -697,11 +694,9 @@ public:
     static Configuration* Get();
 
     // ?_singleton@Configuration@Video@@0PEAV12@EA (0x1801fe7a0) — the class
-    // static (ENDGAME B.3.9 VID, B39_RULES D7). RtVideoPortInit redirects the
-    // minted storage row onto it, so the name door, the address door and this
-    // member are the same bytes. Written by the ctor door (singleton_ctors.cpp)
-    // and cleared by Engine's platform shutdown. PUBLIC while foreign readers
-    // remain.
+    // static (ENDGAME B.3.9 VID, B39_RULES D7), defined in device.cpp. Written
+    // by the ctor (singleton_ctors.cpp) and cleared by Engine's platform
+    // shutdown. PUBLIC while foreign readers remain.
     static Configuration* _singleton;
 
     // ---- the eighteen accessor pairs, 0x18000d5a0..0x18000d7f0 -------------
@@ -784,14 +779,14 @@ public:
 // (0x1800f4320), which fills the intrusive list links and the platform object.
 // Create (0x1800f3f10) writes +0x00, +0x08, +0x10 and +0x14 then tail-calls
 // slot 1 of the object at +0x28. The size is confirmed independently by
-// src/game/Game/minimap_paint.cpp:193, which MemAllocs exactly 0x30 bytes for
-// one and then calls the retail ctor on it.
+// src/game/Game/minimap_paint.cpp:111, which MemAllocs exactly 0x30 bytes for
+// one and then calls `Video_RenderBuffer_Ctor` on it.
 //
 // +0x18/+0x20 are next/prev of a CIRCULAR doubly linked list of every live
 // RenderBuffer, whose head is `?_firstRenderBuffer@RenderBuffer@Video@@`
-// (0x1801fe790, an `RT_DATA_SLOT` read — RULE B4b-4 / B35_RULES §9, three
-// by-name doors). Maintaining that list is exactly why the ctor and the dtor
-// stay DOORS and this class gets no real ctor/dtor.
+// (0x1801fe790, the class static `_firstRenderBuffer` below). Maintaining that
+// list is exactly why the ctor and the dtor stay the free functions
+// `Video_RenderBuffer_Ctor` / `Video_RenderBuffer_Dtor` and this class gets no real ctor/dtor.
 //
 // B.3.5 BLOCK D2, RULE B5-2.3: this class is now the SINGLE definition of that
 // layout. `src/render/dx11/dx11_backend_access.h`'s `RenderBufferOwner` — which pinned
@@ -1034,8 +1029,7 @@ static_assert(offsetof(Video::RenderBuffer, platformData) == 0x28, "RenderBuffer
 // Here they never collided (the PODs were already in `RtVideo`) AND they were
 // field-identical, so the correct move is the other one the B.3.5 brief names:
 // ONE definition, aliases for the old spellings. Every existing `RtVideo::X`
-// user keeps compiling — including four files in other blocks' sets — and there
-// is exactly one layout to get wrong instead of two.
+// user keeps compiling, and there is exactly one layout to get wrong instead of two.
 // ============================================================================
 namespace RtVideo {
 
@@ -1056,11 +1050,10 @@ using InterfaceSlot     = ::Video::Device::InterfaceSlot;
 
 }  // namespace RtVideo
 
-// ==== B3R W0-P0c: Runtime bodies reached by retail address ====
-// ENDGAME B.3R (B3R_RULES R5): each body below is registered at the retail
-// address in its trailing comment and read through the registry today. It is
-// declared here, copied from its definition (linkage, namespace, types), so the
-// reader can call it by name. Nothing calls it through this declaration yet.
+// ==== B3R W0-P0c: Runtime bodies called by name ====
+// ENDGAME B.3R (B3R_RULES R5): each body below is declared here, copied from its
+// definition (linkage, namespace, types), so a caller can call it by name; the
+// trailing comment is its retail address.
 
 // ---- video/companion_data.cpp
 void* Video_DisplayMode_Ctor(Video::Device::DisplayMode* self, int width, int height);  // 0x18000d300

@@ -11,12 +11,12 @@
 // PARENT `UI::ElementDescription` — READ, not inferred (B36_SLOTS.md section 3):
 //     ?_TypeName@TextDescription@UI@@CAPEBDXZ       @0x180041a90 -> "TextDescription"
 //     ?_ParentTypeName@TextDescription@UI@@CAPEBDXZ @0x180041aa0 -> "ElementDescription"
-// RECORDED, NOT USED (B5-15 / B6-7): no DEFINE_TYPE in step 6; slots 1/2 read
-// the minted `?_typeInfo@TextDescription@UI@@0VBaseTypeInfo@Object@@A`
-// (0x1801faeb0).
+// RECORDED (B5-15 / B6-7). Retail's record is
+// `?_typeInfo@TextDescription@UI@@0VBaseTypeInfo@Object@@A` (0x1801faeb0); the
+// class's own is DEFINE_TYPE in textdescription.cpp.
 //
 // `??_7TextDescription@UI@@6B@` @ 0x180156be0, TEN slots (B36_SLOTS.md sec. 1):
-//   [0] +0x00 0x180041e30 vector deleting dtor  (deleting_dtor.cpp row)
+//   [0] +0x00 0x180041e30 vector deleting dtor
 //   [1] +0x08 0x180041ad0 TypeName
 //   [2] +0x10 0x180041ab0 Type
 //   [3] +0x18 0x18011ee20 GetFileVersion   (0x304)
@@ -39,7 +39,7 @@
 //     +0x86 ..+0x87  NEVER WRITTEN by the ctor and read by no body
 //     +0x88 dword 0xc8  kScalarInt
 //     +0x8c dword -1    kScalarInt, serialized CONDITIONALLY (textdescription.cpp)
-// The scalar names are the ported file's (`_u80`/`_b84`/`_b85`/`_maxWidth`; the +0x88 dword is `_wordWrapSize`):
+// The scalar names are the ported file's (`_justify`/`_dropShadow`/`_wordWrap`/`_maxWidth`; the +0x88 dword is `_wordWrapSize`):
 // Serialize proves the widths, nothing proves a meaning. +0x88 is the width a wrapped text breaks at (the kit's
 // Mod.rsc writes `int _wordWrapSize = 192`), so it carries that name here and in TextElement.
 //
@@ -117,19 +117,17 @@ public:
     //   0x18011ef70 — the "stamp this description onto that element" applier.
     //   `V?$InternalPtr` BY VALUE, which retail passes by HIDDEN POINTER
     //   (RULE B6-11), so the parameter is spelled as the pointer. Its body is
-    //   the registered door `RtUi_TextDescription_CreateInstance` in
-    //   element_bodies_b5.cpp (NOT this block's file — fragment pass); declared
-    //   here, left undefined. Slot 8 and LabelDescription reach it by address.
+    //   in element_bodies_b5.cpp; slot 8 and LabelDescription call it by name.
     void CreateInstance(Object::InternalPtr<TextElement>* element,
                         const Dialog* dialog) const;
 
     TextDescription(const TextDescription& src);                 // 0x180041c90  not ported
     TextDescription& operator=(const TextDescription& src);      // 0x180041d40  not ported
 
-    // Reflection statics / allocation. `_typeInfo` is the MINTED record.
+    // Reflection statics / allocation.
     static void* operator new(std::size_t bytes);                // 0x180041ae0  not ported
     static void* operator new(std::size_t bytes, void* place);   // 0x180041b50  not ported
-    static void  operator delete(void* p) { ::Object::detail::InternalMemFree(p); }                       // 0x180041b60  not ported
+    static void  operator delete(void* p) { ::Object::detail::InternalMemFree(p); }                       // 0x180041b60
 
 private:
 

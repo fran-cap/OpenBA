@@ -1,7 +1,7 @@
 // ============================================================================
 // tests/unit/ext_camera_angle_test.cpp -- ext.camera_angle + ext.camera_tilt
 // ============================================================================
-// src/ext/camera_angle/camera_angle.h without the game: the registry row (class A, OFF, live), the valued key, and
+// src/ext/camera_angle/camera_angle.h without the game: the registry row (class A, ON, live), the valued key, and
 // the far pitch pair the seam hands PlayerToolManager::UpdateCamera (retail's own bits with the row off, the
 // curve's anchors with it on, every pitch inside retail's -85 ceiling).
 // ============================================================================
@@ -114,8 +114,8 @@ UNIT_TEST(ext_camera_angle_pitch_stays_inside_retail_ceiling) {
 }
 
 // The Extensions dialog's Experimental tab (registry.h Experimental, ruled 2026-11-08): the phone rows and staggered
-// passes, and the lighter far trees while their look is judged (LEAF_LOD.md), nothing else. Only where a row is
-// listed changes.
+// passes, the lighter far trees while their look is judged (LEAF_LOD.md) and terrain_late, nothing else. Only where
+// a row is listed changes.
 UNIT_TEST(ext_registry_experimental_rows) {
     int n = 0;
     for (int i = 0; i < Ext::EntryCount(); ++i) {

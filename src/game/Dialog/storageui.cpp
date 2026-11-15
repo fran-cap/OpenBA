@@ -35,7 +35,7 @@
 #include "Component/StorageComponent.h"
 #include "Entity/ComponentEntity.h"   // X::TypeId() (B.3.8 callers)
 #include "Dialog/exe_bodies.h"
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
 
 // One entry of OnUpdateLayout's temporary list (stride 0x18, built by the
 // inlined Array push in 0x1400b8450, sorted by 0x1400213f0): a stored

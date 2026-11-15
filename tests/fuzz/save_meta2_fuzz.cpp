@@ -7,7 +7,7 @@
 // length, version, description String, width, height, w*h*4 thumbnail bytes, version, mod count,
 // count x {String name, String path, 3 x u32}, 0xbbbbbbbb) and the target wraps it in a container
 // built by OUR writer side (STORED blocks), so the fuzzer works on the description / thumbnail /
-// mod-list parse: String::Serialize lengths, the w*h*4 product, the unbounded mod count.
+// mod-list parse: String::Serialize lengths, the w*h*4 product, the mod count.
 //
 // MASKS (each one hides a defect save_meta_fuzz.cpp already recorded):
 //   SM-3 / SM-4  no block's compressedSize / uncompressedSize exceeds 0x8000 (the stack scratch and

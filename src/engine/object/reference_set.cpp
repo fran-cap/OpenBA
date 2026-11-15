@@ -36,12 +36,10 @@
 //                     independently here and diffed against RotateRight below,
 //                     which differs in exactly the six link offsets.
 //
-// **They are still transcribed and registered separately here.** Reusing
-// `rtsetavl::RotateRight` at 0x18002dbf0 would work today and would be a latent
-// trap: `RegisterRuntimeAddr` is the door a by-address caller jumps through, and
-// a body registered at an address it was not read from carries no evidence of
-// its own. external_set.cpp set that precedent for the very same reason and
-// this file follows it.
+// **They are still transcribed separately here.** Reusing
+// `rtsetavl::RotateRight` at 0x18002dbf0 would work today, but a body used
+// at an address it was not read from carries no evidence of its own.
+// external_set.cpp set that precedent and this file follows it.
 //
 // ---------------------------------------------------------------------------
 // WHAT IS NOT HERE
@@ -91,11 +89,9 @@ ProbeCounters g_fc = {};
 // B3R RT-Core: the static is called by name.
 // ---------------------------------------------------------------------------
 
-// The refcount release idiom retail inlines at 0x18002cbda. ENDGAME B.3.1
-// step 2: that idiom IS `~Filename` (0x180006980), retail's release asymmetry
-// included, so the helper forwards to the destructor instead of re-spelling it.
-// B.4 Z MIRROR: ReferenceEntry::path is the real System::Filename, so the
-// release is its destructor, spelled at each site.
+// The refcount release idiom retail inlines at 0x18002cbda IS `~Filename`
+// (0x180006980), retail's release asymmetry included. ReferenceEntry::path is
+// the real System::Filename, so the release is its destructor.
 
 // ---------------------------------------------------------------------------
 // The height/balance recompute retail inlines into the retrace and both
@@ -291,12 +287,8 @@ void Retrace(Set* set, Node** slot) {
 //
 // THE ID COPY IS ONE DWORD, NOT A QWORD. `ReferenceEntry::_pad` at +0x04 is
 // never written by this constructor, so a freshly allocated node carries
-// whatever the allocator left in those four bytes. That is retail, it is
-// observable to anything that memcmps a node, and the probe in
-// reference_set_probe.cpp therefore compares the element FIELD BY FIELD rather
-// than by `memcmp` — an oracle that compared bytes neither side writes would
-// fail 100% of calls and read like a catastrophic port
-// (reference_oracle_must_not_compare_unwritten_bytes.md).
+// whatever the allocator left in those four bytes. That is retail, and it is
+// observable to anything that memcmps a node.
 //
 // THE LAST STORE IS ONE DWORD AT +0x28 AND IT ZEROES BOTH 16-BIT FIELDS.
 // Written as two int16 stores here because that is what the fields are; the
@@ -329,7 +321,7 @@ Node* PairCtor(Node* node, const ReferenceEntry* src, Node* parent) {
 // THE FIRST PARAMETER IS IGNORED. Retail leaves RCX holding whatever the caller
 // had (InsertCore's `Set*`) and 0x18002e5d0 never reads it — it loads the
 // allocator from the `[0x1801fc718]` singleton instead. The signature keeps the
-// parameter because a by-address caller passes it.
+// parameter because InsertCore passes it.
 // ---------------------------------------------------------------------------
 Node* AllocNode(void* /*ignored, never read*/, const ReferenceEntry* src, Node* parent) {
     Node* n = static_cast<Node*>(System::MemoryAllocator::MemAlloc(0x30, 8));   // 0x1800c7a50
@@ -369,9 +361,7 @@ Node* AllocNode(void* /*ignored, never read*/, const ReferenceEntry* src, Node* 
 // have to wonder.
 //
 // AN EQUAL KEY RETURNS THE EXISTING NODE AND INSERTS NOTHING (0x18002d218),
-// and it does NOT touch the count. That is what makes a live ours-then-theirs
-// replay vacuous, and it is why the oracle for this file is a lockstep probe on
-// private trees.
+// and it does NOT touch the count.
 //
 // THE RETURN IS THE OUT SLOT, not the node: `MOV RAX,RSI` at 0x18002d1b6 and
 // 0x18002d24d, where RSI is the second parameter.

@@ -7,7 +7,7 @@
 // offsets in src/engine/ui/numbereditdescription.cpp (RULE B6-8), MOVED here.
 //
 // PARENT `UI::ElementDescription` — NOT EditDescription. READ (B36_SLOTS.md
-// section 3), RECORDED, NOT USED:
+// section 3), RECORDED; DEFINE_TYPE in numbereditdescription.cpp carries both:
 //     ?_TypeName@NumberEditDescription@UI@@CAPEBDXZ       @0x180045e50 -> "NumberEditDescription"
 //     ?_ParentTypeName@NumberEditDescription@UI@@CAPEBDXZ @0x180045e60 -> "ElementDescription"
 // (Its ELEMENT derives from EditElement; the description does not derive from
@@ -92,7 +92,7 @@ public:
     NumberEditDescription& operator=(const NumberEditDescription& src);  // 0x1800460c0  not ported
     static void* operator new(std::size_t bytes);                // 0x180045ea0  not ported
     static void* operator new(std::size_t bytes, void* place);   // 0x180045f10  not ported
-    static void  operator delete(void* p) { ::Object::detail::InternalMemFree(p); }                       // 0x180045f20  not ported
+    static void  operator delete(void* p) { ::Object::detail::InternalMemFree(p); }                       // 0x180045f20
 
 private:
 

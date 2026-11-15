@@ -4,7 +4,7 @@
 //
 // `??_7TableElement@UI@@6B@` (retail 0x180159260):
 //
-//   0  vector deleting dtor  0x180079600  -> deleting_dtor.cpp row (this batch)
+//   0  vector deleting dtor  0x180079600  -> the compiler's
 //   1  TypeName              0x1800792d0  here
 //   2  Type                  0x1800792b0  here
 //   4  ComputeSize           0x18011df60  here
@@ -14,34 +14,31 @@
 // plus ??0TableElement (0x18011e2f0) and ??1TableElement (0x18011e2a0).
 //
 // NOT HERE: `?GetRowHeight@` (0x18011e090) and `?GetColumnWidth@`
-// (0x18011e1a0) — both on the UI non-slot callee list; ComputeSize reaches
-// them by address. `?SetChild@` / `?SetSize@` are lane E's, in
-// widgets_layout.cpp.
+// (0x18011e1a0) — members in element_bodies_b5.cpp; ComputeSize calls
+// them by name. `?SetChild@` / `?SetSize@` are in widgets_layout.cpp.
 //
 // ---------------------------------------------------------------------------
 // LAYOUT (src/engine/ui/TableElement.h, every offset already pinned there
 // by the three exported mutators; the ctor at 0x18011e2f0 confirms them and
 // adds the one it did not have):
 //
-//   +0xC0  _rowCount  int32   ?GetRowCount@    0x180079450
-//   +0xC4  _colCount  int32   ?GetColumnCount@ 0x180079460
-//   +0xC8  _spacing   int32   the gap inserted between two NON-EMPTY rows or
-//                             columns — ctor 0, and the field TableElement.h
-//                             did not name
-//   +0xD0  _rowSizes  Collection::Array<int32>
-//   +0xE0  _colSizes  Collection::Array<int32>
+//   +0xC0  _rowCount     int32   ?GetRowCount@    0x180079450
+//   +0xC4  _columnCount  int32   ?GetColumnCount@ 0x180079460
+//   +0xC8  _spacing      int32   the gap inserted between two NON-EMPTY rows or
+//                                columns — ctor 0, and the field TableElement.h
+//                                did not name
+//   +0xD0  _rowSizes     Collection::Array<int32>
+//   +0xE0  _columnSizes  Collection::Array<int32>
 //
 // sizeof == 0xF0 (deleting dtor `MOV EDX,0xf0`). ~TableElement destroys
-// _colSizes FIRST and then _rowSizes — reverse declaration order, as C++
+// _columnSizes FIRST and then _rowSizes — reverse declaration order, as C++
 // requires — through the shared `~Array` copy at 0x18001c750.
 //
 // The CELLS are UI::Element::_children itself (+0xA0), indexed
-// `_colCount * row + col`; there is no second array.
+// `_columnCount * row + col`; there is no second array.
 //
 // ENDGAME B.3.6 block C4: the layout is the real class in src/engine/ui/
-// TableElement.h. Every slot body below is a MEMBER; each registered door is a
-// one-line QUALIFIED delegation; ctor/dtor stay DOORS. RULE B6-5: the vtable
-// and type-info record are cached in namespace-scope std::atomic slots.
+// TableElement.h. Every slot body below is a MEMBER.
 // ============================================================================
 
 #include <new>
@@ -54,7 +51,7 @@ using namespace rtui;
 namespace {
 
 // `?GetRowHeight@` (0x18011e090) / `?GetColumnWidth@` (0x18011e1a0) — declared
-// on the class, bodies still element_bodies_b5.cpp's doors (fragment pass).
+// on the class, bodies in element_bodies_b5.cpp.
 
 }  // namespace
 

@@ -22,7 +22,7 @@
 //               (`MOV RCX,[RSP+0x30]; CALL [RAX+0x98]` — serializer+8 is the stream
 //               impl, 0x98/8 = vtable idx 19). Dispatch slot 0x140152ac8 IS that
 //               non-inlined helper; ControlUIConfig's Serialize (0x14005fb70) calls it
-//               directly and was verified live this session, so we use the slot.
+//               directly, and so does this body (IO::Serializer::Serialize).
 //
 // The ResourceLimitUI controller reads this index (idx5 below fills it from the .rsc) as retail's
 // Slot4 / Slot7 / Slot9 do: IsDerivedFrom(config) ? config : null, then +0x20 unguarded, no bound.

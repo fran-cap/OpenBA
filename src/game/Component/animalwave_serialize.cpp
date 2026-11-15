@@ -10,17 +10,7 @@
 //
 // PastureComponent's body (0x140127f40) already lives in pasturecomponent.cpp
 // (PastureComponent_Shutdown — Ghidra's shifted name) and WildAnimalComponent's
-// (0x14012e300) in wildanimalcomponent.cpp; reg_animal_serialize.cpp registers
-// all six retail addresses together.
-//
-// ⚠ NOT WIRED, BY DESIGN. Standalone has no save/load driver yet
-// (GameUpdateLoop::SaveRestore 0x140095a90 is a no-op stub and nothing calls
-// Save::SaveLoad::SetOperation for a game save), and a save stream is
-// all-or-nothing: filling vtable slot 3 for SOME live components while others
-// keep the inert no-op would desync every byte after the first missing
-// component on load. Slot-3 wiring therefore lands as one repo-wide pass in
-// the future save/load wave; these bodies bring the animal family to parity
-// with the ~99 other ported-but-unwired component serializers until then.
+// (0x14012e300) in wildanimalcomponent.cpp.
 //
 // Serializer facts used below (verified against the retail decompiles):
 //   * Serializer is {Stream* stream; int version; ...}; ctor(self, stream, v).
@@ -28,10 +18,9 @@
 //     is *(int*)(stream + 8) == 0, read THROUGH the serializer's first field
 //     (`*(int*)(*(int64*)ser + 8)`), not serializer+8.
 //   * After serializing an InternalBasePtr, retail validates the pointee with
-//     IsDerivedFrom(ptr, typeId) and nulls the ref on mismatch. With an
-//     unregistered typeId storage (ResolveAddr -> null / id 0) we SKIP the
-//     validation rather than null every ref: on the only path that matters
-//     (load), skipping matches retail-with-valid-data behaviour.
+//     IsDerivedFrom(ptr, typeId) and nulls the ref on mismatch. With a zero
+//     typeId we SKIP the validation rather than null every ref: on the only
+//     path that matters (load), skipping matches retail-with-valid-data behaviour.
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch A
 #include <cstdint>
 #include <new>

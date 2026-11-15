@@ -35,7 +35,7 @@
 #include "object/External.h"
 #include "object/TypeInfo.h"
 #include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
-#include "Game/exe_bodies.h"   // Reimpl_Array_Serialize_External_GraphicsMesh, Reimpl_ExternalPtr_Serialize_Typed_7140
+#include "Game/exe_bodies.h"
 #include <cstdint>
 #include <new>
 #include "graphics/Material.h"   // B8 RT2: ::Object::SerializeExternal<Graphics::MaterialInstance> (the downcast needs it complete)

@@ -15,10 +15,6 @@
 //  11. Engine::MainLoop::Run(ml, gameLoader)
 //  12. Cleanup: ExternalFactory::SetLoadBit/-1 + Clean, free settings/world,
 //      MainLoop::~MainLoop + free, Engine::Engine::Shutdown, Engine::~Engine
-//
-// Initial stub only invokes Engine ctor/dtor so we can probe the standalone
-// startup path one slot at a time. Stages will be enabled as dispatch slots
-// fill in.
 
 #include "game_main.h"
 #include "platform_gfx.h"   // Platform::ReleaseLibrary (FreeLibrary; Phase D.4 LINUX-1 / SDL-5)
@@ -65,12 +61,6 @@
 GameSettings* g_gameSettings = nullptr;
 
 
-// Defined in src/game/Game/filesystem_setup.cpp. Relativizes the engine
-// FileSystem's resource directories so resource paths resolve relative to the
-// working dir (install dir) instead of long absolute "C:\GOG Games\..." strings.
-// Must run AFTER Engine::Startup (FileSystem allocated + SetupDirectories done)
-// and BEFORE the first resource load. See that file's header for rationale.
-
 // Defined in src/app/main.cpp. Walks _firstTypeInfo for each registered
 // type, invokes its factory, validates vtable + ctor-set field defaults.
 extern "C" void RunStartupSelfTests();
@@ -83,12 +73,10 @@ extern "C" void RunStartupSelfTests();
 // this call rather than from the last frame.
 extern "C" void BootState_MarkQuitting();
 
-// Standalone-only chunked driver for MenuDLT::LoadScene. Init runs
-// MenuDialogLoopT_LoadSceneA1 (~10ms — small allocs + one .rsc load) inline
-// and captures the chunked PhaseB iteration state. We invoke this during
-// boot so the heavy iteration can be ticked across the Loading splash's
-// Update frames (driven from splash_loop_stubs.cpp Stub_Update). Boot is
-// non-rendering, so the synchronous A1 cost is invisible.
+// Standalone-only chunked driver for MenuDLT::LoadScene. GameMain only arms it
+// (ChunkedSceneLoader::Arm); GameLoadDialogLoopT::Update (splash_loop_stubs.cpp)
+// runs Init (MenuDialogLoopT_LoadSceneA1) once the splash has revealed, then
+// Tick(500)s the chunked PhaseB iteration across the splash's Update frames.
 #include "chunked_scene_loader.h"
 #include "ext/registry.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/EXTSCAFFOLD.md): Ext::InitFromSettings
 #include "ext/load_progress/load_progress.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/LOADPROGRESS.md): BootBegin
@@ -96,7 +84,7 @@ extern "C" void BootState_MarkQuitting();
 #include "load_time.h"   // [LoadTime] stamps (NOT RETAIL, print-only; block LOADSTAMP)
 
 // ============================================================
-// Resolved Runtime DLL functions
+// Runtime DLL functions
 // ============================================================
 //
 // Ghidra-confirmed addresses from Runtime-x64.dll:
@@ -199,7 +187,7 @@ static void ShutdownEngineStaged(::Engine::Engine* engine) {
         // The two calls are IXAudio2MasteringVoice::DestroyVoice (vtable +0x90)
         // and IXAudio2::Release (+0x10), each followed by a null store: that is
         // Audio::Device::PlatformShutdown (0x1800de690) inlined. Phase D.4 A1
-        // calls it (the COM calls are platform_audio.h's, audio_xaudio2_win.cpp).
+        // calls it (the platform calls are platform_audio.h's, audio_sdl.cpp).
         ad->PlatformShutdown();
     }
 
@@ -225,8 +213,8 @@ static void ShutdownEngineStaged(::Engine::Engine* engine) {
         }
     }
 
-    // 8. Video::Configuration::Save — this is the snapshot that reaches the
-    //    registry, so log the window block it is about to persist.
+    // 8. Video::Configuration::Save — this is the snapshot that reaches
+    //    settings.cfg, so log the window block it is about to persist.
     logWindow("before Video::Configuration::Save");
     if (Video::Configuration* cfg = engine->GetVideoConfiguration()) {   // +0x6b8
         printf("[Shutdown] Video::Configuration to persist: window %dx%d at %d,%d "
@@ -241,7 +229,7 @@ static void ShutdownEngineStaged(::Engine::Engine* engine) {
         // degenerate 120x0 rect. This is the last line of defence — the guard
         // in src/render/dx11/devicedata.cpp stops it being latched at all. Saving that
         // makes the next boot fail in CreateColorBuffer and the game becomes
-        // unlaunchable until the registry is edited by hand. Fall back to the
+        // unlaunchable until settings.cfg is edited by hand. Fall back to the
         // -1 "no override" sentinel from Video::Configuration's constructor.
         constexpr int kMinSaneWindowDim = 64;
         int& winW = cfg->windowWidth;
@@ -281,7 +269,7 @@ static void ShutdownEngineStaged(::Engine::Engine* engine) {
     // WriteSettings is a CONST member — the export is QEBA, not QEAA. Asking
     // for QEAA resolved to null and this step silently did nothing, so no
     // setting ever reached the registry. That is what made ResetVideoRegistry
-    // look necessary. The failure is logged now rather than swallowed.
+    // look necessary.
     if (const IO::Persistence* per = engine->GetPersistence()) {   // +0x678
         if (engine->_noConfigure == 0) {   // +0x6f1
             // ENDGAME B.3.4a closing: the ResolveFn probe and its "did not
@@ -426,8 +414,8 @@ int RunGameMain(void* platformHandle, const char* cmdLine) {
 
     if (ok != 0) {
 
-        // Stage 3: allocate + construct + destroy a MainLoop. (No Run yet —
-        // that needs an UpdateLoop chain.)
+        // Stage 3: allocate + construct a MainLoop, Run it on the UpdateLoop chain
+        // built below, then destroy it.
         {
             // The MemoryAllocator singleton, set by the Engine ctor. (B3R STORAGE:
             // every reader reads the class static live; the engine_funcs
@@ -452,8 +440,8 @@ int RunGameMain(void* platformHandle, const char* cmdLine) {
 
                 // Stage 5a: allocate the Game/KeyMap container (0xe0 bytes, 4-byte
                 // aligned) and run its ctor. Original GameMain follows this with
-                // Game_Register on a settings struct; we skip Game_Register for now
-                // and just zero-init settings to the same hardcoded defaults.
+                // Game_Register on a settings struct; here the settings struct below
+                // gets the hardcoded defaults, then GameSettings::Load.
                 GameContainer* gameObj = static_cast<GameContainer*>(
                     System::MemoryAllocator::MemAlloc(0xe0, 4));
                 printf("[GameMain] Game alloc      = %p\n", gameObj);
@@ -737,8 +725,7 @@ int RunGameMain(void* platformHandle, const char* cmdLine) {
         // BISECT: stepped reimpl of Engine::Engine::Shutdown (Runtime 0x1800db4f0).
         // The stock function silently terminates the process somewhere inside —
         // not even our SetUnhandledExceptionFilter sees a fault. We mirror its
-        // body in stages with fflush between each so the last logged step is
-        // the one that killed us.
+        // body in stages (steps 1-13 of ShutdownEngineStaged).
         ShutdownEngineStaged(eng);
     } else {
         // Retail GameMain's Startup-failure arm (Application-x64 0x140041f55):

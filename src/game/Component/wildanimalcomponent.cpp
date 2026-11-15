@@ -2,13 +2,13 @@
 // Clean reimplementation of WildAnimalComponent lifecycle methods.
 //
 // WildAnimalComponent (0x30 bytes) -- simple Component subclass.
-// Holds a back-reference at +0x28 to the HERD entity this wild animal belongs to.
+// Holds a back-reference at +0x28 to the HerdComponent this wild animal belongs to.
 //
 // Vtable at 0x140164af0 (slot addresses read from .rdata):
 //   [3] Serialize = 0x14012e300 -- Component base + the InternalBasePtr at +0x28,
 //       then a post-load IsDerivedFrom validation against the HerdComponent id.
-//   [7] OnRemove  = 0x14012e2b0 -- ERASES self from the herd entity's component
-//       list at +0x38 (DynArray8_EraseByValue).
+//   [7] OnRemove  = 0x14012e2b0 -- ERASES self from the HerdComponent's member
+//       array at +0x38 (DynArray8_EraseByValue).
 //
 // NAMING CORRECTIONS (2026-07-28): this file previously called slot 3 "Shutdown"
 // and slot 7 "OnCreate", and described FUN_140002cc0 as "add to component list".
@@ -36,16 +36,16 @@
 // ============================================================
 // Import slot 0x140152a98 -- Object::Base::IsDerivedFrom.
 // FUN_140002cc0 Array<T>::Remove -- DynArray8_EraseByValue: remove an
-//   InternalBasePtr from the 8-byte-element list at entity+0x38. (Append is
+//   InternalBasePtr from the 8-byte-element list at HerdComponent+0x38. (Append is
 //   FUN_140003110, a different fn.)
 
 // ============================================================
 // WildAnimalComponent::OnRemove (vtable slot [7], 0x14012e2b0)
 // ============================================================
-// If data28 (the herd entity back-ref at +0x28) is non-null:
+// If data28 (the HerdComponent back-ref at +0x28) is non-null:
 //   1. Creates an InternalBasePtr wrapping self
 //   2. CheckPtr on the +0x28 back-ref
-//   3. ERASES self from that entity's component list at +0x38 (FUN_140002cc0 =
+//   3. ERASES self from that HerdComponent's member array at +0x38 (FUN_140002cc0 =
 //      DynArray8_EraseByValue), so the herd stops seeing this animal.
 //
 // Original pseudocode:

@@ -35,10 +35,8 @@
 // order, as a C++ destructor must. They are three DIFFERENT functions, not one
 // called three times: `_entries` holds a System::String per element and
 // `_sheets` holds an ExternalPtr per element, so each walk destroys a different
-// element type before freeing the buffer. Only 0x180037310 is ported in our
-// tree today (src/engine/collection/array.cpp); the other two are reached
-// through ResolveAddr, which is registry-first, and are listed as open
-// dependencies rather than silently collapsed into the one we have.
+// element type before freeing the buffer. Here the three are the destructors of
+// the three typed `Collection::Array` members (SpriteCapture.h).
 // ============================================================================
 #include <cstddef>
 #include <cstdint>
@@ -60,8 +58,7 @@
 
 // 0x18003c7f0 / 0x18003c810: the class's own BaseTypeInfo node at +0 and +8.
 // ############################################################################
-// UI::SpriteCapture's slot bodies (ENDGAME B.3.6 block D). The doors below
-// delegate with a QUALIFIED call (a live SpriteCapture wears the MINTED table).
+// UI::SpriteCapture's slot bodies (ENDGAME B.3.6 block D).
 // ############################################################################
 namespace UI {
 
@@ -326,8 +323,7 @@ void SpriteCapture::Draw(SpriteContext& ctx, int32_t ox, int32_t oy) const {
         // array (+0x28) and pass 0, that VideoProgram's RenderState (+0x38) —
         // `?GetRenderState@Material@Graphics@@` (0x180102980) with pass 0,
         // inlined — then `?IsWireframe@RenderState@Video@@` (0x18004b730,
-        // `CMP dword [RCX+0x6c],1`), inlined. `m_materialInstance` is spelt uint64_t
-        // (saveload_draw.cpp stores it as an integer).
+        // `CMP dword [RCX+0x6c],1`), inlined.
         const Graphics::MaterialInstance* const instance =
             sheet->m_materialInstance;  // 1800d93fb
         const Graphics::Material* const material = instance->_material.Get();       // 1800d9406
@@ -358,7 +354,7 @@ void SpriteCapture::Draw(SpriteContext& ctx, int32_t ox, int32_t oy) const {
 // ============================================================================
 // The `_entries` element serialize walk   0x18004c0d0   (batch D1)
 // ============================================================================
-// Serialize above already calls this by address. The element is
+// Serialize above calls this. The element is
 // UI::SpriteCapture::CaptureEntry, stride 0x28 — the same stride array.cpp's
 // kSpec_CaptureEntry carries — and the walk reads it field by field:
 //

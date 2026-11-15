@@ -27,9 +27,7 @@
 //
 // *** ZERO rel32 callers on all six. *** The four slot bodies are reached only
 // through `??_7MaterialInstance@Graphics@@6B@` (DLL 0x1801545e0), and the two
-// `?Serialize@` rows only by name. So for THESE rows a name registration IS the
-// door, and the `?Setup@` finding (standalone/matsetup_detour.cpp) does not
-// generalise to them.
+// `?Serialize@` rows only by name.
 //
 // EVERY BODY HERE WAS TRANSCRIBED FROM THE DISASSEMBLY, not from Ghidra's C.
 // reference_ghidra_c_output_vs_disassembly.md: the decompiler drops
@@ -42,8 +40,8 @@
 // reference_encoding_vtable_offsets_differ_between_builds.md says the retail
 // and profile builds put the Encoding vtable's members at DIFFERENT offsets
 // (+0x78/98/a0 vs +0x90/b0/b8). Every offset below was read out of
-// **Runtime-x64.dll (retail, image base 0x180000000)**, the binary this build
-// links against, and the three call sites agree with each other:
+// **Runtime-x64.dll (retail, image base 0x180000000)**, and the three call
+// sites agree with each other:
 //
 //     0x1800fc1ec   CALL qword ptr [RAX + 0xa0]     AnimationManager::Serialize
 //     0x1800ff6b5   CALL qword ptr [RAX + 0xa0]     MeshInstance::Serialize
@@ -59,10 +57,8 @@
 //               +0x10  Encoding FACTORY*
 // `IO::Serializer`  +0x00 Stream*   +0x08 Encoding*
 //
-// Both field sets are pinned by the bodies themselves and nothing else in this
-// file depends on any other Stream or Serializer member, which is why no
-// `IO::Stream` layout header is added: pinning fields this lane cannot verify
-// would be a guess in a header whose whole contract is that it is not.
+// Both field sets are pinned by the bodies themselves; the layout headers are
+// src/engine/io/Stream.h and src/engine/io/Serializer.h.
 //
 // `MaterialInstance::Serialize` and `AnimationManager::Serialize` MANUFACTURE
 // their own Encoding from the factory and destroy it; `MeshInstance::Serialize`
@@ -71,13 +67,9 @@
 // "tidied" port silently unifies.
 //
 // ---------------------------------------------------------------------------
-// DECLARED: THIS FILE GROWS THE CUTOVER SURFACE BY TEN ADDRESS DOORS
+// THE TEN UNEXPORTED INTERNALS THESE BODIES CALL
 // ---------------------------------------------------------------------------
-// reference_porting_can_grow_the_cutover_surface.md. Each unexported internal
-// below is reached with ResolveAddr(Module::Runtime, …) and DIES AT CUTOVER
-// unless something registers that address
-// (reference_by_address_door_dies_at_cutover.md). They are listed here, once,
-// so the cutover lane can find them with one grep rather than ten:
+// Each is called by name from the bodies below:
 //
 //   0x180061100  ExternalPtr<Material>::Serialize      MaterialInstance +0x28
 //   0x180061880  Array<MaterialTexture>::SetSize       stride 0x10
@@ -91,66 +83,13 @@
 //   0x18005c660  Array<AnimationState>::SerializeElements
 //
 // `?BuildParameters@MaterialInstance@Graphics@@QEAAXXZ` (0x1801033e0) is NOT in
-// that list: it is an EXPORT, it is already in the census `called` column, and
-// it is reached here BY NAME through RT_EXPORT_ONCE — so it needs no address
-// and it grows nothing. It is unported, and a ported body calling an unported
-// export is ordinary.
+// that list: it is an EXPORT and a defined member (wave27_lane_gfxbig.cpp).
 //
 // The names beside the addresses are this lane's reading of what each helper
 // does from its call site and its stride; they are NOT from a symbol table.
 // reference_grep_cannot_tell_internal_from_unported_export.md — absent from the
 // export directory by ADDRESS is not the same question as "unexported".
 // Measured: all ten are absent from the export directory by address.
-//
-// ---------------------------------------------------------------------------
-// ORACLES — what is real here and what is not
-// ---------------------------------------------------------------------------
-// PROBE SHAPE (kickoff §1c): **synthesised oracle**, two of them, plus one
-// honest non-oracle. This lane has no game-directory allocation by design.
-//
-//   Construct / Reconstruct / Destruct — REAL DIFFERENTIAL ORACLES, IN-BODY.
-//     Under the diff oracle armed each site builds TWO scratch 0x60 arenas in our
-//     own memory, runs the SHIPPED export (the raw DLL door — the raw
-//     GetProcAddress door, never ResolveExport, which would hand back ourselves
-//     and compare ours to ours) over one and our body over the other, and
-//     compares. These three bodies only store into `this` and tail-call vtable
-//     slot 0, so a scratch arena with a vptr WE control is a complete and safe
-//     universe for them. Slot 0 on both arenas points at the same recorder, so
-//     the comparison is about the CALLER and nothing else — the
-//     tools/gfxbody23_probe/ shape, run in-process.
-//
-//   The three ?Serialize@ bodies — NOT ORACLED HERE, AND SAID SO.
-//     reference_shadow_marker_is_not_an_oracle.md: a diff-oracle site that takes
-//     the port's own verdict and never consults the DLL passes on a shared
-//     misunderstanding of retail. These three sites carry the diff oracle
-//     (attendance and an effectiveness count) and NOTHING THAT CLAIMS TO BE A
-//     COMPARISON. A Serialize cannot be replayed in place — the first arm
-//     consumes or emits the stream and the second sees a different one — so the
-//     replay has to happen against a stream WE build, which is
-//     tools/gfxmat24_probe/, not this file.
-//     reference_write_path_serialize_is_replayable.md is the reason that probe
-//     exists at all rather than "no oracle possible" being written here again.
-//
-// ---------------------------------------------------------------------------
-// EVERY SITE IN THIS FILE CARRIES ITS CLASS IN ITS OWN NAME
-// ---------------------------------------------------------------------------
-// Wave 24 lane DIFF's armed sweep (99.7M calls over 630 sites) measured that
-// **at least 286 of 630 sites — 45% — cannot catch a shared misunderstanding of
-// retail**: 115 SELF-CHECK (no door to the shipped body anywhere in the
-// function), 38 ATTENDANCE (the equality is the literal `true`), and 133
-// NO-COMPARISON (structurally incapable of printing anything but
-// `divergences=0`). A site that cannot fail is worse than no site, because it
-// reports green. So the six `the diff oracle` names here are suffixed:
-//
-//   [ORACLE]      resolves the SHIPPED body through the raw DLL door, runs it,
-//                 and compares. Construct / Reconstruct / Destruct.
-//   [ATTENDANCE]  the diff oracle only. It counts calls and claims nothing else.
-//                 The three ?Serialize@ rows; their comparison is
-//                 tools/gfxmat24_probe/, which the sweep cannot run.
-//
-// The suffix is in the site NAME so the next sweep classifies these correctly
-// from the report without reading the source, and so a future edit that guts an
-// [ORACLE] into a self-check leaves a name that visibly lies.
 //
 // THE NEIGHBOURING SPECIMEN, carried here so it is not rediscovered: DIFF
 // measured `Graphics::MaterialInstance::RenderTextures` at **worked=201,103,
@@ -162,8 +101,7 @@
 // DO NOT COPY `IO::MemoryStream::MemoryStream` AS A CTOR-ORACLE TEMPLATE (DIFF):
 // it neutralises the Encoding pointer and three never-written gaps and then
 // compares the vptr at +0x00, which MUST differ, through one whole-buffer
-// memcmp — permanently red, checking nothing. The Construct oracle below scores
-// the vptr on its OWN screen precisely so it cannot become that.
+// memcmp — permanently red, checking nothing.
 // ============================================================================
 
 #include <cstdint>
@@ -199,20 +137,8 @@ uint64_t g_meshSerCalls     = 0;
 uint64_t g_animSerCalls     = 0;
 uint64_t g_matSerTextures   = 0;   // elements actually walked, both directions
 uint64_t g_matSerConstants  = 0;
-uint64_t g_oracleRuns       = 0;   // the effectiveness counter (instrument rule 3)
+uint64_t g_oracleRuns       = 0;   // never incremented: always 0
 
-// ---------------------------------------------------------------------------
-// The three vtables Construct/Reconstruct stamp, all three EXPORTED BY NAME
-// (checked against the export directory by address: 1389, 1432, 1464), so none
-// of them is an address door. Resolved through RT_DATA_SLOT, i.e. through the
-// PORT REGISTRY — if a later wave promotes `??_7MaterialInstance@`, our stamp
-// follows the promotion exactly as every other promoted consumer does, and the
-// in-body oracle below will then report a POINTER divergence at +0x00 which is
-// EXPECTED, NOT A REGRESSION (the same note graphics_typeinfo_accessors.cpp
-// carries for `?TypeName@`). That is why the oracle scores the vptr on its OWN
-// screen and the 0x58 payload bytes on another
-// (reference_union_control_hides_a_blind_screen.md).
-// ---------------------------------------------------------------------------
 // ENDGAME B.3.9 block GFX: `BaseVTable` / `ExternalVTable` /
 // `MaterialInstanceVTable` (the minted tables, by name) and `Slot0Fn` are gone:
 // the class is built by its real ctor and destroyed through `DeletingDtor`.
@@ -236,12 +162,9 @@ uint64_t g_oracleRuns       = 0;   // the effectiveness counter (instrument rule
 //
 // The THREE vptr stores are retail's, in retail's order, and the first two are
 // dead in the byte-result sense — they are the base constructors MSVC inlined.
-// They are kept because a port that writes only the final one is a DIFFERENT
-// FUNCTION under any interruption, and because the oracle below compares bytes
-// and would not notice, which is precisely when a "harmless" tidy-up survives.
 //
 // `MOV word [RCX+0x24],DX` is TWO BYTES, not four. Material.h already names
-// them separately (`hasRenderTexture` / `hasRenderedTexture`) and this body is
+// them separately (`_hasRenderTexture` / `_hasRenderedTexture`) and this body is
 // the writer that proves the split: a dword store would have clobbered +0x26.
 // ---------------------------------------------------------------------------
 // ENDGAME B.3.9 block GFX: `ConstructBody` (these stores with the three MINTED
@@ -255,7 +178,7 @@ uint64_t g_oracleRuns       = 0;   // the effectiveness counter (instrument rule
 // (self, flag) tuple -- is DELETED. Its only entry, `PrepareArena`, had no
 // caller anywhere once ENDGAME B.3.9 GFX retired the slot doors it compared,
 // and a table built by index would have mis-aimed after the normal-virtual
-// cutover. The replay for these bodies lives in tools/gfxmat24_probe/.)
+// cutover.)
 
 }  // namespace
 
@@ -272,10 +195,7 @@ uint64_t g_oracleRuns       = 0;   // the effectiveness counter (instrument rule
 //
 //   180002b50  MOV RAX,[RCX] ; XOR EDX,EDX ; JMP [RAX]
 //
-// EIGHT BYTES, then CC padding — measured in the file image, and worth writing
-// down because it means this row can NEVER be detoured: the smallest inline
-// detour this tree installs is twelve. A registration is its only door, and
-// (rel32 = 0) a registration reaches every caller there is.
+// EIGHT BYTES, then CC padding — measured in the file image.
 
 // ?Reconstruct@MaterialInstance@Graphics@@UEAAPEAVExternal@Object@@XZ,
 // retail 0x180002a50, ordinal 3391, slot 6.
@@ -336,11 +256,8 @@ uint64_t g_oracleRuns       = 0;   // the effectiveness counter (instrument rule
 // compile error here rather than a heap walk.
 //
 // NOTE FOR src/engine/graphics/Material.h: this body is the writer that
-// names `MaterialConstant::_head` — it is a System::String, serialized by
-// 0x1800c9930, the same helper that serializes `MaterialTexture::name`. The
-// header's "not read by lane F" comment is not wrong, it is just superseded;
-// the header is left alone by this lane because renaming a field that three
-// other files include is not this lane's blast radius. See §6 R2 of the report.
+// names `MaterialConstant::name` — it is a System::String, serialized by
+// 0x1800c9930, the same helper that serializes `MaterialTexture::name`.
 // ---------------------------------------------------------------------------
 namespace {
 
@@ -378,11 +295,9 @@ Object::External* MaterialInstance::Construct() {
 }
 
 // [7] ?Destruct@MaterialInstance@Graphics@@UEAAXXZ 0x180002b50
-//     `MOV RAX,[RCX] ; XOR EDX,EDX ; JMP [RAX]` -- EIGHT BYTES, then CC padding,
-//     which means this row can NEVER be detoured (the smallest inline detour this
-//     tree installs is twelve). A registration is its only door. Slot 0 is
-//     dispatched VIRTUALLY on purpose: a subclass's deleting destructor is what
-//     has to run.
+//     `MOV RAX,[RCX] ; XOR EDX,EDX ; JMP [RAX]` -- EIGHT BYTES, then CC padding.
+//     Slot 0 is dispatched VIRTUALLY on purpose: a subclass's deleting
+//     destructor is what has to run.
 void MaterialInstance::Destruct() {
     ++g_destructCalls;
     this->~MaterialInstance();
@@ -534,7 +449,7 @@ void MeshInstance::Serialize(IO::Serializer& serializer) {
 // as the answer is not the answer).
 // ---------------------------------------------------------------------------
 // ENDGAME B.3.5 block G: BODY MOVED to `Graphics::AnimationManager::Serialize` —
-// block H1's class, declared in `AnimationManager.h:297` and left
+// block H1's class, declared in `AnimationManager.h:350` and left
 // declared-undefined there because this file holds the live body. No header edit
 // was needed. `_instances` is the `Array` at +0x00, which is why the SetSize call
 // passes the object itself: `&_instances == this`.

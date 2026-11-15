@@ -63,7 +63,7 @@ public:
     // [0] 0x1800656b0 -- MSVC's VECTOR deleting destructor (retail; element
     // size 0x70); here the virtual destructor (B3X W1).
     // ??1CollisionMesh@Collision2D@@UEAA@XZ 0x180065400. VIRTUAL (B3X W1);
-    // collisionmesh.cpp holds retail's body (the four ~Array CALLs by address,
+    // collisionmesh.cpp holds retail's body (the four ~Array CALLs,
     // which free and zero each header); the compiler then releases both
     // Strings and chains ~External, retail's order.
     ~CollisionMesh() override;

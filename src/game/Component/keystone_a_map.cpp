@@ -18,32 +18,30 @@
 // by disasm `MOV ... ,[R13 + 0x80]`. `*param_1` is the map width (byte 0). Cell stride
 // is 0x30 (LEA RBX,[RAX+RAX*2]; SHL RBX,4).
 //
-// Sub-callees (all already registered, or this batch):
-//   fn_IsDerivedFrom         slot 0x140152a98 (engine_funcs)
-//   fn_InternalBasePtr_CheckPtr slot 0x140152ab0 (engine_funcs)
-//   fn_InternalBasePtr_Ctor  slot 0x140152a90 (engine_funcs)
-//   0x1400a4d30  MapComponent_helper_4d30   (reg_component_visuals)
-//   0x1400c3470  NotifyEntityChanged        (reg_action_hunt)
-//   0x14009f2f0  SetTileRoadFlag/cost setter(reg_pf_roots_road)
-//   0x1400c2ea0  MarkEntityRemoval          (reg_action_hunt)
-//   0x140003110  DynArraySetCount push      (reg_action_hunt)
-//   0x14009f3e0  GridToWorld terrain query  (mapquery, reg)
-//   g_pGameWorldSingleton (+0xe8 / +0xd0 / +0xd8 / +0xf8 / +0x148)
+// Sub-callees, called by name:
+//   IsDerivedFrom / ::Object::IsDerivedFromNullSafe   slot 0x140152a98
+//   0x1400a4d30  Minimap::ClearTerrain
+//   0x1400c3470  ComponentEntity::RefreshEntityFlags
+//   0x14009f2f0  Map::SetTerrainType
+//   0x1400c2ea0  ComponentEntity::MarkForRemoval
+//   0x140003110  removalList.SetSize push
+//   0x14009f3e0  Map::GetTerrainPos
+//   GameUpdateLoop::_singleton (+0xe8 / +0xf8 / +0x148)
 //
 // B.4 P2 COMP-45: dc20 / dee0 take the Map and read its MapCell records by name;
-// e2c0 keeps the int* receiver its caller in Game/gamegrid_serialize.cpp passes (wave X).
+// e2c0 is Map::ClassifyTerrain, called from Game/gamegrid_serialize.cpp.
 
 #include <new>
 #include "object/TypeInfo.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
-#include "Action/exe_bodies.h"   // Pf_SetTileRoadFlag_9f2f0, ActHunt_*_c2ea0
-#include "Game/exe_bodies.h"     // Reimpl_MapGetTerrainPos
+#include "Action/exe_bodies.h"
+#include "Game/exe_bodies.h"
 #include "Component/MapDescription.h"
 #include "Component/MapComponent.h"
 #include "Entity/ComponentEntity.h"
 #include "Entity/EntityList.h"
 #include "Game/Map.h"
-#include "Object/factory_registration.h"   // GetTypeIdByName (dc20 eviction audit)
+#include "Object/factory_registration.h"
 #include "Component/exe_bodies.h"
 
 #include <cstdint>
@@ -80,10 +78,10 @@ extern "C" void MapComponent_ReportDc20Evictions(const char* tag) {
 
 namespace {
 
-// --- registered exe sub-callees, called by name (B3R) ------------------------
-//   0x14009f2f0 Pf_SetTileRoadFlag_9f2f0        0x1400a4d30 MapTerrainClear_Reimpl
+// --- exe sub-callees, called by name (B3R) -----------------------------------
+//   0x14009f2f0 Map::SetTerrainType              0x1400a4d30 Minimap::ClearTerrain
 //   0x1400c3470 ComponentEntity::RefreshEntityFlags
-//   0x1400c2ea0 ActHunt_MarkEntityRemoval_c2ea0 0x14009f3e0 Reimpl_MapGetTerrainPos
+//   0x1400c2ea0 ComponentEntity::MarkForRemoval  0x14009f3e0 Map::GetTerrainPos
 
 // e2c0 terrain classification thresholds (named DAT floats, exact bit values).
 constexpr float kHalf     = 0.5f;    // DAT_140172114 = 0x3f000000
@@ -170,12 +168,10 @@ void MapComponent_overlay_dc20(Map* param_1, ComponentEntity* const* owner, uint
                             ComponentEntity* local_68 = lVar2;
                             if (lVar2 != nullptr) {
                                 if ((local_68->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) == 0) {
-                                    // Always-on tally (the trace above is opt-in AND capped at
-                                    // 40 lines, so nothing countable survived a default run).
-                                    // This branch DESTROYS an entity, so its rate is the single
-                                    // most load-bearing number in this file: it is how a
-                                    // spawned entity gets freed while its ModelComponent is
-                                    // still linked into Graphics::Scene.
+                                    // Always-on tally. This branch DESTROYS an entity, so its
+                                    // rate is the single most load-bearing number in this file:
+                                    // it is how a spawned entity gets freed while its
+                                    // ModelComponent is still linked into Graphics::Scene.
                                     ++g_dc20Evictions;
                                     if ((local_68->_entityFlags & Bits(ComponentFlags::OnRemove)) == 0) {
                                         ++g_dc20EvictNoTeardown;   // scene geometry will dangle
@@ -237,14 +233,14 @@ void MapComponent_overlay_dc20(Map* param_1, ComponentEntity* const* owner, uint
                         if (cVar1 == '_') {
                             bVar16 = ToUnderlying(PathType::Normal);
                         }
-                        // ⚠ DELIBERATE DEVIATION — BANISHED_LIVE_WALKWAY_DROPCELLS (default
-                        // on; set =0 to restore the byte-faithful claim). Retail claims '_'
+                        // ⚠ DELIBERATE DEVIATION (unconditional): a '_' cell is not claimed.
+                        // Retail claims '_'
                         // exactly like '#' (CMP CL,0x2e ; SETNZ BL). A '_' cell is the
                         // building's own walkable strip and is where its produce is dropped,
                         // and retail's FishingWork::Slot4 only works if those cells read
                         // cell+8 == 0. Class stamp and stale-occupant eviction are untouched;
                         // ownership for placement/picking lives in the ZONE raster (cell+0),
-                        // which this does not affect. Full rationale on the flag.
+                        // which this does not affect.
                         if (cVar1 == '_') {   // walkway drop-cells: a deliberate deviation from the retail bytes
                             bVar19 = false;
                         }
@@ -399,7 +395,7 @@ void MapComponent::AddToMap() {
 // MapDescription, runs the map-init grid-update (dee0), then CLEARS bit-20 and, if
 // the low-16 flag bits changed and the owner entity is non-null, RefreshEntityFlags.
 // LEFT: nothing calls this body; MapComponent's slot 7 reaches 0x140124750 through
-// MapComponent_DetachOccupancy_4750 (mapcomponent.cpp), a different body of the same
+// MapComponent::RemoveFromMap (mapcomponent.cpp), a different body of the same
 // retail function (it trusts the linked description and unmarks through starttown).
 void CreateNaturalResource_impl_4750(MapComponent* self) {
     if ((self->_flags >> 0x14 & 1) == 0) return;

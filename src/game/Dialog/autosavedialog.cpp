@@ -28,25 +28,19 @@
 // [4] AutoSaveDialog::OnOpened (0x14005E110) — vtable +0x20
 // ============================================================
 // 5-byte JMP thunk to 0x14005E120 (timer setup).
-// Stops the current timer, reads game speed setting, picks an
-// autosave interval multiplier, and starts a new timer.
+// Stops the current timer, reads the autosave-interval setting, picks an
+// autosave interval in minutes, and starts a new timer.
 //
 
-//   0 → 60.0f,  1 → 120.0f,  2 → 300.0f,  3 → 480.0f,
-//   4 → 600.0f, 5 → 900.0f,  6 → 1800.0f, 7 → 3600.0f
-// Final interval = multiplier * 3600.0f (seconds).
+//   0 → 1.0f,  1 → 5.0f,   2 → 10.0f, 3 → 15.0f,
+//   4 → 20.0f, 5 → 30.0f,  6 → 45.0f, 7 → 60.0f   (minutes)
+// Final interval = multiplier * 60.0f (seconds).
 //
 // Original: 0x14005E110 → 0x14005E120.
 
-// UI::DialogInstance::StopTimer / StartTimer live in the Runtime DLL
-// (0x180113730 / 0x1801137c0). The exe reaches them through the .rdata dispatch
-// slots 0x140151618 / 0x140151620, and NEITHER of those is registered in
-// standalone - so the previous `*(void**)ResolveAddr(...)` here dereferenced NULL
-// and this function crashed the moment it ran. Resolve them from the Runtime DLL
-// instead, preferring the export name and falling back to the verified entry
-// address. Fixed 2026-08-30 (LANE1 rows 13/14).
-// ENDGAME B.3.6 (K2): both are now direct UI::DialogInstance member calls; the
-// two by-name caches went with their last callers.
+// UI::DialogInstance::StopTimer / StartTimer (Runtime 0x180113730 / 0x1801137c0; the exe
+// reaches them through the .rdata dispatch slots 0x140151618 / 0x140151620) are direct
+// UI::DialogInstance member calls.
 // Time::Time(float) is the import slot 0x140152b00: RtSystem_Time_Ctor, called by
 // name (B3R).
 
@@ -248,9 +242,8 @@ AutoSaveDialog::AutoSaveDialog(UI::UserInterface* ui, const UI::Dialog* dialog,
 
 DEFINE_EXE_TYPE(AutoSaveDialog, "UI::DialogInstance")
 
-// The slot-4 DOOR, reached by address: reg_autosave.cpp registers it at
-// 0x14005e120 / 0x14005e110 and OptionsDialog's apply path calls it through
-// fn_UpdateAutoSaveTimer (engine_funcs.cpp). A QUALIFIED member call.
+// The slot-4 body 0x14005e120 / 0x14005e110: OptionsDialog's apply path
+// (optionsdialog.cpp) calls it on each open AutoSaveDialog. A QUALIFIED member call.
 void AutoSaveDialog_Slot4(AutoSaveDialog* self) {
     self->AutoSaveDialog::OnOpened();
 }

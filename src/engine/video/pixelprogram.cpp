@@ -39,15 +39,10 @@
 // Read vertexprogram.cpp's banner of the same name: `Video::PixelProgram` is the
 // twin conversion, member for member. The bodies are members of the real class
 // (src/engine/video/ShaderProgram.h), defined in the `namespace Video` block
-// at the bottom of this file; each registered door is a one-line QUALIFIED
-// non-virtual delegation through a `reinterpret_cast` bridge; ~PixelProgram
-// writes only the minted ??_7PixelProgram stamp and PlatformDestruct, and
+// at the bottom of this file; ~PixelProgram runs only PlatformDestruct, and
 // ~ShaderProgram / ~CompiledExternal / ~External are the destructor CHAIN, which
-// is exactly retail's inlined teardown at 0x1800f3a00. The
-// `RtVideo_ShaderProgram_DestroyArrays` and `??1External@Object@@UEAA@XZ`
-// bindings are retired here too. ENDGAME B.3.9 VID: the ctor is REAL now
-// (ShaderProgram.h); the ctor / dtor / seven slot doors retired with
-// ??_7PixelProgram@Video@@6B@ and the factory pair is the class's own.
+// is exactly retail's inlined teardown at 0x1800f3a00. ENDGAME B.3.9 VID: the
+// ctor is REAL (ShaderProgram.h) and the factory pair is the class's own.
 //
 // CORRECTION (cutover closure batch D1, 2026-09-12). This banner used to end
 // "...are reached through ResolveAddr and RESOLVE TO NOTHING ONCE THE DLL IS
@@ -233,8 +228,6 @@ bool PixelProgram::Serialize(IO::Stream& streamv) {
     // Retail CALLs 0x1800f5110 here; the QUALIFIED spelling is that call.
     this->ShaderProgram::Serialize(streamv);
 
-    // LEFT (B.4 R-VIDEO): the slot is `Serialize(IO::Stream&)`; the override
-    // keeps `External`'s `void*` parameter (R-OBJ's declaration).
     IO::Stream& stream = streamv;
     IO::Serializer ser(stream, 1);
 

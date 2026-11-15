@@ -10,7 +10,7 @@
 //
 // No Win32 here — PLAN.md §4.1 decision 1. The two `Platform*` members of this
 // family (PlatformConstruct, PlatformShutdown) are the seam and live in
-// application_win.cpp / platform_startup_win.cpp.
+// application_cursor_launch.cpp / application_platform.cpp.
 //
 // ---------------------------------------------------------------------------
 // WHAT `this + 0x18` IS, AND WHY THE DESTRUCTOR IS THE DANGEROUS ROW
@@ -54,15 +54,15 @@
 // not inferred from the `AEAA`/private spelling of anything
 // (reference_aeaa_means_private_not_unexported.md):
 //
-//   0x18000a4f0  Collection::Set<>::DestroyTree   NOT EXPORTED  (address door)
-//   0x180009c30  the allocator-lock Free wrapper  NOT EXPORTED  (already
-//                registered by src/engine/system/allocator.cpp as
-//                `FreeLockedIgnoringSelf`; reached here through
-//                `rtsetavl::SetNodeFree`, which is that door)
+//   0x18000a4f0  Collection::Set<>::DestroyTree   NOT EXPORTED
+//   0x180009c30  the allocator-lock Free wrapper  NOT EXPORTED  (its free is
+//                reached here through `rtsetavl::SetNodeFree`, set_avl.cpp,
+//                which ignores its first argument and calls
+//                `System::MemoryAllocator::MemFree`)
 //
-// The same check says the five functions this file and application_win.cpp port
-// ARE all exported (ordinals 530, 48, 1050, 3331, 3393), so every one of them
-// gets a NAME door as well as an address door.
+// The same check says the five functions this file, application_cursor_launch.cpp
+// and application_platform.cpp port ARE all exported (ordinals 530, 48, 1050, 3331,
+// 3393).
 //
 // ---------------------------------------------------------------------------
 // WHY THESE THREE SET BODIES ARE HERE AND NOT IN src/engine/collection/
@@ -74,38 +74,8 @@
 // as element-type-SPECIFIC (it allocates 0x30 and copies exactly 0x10 of
 // element). Splitting the trio across two directories to place two of them
 // "correctly" would separate a caller from the callee it is only ever reached
-// through. They live with their only callers, the way 0x18000a5b0 does.
+// through. They live with the Application bodies that call them, the way 0x18000a5b0 does.
 //
-// ---------------------------------------------------------------------------
-// ORACLE
-// ---------------------------------------------------------------------------
-// None of the three bodies in this file has a byte-diff oracle AT ITS CALL
-// SITE, and the reason is structural rather than awkward:
-//
-//   * the destructor FREES the tree it walks. Replaying the shipped body on a
-//     scratch copy of the Application hands it the pointers ours has already
-//     released — the exact harness defect Wave 9 lane M's released-pointer
-//     detector exists to name — and replaying it on the live object double-frees
-//     every node.
-//   * the copy constructor and operator= ALLOCATE. Two runs produce two trees
-//     at different addresses, so a whole-object memcmp is guaranteed to differ
-//     at +0x18 no matter how correct the port is.
-//
-// So the oracle is a LOCKSTEP SYNTHETIC-SUBJECT PROBE, in
-// application_lifecycle_probe.cpp, on the shape set_avl_probe.cpp established:
-// two private subjects with byte-identical starting state, ours through these
-// bodies and theirs through the shipped ones reached by `the raw DLL door`, and
-// compared on (a) the object bytes with the two heap-pointer fields excluded,
-// (b) a shape+balance+height+parent fingerprint of the resulting trees, and
-// (c) *** the allocator's own live-block counter ***, `allocCount` at
-// MemoryAllocator+0x638, snapshotted around each side. (c) is what makes
-// "frees EVERY node" a measurement rather than a claim: a destructor that frees
-// only the root moves that counter by 1 where retail's moves it by N, and the
-// probe carries a negative control that does exactly that and must be caught.
-//
-// The the diff oracle markers on the three bodies below are SELF-CHECKS and are
-// labelled as such (reference_shadow_marker_is_not_an_oracle.md); the probe is
-// the thing that consults the DLL.
 // ============================================================================
 
 #include <cstddef>
@@ -146,19 +116,8 @@ inline const Set* SetOf(const App* a) {
 }
 
 // ---------------------------------------------------------------------------
-// THE FREE COUNTER — a self-check instrument, not an oracle.
-//
-// Incremented once per node this file hands to `SetNodeFree`. The destructor
-// walks the tree first, counts what it is about to destroy, and compares the
-// two numbers through the diff oracle. That answers "did OUR body free every
-// node of the tree it was given?" against a number derived from the tree, not
-// from our reading of retail — so it is not the shared-misunderstanding trap
-// (reference_shadow_marker_is_not_an_oracle.md). Whether retail frees the same
-// nodes is a different question and is the probe's, via `allocCount`.
-//
-// Not thread-safe and deliberately not made so: it is read only inside a
-// RT_DIFF guard, and adding an interlocked op would put a lock on the ordinary
-// teardown path to serve a diagnostic.
+// THE FREE COUNTER. Incremented once per node this file hands to `SetNodeFree`;
+// nothing reads it, and `CountNodes` below has no caller. Not thread-safe.
 // ---------------------------------------------------------------------------
 uint64_t g_freeCount = 0;
 
@@ -179,8 +138,7 @@ int CountNodes(const Node* n) {
 // 0x18000a506, restored into RCX at 0x18000a512, and handed to 0x180009c30 —
 // which spills it to its home slot and never reads it (`rtsetavl::SetNodeFree`
 // documents the same contract from the other side). It is kept in the signature
-// because this body is registered AT ITS ADDRESS and retail's callers pass two
-// arguments; dropping it would be an ABI change.
+// because retail's callers pass two arguments.
 // ============================================================================
 extern "C" void RtApp_SetDestroyTree(void* self, Node* n) {
     if (!n) return;                              // 0x18000a4f0 TEST/JE
@@ -271,20 +229,19 @@ extern "C" void RtApp_SetClear(Set* set) {
 // empty-tree allocation).
 //
 // IT IS THE INVERSE OF THE CONSTRUCTOR ONLY FOR THE SET. `??0Application@0@`
-// (0x18009f590, src/engine/engine/singleton_ctors.cpp:576) zeroes +0x18/+0x20,
+// (0x18009f590, `Ctor_Application` in src/engine/engine/singleton_ctors.cpp) zeroes +0x18/+0x20,
 // zeroes +0x28, publishes `_singleton`, zeroes +0x00, stores the HINSTANCE at
 // +0x08 and writes the 0x0100 word at +0x10. The destructor undoes EXACTLY ONE
 // of those: the Set. It does NOT clear `_singleton`, does not null the window
 // or platform handle, and does not touch +0x28. That asymmetry is retail's —
-// `Engine::Shutdown` (engine_lifecycle.cpp:971) calls this and then MemFree's
+// `Engine::Shutdown` (engine_lifecycle.cpp:853) calls this and then MemFree's
 // the block, so the stale `_singleton` pointer is left dangling on purpose and
 // nothing reads it again. Stated here rather than "fixed", because a port that
 // helpfully nulled the singleton would diverge from retail on a path no oracle
 // covers.
 //
-// LIVE ROUTE: `Engine::Shutdown` reaches this by name through RT_EXPORT_ONCE
-// (src/engine/engine/engine_lifecycle.cpp:977), so `calls=` is non-zero on any
-// run that shuts down cleanly.
+// LIVE ROUTE: `Engine::Shutdown` calls this directly
+// (src/engine/engine/engine_lifecycle.cpp:853).
 // ============================================================================
 extern "C" void RtApp_Dtor(App* self) {
 
@@ -311,19 +268,15 @@ extern "C" void RtApp_Dtor(App* self) {
 // (`CMP R14,RDI` at 0x18000a122, where R14 = other+0x18 and RDI = this+0x18 —
 // an equivalent test, transcribed as written).
 //
-// WHAT IT DOES NOT COPY, and this is the interesting part: +0x12..+0x17 and
-// +0x24 are never touched. It copies +0x00, +0x08, the two bytes at +0x10 and
-// +0x11 SEPARATELY (two MOVZX/MOV byte pairs, not the ctor's single word
-// store), the Set, and the byte at +0x28. Six of the object's 0x30 bytes are
-// therefore whatever the destination held. Faithful, and the probe excludes
-// exactly those six from its comparison for the reason
-// reference_oracle_must_not_compare_unwritten_bytes.md gives.
+// WHAT IT DOES NOT COPY, and this is the interesting part: +0x12..+0x17,
+// +0x24..+0x27 and +0x29..+0x2f are never touched. It copies +0x00, +0x08, the
+// two bytes at +0x10 and +0x11 SEPARATELY (two MOVZX/MOV byte pairs, not the
+// ctor's single word store), the Set, and the byte at +0x28. Seventeen of the
+// object's 0x30 bytes are therefore whatever the destination held. Faithful.
 //
 // The destination Set is zeroed BEFORE the guard (0x18000a11c/0x18000a11f), so
 // a self-copy leaves an EMPTY set and LEAKS the tree that was there. Retail's.
 //
-// ORACLE: the probe. Two runs allocate two different trees, so a whole-object
-// memcmp cannot be the test — see the banner.
 // ============================================================================
 extern "C" App* RtApp_CopyCtor(App* self, const App* other) {
 
@@ -357,7 +310,7 @@ extern "C" App* RtApp_CopyCtor(App* self, const App* other) {
 // destination Set it CLEARS it — `if (dst->root) Clear(dst)` at
 // 0x18000a1a4..0x18000a1ad — so the tree already there is freed rather than
 // leaked. Everything else is the same sequence, including the same
-// set-address self-assignment guard and the same six untouched bytes.
+// set-address self-assignment guard and the same untouched bytes.
 //
 // ONE ASYMMETRY WORTH NAMING. If `dst->root` is null the Clear is SKIPPED, so
 // `dst->count` is NOT zeroed on that path; it is then overwritten by
@@ -366,7 +319,6 @@ extern "C" App* RtApp_CopyCtor(App* self, const App* other) {
 // failed first registration leaves `count == 1` with `root == nullptr` — and
 // even there the count is immediately replaced. Transcribed as written.
 //
-// ORACLE: the probe, same reason as the copy constructor.
 // ============================================================================
 Application::Application& Application::Application::operator=(const Application& otherRef) {
     const Application* other = &otherRef;

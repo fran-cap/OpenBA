@@ -5,14 +5,14 @@
 // Runs every game tick per citizen. Logic:
 //   1. Decrement 16 cooldown timers at +0x40..+0xBF, clamp to 0
 //   2. Increment general accumulators at +0xC0 and +0xC8
-//   3. Find home storage, query resource count — if empty, reset +0xC8
-//   4. Check hunger: citizen health +0x44 vs config threshold +0xCC
-//      - If hungry and not in transition states: try to release workplace,
-//        then transition to hunger state
-//   5. Check thirst: citizen health +0x48 vs config threshold +0xEC
+//   3. Find the citizen's own StorageComponent, query its count — if empty, reset +0xC8
+//   4. Check hunger: citizen hunger +0x44 vs description threshold +0xCC
+//      - If hungry and not in transition states: eat at home when the home has
+//        food, then transition to hunger state
+//   5. Check coldness: citizen coldness +0x48 vs description threshold +0xEC
 //      - Similar logic to hunger
-//   6. If neither hungry nor thirsty: check if citizen can find housing
-//   7. Check education eligibility and age transitions
+//   6. If neither hungry nor cold: check if citizen can find housing
+//   7. When no action is running: check education eligibility and age transitions
 //
 // Vtable at 0x140162470.
 // Original: 0x14010f3e0
@@ -44,7 +44,7 @@
 #include "object/Internal.h"   // ENDGAME B.3.3 step 6B
 #include "Component/exe_bodies.h"
 #include "Work/exe_bodies.h"
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"   // B3R: System::MemoryAllocator
 #include "Entity/ComponentEntity.h"   // ComponentEntity::FindComponent<T>
 #include "Component/ModelComponent.h"    // ModelComponent::meshInstance (the age-mesh colour)
 #include "Component/ComponentDescription.h"   // StorageComponent::Item::_resource sub-descriptions
@@ -67,11 +67,11 @@ extern "C" bool StartTown_ForcePushForesterWork(CitizenComponent* citizen);
 extern "C" bool StartTown_ForcePushConstructionWork(CitizenComponent* citizen);
 
 // ============================================================
-// Exe helpers, called by name (Component/Work exe_bodies.h):
-//   StorageComponent_QueryCount 0x14012cf10, Entity_FindComponent_Storage 0x140008090,
-//   Storage_GetResourceCount 0x14012a9d0, CitizenComponent_ReleaseWorkplace 0x1401152e0,
-//   CitizenComponent_CanFindHousing 0x140115be0, CitizenAIComponent_TransitionState
-//   0x14010db90, _CheckEducation 0x14010f7a0, _CheckAge 0x14010f890.
+// Exe helpers, called as members:
+//   StorageComponent::QueryCount 0x14012cf10, FindComponent<StorageComponent> 0x140006270,
+//   ResidenceComponent::GetFoodCount 0x14012a9d0, CitizenComponent::EatFrom 0x1401152e0,
+//   CitizenComponent::CanFindHousing 0x140115be0, CitizenAIComponent::TransitionState
+//   0x14010db90, CheckEducation 0x14010f7a0, CheckAge 0x14010f890.
 // ============================================================
 
 // Shared type-id cells (defined below with the callee reimpls).
@@ -207,9 +207,8 @@ void CitizenAIComponent::Decide(const System::Time* time) {
 
 // ============================================================
 // Callee reimpls (Component reg wave, batch "people")
-// These are the exe helper bodies the call sites above resolve+call.
-// Ported faithfully from Ghidra; sub-deps resolved via guarded ResolveAddr
-// (same pattern as the rest of code/Game). Registered in reg_component_people.cpp.
+// These are the exe helper bodies the call sites above call by name,
+// ported faithfully from Ghidra.
 // ============================================================
 
 // Shared type-ID globals used by the storage scans / finders.
@@ -222,19 +221,14 @@ static uint32_t s_tidRawMaterial_local = 0;
 // Storage_GetResourceCount (0x14012a9d0) calls THIS, not the misnamed
 // 0x140008090 residence finder (disasm 0x14012a9ef: CALL 0x140006270).
 
-// CheckAge sub-deps (CitizenComponent setup helpers).
-
-// TransitionState sub-deps.
-
 
 static bool s_calleeResolved = false;
 static void EnsureCallees() {
     if (s_calleeResolved) return;
-    // ENDGAME B.3.9 (B39_RULES.md D5): 0x1401c7cf0 / 0x1401c7cb8 are registered
+    // ENDGAME B.3.9 (B39_RULES.md D5): 0x1401c7cf0 / 0x1401c7cb8 are the
     // type-id cells (INVENTORY_C Table 1: ResidenceComponent, RawMaterialDescription),
-    // read BY CELL as the class's static TypeId() instead of the raw exe address (the
-    // Residence value is unconditionally overwritten again below by ::Update's
-    // per-tick repoint; caching class statics into namespace-scope storage keeps
+    // read BY CELL as the class's static TypeId() instead of the raw exe address
+    // (caching class statics into namespace-scope storage keeps
     // B6-5's no-lazy-first-use-cache rule).
     s_tidResidence_local = ResidenceComponent::TypeId();
     s_tidRawMaterial_local = RawMaterialDescription::TypeId();
@@ -253,12 +247,8 @@ static void EnsureCallees() {
 // resolved local copy, exactly like the original. Closure: only CheckPtr (engine).
 // Faithful ports; the only difference vs the exe is the scale constant address.
 // ============================================================
-// Byte-faithful scale constants (DAT_14017214c/12c/118). HARDCODED literals, not
-// read via ResolveAddr(Module::Exe, .rdata) — that returns NULL in standalone, so
-// the previous `s_pXScale ? *s_pXScale : 1.0f` fallback collapsed EVERY age-state
-// to 1.0, meaning children (SetupElder) never shrank and the per-frame OnUpdate2
-// age→scale switch silently overwrote any external scale with 1.0. The C++
-// literals compile to the exact bit patterns: 1.0f=0x3f800000, 0.83f=0x3f547ae1,
+// Byte-faithful scale constants (DAT_14017214c/12c/118) as C++ literals; they
+// compile to the exact bit patterns: 1.0f=0x3f800000, 0.83f=0x3f547ae1,
 // 0.66f=0x3f28f5c3.
 static constexpr float kScaleYoung = 1.0f;   // grown / adult full-size
 static constexpr float kScaleAdult = 0.83f;  // intermediate life-state
@@ -377,8 +367,8 @@ void CitizenAIComponent::TransitionState(char param) {
 }
 
 // CitizenAIComponent::CheckEducation (0x14010f7a0):
-// raises the citizen's StorageComponent capacity to its profession's value if what it
-// carries is below it. Retail: FindComponent<StorageComponent> 0x140006270 at 0x14010f7e1 and
+// sets the citizen's StorageComponent capacity to its profession's value when they differ and
+// it carries less than that. Retail: FindComponent<StorageComponent> 0x140006270 at 0x14010f7e1 and
 // 0x14010f830; profession +0x1f0 -> +0x50 read at 0x14010f7f2 / 0x14010f7f9; capacity +0x38
 // compared at 0x14010f80c and stored at 0x14010f85e; QueryCount 0x14012cf10 at 0x14010f845.
 // No null test anywhere (profession and storage are dereferenced unguarded).
@@ -469,7 +459,7 @@ void CitizenAIComponent::OnAdded() {
 // flag (BANISHED_FORCE_WORK, BANISHED_FORCE_FORESTERWORK, BANISHED_FORCE_CONSTRUCT;
 // options.h); with the flags off (the default) Update is retail's.
 void CitizenAIComponent::Update(const System::Time* time) {
-    // FORCE-WORK HARNESS (Opt().forceWork): point ONE unhoused citizen's home
+    // FORCE-WORK HARNESS (Opt().forceWork): point every unhoused citizen's home
     // (+0x238) at the first start-town structure, so State_Work has a target.
     const char* e = Opt().forceWork;
     if (e && e[0] && e[0] != '0' && g_pForceWorkBuilding && citizen->home == nullptr) {

@@ -2,20 +2,20 @@
 // The two "force the building's StateMachineComponent into state N" helpers that
 // FireComponent::Ignite / ::Extinguish drive, plus the demolition gate they check.
 //
-//   0x14011e690  FireComponent_IsBeingDemolished  — abort gate for Ignite
-//   0x14011e7b0  FireComponent_helper_e7b0        — begin burning  (SM state 3, Demolish)
-//   0x14011ea10  FireComponent_helper_ea10        — stop burning   (SM state 7, Rubble)
+//   0x14011e690  DestroyComponent::IsBeingDemolished  — abort gate for Ignite
+//   0x14011e7b0  DestroyComponent::BeginBurning       — begin burning  (SM state 3, Demolish)
+//   0x14011ea10  DestroyComponent::StopBurning        — stop burning   (SM state 7, Rubble)
 //
 // ⚠ SHARED WITH THE TORNADO LANE. The tornado building-damage arm reaches
 // 0x14011e7b0 / 0x14011ea10 as well. They are ported ONCE,
-// here, and registered once (standalone/reg_fire.cpp) so both lanes dispatch the
+// here, as DestroyComponent members, so both lanes call the
 // same body — the "one retail fn ported twice, each copy faithful in a different
 // half" failure mode this project has already been bitten by.
 //
 // ── What the two helpers actually are ────────────────────────────────────────
 // Ghidra renders both as ~90 lines of nested loops. They are NOT bespoke: the
 // whole tail is StateMachine::Tick (0x1400a9660) INLINED. Verified field by field
-// against our own port (StateMachine::Tick, statemachinecomponent.cpp)
+// against our own port (StateMachine::Tick, statemachine_tick.cpp)
 // with `sm = SMC + 0x48`:
 //     Tick sm[0]        == *(void**)(SMC+0x48)   active state node
 //     Tick (char)sm[1]  == *(int8*)(SMC+0x50)    current state
@@ -49,8 +49,8 @@
 namespace {
 
 // Called directly: FUN_140003ea0 finds the entity's StateMachineComponent
-// (PlayerPath_FindComponent_3ea0); FUN_14000d6c0 finds the entity's BuildComponent
-// (Dialog_FindComponent_d6c0 — DAT_1401c7008 is the BuildComponent id);
+// (FindComponent<StateMachineComponent>); FUN_14000d6c0 finds the entity's BuildComponent
+// (FindComponent<BuildComponent> — DAT_1401c7008 is the BuildComponent id);
 // StateMachine::Tick 0x1400a9660 is StateMachine::Tick, handed &Time(0.0f).
 
 // ---------------------------------------------------------------------------

@@ -8,38 +8,35 @@
 // SYNCHRONOUS and does NOT touch the worker: it allocates the region graph (8670),
 // flushes the all-dirty chunk lists (8a90 -> per-8x8-block flood-fill -> stamps
 // regionId into the Map cell array), then builds the region-pair cache. We replicate
-// exactly that synchronous subset, skipping the worker (already seeded separately by
-// pathfinder_seed.cpp when MOVETICK is on).
+// exactly that synchronous subset, skipping the worker (seeded separately by
+// Pathfinder_Seed, pathfinder_seed.cpp).
 //
 // Why it matters: Map_CalcDistance (0x140008830) -> Pf_IsDstReachable (f810). f810 reads
 // each cell's regionId (cell+0x18); when unbuilt it spirals (9d0a0) and, finding all -1,
 // returns -1, so Map_CalcDistance falls back to euclidean + gridW (= +256 on a 256 map),
 // which ALWAYS exceeds work radii -> e.g. ForesterWork's "tree within radius*2" check
 // fails for every cell. With the region map built, f810 returns 1 for same-region cells
-// and runs the (already ported+registered) region A* (a8ba0/dcd0) for cross-region pairs,
+// and runs the (already ported) region A* (a8ba0/dcd0) for cross-region pairs,
 // so distances are realistic and range checks pass.
 //
-// Dependencies (ALL already ported + registered): the chunk family 8a90/80a0/7f20/7ad0/
-// 7950/7670/7750/8200/8350/8420/7480 (action_pf_region.cpp + reg_pf_region.cpp), the
+// Dependencies (ALL already ported): the chunk family 8a90/80a0/7f20/7ad0/
+// 7950/7670/7750/8200/8350/8420/7480 (action_pf_region.cpp), the
 // region A* dcd0/dc00/d320/d450/d550/3480/d400 + entry a8ba0 (action_pf_astar.cpp /
-// action_pf_pools.cpp + their registrars). NEW here: 8670 (graph ctor) + e060 (coarse
+// action_pf_pools.cpp). NEW here: 8670 (graph ctor) + e060 (coarse
 // array) in region_graph_build.cpp, and the pair cache (cca0) in region_paircache.cpp.
 //
-// Gated behind BANISHED_LIVE_REGIONMAP (default OFF until A/B-verified); when off this is
-// a no-op and Map+0x70/+0x78 stay 0 (zeroed by the Game ctor), preserving the euclidean
-// fallback exactly as before.
 
 #include "Game/Map.h"
 #include "Action/PathSearch.h"
 #include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
-#include "Action/exe_bodies.h"   // Pf_RegionGraphCtor_8670, Pf_RegionPairCache_Build, Pf_FlushDirtyChunks_8a90
+#include "Action/exe_bodies.h"   // Pf_RegionPairCache_Build
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 
-// Ported region-graph builders and chunk flush, called by name through Action/exe_bodies.h:
-// Pf_RegionGraphCtor_8670 (0x1400a8670), Pf_RegionPairCache_Build (the e8c0 pair-cache
-// tail), Pf_FlushDirtyChunks_8a90 (0x1400a8a90).
+// Ported region-graph builders and chunk flush, called by name: RegionGraph::Init
+// (0x1400a8670) and RegionGraph::Flush (0x1400a8a90) (Action/PathSearch.h),
+// Pf_RegionPairCache_Build (the e8c0 pair-cache tail, Action/exe_bodies.h).
 
 extern "C" void Region_Seed(Map* map, int dim) {   // map: GameUpdateLoop::m_game
     if (!map || dim <= 0) return;

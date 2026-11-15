@@ -24,34 +24,19 @@
 //                          event 7  cd90 : ALLOW  = Accept (convert to citizens) -> 2
 //                          event 8  cd20 : DENY   = Dismiss (send them home)     -> 2
 //
-// The Allow/Deny buttons of the town hall's "Nomads" tab (ImmigrationUI_Slot9,
+// The Allow/Deny buttons of the town hall's "Nomads" tab (ImmigrationUI::OnElementEvent,
 // immigrationui.cpp) post events 7/8 through the StateMachineComponent node — the
 // same node-vtable slot 2 (PostEvent) the Dispatcher below implements.
 //
 // Component layout (retail ctor 0x14004e640): ImmigrationComponent.h.
 // ImmigrationDescription: ImmigrationDescription.h (fields named from their use here).
 //
-// Opt-in: BANISHED_LIVE_IMMIGRATION (or the global live-components switch). Default off keeps
-// the component inert exactly as before this port.
-//
-// Test fixtures (all env-gated, byte-unchanged when unset — NOT retail behaviour):
-//   BANISHED_NOMAD_TRACE=1            stderr trace of every state/event/spawn/accept
-//   BANISHED_NOMAD_TIMER_SCALE=<f>    multiply the 2..6-year wait timer (0.001 = now)
-//   BANISHED_NOMAD_ANY_SEASON=1       ignore the spring window and the autumn leave
-//   BANISHED_NOMAD_AUTOACCEPT=<n>     n ticks after the group is waiting, post the
-//                                     ALLOW event (7) through the SM node, exactly
-//                                     as the Allow button does; a NEGATIVE n posts
-//                                     DENY (event 8) after |n| ticks instead
-//
 // Faithful offset-by-offset port of 0x14004cd00 .. 0x14004e4b0 and 0x140050030 /
 // 0x1400501a0 (nomad -> citizen conversion).
-//
-// LEFT (B.4 P2 COMP-45): the Pf_ / ModelComponent bodies owned by other blocks take
-// int64_t / uintptr_t receivers (wave X); the controller hands the tick its time as void*.
 
 // graphics/*.h FIRST: they pull src/engine/volume/Volume.h, whose global-scope
 // `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()` once <windows.h> has
-// been seen through resolve.h.  ENDGAME B.3.5 caller batch I2.
+// been seen.  ENDGAME B.3.5 caller batch I2.
 // EXT SEAM (NOT RETAIL, docs/extensions/handins/FAMILYTREE.md): ext.family_tree (class C)
 #include "ext/family_tree/family_tree.h"
 #include "graphics/Mesh.h"
@@ -78,10 +63,10 @@
 #include "Game/Map.h"
 #include "Game/Calendar.h"
 #include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
-#include "Action/exe_bodies.h"            // Pf_*, ActCNR_NR_SetVariant_1253d0
+#include "Action/exe_bodies.h"
 #include "Component/exe_bodies.h"
-#include "Game/exe_bodies.h"              // Reimpl_MapGetTerrainPos, EventLog_AddEvent
-#include "Player/exe_bodies.h"            // ToolTile_SetTransformFromYaw_3870
+#include "Game/exe_bodies.h"
+#include "Player/exe_bodies.h"
 #include "Entity/ComponentEntity.h"   // ComponentEntity(ComponentDescription*) (0x1400c3720)
 #include "Entity/EntityList.h"        // EntityList::RegisterEntity (0x1400c48a0)
 #include "Object/factory_registration.h"
@@ -105,10 +90,10 @@ constexpr float kYawRange        = 180.0f;   // DAT_140172220
 
 // ---------------------------------------------------------------- helpers, by name (B3R)
 //   0x140003ea0 FindComponent<StateMachineComponent>
-//   0x140122e20 Pf_EntityResolvePos_2e20 (Entity_impl_2e20)   0x140123070 Pf_RecursiveChildSum_123070
+//   0x140122e20 InteractComponent::NodePosition                0x140123070 InteractComponent::NodeCount
 //   0x1400c3720 ComponentEntity(ComponentDescription*)
-//   0x1400c48a0 EntityList_RegisterEntity_Impl                 0x14009c480 Pf_ZoneRefresh_9c480
-//   0x140003870 ToolTile_SetTransformFromYaw_3870              0x1401253d0 ActCNR_NR_SetVariant_1253d0
+//   0x1400c48a0 EntityList::RegisterEntity                     0x14009c480 Map::FillZones
+//   0x140003870 ModelComponent::SetTransformFromYaw            0x1401253d0 ModelComponent::SelectMesh
 //   0x140117080 CitizenComponent::Initialize
 //   0x140002ed0 FindComponent<InteractComponent> (the engine_funcs global that bound it
 //               was misnamed fn_Entity_FindComponent_Position)
@@ -192,7 +177,7 @@ bool ImmigrationComponent::CanAccept() {
 // FindSpawnCell — port of 0x14004e270
 // Up to 50 tries: a random cell within desc+0x5c of (x, y) that is walkable
 // (flag bit in 0xe07) and — after a zone refresh — in the same pathing zone
-// (tile+0x26) as the town hall's cell, or on a zone-less bridge/road class (0x1e0).
+// (tile+0x26) as the town hall's cell, or either cell is of a zone-less type (0x1e0).
 // ============================================================
 int ImmigrationComponent::FindSpawnCell(int x, int y, int hallCell) {
     GameUpdateLoop* gw = GW();
@@ -362,7 +347,7 @@ void ImmigrationComponent::Spawn() {
         Object::InternalPtr<ComponentEntity> regIBP = ent;
         gw->m_entityList->RegisterEntity(&regIBP, category);
         // Append to the group array (+0x58/+0x60/+0x64) — retail inlines this
-        // DynArray8 push; the registered resize does the same growth policy.
+        // DynArray8 push; SetSizeFill below does the same growth policy.
         int count = group._size;
         ComponentEntity* pushIBP = ent;
         // exe 0x140003110 IS Collection::Array<void*>::SetSize(n, fill) (kSpec_PtrZero).

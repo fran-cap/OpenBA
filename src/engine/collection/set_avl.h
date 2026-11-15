@@ -1,14 +1,15 @@
 // ============================================================================
 // src/engine/collection/set_avl.h — Wave 9 lane VID2
 //   The node header the four unexported `Collection::Set` AVL bodies operate
-//   on, shared between set_avl.cpp, its probe, and the message-callback port
-//   that is their only caller today.
+//   on, shared between set_avl.cpp, the files that call `Retrace` / `Erase`
+//   (message_callbacks.cpp, set_core.cpp, avl_trees.cpp, set_avl_pathid.cpp,
+//   device_startup.cpp) and the owners of a set with this node layout
+//   (Application.h's `_messageCallbacks` among them).
 // ============================================================================
 //
-// Included by exactly three files. It exists so the probe can drive the SAME
-// `Retrace`/`Erase` the registered addresses drive against the SAME node
-// layout — a probe that re-declared either would be testing a copy of the port
-// rather than the port (the shape array_internal.h uses for lane Q).
+// It exists so every caller drives the SAME `Retrace`/`Erase` against the SAME
+// node layout — a file that re-declared either would be working on a copy of
+// the layout rather than the port's.
 // ============================================================================
 
 #pragma once
@@ -83,8 +84,8 @@ struct Set {
 static_assert(offsetof(Set, root)  == 0x00, "Set::root  @ +0x00");
 static_assert(offsetof(Set, count) == 0x08, "Set::count @ +0x08");
 
-// The four ported bodies. Registered at 0x18000adc0 / 0x18000b040 /
-// 0x18000b170 / 0x18000aba0 respectively.
+// The four ported bodies, at 0x18000b040 / 0x18000b170 / 0x18000adc0 /
+// 0x18000aba0 respectively.
 Node* RotateLeft (Set* set, Node* n);
 Node* RotateRight(Set* set, Node* n);
 void  Retrace    (Set* set, Node** slot);

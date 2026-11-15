@@ -8,7 +8,7 @@
 // base 0x180000000, read 2026-09-10 with `disassemble_function(address=)`).
 // The AVL family the READ path needs is reference_set.{h,cpp}; the tree
 // teardown the body OPENS with is `RtObjFactoryDtor::ReferenceSubtreeFree`,
-// which has been ported and registered since Wave 11 lane OBJLIFE.
+// ported in factory_dtors.cpp by Wave 11 lane OBJLIFE.
 //
 // ---------------------------------------------------------------------------
 // WHAT THE FUNCTION IS
@@ -33,8 +33,8 @@
 // Stream fields. The `Serializer` is a LOCAL, built at `[RBP-0x18]` /
 // `[RBP-0x10]` — exactly the 16-byte `{Stream*, ReaderWriter*}` of
 // src/engine/io/Serializer.h. Passing a Serializer straight through would
-// read 16 bytes past the end of a 16-byte object; the lane-S adapter below
-// exists for that reason and not as a workaround for anything.
+// read 16 bytes past the end of a 16-byte object; the local IO::Serializer
+// below exists for that reason and not as a workaround for anything.
 //
 // ---------------------------------------------------------------------------
 // THE FIRST THING IT DOES IS A MUTATION, AND NO EMISSION PRECEDES IT
@@ -54,12 +54,10 @@
 //     `ResourceEntry::referenceId = id`, which a replay rewrites with the
 //     IDENTICAL value into the identical node (the ids are 1..N over a tree
 //     neither call modifies), and the teardown's second run reads
-//     `[this+0x20] == 0` and returns immediately. **No double free.** So the
-//     FULL write-path compare is safe and that is what this file runs.
+//     `[this+0x20] == 0` and returns immediately. **No double free.**
 //   * The teardown is INVISIBLE to an emission compare — it emits nothing — so
 //     a port that forgot it, or freed it wrongly, would pass a clean emission
-//     trace. The probe therefore asserts the post-condition explicitly, which
-//     is the check that measurement asked whoever ported it to add.
+//     trace.
 //
 // ---------------------------------------------------------------------------
 // THE FOUR ENCODING/READERWRITER SLOTS IT DRIVES
@@ -94,7 +92,7 @@
 // ENDGAME B.3.1 step 2: `String::Serialize` (0x1800c9930, which takes the
 // Serializer and not the Stream) and `Filename::AdjustDelimiters` (0x1800c6970)
 // used to be forward-declared here as C entry points. They are members now —
-// the first called as `s.Serialize(&ser)`, the second folded into the two
+// the first called as `s.Serialize(ser)`, the second folded into the two
 // Filename constructors that already end in it — so both declarations are gone.
 
 namespace RtObject {

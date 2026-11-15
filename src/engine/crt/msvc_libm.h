@@ -45,9 +45,9 @@
 // ORDER OF OPERATIONS IS THE POINT. Floating point is not associative, so these
 // bodies transcribe the retail instruction sequence, including temporaries that
 // look redundant. Do not "simplify" an expression here; it will change results.
-// The build must not contract a multiply-add into an FMA either -- there is a
-// static_assert-equivalent #error below, because the project builds for baseline
-// x86-64 where no FMA instruction exists.
+// The build must not contract a multiply-add into an FMA either -- msvc_libm.cpp
+// has a static_assert-equivalent #error for an FMA-enabled x86 build, and
+// CMakeLists.txt passes -ffp-contract=off (aarch64 has FMA instructions).
 // ============================================================================
 
 namespace MsvcLibm {
@@ -62,8 +62,8 @@ float Fmodf(float x, float y);            // retail 0x180127010 (BATCH 4)
 // ---------------------------------------------------------------------------
 // Branch-entry counters for the bit-exactness sweep's EFFECTIVENESS CONTROL.
 // Nothing in the game build sees any of this: the counters are only compiled
-// when MSVC_LIBM_COVERAGE is defined, which only tools/libm_probe/sweep.cpp
-// does. A sweep that never enters argument reduction reports "0 divergences"
+// when MSVC_LIBM_COVERAGE is defined, which nothing in the tree defines. A sweep
+// that never enters argument reduction reports "0 divergences"
 // exactly as loudly as one that does, so the counts are part of the evidence.
 // ---------------------------------------------------------------------------
 #ifdef MSVC_LIBM_COVERAGE

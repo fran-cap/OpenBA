@@ -7,7 +7,7 @@
 // them previously reached BY NAME from a ported caller (the "NOT PORTED,
 // reached by name" comments in lights_vtable.cpp / graphicsmesh_vtable.cpp).
 // Those comments are corrected AT THEIR SOURCE by this batch (PLAN.md §6
-// step 8); see the end of this banner for the list.
+// step 8).
 //
 //   retail       ord   export name
 //   -----------  ----  ---------------------------------------------------
@@ -27,32 +27,6 @@
 // Ghidra's decompiled C. Every export name was read back out of the export
 // directory by VA with pefile before this file was written.
 //
-// ---------------------------------------------------------------------------
-// ⚠ ATTENDANCE IS ZERO ON A DLL-PRESENT RUN, AND THAT IS STRUCTURAL
-// ---------------------------------------------------------------------------
-// MEASURED, 2026-09-12, one `BANISHED_AUTOSTART=1 the diff oracle armed
-// BANISHED_PAUSEMENU=600 BANISHED_PAUSEMENU_QUIT=120` run to the in-game world
-// and a clean self-quit (exit 0, empty standalone_crash.log, 154 `startTown`
-// lines): NONE of the ten sites below entered, so none appears in the diff oracle
-// summary at all.
-//
-// THAT IS NOT "the ports are dead code". It is what the seam does while the DLL
-// is loaded. Every caller of `DrawItemList` in this tree is one of the five
-// light `Draw` arms in lights_vtable.cpp, and those are VTABLE SLOTS of
-// ??_7{Ambient,Spot,Sun}Light@Graphics@@6B@ — rows the mint has not promoted.
-// With the DLL present those tables still hold the DLL's own bodies, so the
-// DLL's `SunLight::Draw` reaches the DLL's `DrawItemList` by rel32 and never
-// consults the port registry. The same holds for `Context::SetLight` (reached
-// only from those same arms) and for the four destructors, which the DLL's own
-// deleting-dtor slots call internally. The proof that the seam itself is fine
-// is in the same log: `Graphics::SunLight::SunLight` and
-// `Graphics::ParticleSystemInstance::ParticleSystemInstance` — the NAME-reached
-// members of the very same classes — entered 123 times between them.
-//
-// So these ten are verified by TRANSCRIPTION against the disassembly, and their
-// first execution will be at cutover, where the mint's vtable rows are ours.
-// A reader who meets a green the diff oracle summary must not read it as coverage of
-// this file (reference_uncalled_port_is_not_verified.md).
 //
 // ---------------------------------------------------------------------------
 // FIVE THINGS THAT WOULD BE WRONG IF READ FROM THE DECOMPILER
@@ -94,7 +68,7 @@
 #include <cstring>
 
 #include "graphics/Camera.h"
-#include "graphics/Animation.h"          // B.4: Graphics::Animation (the copy ctor / dtor doors)
+#include "graphics/Animation.h"          // B.4: Graphics::Animation (RtGraphics_Animation_CopyCtor / _Dtor)
 #include "graphics/GeneratedImageBuffer.h"  // ENDGAME B.3.5 block GC
 #include "graphics/GraphicsMesh.h"   // ENDGAME B.3.5 block G
 #include "graphics/Light.h"          // Graphics::SpotLight -- block GC
@@ -119,11 +93,6 @@ namespace rtcoll { void MemFree(void* p); }   // src/engine/collection/array.cpp
 
 namespace {
 
-// ---------------------------------------------------------------------------
-// Retail vtable constants. Resolved through the NAME (all five are exported
-// data symbols — checked by VA with pefile), so a minted/promoted row is used
-// where one exists and the DLL's own table otherwise.
-// ---------------------------------------------------------------------------
 // (ENDGAME B.3.9 GFX: `VtParticleInstance` / `VtParticleSystemInstance` are
 // gone with the ??1ParticleSystemInstance door that restamped them.)
 
@@ -164,7 +133,7 @@ namespace {
 //   MemFree(*slot);                                     // slot keeps str-8
 //
 // THE SLOT IS DELIBERATELY LEFT DANGLING ON THE FREE ARM. That is what
-// 0x1800fb2c2/0x1800e040e/0x180103e17 do, and vtbatch7b_stream_run_win.cpp's
+// 0x1800fb2c2/0x1800e040e/0x180103e17 do, and src/engine/ui/documenttext.cpp's
 // ReleaseString already records the same shape. (~Particle's extra ZF twist
 // lives with ~Particle in animation.cpp.) B.4: the slot is the `char*` field
 // itself and the count is `RtSystem::StringRefCount` (String.h).
@@ -202,21 +171,12 @@ void ReleaseString(char** slot) {
 //     texture is seen.
 //
 // ORACLE: none. The dispatch renders into a GPU target; running the shipped
-// body afterwards would render a second time. the diff oracle is the effectiveness
-// control — almost every call returns at the +0x24 test.
+// body afterwards would render a second time. Almost every call returns at the
+// +0x24 test.
 // ############################################################################
-// ENDGAME B.3.5 block GC: THE BODY MOVED to
+// ENDGAME B.3.5 block GC: the body is
 // `Graphics::MaterialInstance::GenerateTextures`, in this file's existing
-// `namespace Graphics` block below. The door keeps its name and both its
-// registrations (by name and at 0x180102eb0).
-//
-// THE DEAD EFFECTIVENESS CONTROL IS GONE, for the same reason its sibling's was
-// in wave9_lane_gfx.cpp: `const bool didWork = …` had no reader anywhere in the
-// tree. The banner above still calls it "the diff oracle", and that sentence was
-// describing a variable nothing printed.
-//
-// B.4: the door's one caller (DrawItemList below) calls the member by name;
-// the `void*` door has no other reader and is gone.
+// `namespace Graphics` block below. DrawItemList below calls the member by name.
 
 // ############################################################################
 // Graphics::ParticleSystemInstance::~ParticleSystemInstance
@@ -281,8 +241,8 @@ Graphics::ParticleSystemInstance::~ParticleSystemInstance() {
 // THE TWO ARRAY MEMBERS ARE ZEROED BEFORE THE ASSIGN, not after: the assign
 // helper reads the destination's `_data`/`_size` to decide whether to reuse the
 // buffer, so a copy ctor that did not clear them first would free the SOURCE
-// object's memory. Both helpers are unexported template instantiations still on
-// the DLL (0x18001b270 for the +0x00 element type, 0x18001b360 for the +0x60
+// object's memory. Both helpers are unexported template instantiations
+// (0x18001b270 for the +0x00 element type, 0x18001b360 for the +0x60
 // one — the latter is the `TransformArrayAssign` picking/scene_grid.cpp names).
 //
 // +0x54 IS NOT COPIED. Retail copies +0x50 as a dword and then +0x58 as a
@@ -291,10 +251,10 @@ Graphics::ParticleSystemInstance::~ParticleSystemInstance() {
 // it would make our copy differ from retail's on a byte retail never writes.
 // ############################################################################
 //
-// B.4: on `Graphics::Animation`'s named fields. The door keeps its `void*`
+// B.4: on `Graphics::Animation`'s named fields. The function keeps its `void*`
 // signature (array.cpp's element ops and the unit test's link stub hold it),
-// so each side is viewed once as the class (LEFT); ??0 stays a door, not a
-// real ctor (W1 brief: Animation's ctors change only with object-identical
+// so each side is viewed once as the class (LEFT); ??0 stays a free function,
+// not a real ctor (W1 brief: Animation's ctors change only with object-identical
 // proof). The float fields are plain 4-byte moves either way.
 extern "C" void* RtGraphics_Animation_CopyCtor(void* selfv, const void* srcv) {
     Graphics::Animation* const self = static_cast<Graphics::Animation*>(selfv);  // CAST-OK: elem_stride
@@ -360,7 +320,7 @@ extern "C" void* RtGraphics_Animation_CopyCtor(void* selfv, const void* srcv) {
 // nothing. Graphics::Animation is plain data, like AnimationManager.
 // ############################################################################
 //
-// B.4: on the named fields; the door keeps its `void*` signature (LEFT, as
+// B.4: on the named fields; the function keeps its `void*` signature (LEFT, as
 // the copy ctor's).
 extern "C" void RtGraphics_Animation_Dtor(void* selfv) {
     Graphics::Animation* const self = static_cast<Graphics::Animation*>(selfv);  // CAST-OK: elem_stride
@@ -516,14 +476,13 @@ namespace Graphics {
 // ---------------------------------------------------------------------------
 // ?GenerateTextures@MaterialInstance@Graphics@@QEBAXAEAVContext@Video@@H@Z
 // retail 0x180102eb0 — ENDGAME B.3.5 block GC. The evidence, the two faithful
-// uglinesses and the oracle note are in the door's banner above.
+// uglinesses and the oracle note are in the banner above.
 //
 // TWO RAW BINDINGS BECAME TYPED ONES (item 6), exactly as in the sibling
 // `RenderTextures`: the `textures._data + i*0x10` then `+0x08` walk is
 // `_textures._data[i].image`, and the hand-inlined `(*(void***)obj)[0x50/8]` is
 // slot TEN of `Graphics::GeneratedImageBuffer` — `Generate(context, generation)`
-// — still dispatched VIRTUALLY, so an object wearing the minted table is reached
-// the same way it was. 0x50/8 == 10 is checked against
+// — still dispatched VIRTUALLY. 0x50/8 == 10 is checked against
 // GeneratedImageBuffer.h's slot list.
 //
 // NOTE THE ASYMMETRY WITH ITS SIBLING, WHICH IS RETAIL'S: `RenderTextures` tests
@@ -633,11 +592,6 @@ void GraphicsMesh::PlatformSerialize(IO::Serializer& serializer) {
 // `AEAA` is PRIVATE and this DLL exports its private members; the member is
 // PUBLIC in Light.h for the reason block G recorded on MaterialInstance's two
 // private finders (an `extern "C"` door cannot be a friend).
-//
-// The four SpotLight target pointers are still reached at their raw offsets
-// through one bridge local: Light.h names them, but every store here is an
-// inlined `operator new` plus an unguarded vtable slot-9 `Create`, and the
-// arithmetic is what the banner above documents.
 // ---------------------------------------------------------------------------
 //
 // B.4: on the class's typed fields (`_shadowMap` / `_shadowDepth` /
@@ -883,7 +837,5 @@ void Renderer::DrawItemList(Video::Context& context, int groupIndex, int listInd
 //
 // ORACLE: NONE, and that is stated rather than faked. Every arm of this body
 // ends in a real GPU draw through the geometry's vtable; running the shipped
-// copy afterwards would submit every draw a second time. the diff oracle records
-// how many calls reached a Draw at all, which is the number that matters — a
-// green `calls=` column on a body that dropped every item would mean nothing.
+// copy afterwards would submit every draw a second time.
 // ############################################################################

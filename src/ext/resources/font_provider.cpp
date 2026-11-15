@@ -97,8 +97,8 @@ bool FaceOk() {
     return c.faceOk;
 }
 
-// The rasterised glyphs for (kit, px), from the cache or GDI. `cps` is the
-// base sheet's codepoint list; null on failure (logged).
+// The rasterised glyphs for (kit, px), from the cache or RasterizeFont (font_raster.h).
+// `cps` is the base sheet's codepoint list; null on failure (logged).
 const RasterFont* Rasterised(int32_t kit, int32_t px, const std::vector<int32_t>& cps, bool& fromCache) {
     Cache& c = G();
     const auto key = std::make_pair(kit, px);
@@ -129,7 +129,7 @@ const RasterFont* Rasterised(int32_t kit, int32_t px, const std::vector<int32_t>
     return &c.fonts.emplace(key, std::move(rf)).first->second;
 }
 
-// Builds the four objects of one variant; returns the one `want` names
+// Builds the four objects of one variant; returns the one `vp.part` names
 // ("resource" / "material" / "texture" / "sheet"), every other one
 // registered. Null when anything is missing (logged).
 Object::External* BuildVariant(const VariantPath& vp) {

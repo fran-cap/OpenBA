@@ -83,9 +83,10 @@ const char* KindName(SheetKind kind) {
 // One build: what it was made FROM (the sheet's content, not its address: the
 // factory's Clean frees a sheet and the next load makes a new one, often at the
 // same address, and our Extensions sheet is rebuilt at every Clean) and what it
-// made. Kept for the process: a texture a frame in flight may still sample is
-// never freed; a reloaded sheet with the same content finds its build again, so
-// a session holds one copy per sheet content and factor.
+// made. Kept until the video device goes away (DropScaledSheets): a texture a
+// frame in flight may still sample is not freed before then; a reloaded sheet
+// with the same content finds its build again, so a session holds one copy per
+// sheet content and factor.
 struct Built {
     uint64_t                    content  = 0;   // ContentOf
     SheetKind                   kind     = SheetKind::None;
@@ -124,8 +125,9 @@ struct Job {
 };
 std::vector<std::shared_ptr<Job>> g_jobs;
 
-// The (base, factor) pairs a build failed for before its content was read (a
-// texture that is not BGRA8, a failed read back): logged once, not retried.
+// The (base, factor) pairs a build failed for (a texture that is not BGRA8, a
+// sheet too large to copy, a failed read back, a texture or material that could
+// not be made): logged once, not retried.
 struct Failed {
     const Video::ImageBuffer* base;
     int                       factor;

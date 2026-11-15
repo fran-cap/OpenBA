@@ -1,10 +1,10 @@
 // src/diag/orchard_cut_harness.cpp
 // Drives the orchard panel's CUT button (command id 3) without a human click, so the
-// newly-ported state 20 can be tested from `make sa-run`.
+// newly-ported state 20 can be tested from `tools/build.sh run`.
 //
 // This is a stand-in for the PLAYER, not for any game code: it asks CanCommand(3) exactly
 // as the panel does, and then calls the real idx14 Command(comp, 3), which posts node
-// event 5 -> Orchard_Event5Clear -> request state 20. Every gate downstream (the event
+// event 5 -> OrchardComponent::OnClearEvent -> request state 20. Every gate downstream (the event
 // list, the transition table, the state-20 handlers, the ClearArea work) still runs for
 // real. The user's 2026-08-10 hand-test proved this exact call path works; the harness
 // only removes the human from the loop so a cut can be observed in one automated run.

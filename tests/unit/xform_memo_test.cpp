@@ -167,7 +167,7 @@ UNIT_TEST(xform_memo_two_renderers_bit_identical) {
     for (uint64_t seed = 1; seed <= 6; ++seed) {
         const Stats st = Run(seed, false, 40);
         CHECK(st.mismatches == 0);
-        CHECK(st.hits > st.requests / 2);   // passes 1 and 2 (and most of 3) hit
+        CHECK(st.hits > st.requests / 2);   // passes 1 and 2 (and half of 3) hit
     }
 }
 

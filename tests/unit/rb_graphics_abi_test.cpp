@@ -4,10 +4,9 @@
 // LOOP geometries), ParticleInstance (the Tornado instance), Particle
 // (Tornado), AnimationEvent (AnimAudioEvent).
 //
-// B38_RULES D1 / RULE B8-1: real ctors whose bodies are ONE body with the ctor
-// doors (`InitFields`; reached by the doors through `X::DoorBody`), and real
-// dtors — Geometry's shared with its door, ParticleInstance's (RemoveState,
-// 0x1801041f0) and Particle's (0x180103c70, ported by RB) with no door.
+// B38_RULES D1 / RULE B8-1: real ctors (Particle's body is its inline
+// `InitFields`) and real dtors — Geometry's, ParticleInstance's (RemoveState,
+// 0x1801041f0) and Particle's (0x180103c70, ported by RB).
 //
 // PART A — STAMP ORDER + RETAIL BYTES through test subclasses over a
 //   0xCD-poisoned buffer: Geometry's shared body runs under Geometry's table,
@@ -21,7 +20,7 @@
 //
 // MARKERS: Geometry's ctor / dtor (scene.cpp), Particle's
 // ReleaseFields (animation.cpp), RemoveState and the classes' virtuals do not
-// link here; the inline InitFields of Particle / ParticleInstance are REAL.
+// link here; the inline ctor bodies of Particle / ParticleInstance are REAL.
 // ============================================================================
 #include "unit.h"
 #include "abi.h"   // RT_ASM_LABEL
@@ -307,7 +306,7 @@ UNIT_TEST(b39_sunlight_real_ctor_is_the_only_builder) {
 }
 
 UNIT_TEST(rb_materialinstance_ctor_is_retail_0x180103980_and_concrete) {
-    // InitFields is inline (the REAL body); the virtuals and ~MaterialInstance
+    // The ctor is inline (the REAL body); the virtuals and ~MaterialInstance
     // are graphics_material_abi_test.cpp's markers.
     alignas(8) unsigned char buf[sizeof(Graphics::MaterialInstance)];
     std::memset(buf, 0xCD, sizeof buf);
@@ -681,8 +680,8 @@ UNIT_TEST(b39_gfx_framecopy_concrete_ctor_dtor_and_exe_scalar_slot0) {
     CHECK_EQ(g_fcDtor, 3);
 }
 
-// GeneratedImageBuffer: abstract (slots 10 / 11 `_purecall`), protected
-// non-virtual dtor, slot 0 its own VECTOR deleting dtor (`MOV EDX,0x70`).
+// GeneratedImageBuffer: abstract (slots 10 / 11 `_purecall`), public
+// virtual dtor, slot 0 its own VECTOR deleting dtor (`MOV EDX,0x70`).
 UNIT_TEST(b39_gfx_generatedimagebuffer_slot0_is_the_classs_own_both_arms) {
     using G = Graphics::GeneratedImageBuffer;
     CHECK(std::is_abstract<G>::value);

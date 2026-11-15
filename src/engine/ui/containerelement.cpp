@@ -11,7 +11,7 @@
 //
 //   slot  method                retail       where
 //   ----  --------------------  -----------  ---------------------------------
-//    0    vector deleting dtor  0x18003a050  deleting_dtor.cpp row
+//    0    vector deleting dtor  0x18003a050  ContainerElement.h (the class's own)
 //    1    TypeName              0x180039cc0  here
 //    2    Type                  0x180039ca0  here
 //    4    ComputeSize           0x1800cc850  here
@@ -47,13 +47,10 @@
 // that retail then dereferences — see ComputeSize.
 //
 // ENDGAME B.3.6 block C4: the layout above moved to src/engine/ui/
-// ContainerElement.h (the real class). Every body below is a MEMBER; each
-// registered door is a one-line QUALIFIED delegation. Hand-inlined slot calls
-// onto children became virtual member calls; the scroll bars are reached as
-// `UI::ScrollElement` (this block's class) after retail's type test, the clip
-// region's own fields stay raw offsets (block C1's class, fragment list).
-// RULE B6-5: the type-info records, the vtable and the Video::Device singleton
-// the members read are cached in namespace-scope std::atomic slots.
+// ContainerElement.h (the real class). Every body below is a MEMBER.
+// Hand-inlined slot calls onto children became virtual member calls; the
+// scroll bars are reached as `UI::ScrollElement` (this block's class) after
+// retail's type test, and the clip region (block C1's class) by its named fields.
 // ============================================================================
 #include <new>
 

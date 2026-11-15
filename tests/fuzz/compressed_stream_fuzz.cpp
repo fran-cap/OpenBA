@@ -2,33 +2,31 @@
 // tests/fuzz/compressed_stream_fuzz.cpp -- IO::CompressedStream over arbitrary package bytes
 // ============================================================================
 // P0_MAP input surface rank 1 (every package entry, every save block). The target builds the
-// stream exactly as ReadPackfile does (package_file_read.cpp:477-482): a CompressedMemoryStream
+// stream exactly as ReadPackfile does (package_file_read.cpp:601-606): a CompressedMemoryStream
 // whose embedded MemoryStream holds the blob, then CompressedStream::Open(memoryStream, windows).
-// It then drives a sequence of SetCurrentPos / Read / ReadArray / GetSize calls taken from the
+// It then drives a sequence of SetCurrentPos / Read / ReadArray calls taken from the
 // input, which reaches SetWindow, GetAvailableWindow, DecompressFromSource and the LZF decoder.
 //
-// Real bodies linked in addition to the unit archive (it carries host stubs for them):
+// Real bodies the target links from the unit suite's tree sources (tests/unit/sources.cmake):
 //   src/engine/io/compressed_stream_open.cpp   Open / SetWindowCount
 //   src/engine/io/memory_stream.cpp            MemoryStream::Read / SetCurrentPos / GetSize
 //   src/engine/io/encoding.cpp                 BinaryEncoding (the stream constructors install one)
-// The link uses --allow-multiple-definition so these objects win over io_stream_abi_stubs.cpp.
-// compressed_stream_write.cpp (CompressedStream::SetCurrentPos / GetSize) drags in the
-// FileSystem singleton and Release and does not link here; SetCurrentPos's whole retail body
-// (0x1800aa830: `CALL SetWindow; MOV AL,1`) is therefore called as SetWindow(pos) directly.
+// CompressedStream::SetCurrentPos's whole retail body (0x1800aa830: `CALL SetWindow; MOV AL,1`)
+// is called as SetWindow(pos) directly.
 //
 // Input layout:
 //   [0]       cfg: windows = 1 + (cfg & 3); bit 2 = keep going when Open returns false
-//             (ReadPackfile discards Open's result, package_file_read.cpp:482)
+//             (ReadPackfile discards Open's result, package_file_read.cpp:606)
 //   [1..4]    u32 L, the blob length (clamped to what is left)
 //   [5..5+L)  the blob, copied into a heap buffer of exactly L bytes (ASan sees over-reads)
 //   [...]     ops, one byte each plus operands:
 //             0: SetCurrentPos(i32)   1: Read(u16)   2: Read(u8)   3: ReadArray(u8 count, 1..8)
-//             4: no-op (GetSize is not linkable here)
+//             4: no-op
 //
 // MASKS (compile-time, so the crash sites can be recorded first and then stepped over to
 // reach deeper code). Each names the finding it hides; they are off unless defined.
 //   FZ_MASK_STACK   (finding: DecompressFromSource compressedSize > 0x8000 into the 0x8000
-//                    stack scratch): reject blobs whose directory has compressedSize > 0x8000.
+//                    stack scratch): reject blobs whose directory has compressedSize > 0x8000 - 64.
 //   FZ_MASK_STORED  (finding: stored arm / window end with uncompressedSize > 0x8000):
 //                    reject blobs whose directory has uncompressedSize > 0x8000.
 //   FZ_MASK_SRCOFF  (finding: negative / huge sourceOffset into MemoryStream::Read):
@@ -40,8 +38,6 @@
 //   FZ_MASK_BIGCOUNT (findings: Open's blockCount * 8 signed overflow; a blockCount <= 0
 //                    makes Open read headerSize * 8 bytes into a null directory): reject
 //                    blockCount > 0x0fffffff or <= 0 before Open.
-//   F-002 (known, compression.cpp:335 pointer overflow) is masked in the BUILD: the script
-//                    links its own copy of compression.cpp built -fno-sanitize=pointer-overflow.
 // ============================================================================
 #include "io/Stream.h"
 #include "io/PackageFile.h"
@@ -184,7 +180,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
 
     alignas(IO::CompressedMemoryStream) unsigned char mem[sizeof(IO::CompressedMemoryStream)];
     IO::CompressedMemoryStream* const cs = ::new (static_cast<void*>(mem)) IO::CompressedMemoryStream();
-    cs->_memoryStream._data      = blob;                     // package_file_read.cpp:478
+    cs->_memoryStream._data      = blob;                     // package_file_read.cpp:602
     cs->_memoryStream._size      = len;
     cs->_memoryStream._cursor    = 0;
     cs->_memoryStream._direction = 0;

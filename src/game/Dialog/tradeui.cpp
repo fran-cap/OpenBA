@@ -9,18 +9,6 @@
 // ComponentEntity (retail: IsDerivedFrom 0x140152a98 against the ComponentEntity
 // cell 0x1401c5d70, then the InternalBasePtr ctor); its TradeComponent is the
 // "trading post" every body reads (FindComponent<TradeComponent>, 0x140015140).
-//
-// READS LEFT AT AN OFFSET (B.4, owner named):
-//   TradeComponent +0x30/+0x40/+0x48/+0x50/+0x58/+0x60 (COMP-f): the order,
-//     order-amount and buy-order arrays and the storage-order tree are `void*`
-//     in TradeComponent.h, their element types undeclared.
-//   StateMachineComponent +0x50/+0x51/+0x52 (COMP-e): the state bytes are one
-//     `uint32_t stateFlags` in the header.
-//   StorageComponent::storageSlots (W0): the 0x10-byte item is raw storage.
-//   GameUpdateLoop::m_citizenList +0x110/+0x118 (CitizenBehavior, WORK-a): the
-//     raw-material list.
-//   ComponentDescription::_subDescs (COMP-c): `void**`.
-//   UI::Element::_description (R-UI-a): `void*`.
 
 #include "Dialog/ui_panels.h"
 #include "Dialog/TradeUI.h"
@@ -67,7 +55,7 @@
 #include "Component/BuildingState.h"
 #include "Component/ComponentDescription.h"   // X::TypeId() (B.3.9 CG2)
 #include "Component/SelectDescription.h"   // X::TypeId() (B.3.9 CG2)
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemFree
 #include "Entity/CitizenBehavior.h"   // the town's raw-material list (+0x110 / +0x118)
 // EXT SEAM (NOT RETAIL, docs/extensions/handins/TRADERREQUEST.md): ext.trader_request (class C), the request row
 #include "ext/trader_request/trader_request.h"
@@ -77,8 +65,7 @@
 // 0x140151cf8 (RefreshSellTable 0x1400841df, RefreshBuyTable 0x140083629,
 // RefreshDisplay 0x140084be8 — one shared slot for all three tables). That slot's
 // name string is literally "?SetMinMax@SpinnerElement@UI@@QEAAXHH@Z" (ordinal 3918):
-// the element is a UI::SpinnerElement (0x140151cf0 is the SpinnerElement type slot;
-// reg_element_typeids.cpp:36 documents the old "SliderElement" mislabel), so those
+// the element is a UI::SpinnerElement (0x140151cf0 is the SpinnerElement type slot), so those
 // sites call UI::SpinnerElement::SetMinMax directly (ENDGAME B.3.6).
 
 // Slot map (byte offset = slot * 8), recorded against the retail vtable 0x14015de80:
@@ -546,8 +533,8 @@ void TradeUI::RefreshBuyTable()
             textElem->SetParameter(1, sysStrBuf);
         }
 
-        // Show/hide text element based on order validity
-        // vtable+0x50 is a visibility function: EDX=0 hides, EDX=-1 shows
+        // Color the text element by order validity
+        // vtable+0x50 is SetColor: EDX=0 without an order, EDX=-1 with one
         // Original asm: orderIdx<0 → XOR EDX,EDX; orderIdx>=0 → OR EDX,0xffffffff
         // Slot 10 of UI::Element is SetColor(uint32); the receiver is the
         // FindElement("textName"/"textOrder") result above.
@@ -965,8 +952,8 @@ void TradeUI::OnCreated() {
         UI::NumberElement* numElem = static_cast<UI::NumberElement*>(rowElem->Child(2).Get());
         UI::SpinnerElement* sliderElem = static_cast<UI::SpinnerElement*>(rowElem->Child(3).Get());
 
-        // child(3) is a SpinnerElement (the "SliderElement" naming is the same mislabel
-        // reg_element_typeids.cpp:36 documents). Retail call site 0x14008614e, EDX = i+0xbb8.
+        // child(3) is a SpinnerElement (the "SliderElement" naming is a mislabel).
+        // Retail call site 0x14008614e, EDX = i+0xbb8.
         sliderElem->SetElementId(i + 3000);
 
         // Build 0x20-byte entry {child1, child0, child2, child3} and push to the
@@ -1063,14 +1050,14 @@ void TradeUI::OnCreated() {
 // buy orders: self+0x40 = ptr, self+0x48 = count, stride 0x18
 //   entry[j]: +0x00 = resource entity ptr, +0x10 = quantity int
 // resource entity: +0x28 = component array ptr, +0x30 = component count
-//   component value at +0x48 (identified by vtable+0x10 returning TypeId_RawMaterialDescription)
+//   component value at +0x48 (identified by vtable+0x10 returning RawMaterialDescription::TypeId())
 // merchant state check: BuildState component, byte at +0x52 (or +0x50 if negative)
 //   0x13 = BuildingState::MerchantDocked (enables dismiss button)
 // storage capacity: StorageComponent+0x38 vs StorageComponent_QueryCount
 //   bStorageFull = capacity < storageCount + (buyTotal - sellTotal)
 
 // Find resource value for a given resource entity ptr by searching its component array
-// Returns 0 if not found. Resource type identified via vtable+0x10 == TypeId_RawMaterialDescription.
+// Returns 0 if not found. Resource type identified via vtable+0x10 == RawMaterialDescription::TypeId().
 static int FindResourceValue(const ComponentDescription* resourceEntity) {
     if (!resourceEntity) return 0;
     int compCount = resourceEntity->_subDescCount;
@@ -1242,9 +1229,9 @@ void TradeUI::OnUpdate(const System::Time& /*time*/) {
 //     purchase buttons (0x1f40+)
 //   eventType 0x14: comboPurchase (0x4e22), comboOrder (0x4e23), sortCombo (0xc7)
 //
-// Note: The three event type sections fall through to a shared check for
-// eventType 0x14 IDs, so eventType 0x12 events can also trigger 0x14 handlers
-// if no 0x12 match was found.
+// Note: the 0x12 and 0x14 sections both reach a shared check for eventType 0x14
+// IDs, so an eventType 0x12 event other than buttonTrade/buttonDismiss also runs
+// that check.
 
 
 // [9] 0x140081f20
@@ -1821,7 +1808,7 @@ void TradeUI::RefreshSellSpinnerValues() {
 // RefreshOrderDisplay (0x140082b20): Update order table UI rows
 // ============================================================
 // For each active order in trade.orders (+0x40, count at trade+0x48, stride 0xc):
-//   entry +0 = type index, entry +4 = resource type index, entry +8 = amount
+//   entry +0 = raw-material flag mask, entry +4 = category index, entry +8 = amount
 // Gets sprite from the TradeDescription sprite sheet and sets it on LabelElement.
 // Gets name text from the TradeDescription string table and sets it on the label.
 // Sets SpinnerElement value (order amount).
@@ -2035,7 +2022,7 @@ void TradeUI::RefreshDisplay() {
         uiRow.count->SetValue(static_cast<int32_t>(invCount));
 
         // Lookup trade order amount from TradeComponent BST (tree at +0x60)
-        // Node: {key(+0), value(+8), color(+10), left(+18), right(+20)}
+        // Node: {key(+0), value(+8), parent(+10), left(+18), right(+20)}
         int orderAmt = 0;
         const ComponentDescription* key = entry.resource;
         TradeResourceNode* bstNode = trade->stock.root;

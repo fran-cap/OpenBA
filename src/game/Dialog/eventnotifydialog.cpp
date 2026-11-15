@@ -6,11 +6,6 @@
 //
 // Decompiled from Application-x64.exe.
 //
-// LEFT (B.4 W1 DLG-b): the event log is `GameUpdateLoop::m_eventNotifier`, a
-// `void*` with no class in the tree yet (block GAME); its reads (+0x10 the
-// category filter bytes, +0x18 the 0x28-byte entry array, +0x20 the count) stay
-// offset reads until that class exists. `m_audioScene` and `m_game` are `void*`
-// in the W0 header for the same reason.
 
 #include "ui/ImageElement.h"   // ENDGAME B.3.6 UI callers (K2)
 #include "ui/Dialog.h"   // X::TypeId() (ENDGAME B.3.9)
@@ -38,7 +33,7 @@
 #include "object/Internal.h"   // ENDGAME B.3.3 step 6B
 #include "audio/Audio.h"     // ENDGAME B.3.7 callers (K4)
 #include "Dialog/exe_bodies.h"
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc
 #include "Game/exe_constants.h"   // B3R: kRdata_*
 #include <cstring>   // std::memcpy
 #include "Game/EventLog.h"   // GameUpdateLoop::m_eventNotifier, EventLogEntry
@@ -54,9 +49,9 @@
 // `External _references ["EventPopup.rsc"]`), stamps the EventPopupDialog vtable
 // and the event-log index at +0xB8, then adds it to the UserInterface.
 //
-// In standalone we load Dialog/EventPopup.rsc by path (yielding the same
-// Dialog-typed External the exe reaches via _dialog -> Dialog::GetReference)
-// and drive the EventPopupDialog ctor. Retail's shape otherwise (0x140067d88..
+// The port takes the popup template from `_dialog->GetReference(0)`, the same
+// Dialog-typed External the exe reaches via Dialog::GetReference, and drives the
+// EventPopupDialog ctor. Retail's shape otherwise (0x140067d88..
 // 0x140067e3d): IsDerivedFrom Dialog, MemAlloc(0xC0, 8), the ctor only when the
 // allocation succeeded, then AddDialog with the pointer, null or not; no test of
 // the UI, the factory or the resource.
@@ -324,9 +319,9 @@ void EventNotifyDialog::OnUpdate(const System::Time& time) {
 //   5. For each shown notification (0..entries-1):
 //      - Copy the entry's icon sprite to the slot's image.
 //      - Get child[4] of the button; if it is an ImageElement, copy the sprite to it too.
-//      - Check the event log entry's popup field at +0x18:
-//          if < 0 (no popup): hide button, show image.
-//          if >= 0 (popup active): show button, hide image.
+//      - Check the event log entry's tile index at +0x18:
+//          if < 0 (no cell): hide button, show image.
+//          if >= 0 (a cell to jump to): show button, hide image.
 //      - Colour the image's border (vtable slot 11 GetBorder, slot 10 SetColor)
 //        and each of the button's 4 children.
 //      - The group element's tooltip string is the entry text.

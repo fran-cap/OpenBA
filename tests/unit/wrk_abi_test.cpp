@@ -4,20 +4,18 @@
 // The ABI claims block WRK makes about the Work family, measured on the
 // SHIPPED HEADERS (the exe_class_abi_test.cpp model):
 //
-// PART A — LAYOUT. sizeof / alignof of `Work`, `AutoPickupWork` and every
-//   converted leaf against retail's create-function MemAlloc (B38_RULES §1.3),
-//   and the Work base field offsets (retail ctor 0x1400f72e0, Persist 0x1400f7400).
+// LAYOUT (PART E). sizeof / alignof of every converted leaf against retail's
+//   create-function MemAlloc (B38_RULES §1.3). The `Work` and `AutoPickupWork` sizes and
+//   the Work base field offsets (retail ctor 0x1400f72e0, Persist 0x1400f7400) are the
+//   static_asserts in Work/Work.h and Work/AutoPickupWork.h.
 // PART B — SLOT ORDER, read off pointers to VIRTUAL members (Itanium PMF =
 //   1 + vtable byte offset; adjustment must be 0 — there is no multiple
 //   inheritance in the exe). Work's 13 slots in retail order; every leaf
 //   override lands on retail's index.
 // PART C — SHAPE: abstract bases, concrete leaves, a virtual destructor (B3X W1).
-// PART D — the one hidden-pointer member (slot 10 GetTarget, retail RCX = this,
-//   RDX = the return buffer): a raw retail-order call through a compiler
-//   vtable of the same declaration shape delivers (this, retbuf) in that order.
 //
-// NOT PROVEN HERE: the member bodies (they stand on the address registry and
-// cannot link into a host test) — the coordinator's run and resave gate do.
+// NOT PROVEN HERE: the member bodies (src/game/Work/, which the unit build does
+// not compile) — the coordinator's run and resave gate do.
 // ============================================================================
 #include "unit.h"
 #include "slot_check.h"

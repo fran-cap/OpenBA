@@ -97,7 +97,7 @@
 // That is also why `_prefix` and `_typeName` are `void*` and not
 // `System::String`, and `_constants` is a hand-rolled header and not
 // `Collection::Array<ConstantInfo>`: BOTH of those real classes have
-// user-provided destructors (`String.h:148`, and `Array<T>`'s), so either one
+// user-provided destructors (`String.h:166`, and `Array<T>`'s), so either one
 // as a member would make this class non-trivially-copyable and take `Context`
 // with it. The fields are the same bytes; the comment on each says what the
 // real type is. Collapsing them is owed to the class-static/container pass at
@@ -106,8 +106,9 @@
 // The two live bodies that touch these as real types are
 // `src/engine/video/constant_buffer.cpp` (which reproduces retail's INLINED
 // String assign/adopt/release, exactly as it did before this conversion) and
-// `~ConstantBuffer` in `src/engine/video/context_lifecycle.cpp`, which is a
-// registered DOOR and NOT a real destructor for the reason above.
+// `Video_ConstantBuffer_Dtor` (`??1ConstantBuffer@Video@@`) in
+// `src/engine/video/context_lifecycle.cpp`, a free function and NOT a real
+// destructor for the reason above.
 // ============================================================================
 
 #include <cstddef>
@@ -147,8 +148,7 @@ public:
     };
 
     // ---- the ported members -------------------------------------------
-    // Bodies in `src/engine/video/constant_buffer.cpp`; the registered doors
-    // there are one-line QUALIFIED non-virtual delegations onto these.
+    // Bodies in `src/engine/video/constant_buffer.cpp`.
     // B.4 (R-VIDEO), B6: the two String parameters are the
     // `const System::String&` the mangled names spell (`AEBVString@System@@0…`).
     void BeginConstants(const System::String& typeName, const System::String& prefix,
@@ -165,21 +165,16 @@ public:
     // unregistered under any door.
     int32_t GetNextUploadIndex() const;
 
-    // ---- exported, NOT ported -----------------------------------------
+    // ---- exported -------------------------------------------------------
     // Declared so no later block edits this header (BLOCK_BRIEF "the shape").
-    // Nothing in the tree calls any of these AS A MEMBER; `Bind`'s registered
-    // door has a live body, in block A's `companion_data.cpp`, and is the one
-    // row here that is owed a move rather than a port (see below).
+    // `Bind` is ported; the rest are NOT ported.
     //
     // `?Bind@ConstantBuffer@Video@@QEAAXAEAVContext@2@PEAXHH@Z` (0x1800eef70)
     // is three instructions — `MOV RCX,[RCX+0x40] / MOV R10,[RCX] / JMP
     // [R10+0x10]`, i.e. `_platformData->Bind(...)` through
-    // `Video::ConstantBufferData` slot 2. Its body lives in
-    // `src/engine/video/companion_data.cpp` as `Video_ConstantBuffer_Bind`,
-    // which is block A's file and OUTSIDE this block's file set, so the door
-    // stays exactly where it is and this declaration is left undefined. Moving
-    // it is one line for the closing pass.
-    void Bind(Context& context, void* data, int32_t a, int32_t b);  // 0x1800eef70 — door in companion_data.cpp
+    // `Video::ConstantBufferData` slot 2. Its body is the member in
+    // `src/engine/video/constant_buffer.cpp`.
+    void Bind(Context& context, void* data, int32_t a, int32_t b);  // 0x1800eef70 — constant_buffer.cpp
 
     int32_t             GetConstantCount() const;             // 0x1800182a0 — not ported
     const ConstantInfo& GetConstant(int32_t index) const;     // 0x1800182b0 — not ported
@@ -192,7 +187,7 @@ public:
 
     // `??0ConstantBuffer@Video@@QEAA@PEAVDevice@1@@Z` (0x1800eedf0),
     // `??0…@AEBV01@@Z` (0x180018300), `??1…` (0x1800eeee0) and `??4…`
-    // (0x1800183a0) are REAL EXPORTED BODIES and they stay registered DOORS —
+    // (0x1800183a0) are REAL EXPORTED BODIES and they stay outside the class —
     // the ctor because its FIRST act is to write fields a constructor cannot
     // write before the object exists as a `ConstantBuffer` (it is run on raw
     // MemAlloc'd bytes, seven times inlined inside the Context ctor), and the
@@ -200,9 +195,9 @@ public:
     // would destroy `std::is_trivially_copyable` and take `Video::Context` with
     // it (RULE B5-4, see the banner). Declaring them here without defining them
     // would ALSO destroy triviality, so they are named in this comment and
-    // NOT declared. Their doors:
+    // NOT declared. Where they are:
     //   ??0(Device*)  src/engine/video/context_ctor.cpp   (inlined, x7)
-    //   ??1           src/engine/video/context_lifecycle.cpp
+    //   ??1           src/engine/video/context_lifecycle.cpp (Video_ConstantBuffer_Dtor)
     //   ??0(copy) / ??4   unported, no caller in the tree
 
 protected:
@@ -216,8 +211,8 @@ protected:
 
 public:
     // ---- the 0x48 bytes ------------------------------------------------
-    // Public because `constant_buffer.cpp`'s ported bodies and the two
-    // registered lifecycle doors in `context_lifecycle.cpp` read and write
+    // Public because `constant_buffer.cpp`'s ported bodies and the lifecycle
+    // functions in `context_lifecycle.cpp` read and write
     // them, and because `src/render/dx11/` reads +0x14..+0x38 from the other side of the
     // seam. Same posture `Object::External` takes with `_path` / `_refs`.
     void*    _prefix;          // +0x00  System::String data ptr — "pc_"
@@ -304,7 +299,7 @@ void RtVideo_ConstEntryArrayDestroy(Video::ConstantBuffer::ConstantInfo* data,
                                     int32_t count);                         // 0x18001cfc0
 void RtVideo_ConstEntryArrayDtor(Video::ConstantBuffer::ConstantInfo*& data,
                                  int32_t& size, int32_t& capacity);        // 0x18001cab0
-// ??1ConstantBuffer@Video@@QEAA@XZ — a door, not `~ConstantBuffer()` (RULE B5-4).
+// ??1ConstantBuffer@Video@@QEAA@XZ — a free function, not `~ConstantBuffer()` (RULE B5-4).
 void Video_ConstantBuffer_Dtor(Video::ConstantBuffer* self);                // 0x1800eeee0
 // src/engine/video/constant_buffer.cpp
 void RtVideo_ConstEntryArraySetSize(Video::ConstantBuffer::ConstantInfo*& data,

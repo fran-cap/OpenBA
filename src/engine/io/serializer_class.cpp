@@ -3,24 +3,17 @@
 // ENDGAME B.3.4 block 3.
 // ============================================================================
 //
-// THIS FILE IS DELIBERATELY REGISTRY-FREE, and that is its whole reason to
+// THIS FILE IS DELIBERATELY SELF-CONTAINED, and that is its whole reason to
 // exist as a separate translation unit.
 // ---------------------------------------------------------------------------
-// `src/engine/io/serializer.cpp` holds the `RtSerializer_*` doors (it once
-// also held `RtIoSerializerRegister()`, which stood on `RegisterRuntimeExport`
-// and kept it out of `make unit`). Nothing in the 22 BODIES needs the
-// registry, though: the constructor reaches the factory through the stream's
-// Encoding VTABLE (a raw slot call), every Serialize member reaches its target
-// through the ReaderWriter's vtable, `GetEncoding` is two loads and the
-// destructor is one slot-0 call. So the bodies live here, this file links
-// into BOTH the standalone build (picked up by the Makefile's
-// `$(wildcard src/engine/*/*.cpp)`) and `make unit` (tests/unit/sources.mk),
-// and `tests/unit/io_vtable_abi_test.cpp` exercises the REAL class rather than
-// a local mirror of it. A mirror tests itself.
-//
-// This is exactly the split `src/engine/object/type_reflection.cpp` (B.3.3
-// step 3) and `src/engine/object/internal_class.cpp` (step 5) already use:
-// class bodies here, ABI shims and name/address doors there.
+// Nothing in the BODIES needs more than the two layout headers: the constructor
+// reaches the factory through the stream's Encoding VTABLE (a virtual call),
+// every Serialize member reaches its target through the ReaderWriter's vtable,
+// `GetEncoding` is two loads and the destructor is one slot-0 call. So the
+// bodies live here, this file links into BOTH the exe (CMakeLists.txt's
+// `GLOB_RECURSE` over `src/engine/*.cpp`) and the unit build
+// (tests/unit/sources.cmake), and `tests/unit/io_vtable_abi_test.cpp`
+// exercises the REAL class rather than a local mirror of it. A mirror tests itself.
 //
 // ---------------------------------------------------------------------------
 // WHAT MAY NOT CHANGE IN THIS FILE, EVER
@@ -44,7 +37,7 @@
 // calls here while live ReaderWriters wore the MINTED tables; B.3.9 IO retired
 // those rows and every ReaderWriter is now built by its real constructor, so
 // `_readerWriter->SerializeInt(v, name)` dispatches through exactly the slot
-// the old `rw_vtbl::kScalarInt` read did (Serializer.h:479-512 declares the 26
+// the old `rw_vtbl::kScalarInt` read did (Serializer.h:489-533 declares the 26
 // slots in retail order, the unit tests pin each offset). The by-name call is
 // what lets the class take `virtual ~ReaderWriter()` without a slot moving
 // under a caller.
@@ -113,8 +106,7 @@ int32_t GetPos(Stream* s) {
 //     CALL [RAX+0x18] / [RAX+0x20]  arg 3 = R8D = version, NEVER TOUCHED
 //     MOV [RBX+0x08],RAX
 //     MOV RAX,RBX ; RET             (MSVC ctors return `this`; ours cannot and
-//                                    does not need to — no caller reads it,
-//                                    the registered door supplies it)
+//                                    does not need to — no caller reads it)
 //
 // The `_readerWriter = nullptr` store before the factory call is retail's and
 // is NOT dead: the factory is handed `this` and can read the field.
@@ -186,7 +178,7 @@ const Encoding& Serializer::GetEncoding() {
 }
 
 // ============================================================================
-// The 17 ported `Serialize` overloads + SerializeBytes
+// The 18 ported `Serialize` overloads + SerializeBytes
 // ============================================================================
 // Each is retail's three instructions and nothing else. The slot constant on
 // each line is the tail-jump displacement decoded from that member's own bytes

@@ -4,8 +4,7 @@
 //
 // `CitizenComponent` (a citizen's full state: health, happiness, inventory,
 // housing, work, the age/clothing mesh) as a real C++ class with a
-// compiler-generated vtable (B38_RULES.md D1-D4). The engine/types POD is a
-// forwarder to this file.
+// compiler-generated vtable (B38_RULES.md D1-D4).
 //
 // RETAIL (Application-x64.exe, B38_SLOTS.md §6):
 //   reflected "CitizenComponent", parent "Component", ti 0x1401c7158
@@ -47,13 +46,10 @@
 // ~MeshInstance(+0xB8), ~Array(+0x98: MemFree + zero) and ~String(+0x28) in
 // that order, which is retail's dtor 0x1401146f0. System::Time fields are `System::Time`
 // (src/engine/system/Value.h: one int64 tick count, no vtable, trivially
-// constructible and destructible, so declaring it runs no code; B4 P2 CIT-4),
-// except +0x60 / +0x70 / +0x78 / +0x1E8, still `int64_t` ticks: member bodies in
-// citizen_updatehealth.cpp (CIT-2) and citizen_needsupdate.cpp (CIT-1) do integer
-// arithmetic on them (LEFT for those blocks / wave X).
-// InternalBasePtr / ExternalPtr members are declared as the bare pointer they
-// hold (`T*`, retail's layout: one qword; the tree's precedent is
-// ComponentEntity::_description).
+// constructible and destructible, so declaring it runs no code; B4 P2 CIT-4).
+// ExternalPtr members are declared as the bare pointer they hold (`T*`, retail's
+// layout: one qword; the tree's precedent is ComponentEntity::_description);
+// InternalPtr members are `Object::InternalPtr<T>`.
 //
 // CORRECTED (B.4 W0-H1, retail): +0x238 is the HOME, not the workplace: the
 // status icon 0 ("imageStatusHome") is raised on `+0x238 == 0`, the happiness
@@ -226,7 +222,7 @@ public:
     float    pregnancyTimer;       // +0x4C > 0 counts down to a birth, < 0 counts up (the wait after one)
     float    health;               // +0x50 birth-risk ratio health / desc->maxHealth
     uint32_t statusFlags;          // +0x54 CitizenStatus bits, zeroed by UpdateHealth
-    System::Time foodTimer;        // +0x58 += dt; each desc->foodInterval -> ConsumeFood
+    System::Time foodTimer;        // +0x58 += dt; each desc->foodInterval -> UpdateHealth
     System::Time diseaseRollTimer;       // +0x60 System::Time: += dt (Update)
     Disease* disease;              // +0x68 ExternalPtr<Disease> (serialize helper 0x140030790)
     System::Time diseaseTimer;       // +0x70 System::Time, serialized

@@ -1,25 +1,21 @@
 // ============================================================================
 // src/engine/audio/wave29_lane_avbody.cpp — WAVE 29 lane AVBODY
 //
-// Three Audio bodies, all exported, all name doors:
+// Three Audio bodies, all exported:
 //   ?GetVolumeForPosition@Scene@Audio@@AEBAMAEBVVector3@Math@@MM0@Z  0x1800dfed0  ord 3027
 //   ?GetAttenuatedVolume@Scene@Audio@@AEBAMAEBUAttenutedEffect@12@AEBVVector3@Math@@M@Z
 //                                                                   0x1800dfde0  ord 2453
 //   ?OnSoundEnded@Scene@Audio@@SAXPEAUAudioChannel@Device@2@PEAXI@Z  0x1800dffe0  ord 3283
 //
-// `?PlayPlatform@Device@Audio@@` is Audio's remaining BODY row and is NOT
-// ported. There is no audio_play_platform.cpp -- do not go looking for one.
-// It is decoded in full in docs/history/runtime_port/WAVE29_LANE_AVBODY.md §6.1, and
-// declined there as a stated size-and-evidence judgement (632 bytes, six
-// indirect XAudio2 calls, effects that live in the driver), NOT dressed up as a
-// blocker. §6.2 sketches the fake-backend oracle that would make it verifiable
-// and names an addressee for it.
+// `?PlayPlatform@Device@Audio@@` is ported in
+// src/engine/audio/audio_play_platform.cpp. It is decoded in full in
+// docs/history/runtime_port/WAVE29_LANE_AVBODY.md §6.1.
 //
 // ============================================================================
 // GetVolumeForPosition WAS NOT ON THE WORK LIST, AND FINDING IT IS THE POINT
 // ============================================================================
-// The census lists THREE unported Audio bodies. This file ports FOUR things,
-// and the extra one is the helper `GetAttenuatedVolume` calls twice.
+// The census lists THREE unported Audio bodies. This file ports three, and
+// one of them is the helper `GetAttenuatedVolume` calls twice.
 //
 // I was one keystroke from writing "0x1800dfed0 is an unexported internal, so
 // it is inlined here as a file-local static". That would have been WRONG, and
@@ -33,8 +29,6 @@
 //   0x1800a0d10  EXPORTED  ord 3417  ?Play@Stream@Audio@@QEAAXHH@Z
 //   0x1801fe728  EXPORTED  ord 4797  ?_secondsPerTick@Timer@System@@0NA
 //
-// So this lane's whole subject has **ZERO address doors**: every callee is a
-// name door, and nothing here opens a new cutover door.
 //
 // And the mangled signature then CONFIRMS the decode from the writer's side
 // rather than the reader's. `AEBA M` = private const member returning float;
@@ -61,16 +55,12 @@
 //   +0x30  positions._data   <- `MOV RBX,[RDX+0x30]`
 //   +0x38  positions._size   <- `MOV EAX,[RDX+0x38]`
 //
-// The name is recorded here and NOT renamed in Audio.h: renaming a type six
-// files depend on is not this lane's change to make. ADDRESSEE: the next lane
-// that edits src/engine/audio/Audio.h should rename `EffectSlot` to
-// `AttenutedEffect` and cite this paragraph.
+// Audio.h declares the struct as `Audio::Scene::AttenutedEffect` and keeps
+// `EffectSlot` as an alias for it.
 //
-// TWO NEW SoundEffect FIELDS, and they are READER-ONLY evidence. +0x20 and
-// +0x24 are two floats this body loads as the falloff radii. No writer was
-// found, so they are named for their ROLE in the arithmetic (maxDistanceBase,
-// minDistance) and that naming is explicitly weaker than the offsets
-// themselves. A later lane that finds the writer should correct them.
+// +0x20 and +0x24 of the SoundEffect are two floats this body loads as the
+// falloff radii: `SoundEffect::_radius` and `_innerRadius` (GetRadius /
+// GetInnerRadius, SoundEffect.h).
 //
 // ============================================================================
 // THE MOVED-TERM TRAP, WHICH IS LIVE IN GetAttenuatedVolume
@@ -105,8 +95,7 @@
 // NO TRANSCENDENTALS beyond sqrtf. The CRT-coefficient rule
 // (reference_crt_coefficients_must_be_lifted_not_retyped.md) does not bite:
 // IEEE-754 specifies sqrt as correctly rounded, so our libm and the DLL's agree
-// bit-for-bit on every input. That is why this is the one transcendental the
-// sweep can compare without RT_LIBM=dll.
+// bit-for-bit on every input.
 //
 // ONE CONSTANT, LIFTED not retyped: 0x18016169c = 0x3f800000 = 1.0f, read with
 // read_memory rather than recognised. It is written below as the bit pattern's
@@ -142,7 +131,7 @@
 // upper bytes are zero, so the byte and dword spellings produce byte-identical
 // memory. The width trap bites on a STORE -- the Video pair's 8-byte
 // `MOV [RDX],R9` beside its 4-byte `INC dword [RCX-4]` -- not on a
-// read-modify-write with a small constant. See Ctl_WrongFlagBit below.
+// read-modify-write with a small constant.
 //
 // THE TAG CHECK. `(storedTag ^ tag) & 0xfffffe00` must be zero, i.e. bits 9..31
 // must match while bits 0..8 are allowed to differ -- and bits 1..8 are exactly
@@ -156,22 +145,10 @@
 // ============================================================================
 // GetVolumeForPosition and GetAttenuatedVolume are PURE -- `this` is passed but
 // NEVER READ by either (RCX is dead in the helper, and in the outer body it is
-// only forwarded). So both verify by INPUT SWEEP against the shipped export,
-// with no gameplay route and no caller
-// (project_pure_functions_verify_by_sweep.md, the method that verified
-// GetAlignedPosition after it reported calls=0 in a 16.9M-call run).
+// only forwarded).
 //
-// OnSoundEnded is not pure, but it is fully synthesisable: it reads a Scene and
-// a Channel table and writes one byte. The sweep builds both, runs ours and
-// retail's on SEPARATE BUT IDENTICAL copies, and memcmps the ENTIRE channel
-// table afterwards -- which is what makes the +0x5f write a COMPARED term
-// rather than something the oracle would have to be told to look for.
-// "No gameplay route" is not "no oracle" (reference_no_route_is_not_no_oracle.md).
-//
-// Every retail side goes through the raw DLL door, never ResolveExport: the
-// latter consults the port registry first and would hand back OUR function once
-// registration lands, making the oracle a self-check that agrees forever
-// (reference_shadow_marker_is_not_an_oracle.md).
+// OnSoundEnded is not pure: it reads a Scene and a Channel table and writes one
+// byte.
 // ============================================================================
 
 #include <cstdint>
@@ -214,14 +191,12 @@ inline float FalloffCeiling() {
     return f;
 }
 
-// The first 12 bytes of a Math::Vector3, which is all either body reads.
 }  // namespace
 }  // namespace rtavbody29
 
 // ############################################################################
-// ENDGAME B.3.7 block B4: the three bodies are members of `Audio::Scene` now
-// (src/engine/audio/Audio.h); the registered doors below delegate. The
-// attendance counters stay in `rtavbody29`.
+// ENDGAME B.3.7 block B4: the three bodies are members of `Audio::Scene`
+// (src/engine/audio/Audio.h). The attendance counters stay in `rtavbody29`.
 // ############################################################################
 namespace Audio {
 
@@ -354,12 +329,7 @@ void Scene::OnSoundEnded(Device::AudioChannel* audioChannel, void* userData, uin
     uint8_t* const flagByte = &ch->channelFlags[static_cast<int64_t>(found)];
     *flagByte = static_cast<uint8_t>(*flagByte | Bits(SampleFlags::Ended));   // OR byte, NOT dword
 }
-// ---- registration ----------------------------------------------------------
 }  // namespace Audio
-
-// ============================================================================
-// THE DOORS — one-line qualified delegations.
-// ============================================================================
 
 namespace rtavbody29 {
 

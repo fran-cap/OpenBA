@@ -2,10 +2,9 @@
 // src/game/Dialog/exe_bodies.h -- declarations of the exe bodies DEFINED in
 // src/game/Dialog/ (ENDGAME B.3R, block W0-P0c, B3R_RULES R5).
 //
-// Every body the registry reaches by retail address, declared once, copied
-// from its DEFINITION (linkage included), grouped by defining file; the
-// retail address(es) it is registered under are the trailing comment. The
-// defining .cpp includes this header so the compiler checks each pair.
+// Every body declared once, copied from its DEFINITION (linkage included),
+// grouped by defining file; its retail address(es) are the trailing comment.
+// The defining .cpp includes this header so the compiler checks each pair.
 // Readers call these by name (W1); nothing here changes what runs. Making
 // them members is B.4's work.
 //
@@ -45,15 +44,14 @@ class AutoSaveDialog;  // src/game/Dialog/AutoSaveDialog.h
 // ---- entityui.cpp
 // fn_EntityUI_SetEditMode (FUN_140102b60) is PlayerToolManager::SelectTool (Game/PlayerToolManager.h).
 
-// fn_EntityUI_SelectEntity — reimplemented in entityui.cpp as EntityUI_SelectEntity_Impl
-// FUN_140102e30: BST insert/update for entity tracking
+// fn_EntityUI_SelectEntity (FUN_140102e30, BST insert/update for entity tracking) is
+// PlayerToolManager::TrackEntity (Game/PlayerToolManager.h), its body in entityui.cpp.
 class PlayerToolManager; class ComponentEntity;
 
 // ---- eventnotifydialog.cpp
 class EventNotifyDialog;  // src/game/Dialog/EventNotifyDialog.h
 
 // ---- optionsdialog.cpp
-// Free: reads the GameContainer (Game/game.h) through its first argument.
 struct GameContainer;
 class OptionsDialog;
 namespace UI { class UserInterface; class Dialog; class DialogInstance; }
@@ -84,7 +82,7 @@ PinnedToolNode* Avl38SetInsert(AvlTreeHead<PinnedToolNode>* set, const PinnedToo
 // ---- townhall_helpers.cpp
 class CitizenBehavior; class Profession; struct TownHallInventoryEntry;   // Entity/CitizenBehavior.h, Game/Profession.h, Dialog/TownHallUI.h
 // TownHall_GroupRatingInit (0x14006abf0) / TownHall_GroupRatingUpdate (0x14006aed0):
-// Dialog/TownHallUI.h (they take TownHallUI::RatingGroup). The two row-array
+// Dialog/RatingGroup.h (they take RatingGroup). The two row-array
 // pushes 0x140015800 / 0x1400159b0 are Array<Row>::SetSize (TownHallUI's members).
 extern "C" void TownHall_InventorySortAsc(TownHallInventoryEntry* items, int count, void*, void*);  // 0x140015200  // B8: free in retail -- sort helper: RCX the item array base, EDX the count (0x14007ca2d MOV RCX,R12)
 extern "C" void TownHall_InventorySortDesc(TownHallInventoryEntry* items, int count, void*, void*);  // 0x140015500  // B8: free in retail -- sort helper: RCX the item array base, EDX the count (0x14007ca44, as Asc)
@@ -166,5 +164,6 @@ inline void fn_TrackerComponent_Rebuild(TrackerComponent::EntryList* dst, const 
     }
 }
 
-// (0x140119470, the weighted recipe pick, is PickConsumeRecipe in Action/exe_bodies.h:
-// row 443 (B7 RES) merged the second port that stood here into it.)
+// (0x140119470, the weighted recipe pick, is ConsumeProduceComponent::PickConsumeRecipe
+// (Component/ConsumeProduceComponent.h): row 443 (B7 RES) merged the second port that
+// stood here into it.)

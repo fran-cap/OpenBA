@@ -6,7 +6,7 @@
 //
 // Field layout (from Factory InteractDescription_sub_3710 + Serialize
 // FUN_140123500 + dtor FUN_140035280):
-//   +0x20: void*  _descRef        ExternalPtr<Pathfinding::PointList> (default 0) —
+//   +0x20: void*  _points         ExternalPtr<Pathfinding::PointList> (default 0) —
 //          the exe's serializer 0x14000ab20 type-checks it against
 //          ?_typeInfo@PointList@Pathfinding@@ (import 0x140151448), B37_RULES 6.2
 //   +0x28: { void* data; int count; int cap }   _useNodes   (0x18-stride, default empty)
@@ -40,7 +40,7 @@
 #include "object/External.h"
 #include "object/TypeInfo.h"
 #include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
-#include "Game/exe_bodies.h"   // Reimpl_ExternalPtr_Serialize_StringTable (0x14000bf40)
+#include "Game/exe_bodies.h"
 #include "system/String.h"
 #include "math/Math.h"
 #include "io/Stream.h"

@@ -8,7 +8,7 @@
 //   int   @ +0x6c = 3
 // Serialize (vtable +0x28, 0x14005c7f0) — Serializer ctor with version=1, stream order
 // (verified disasm CALLs at 0x14005c7f0):
-//   ExternalPtr @ +0x30  (FUN_140002340 -> Reimpl_ExternalPtr_Serialize_StringTable)
+//   ExternalPtr @ +0x30  (FUN_140002340 -> ::Object::SerializeExternal<ComponentDescription>)
 //   int count   @ +0x50 -> resize +0x48 merchant array (element 0x48), per merchant:
 //        ExternalPtr @+0x00 (FUN_14000bf40)
 //        String      @+0x08
@@ -18,8 +18,8 @@
 //        enum @+0x10, enum @+0x14, enum @+0x18 (encoding vcall +0x98)
 //   int count   @ +0x60 -> resize +0x58 array (element stride 0x14), per element:
 //        int @+0x00, float @+0x04, float @+0x08, int @+0x0c, int @+0x10
-//   ExternalPtr @ +0x20  (FUN_14000bd30 -> Reimpl_ExternalPtr_Serialize_StringTable)
-//   ExternalPtr @ +0x28  (FUN_14000bf40 -> Reimpl_ExternalPtr_Serialize_StringTable)
+//   ExternalPtr @ +0x20  (FUN_14000bd30 -> ::Object::SerializeExternal<UI::SpriteSheet>)
+//   ExternalPtr @ +0x28  (FUN_14000bf40 -> ::Object::SerializeExternal<UI::StringTable>)
 //   int count   @ +0x40 -> resize +0x38 array (element stride 0x18), per element:
 //        enum @+0x00 (encoding vcall +0x98), String @+0x08, String @+0x10
 //   float @ +0x68

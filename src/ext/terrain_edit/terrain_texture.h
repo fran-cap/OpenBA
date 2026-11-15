@@ -40,7 +40,7 @@ struct Texel {
 
 // The surface normal of the height grid at (col, row): the game's cf150, central differences of the
 // heights, normal.z from 2. `height(col, row)` is the height in world units at a grid vertex; coordinates
-// are clamped to [0, dim] by the caller's lambda.
+// are clamped to [0, dim] here before `height` is called.
 template <class HeightFn>
 inline void CellNormal(HeightFn height, int dim, int col, int row, float out[3]) {
     auto clampTo = [dim](int v) { return v < 0 ? 0 : (v > dim ? dim : v); };

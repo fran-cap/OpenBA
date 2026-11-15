@@ -25,24 +25,16 @@
 #include "platform_sync.h"   // Platform::MutexInit (RtLaneXPlatformLockInit)
 
 // ---------------------------------------------------------------------------
-// The allocator platform seam, for the probe's MemoryAllocator subject only.
+// The allocator platform seam.
 //
-// `rtalloc::Construct` (src/engine/system/allocator.cpp:635) opens with
-// `g_plat.lockInit(self->lock)`. `g_plat` is a table of function pointers that
-// `RtSystemAllocatorInstallPlatform()` fills, and on a normal run NOBODY calls
-// it: its only two callers are `RtAllocShadowStartup()` and
-// `RtSystemAllocatorRegister()`, both opt-in and both disarmed. So the table is
-// all-null and that first call is an EXEC of 0 -- which is exactly what the
-// first version of this lane's probe hit.
+// `rtalloc::Construct` (src/engine/system/allocator.cpp) opens with
+// `g_plat.lockInit(&self->lock)`. `g_plat` is a table of function pointers that
+// `RtSystemAllocatorInstallPlatform()` fills; `RtSystemAllocatorArm()` installs
+// it at boot (src/app/runtime_init.cpp). The function below installs it when
+// `lockInit` is null and reports whether `lockInit` is set; nothing calls it.
 //
-// Installing the seam is NOT arming the allocator port. It fills `g_plat` and
-// does nothing else: no export is registered, no detour is installed, and
-// `RtSystemAllocatorRegister()` still refuses on its own separate grounds. The
-// two functions that consume the seam re-install it when it is absent, so doing
-// it early is a no-op for them, and `g_platInstalled` is read nowhere else.
-//
-// `g_plat` is extern-declared here the same way src/engine/system/
-// allocator_win.cpp:40 declares it -- the precedent this file mirrors.
+// `g_plat` is extern-declared here the same way src/platform/win/
+// allocator_win.cpp declares it.
 // ---------------------------------------------------------------------------
 extern rt::system::RtSysMemPlatform g_plat;
 

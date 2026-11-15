@@ -1,7 +1,7 @@
 // src/ext/high_limits/spinner.cpp -- ext.high_limits' spinner glue (NOT RETAIL; exe only)
 //
-// docs/extensions/handins/HIGHLIMITS.md. Called from ResourceLimitUI::OnCreated (the one place every limit
-// spinner is set up) when the row is active.
+// docs/extensions/handins/HIGHLIMITS.md. Called when the row is active from ResourceLimitUI::OnCreated (where
+// every retail limit spinner is set up) and from ext.item_limits' panel row (panel_row.cpp).
 
 // The runtime type headers first (moddialog.cpp's note: Volume.h's Rectangle).
 #include <algorithm>

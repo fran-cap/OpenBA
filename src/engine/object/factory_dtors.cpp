@@ -48,7 +48,7 @@
 // WHAT THIS FILE DOES *NOT* CLAIM
 // ----------------------------------------------------------------------------
 // *** THE ONLY CALLER OF ALL THREE, IN OUR WHOLE TREE, IS
-//     `RtEngine_Engine_Shutdown` (src/engine/engine/engine_lifecycle.cpp),
+//     `Engine::Engine::Shutdown` (src/engine/engine/engine_lifecycle.cpp),
 //     AND THAT BODY ITSELF HAS calls=0. *** game_main.cpp runs its own
 // `ShutdownEngineStaged()` instead and never calls the real Engine::Shutdown.
 // So no gameplay run this wave can execute a single line below, and the
@@ -57,20 +57,10 @@
 // stated so nobody has to guess which (reference_uncalled_port_is_not_verified,
 // reference_calls_zero_can_mean_always_took_the_uncovered_branch).
 //
-// "No route" is not "no oracle", so the verification here is a SYNTHESISED
-// differential run — see factory_dtors_probe.cpp. What it can and cannot
-// reach is stated there rather than implied by a green line.
-//
 // ----------------------------------------------------------------------------
-// HELPERS REACHED THROUGH THE PORT-AWARE ADDRESS DOOR
+// HELPERS PORTED ELSEWHERE
 // ----------------------------------------------------------------------------
-// Four of the callees below are already ported and REGISTERED by other lanes.
-// They are reached with `ResolveAddr(Module::Runtime, …)`, which consults the
-// port registry FIRST (reference_resolveaddr_consults_port_registry_first), so
-// these are our bodies at run time and stay ours at cutover. They are NOT
-// re-registered here: a duplicate registration is last-binding-wins and would
-// silently make one of the two bodies dead code
-// (reference_grep_for_the_port_before_writing_it).
+// The callees below are ported in other files and reached by plain C++ calls.
 //
 //   0x1800093e0  Collection::Array<T*>::~Array   owner src/engine/collection/avl_trees.cpp
 //   0x180009c30  SetNodeFree, arg 1 IGNORED      owner src/engine/system/allocator.cpp
@@ -89,14 +79,9 @@
 #include <cstdint>
 #include <cstdio>
 
-// *** INCLUDE ORDER IS LOAD-BEARING AND THAT IS A TRAP, NOT A STYLE CHOICE. ***
-// src/engine/object/External.h #includes TypeInfo.h at its line 322, which
-// is INSIDE its own `namespace RtObject { … }` block. So whichever of the two
-// is seen first decides whether the reflection types are `RtObject::TypeNode`
-// or `RtObject::RtObject::TypeNode` — the include guard makes the second
-// inclusion a no-op, so the loser's spelling silently wins. TypeInfo.h is
-// pulled in FIRST here to get the un-nested spelling. Reordering these three
-// lines will not fail to compile; it will change what `TypeNode` means.
+// src/engine/object/External.h #includes TypeInfo.h at file scope (its line 43),
+// ahead of its own `namespace RtObject { … }` blocks, so the reflection types are
+// `RtObject::TypeNode` whichever of the two headers is seen first.
 #include "object/TypeInfo.h"
 #include "object/Internal.h"
 #include "object/External.h"
@@ -129,8 +114,7 @@ using RtObject::PathStackEntry;
 // ENDGAME B.3.2 step 2 — `ArrayDtor_18001c750` and `ArrayDtor_18002fb70`
 // (0x18001c750, 0x18002fb70) are GONE: their one caller, RtObject_
 // InternalFactory_Dtor below, now calls `.~Array()` directly on the two real
-// `Collection::Array<T>` members. Both rows stay registered in array.cpp for
-// the rest of the tree.
+// `Collection::Array<T>` members.
 
 // ============================================================================
 // 0x180008250 — the recursive half of ~Factory's tree teardown.
@@ -172,7 +156,7 @@ void TypeSubtreeFree(void* set, ::Object::Factory::TypeSet::Node* node) {
 // 0x1800071a0 is an MSVC EH-frame thunk — it spills RCX, writes the -2 unwind
 // state slot, and tail-jumps to 0x180008110. The frame slots have no effect on
 // the object, so the thunk is not reproduced as a separate function; this body
-// IS 0x180008110 and both addresses are registered onto it.
+// IS 0x180008110 and stands for both addresses.
 //
 // 0x180008110 is the ROOT case of TypeSubtreeFree, open-coded: identical
 // instructions with the leading null test moved to a branch that still runs
@@ -242,13 +226,6 @@ void RtObject_Factory_Dtor(::Object::Factory* self) {
 // `this` IS IGNORED by the body (RCX is overwritten at 0x1800c0604 before any
 // read), which is why the shim takes a void* it never uses.
 //
-// THE ONE STANDALONE DIFFERENCE, stated the way engine_lifecycle.cpp:813-821
-// states the identical one on the identical global: 0x1801fc6d0 is UNEXPORTED
-// and, with no DLL mapped, our side has no such variable unless the mint's
-// address-only row for it is registered. `ResolveAddr` then hands back 0 and the
-// step is skipped. That is a real environment difference, not a guard over a
-// faithful fault — retail always has its own .data here and we may have nothing
-// at all — and it is spelled exactly as its sibling spells it.
 // ============================================================================
 // The body and the member definition are at GLOBAL scope, below this file's
 // `namespace RtObjFactoryDtor` block — see `RtObject_Factory_Shutdown` there.
@@ -309,8 +286,8 @@ void RtObject_InternalFactory_Dtor(::Object::InternalFactory* self) {
 // The stride is 0x10, pinned independently by both path-stack accessors'
 // `SHL RDX,0x4` (src/engine/object/External.h).
 //
-// The release idiom at both slots is byte-for-byte `RtString_ReleaseInline`
-// (src/engine/system/string.cpp) including its asymmetry: on the freeing
+// The release idiom at both slots is byte-for-byte `~Filename` (0x180006980)
+// including its asymmetry: on the freeing
 // branch the slot is left holding `data - 8`, on the sharing branch it is
 // nulled. Retail's extra `JE` after `ADD [RAX],-8` — which skips the free when
 // `data - 8` is zero — is subsumed by MemFree's own null test, which lives
@@ -341,9 +318,8 @@ void PathStackDestroyRange(void* /*ignoredThis*/, PathStackEntry* p, int n) {
 //     <the canonical J1 free, open-coded>             ; identical to 0x18001c750
 //
 // The second half is the J1 body inlined rather than called, with the same
-// four absolute operands. It is written out here rather than routed through
-// the J1 registry because retail inlined it: routing it would add an indirect
-// call retail does not make, and the J1 addresses are per-ADDRESS diff sites.
+// four absolute operands. It is written out here rather than called because
+// retail inlined it: calling it would add a call retail does not make.
 //
 // *** THIS IS THE "DESTROYS ITS ELEMENTS" MEMBER of ~ExternalFactory. ***
 // ============================================================================
@@ -396,8 +372,8 @@ void ReferenceSubtreeFree(void* set, RtObject::ReferenceSet::Node* node) {
 //     SetNodeFree(this, node);                   ; 0x180009c30
 //
 // A LARGER NODE than the two above: its children live at +0x20/+0x28 rather
-// than +0x18/+0x20, so its element pair is 0x20 bytes wide. The released slot
-// is +0x00 — the key String — and nothing at +0x08..+0x1f is touched.
+// than +0x18/+0x20, because its element is 0x18 bytes wide. The released slot
+// is +0x00 — the key String — and nothing at +0x08..+0x17 is touched.
 //
 // The three redundant `MOV [RSP+0x48],RBX` stores at 0x18002eed9-0x18002eee3
 // are the EH funclet's spill slot being re-written for three consecutive
@@ -467,9 +443,8 @@ void RtObject_ExternalFactory_Dtor(::Object::ExternalFactory* self) {
 #include "platform_gfx.h"
 
 // Runtime 0x1801fc6d0 — Object::Factory's compiler-plugin HMODULE, the class
-// static (ENDGAME B.3.9 OBJ, B39_RULES D7; TypeInfo.h). The by-address mint row
-// is redirected onto it in RtObjectPortInit. The mint never zeroes or re-seeds
-// it; the language zero-initialises it.
+// static (ENDGAME B.3.9 OBJ, B39_RULES D7; TypeInfo.h). The language
+// zero-initialises it.
 void* Object::Factory::_compilerModule = nullptr;
 
 extern "C" void RtObject_Factory_Shutdown(void* /*self — RCX is overwritten*/) {

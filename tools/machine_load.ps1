@@ -55,8 +55,8 @@ foreach ($p in Get-Process) {
 }
 $rows = $rows | Sort-Object -Property Core -Descending
 
-# Busy = everything that is not our own measurement. The game itself is listed but
-# named, so a reader can subtract it.
+# Busy = the sum over every process listed above; none is excluded. The game itself is
+# listed but named, so a reader can subtract it.
 $busySum = 0.0
 foreach ($r in $rows) { $busySum += $r.Core }
 

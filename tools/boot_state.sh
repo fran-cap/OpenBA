@@ -13,7 +13,7 @@
 # loop's FRAME COUNTER and how long it has been stuck (`frame=` / `stale=`), and the
 # watchdog publishes STATE=HUNG once that exceeds the phase budget. On an unattended run
 # the exe then writes standalone_hang.log (all-thread stacks) and terminates itself with
-# EXIT CODE 3, so a hang costs ~30s instead of the caller's whole timeout.
+# EXIT CODE 4, so a hang costs ~30s instead of the caller's whole timeout.
 #
 # USAGE
 #   tools/boot_state.sh              # print one status line
@@ -271,7 +271,7 @@ probe_once() {
     fi
 
     # ---- FRESHNESS -- the check this script was missing -------------------
-    # APPLICABLE ONLY to the three states a LIVE watchdog republishes every
+    # APPLICABLE ONLY to the five states a LIVE watchdog republishes every
     # tick. EXITED is written once by Stop() and is SUPPOSED to sit frozen, so
     # ageing it would turn every clean shutdown into a false STALE.
     #
@@ -337,7 +337,7 @@ if [ "$WAIT_SECS" -le 0 ]; then
     exit $?
 fi
 
-# --wait: poll until RUNNING, but bail immediately on BLOCKED_DIALOG, STALE or HUNG.
+# --wait: poll until RUNNING (or QUITTING), but bail immediately on BLOCKED_DIALOG, STALE, HUNG or NO_GAME_DATA.
 # Waiting out a modal dialog -- or a frozen main loop -- is exactly the wasted timeout
 # this script exists to prevent. HUNG never clears on its own either: an unattended run
 # is already killing itself, and an attended one needs a human.

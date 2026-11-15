@@ -848,7 +848,7 @@ void VertexProgramData::Bind(void* context, int permutation) {
     (void)context;   // the DX11 slot ignores it too (shaderprograms.cpp header)
     BindProgram(this, permutation);
     // EXT SEAM (NOT RETAIL, P4): the rewritten copy the draw uses instead, when a stage has one
-    // (shader_rewrites.h); one relaxed load while every stage is off.
+    // (shader_rewrites.h); one acquire load while every stage is off.
     ReleaseShader(rewritten);
     rewritten = Rewrites::Active() ? Rewrites::BindVertex(this, boundPermutation) : nullptr;
     DrawSetVertexProgram(this);

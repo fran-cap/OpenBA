@@ -9,17 +9,17 @@
 // Built to the contract of graphics_material_abi_test.cpp / graphics_geometry_
 // abi_test.cpp; only what differs is spelled out.
 //
-// PART A — LAYOUT. Sizes, alignments and every offset the headers claim,
-//   measured as well as `static_assert`ed, plus the class-vs-POD agreement
-//   (`RtUI::Element`, `RtUI::ElementDescription` keep live users).
+// PART A — LAYOUT. Alignments, where each class's own fields begin, the shape
+//   traits and UpdateState's constructor stores, measured; the sizes and the
+//   other offsets are the headers' `static_assert`s.
 //
 // PART B — SLOT ORDER. Probe subclasses of the REAL classes. Their GCC tables
-//   are read back by BYTE OFFSET and each slot raw-called the way a minted row
-//   or a hand-inlined `(*(void***)p)[N]` caller does; the marker that runs
+//   are read back by BYTE OFFSET and each slot raw-called the way a
+//   hand-inlined `(*(void***)p)[N]` caller does; the marker that runs
 //   names the member at that index. `UI::Element`'s own out-of-line virtuals
-//   are defined AS MARKERS at the bottom of this file — src/engine/ui cannot
-//   link into a host test (it stands on the port registry) — which is also
-//   what makes GCC emit both classes' vtables here.
+//   are defined AS MARKERS at the bottom of this file — element.cpp,
+//   element_vtable.cpp and elementdescription_serialize.cpp are not linked into
+//   the unit host — which is also what makes GCC emit both classes' vtables here.
 //
 // PART C — THE ABI OF THE THREE CLASS-VALUED SLOTS.
 //   * Element slot 11 `GetBorder` and ElementDescription slot 8
@@ -32,9 +32,6 @@
 //     copyable 8-byte class by value, so the member is declared with the
 //     pointer; the test raw-calls it the retail way and checks the handle the
 //     member saw.
-//
-// PART D — THE QUALIFIED CALL. A door reached through a minted table must
-//   delegate `->UI::Element::M(…)` or it re-enters itself (B34_BRIEFS A.1).
 //
 // WHAT IS NOT PROVEN HERE: nothing about MSVC, and nothing about the ported
 // bodies (element.cpp / element_vtable.cpp / elementdescription_serialize.cpp),
@@ -213,8 +210,8 @@ DEFINE_TYPE(UI::ElementDescription, "Object::External", nullptr)
 // PART A — LAYOUT
 // ===========================================================================
 UNIT_TEST(ui_element_sizes_match_retail) {
-    // `MOV EDX,imm` in each class's own slot-0 vector deleting destructor
-    // (B36_SLOTS.md section 1).
+    // The sizes (`MOV EDX,imm` in each class's own slot-0 vector deleting
+    // destructor, B36_SLOTS.md section 1) are the headers' `static_assert`s.
     CHECK_EQ(alignof(UI::Element), (size_t)8);
     CHECK_EQ(alignof(UI::ElementDescription), (size_t)8);
     // The derived fields begin at exactly sizeof(base): no tail reuse, no

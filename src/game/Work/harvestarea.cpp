@@ -16,10 +16,10 @@
 //
 // Methods implemented:
 //   Slot4 (0x1400ECCD0) -- main crop harvest assignment logic
-//   Slot6 (0x1400ECC20) -- tree insert with paired slot removal
-//   Slot7 (0x1400ECB60) -- mark cell valid, remove paired entry
+//   Slot6 (0x1400ECC20) -- remove the primary and paired cells' claim nodes
+//   Slot7 (0x1400ECB60) -- remove both claim nodes, mark both cells valid
 //   Slot8 (0x1400ED270) -- CancelAll
-//   Slot9 (0x1400EC930) -- RemoveInvalid (hook disabled, bug class 2)
+//   Slot9 (0x1400EC930) -- RemoveInvalid
 //   Slot10 (0x1400ED2F0) -- GetWorkEntity
 //   Serialize (0x1400ED350) -- serialization
 //   ScalarDtor body (0x1400ED410) -- destructor
@@ -66,17 +66,17 @@
 //   0x1400052c0 FindComponent NaturalResource       ComponentEntity::FindComponent<NaturalResourceComponent>
 //   0x14012c3f0 status icon flag                    StatusIconComponent::SetFlag
 //   0x14012e5c0 CalcMaxWorkers                      WorkComponent::CalcMaxWorkers
-//   0x14009ccf0 Map_FindNearestPassable             WorkGrid_FindCell_9ccf0
-//   0x1400a00f0 Map_CanPathTo                       WorkBase_ValidateCell_a00f0
+//   0x14009ccf0 Map_FindNearestPassable             Map::FindCell
+//   0x1400a00f0 Map_CanPathTo                       Map::ValidateCell
 //               (a uint64 whose low byte is the bool; read through uint8_t)
-//   0x14009f3e0 GetTerrainPos                       Reimpl_MapGetTerrainPos
+//   0x14009f3e0 GetTerrainPos                       Map::GetTerrainPos
 //   0x1400c1530 harvest action chain ctor           WorkAct_HarvestAreaCtor_c1530
 //   0x140029a40 / 0x14001ca60 / 0x140029de0 cell BST insert / remove / serialize
 //                                                   WorkCellBST_Insert_9a40 / _Remove_ca60 / _Serialize_9de0
 //   0x1400f7100 ValidateTask                        Work::ValidateTask
-//   0x1400c5400 cancel work                         WorkBase_TaskListCleanup_c5400
+//   0x1400c5400 cancel work                         ActionStack::Clear
 //   0x140002e10 FindComponent WorkPlaceComponent    ComponentEntity::FindComponent<WorkPlaceComponent>
-//   0x14000e320 BST recursive free                  WorkBase_TreeNodeFree_e320
+//   0x14000e320 BST recursive free                  the `_cells` member's ~Set
 //   MemAlloc                                        System::MemoryAllocator::MemAlloc
 //   DAT_140172114 = 0.5f                            kRdata_140172114
 // 0x14000a590 (Array<bool>::SetSize) is `_slotsAvailable.SetSize`.
@@ -115,8 +115,8 @@ static HarvestArea::ClaimNode* BST_Find(HarvestArea::ClaimNode* root, int key) {
 //
 // Harvest-assignment census counters. State 11 posts this work and its Execute runs
 // every frame; "runs but produces nothing" has EIGHT possible causes here and they need
-// different fixes, so each is counted separately. Two of them (atCapacity, workerCap)
-// return before the cell loop is even reached.
+// different fixes. Two of them (atCapacity, workerCap) return before the cell loop is
+// even reached; the no-pass and no-path counters are never incremented.
 static long long g_ha_calls = 0, g_ha_auto = 0, g_ha_cap = 0, g_ha_wcap = 0,
                  g_ha_nomark = 0, g_ha_inbst = 0, g_ha_noent = 0;
 [[maybe_unused]] static long long g_ha_nopass = 0;
@@ -165,8 +165,7 @@ int HarvestArea::Execute(CitizenComponent** citizenIBP, System::Time* /*context*
         return 1;
     }
 
-    // Check tree count vs max workers (the tree's port of 0x14012e5c0 called here takes
-    // the component as an integer: LEFT)
+    // Check tree count vs max workers (0x14012e5c0, WorkComponent::CalcMaxWorkers)
     int treeCount = _cells._count;
     if (matDesc->workState == 0) {
         int maxWorkers = matDesc->CalcMaxWorkers();
@@ -179,7 +178,7 @@ int HarvestArea::Execute(CitizenComponent** citizenIBP, System::Time* /*context*
 
     // Step 3: Setup iteration
     Map* map = gameWorld->m_game;
-    // The map helpers (0x14009ccf0, 0x1400a00f0) take the map as int*: LEFT.
+    // The map helpers (0x14009ccf0, 0x1400a00f0) are Map::FindCell / Map::ValidateCell.
     Map* mapGrid = map;
 
     // Get citizen position
@@ -252,7 +251,7 @@ int HarvestArea::Execute(CitizenComponent** citizenIBP, System::Time* /*context*
                         mapGrid->FindCell(srcCellIdx, citizenGridCell, PathBits::Walk & ~PathBits::Obstacle);
 
                     if (nearestCell >= 0) {
-                        uint64_t canPath = (uint64_t)static_cast<uint8_t>(mapGrid->ValidateCell(PathBits::Walk, citizenGridCell, nearestCell));   // the bool door read AL
+                        uint64_t canPath = (uint64_t)static_cast<uint8_t>(mapGrid->ValidateCell(PathBits::Walk, citizenGridCell, nearestCell));   // the low byte (AL) is the bool
                         if ((char)canPath != 0) {
                             // Check NaturalResourceComponent on entity
                             // natRes must be contiguous: the action ctor 0x1400c1530
@@ -371,7 +370,7 @@ int HarvestArea::Execute(CitizenComponent** citizenIBP, System::Time* /*context*
 
 
 // Shared by slots 6 and 7: find `key` in the claim tree at +0x48 and remove it if
-// present (the helper takes the container as uintptr_t*: LEFT).
+// present.
 static void HarvestArea_RemoveCellNode(HarvestArea* self, int key) {
     HarvestArea::ClaimNode* node = self->_cells._root;
     while (node != nullptr) {
@@ -484,8 +483,6 @@ int HarvestArea::Cleanup() {
 // ============================================================
 // HarvestArea::Slot9 -- RemoveInvalid
 // ============================================================
-// Hook DISABLED (bug class 2: MOV RAX,RSP in prologue).
-// Implemented for standalone exe.
 //
 // Iterates the claim tree in-order, validates each entry via FUN_1400f7100,
 // collects invalid ones, then removes them from the tree.
@@ -586,8 +583,7 @@ int HarvestArea::Validate() {
     }
 
 cleanup:
-    // Remove collected invalid nodes from the tree (the helper takes the container as
-    // uintptr_t*: LEFT)
+    // Remove collected invalid nodes from the tree
     if ((int)collectCount > 0) {
         for (uint32_t k = 0; k < collectCount; k++) {
             ClaimNode* bstNode = *root;
@@ -660,9 +656,9 @@ void HarvestArea::Persist(IO::Stream& stream) {
     //     1400ed3e4  MOV EDX,dword ptr [RSP + 0x60] ; the count
     //     1400ed3e8  LEA RCX,[RSP + 0x28]           ; the Serializer
     //     1400ed3ed  CALL qword ptr [0x140151458]
-    // 0x140151458 is `?Serialize@Serializer@IO@@QEAAXHPEA_NPEBD@Z`
-    // (address_registry.cpp:1163), the four-parameter (int n, bool*, const char*)
-    // array door at rw_vtbl::kArrayBool. It is NOT 0x140152ac8, which is what the
+    // 0x140151458 is `?Serialize@Serializer@IO@@QEAAXHPEA_NPEBD@Z`,
+    // the four-parameter (int n, bool*, const char*)
+    // array overload at rw_vtbl::kArrayBool. It is NOT 0x140152ac8, which is what the
     // old `s_fn_Serializer_SerializeBoolArray` alias (removed with its door in the
     // B.3.4a closing sweep) pointed at — that is the THREE-parameter
     // `Serialize(int&)` scalar door, so the old call put the COUNT in the register

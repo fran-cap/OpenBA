@@ -5,7 +5,7 @@ AlphaToCoverage, read the render target's samples before and after the draw and 
   partial    pixels with 1..(n-1) of n samples changed (coverage from o0.w, not all-or-nothing)
   preAlphaNZ covered samples whose alpha was non-zero before the draw (retail writes o0.w = 0
              there, so these are the samples where the main target's alpha now differs from retail)
-  python s4_check.py <cap.rdc> [maxDraws]
+  python a2c_check.py <cap.rdc> [maxDraws]
 """
 import os, sys, collections
 # <repo>/tools/renderdoc_mcp/runtime, derived from this file; RENDERDOC_MODULE_PATH overrides.

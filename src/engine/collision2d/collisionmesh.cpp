@@ -4,7 +4,7 @@
 //
 // Vtable batch 8. ??_7CollisionMesh@Collision2D@@6B@ (retail), nine slots:
 //
-//   0  deleting dtor        0x1800656b0  deleting_dtor.cpp row (registers ~CollisionMesh here)
+//   0  deleting dtor        0x1800656b0  the virtual ~CollisionMesh (CollisionMesh.h)
 //   1  TypeName             0x180064f70  here
 //   2  Type                 0x180064f50  here
 //   3  GetFileVersion       0x180108cc0  here  (returns 3)
@@ -14,11 +14,9 @@
 //   7  Destruct             0x1800652c0  here
 //   8  Construct            0x180065240  here
 //
-// plus ~CollisionMesh (0x180065400), registered here and appended to
-// src/engine/object/deleting_dtor.cpp's kSpecs.
+// plus ~CollisionMesh (0x180065400), defined here.
 //
-// Layout (sizeof 0x70; Reconstruct/Construct zero +0x20..+0x68 as ten qwords,
-// factory step table src/engine/collision2d/rt_factories_collision2d.inc agrees):
+// Layout (sizeof 0x70; Reconstruct/Construct zero +0x20..+0x68 as ten qwords):
 //   +0x00  Object::External                (0x20)
 //   +0x20  System::String              _name1
 //   +0x28  System::String              _name2
@@ -142,8 +140,7 @@ void FaceArraySetSize(Collection::Array<Face>* a, int32_t n) {
 //
 // Retail splits CollisionMesh::Serialize's face walk into two out-of-line
 // functions. They are ported with retail's own signatures (the Serializer is
-// RCX in both) so they can be registered at their addresses, and Serialize
-// calls them exactly where retail CALLs them.
+// RCX in both), and Serialize calls them exactly where retail CALLs them.
 //
 // 0x180066d50(Serializer* ser, int count, Quad4* base) -- FOUR kScalarUShort
 // per element at +0x00, +0x02, +0x04, +0x06, stride 8. Read from the raw
@@ -255,8 +252,7 @@ bool CollisionMesh::Serialize(IO::Stream& stream) {
     IO::Serializer ser(stream, 0);
 
     // ENDGAME B.3.1 step 2: `?Serialize@String@System@@QEAAXAEAVSerializer@IO@@@Z`
-    // (0x1800c9930) is a member now, so the name door is gone. The registry row
-    // at that name registers the shim, and the shim is one line over this member.
+    // (0x1800c9930) is a member, called here by name.
     self->_name1.Serialize(ser);
     self->_name2.Serialize(ser);
 
@@ -283,8 +279,7 @@ bool CollisionMesh::Serialize(IO::Stream& stream) {
     rwc->SerializeInt(nF, nullptr);
     if (reading) FaceArraySetSize(&self->_faces, nF);
     // Retail CALLs 0x1800665c0 here rather than inlining the walk; so does
-    // this, through the ported body, so the registered function is the one
-    // that runs (batch D2, 2026-09-12).
+    // this, through the ported body.
     SerializeFacesBody(&ser, nF, self->_faces._data);
 
     // _surfaces (ExternalPtr<Collision2D::Surface>)
@@ -301,10 +296,3 @@ bool CollisionMesh::Serialize(IO::Stream& stream) {
 }
 
 }  // namespace Collision2D
-
-// ---- CUTOVER CLOSURE BATCH D2: the two registered Serialize halves --------
-
-// B3R (registry teardown, W1 RT-Core): every row this function registered had
-// no reader by name or by address, so they went. It registers nothing and
-// stays defined only because standalone/resolve_standalone.cpp's
-// RuntimePortInit() still calls it (the coordinator removes the call).

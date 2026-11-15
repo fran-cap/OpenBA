@@ -1,4 +1,4 @@
-// engine/src/ui/selectresourceui.cpp
+// src/game/Dialog/selectresourceui.cpp
 // Clean reimplementation of SelectResourceUI shared methods.
 //
 // SelectResourceUI is the abstract base for CropUI, OrchardUI, PastureUI.
@@ -173,7 +173,7 @@ void SelectResourceUI::OnCreated() {
     // Find "selectResource" combo element via the owning DialogInstance
     System::String nameBuf("selectResource");
 
-    // Store the combo element (IsDerivedFrom check skipped -- null check only)
+    // Store the combo element (no IsDerivedFrom check, no null check)
     selectResource = static_cast<UI::ComboElement*>(_dialog->FindElement(nameBuf).Get());
 
     // Set element ID to 500 (combo selection event ID)
@@ -189,7 +189,7 @@ void SelectResourceUI::OnCreated() {
 // Checks if the combo element's item count matches the expected resource count.
 // If different, repopulates the combo with current resources.
 //
-// Original: 0x140078D30 (shared by OrchardUI and PastureUI).
+// Original: 0x140078D30 (shared by CropUI, OrchardUI and PastureUI).
 
 // [8] 0x140078d30.
 void SelectResourceUI::OnUpdate(const System::Time& /*time*/) {
@@ -235,7 +235,7 @@ void SelectResourceUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*elemen
 // (SelectResourceUI.h). Retail never builds one (create 0x140003730 returns
 // 0); its table 0x14015d330 is what every leaf ctor stamps first and every
 // leaf dtor restamps last. Every leaf overrides 4 and 7; slot 9 runs for
-// CropUI (inherited, as in retail); 8 is overridden by all three in the tree.
+// CropUI (inherited, as in retail); 8 is inherited by all three.
 // ============================================================================
 
 // [1] TypeName / [2] Type, the record and retail's abstract factory (create =

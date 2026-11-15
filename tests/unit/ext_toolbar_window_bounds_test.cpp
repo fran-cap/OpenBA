@@ -1,10 +1,10 @@
 // ============================================================================
 // tests/unit/ext_toolbar_window_bounds_test.cpp -- the toolbar host record's position from a save
 // ============================================================================
-// A crafted `toolbar` host record (u8 1, i32 INT32_MAX, i32 INT32_MAX, String "") reaches
-// DialogInstance::SetUpperLeft unchanged (toolbar_window.cpp), whose faithful clamp computes
-// `w + x` / `h + y` in int32: signed overflow for any positive dialog size. The game itself never
-// writes such a position (OnUpdate stores drag positions from int16 mouse coordinates).
+// A crafted `toolbar` host record (u8 1, i32 INT32_MAX, i32 INT32_MAX, String "") would reach
+// DialogInstance::SetUpperLeft (toolbar_window.cpp), whose faithful clamp computes `w + x` / `h + y`
+// in int32: signed overflow for any positive dialog size, so the window codec's decode refuses it. The
+// game itself never writes such a position (OnUpdate stores drag positions from int16 mouse coordinates).
 // ============================================================================
 #include "unit.h"
 #include "ext/savetail.h"

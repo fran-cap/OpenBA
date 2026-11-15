@@ -3,13 +3,13 @@
 // src/engine/ui/ClipRegionDescription.h — UI::ClipRegionDescription, the REAL class
 // ============================================================================
 //
-// ENDGAME B.3 step 6, block C1. Layout POD: `RtUI::ClipRegionDescription` in
-// DescriptionsBatch1.h (not edited, RULE B6-4.4); every offset cross-asserted.
+// ENDGAME B.3 step 6, block C1. `RtUI::ClipRegionDescription` in DescriptionsBatch1.h
+// is an alias of this class; every offset is asserted below.
 //
 // PARENT `UI::ElementDescription` — READ:
 //     ?_ParentTypeName@ClipRegionDescription@UI@@CAPEBDXZ  @0x180037960 -> "ElementDescription"
-// RULE B5-15 / B6-7 — RECORDED, NOT USED (`?_typeInfo@ClipRegionDescription@UI@@…`
-// 0x1801f9d30 stays minted):
+// RULE B5-15 / B6-7 — DEFINE_TYPE (clipregiondescription.cpp) defines both, and the class's
+// own `_typeInfo` record (retail `?_typeInfo@ClipRegionDescription@UI@@…` 0x1801f9d30):
 //     ?_TypeName@ClipRegionDescription@UI@@CAPEBDXZ        @0x180037950 -> "ClipRegionDescription"
 //     ?_ParentTypeName@ClipRegionDescription@UI@@CAPEBDXZ  @0x180037960 -> "ElementDescription"
 //
@@ -45,7 +45,7 @@
 #include <type_traits>
 
 #include "ElementDescription.h"
-#include "DescriptionsBatch1.h"   // kVtbl* names; RtUI::ClipRegionDescription aliases this class
+#include "DescriptionsBatch1.h"   // RtUI::ClipRegionDescription aliases this class
 #include "../object/Internal.h"   // Object::detail::InternalMemFree
 
 namespace UI {

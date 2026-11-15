@@ -82,7 +82,7 @@
 #include "audio/Audio.h"                      // ENDGAME B.3.7 callers (K4)
 #include "object/External.h"   // ENDGAME B.3.9 SS2: Object::ExternalFactory::_singleton
 #include "Game/exe_bodies.h"
-#include "Action/exe_bodies.h"         // ActHunt_DynArraySetCount_3110
+#include "Action/exe_bodies.h"         // 0x140003110: Collection::Array<InternalPtr<T>>::SetSize (callers call the member)
 #include "Dialog/exe_bodies.h"         // Avl38SetInsert (0x140014890)
 #include "Player/exe_bodies.h"         // Avl38Retrace (0x140025920)
 #include "system/Filename.h"
@@ -107,8 +107,8 @@
 
 // src/game/Game/minimap_upload.cpp — ports FUN_1400a4e80 + the CopyToTexture tail.
 extern "C" void Minimap_CreateAndUpload(Minimap* mapObj);
-// src/game/Game/weather_particles.cpp — ports FUN_1400942c0 (enable half; the
-// ambient-audio entity spawn is not ported there yet — see WeatherSim_Serialize).
+// src/game/Game/weather_particles.cpp — ports FUN_1400942c0 (enable also registers
+// the effect's ambient-sound entity).
 extern "C" void WeatherEffect_SetEnabled(WeatherSimulation* sim, int slot, int enable);
 
 namespace {
@@ -118,15 +118,15 @@ namespace {
 // GetPathForReferenceId, FindOrLoad) and Object::InternalFactory
 // (ResetPersistState, ClearPersistState). The exe helpers:
 //   0x1400194a0 / 0x140019ec0 / 0x14001a0c0 / 0x1400192a0
-//       Reimpl_ExternalPtr_Serialize_{ClimateGenerator,MapGenerator,TerrainGenerator,
-//       EnvironmentDesc}                                          (Game/exe_bodies.h)
-//   0x1400988c0 Reimpl_Transform_SerializeWrapper (PlayerController, +0xE0)
-//   0x1400c44a0 EntityList_Serialize (+0xE8)                   (Entity/entitylist_funcs.h)
-//   0x1400b04d0 Reimpl_TradeWork_impl_04d0 (WorldGeometry, +0x110)
+//       ::Object::SerializeExternal<ClimateGenerator / MapGenerator / TerrainGenerator /
+//       EnvironmentDescription>
+//   0x1400988c0 PlayerController::Serialize (+0xE0)
+//   0x1400c44a0 EntityList::Serialize (+0xE8)                  (Entity/EntityList.h)
+//   0x1400b04d0 WorldGeometry::Serialize (+0x110)
 //   0x14008f760 / 0x14008f580 CitizenBehavior::Serialize / PostLoad (+0xF0)
-//   0x14009f100 GameGrid_Serialize_9f100 (+0xF8), 0x1400f9240 Goals_Serialize_f9240 (+0x118)
-//   0x140003110 ActHunt_DynArraySetCount_3110                  (Action/exe_bodies.h)
-//   0x1400021d0 Reimpl_Array_Resize_Stride04, 0x140002340 Reimpl_ExternalPtr_Serialize_StringTable
+//   0x14009f100 Map::Serialize (+0xF8), 0x1400f9240 WorkScheduler::Serialize (+0x118)
+//   0x140003110 Collection::Array<T>::SetSizeFill (the EntityList staging lists)
+//   0x1400021d0 Collection::Array<T>::SetSize, 0x140002340 ::Object::SerializeExternal<ComponentDescription>
 //   0x140014890 Avl38SetInsert (PinnedToolNode wrapper)        (Dialog/exe_bodies.h)
 //   0x140025920 Avl38Retrace                                   (Player/exe_bodies.h)
 // The "[GUL::Serialize] resolved:" stderr line went with the caches.
@@ -215,7 +215,7 @@ void EventLog::Serialize(IO::Stream& stream) {
 // {geo*}[count at +0x58] active-effect slots. On load an active slot is
 // re-created via the ported WeatherEffect_SetEnabled(sim, i, 1), which also
 // spawns the effect's ambient-audio entity, as retail's 0x1400942c0 does.
-// Then each active geo's +0xc4 (intensity) and +0xc0 floats round-trip.
+// Then each active geo's +0xc4 (fade direction) and +0xc0 (intensity) floats round-trip.
 void WeatherSimulation::Serialize(IO::Stream& stream) {
     IO::Serializer ser(stream, 0);
 
@@ -403,7 +403,7 @@ static void IbpTree_Serialize_e470(TrackedEntityNode** root, int32_t* countField
         if (!cur) return;
         while (cur->left) cur = cur->left;
         while (cur) {
-            cur->key.InternalBasePtr::Serialize(*serializer);   // InternalBasePtr::Serialize (0x14002e470)
+            cur->key.InternalBasePtr::Serialize(*serializer);   // InternalBasePtr::Serialize (IAT 0x140152aa0)
             if (!cur->key.IsNull() && !::Object::IsDerivedFromNullSafe(cur->key, s_tidCompEnt))   // 0x14002e6cf: no type-id test (row 1164)
                 cur->key = nullptr;
             serializer->Serialize(cur->x, nullptr);
@@ -510,7 +510,7 @@ void Minimap::Serialize(IO::Stream& stream) {
 // ============================================================
 // LOAD ONLY. For each entity: vcall +0x58 (post-load fixup) on every
 // component, write the EntityList backptr at entity+0x10, then enrol the
-// entity in the two update lists (+0x88 per-frame, +0x98 per-tick) when its
+// entity in the two staging lists (+0x88 update, +0x98 post-update) when its
 // flag word +0x40 has bit 2 / bit 4 set (DynArray8_ResizeFill append).
 static void EntityList_PostLoad_c4730(EntityList* el, IO::Stream* stream) {
     if (stream->GetDirection() != IO::kReading) return;   // save direction: no-op
@@ -561,7 +561,7 @@ static void EntityList_PostLoad_c4730(EntityList* el, IO::Stream* stream) {
 // here. It established that the achievement IBP at self+0x150 is ABSENT in the
 // tutorial stream (present=0), so retail returns early and that IBP is NOT the
 // one that faulted -- the real desync was a skipped GoalInstance::Persist (see
-// standalone/reg_goal.cpp). Removed once standalone/persistobject_probe.cpp
+// src/engine/achievement/goal_serialize.cpp). Removed once a PersistObject probe
 // could report the same thing by detouring PersistObject itself, which does not
 // require standing in for any retail code.
 
@@ -696,11 +696,9 @@ void GameUpdateLoop::SerializeAllHead(IO::Stream& stream, SerializeScope& scope)
     ser.Serialize(m_scenarioCompleted, nullptr);
 
 
-    // NB: a diagnostic stand-in for this call (AchIbpPeek, below) established
-    // that the achievement IBP is ABSENT in the tutorial stream (present=0), so
-    // retail returns early here and this IBP is NOT the one that faults. Kept
-    // out of the live path — the PersistObject probe reports the same thing
-    // without replacing any retail code.
+    // NB: a diagnostic stand-in for this call established that the achievement
+    // IBP is ABSENT in the tutorial stream (present=0), so retail returns early
+    // here and this IBP is NOT the one that faults.
     m_scenarioInstance.Object::InternalBasePtr::Serialize(ser);
     // 0x140095bef-0x140095c0e: retail's own null test, then IsDerivedFrom and a
     // null store; no test of the type id (row 1247).
@@ -714,8 +712,7 @@ void GameUpdateLoop::SerializeAllHead(IO::Stream& stream, SerializeScope& scope)
     // AchievementManager::Persist (Runtime 0x18009e910) builds its own encoding
     // from stream+0x10 via vtable +0x18, so a peek through the serializer reads
     // a different object and returns 0xAAAAAAAA even on a save that loads
-    // perfectly. That false reading cost a full detour of this investigation;
-    // the PersistObject probe measures the real arguments instead.
+    // perfectly. That false reading cost a full detour of this investigation.
     ::Achievement::AchievementManager::_singleton->Persist(stream);
     m_animationManager->Serialize(ser);
     m_audioScene->Serialize(ser);
@@ -746,7 +743,7 @@ void GameUpdateLoop::SerializeAllBody(IO::Stream& stream, SerializeScope& scope)
     m_tutorial->Serialize(stream);                                                   // 0x1400f9240
     m_toolManager->Serialize(stream);                                                // 0x140102920
 
-    // Day counter (+0x128): { int day; Time accumulated } — version-0 section.
+    // The year clock (m_dayCounter, +0x128): { int year; Time yearTime } — version-0 section.
     {
         Calendar* dc = m_dayCounter;
         IO::Serializer ser0(stream, 0);

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """castmetric.py DIR|FILE... [--by-file] [--tsv] [--detail] [--static] [--all-cstyle] [--floor]
 
-THE B.4 cast metric (NEXT_SESSION.md 3b.6): ONE summed count of every spelling of a
-pointer reinterpretation in C/C++ CODE (comments and string contents blanked), less the
-floor (B4_RULES.md M2 / M3, FLOOR.md):
+THE B.4 cast metric (docs/history/endgame_b/b4_session/BLOCK0_BRIEF.md, inventory F): ONE
+summed count of every spelling of a pointer reinterpretation in C/C++ CODE (comments and
+string contents blanked), less the floor (docs/history/endgame_b/B4_RULES.md M2 / M3,
+docs/history/endgame_b/b4_session/FLOOR.md):
 
 Columns (occurrences, not lines):
   reinterpret     every `reinterpret_cast`
@@ -39,7 +40,7 @@ Columns (occurrences, not lines):
 
 Deterministic; stdlib only; no build. Paths are reported relative to the repo root and the
 type index (known type names, pointer typedefs, member / return types, accessor helpers) is
-always built from the whole tree (code runtime standalone dx11 tests), so a number
+always built from the whole tree (src tests), so a number
 does not depend on the working directory nor on which DIRs were asked for.
 --by-file   one row per file (files with a nonzero column) after the directory table
 --tsv       tab-separated output (header row) instead of the aligned table
@@ -76,7 +77,7 @@ CATEGORIES = ('alloc_header', 'ptr_int', 'crash_walk', 'win32', 'float_bits', 's
               'posix')
 # Tier I (M3), shape print_arg: the callees whose arguments are printf-style (a format string
 # and `...`). Read from the tree: the CRT family, the variadic loggers
-# (redzone_alloc.cpp RZOut / RZBoth, main.cpp CrashLogf, boot_state_watchdog.cpp HangLogf,
+# (redzone_alloc.cpp RZOut / RZBoth, crash_handler_win.cpp CrashLogf, boot_state_watchdog.cpp HangLogf,
 # System::String::Format / FormatIndexed) and the variadic trace macros (gameupdateloop.cpp
 # TRACE, disaster_harness.cpp DLOG, market_overstock_harness.cpp MO_LOG, edittool.cpp
 # REPO_DIAG, cemeterycomponent.cpp CEM_TRACE, tornadocomponent.cpp TORNADO_TRACE).
@@ -345,7 +346,8 @@ def index_file_types(idx, code, rel):
 
 
 def file_decls(idx, code):
-    """[(pos, name, (stars, isvoid, isarray))] in text order; also fills idx.members / returns."""
+    """[(pos, name, isarray, (stars, isvoid))] in text order; a function declaration is
+    (pos, '\\0ret', name, (stars, isvoid)). build_index fills idx.members / returns from it."""
     out = []
     for m in _RE_DECL.finditer(code):
         t = m.group('type')

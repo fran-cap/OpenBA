@@ -7,8 +7,8 @@
 // Every layout below was read out of Runtime-x64.dll in Ghidra, not guessed;
 // the function whose decompilation pins each one is named next to it.
 //
-// Vector2 / Vector3 / Vector4 are NOT redefined here: they already exist in
-// engine/types/common.h with the same layout and are shared by the exe port.
+// Vector2 / Vector3 / Vector4 are NOT redefined here: they are Math::Vector2/3/4
+// from src/engine/math/Math.h, aliased at global scope in src/engine/global_types.h.
 // Scalar/Transform3 come from src/engine/math/Math.h (Lane 1/2 of this wave).
 //
 // ABI NOTE — see src/engine/math/Math.h for the full explanation. Every one
@@ -21,8 +21,8 @@
 // THE <windows.h> NAME CLASH, AND WHY THIS HEADER IS NOW ORDER-FREE
 // ----------------------------------------------------------------------------
 // `Box`, `Rectangle` and `Frustum` are declared at GLOBAL scope here, matching
-// retail's `Volume::` namespace only in spirit (see the note at the bottom).
-// `<wingdi.h>`, pulled in by `<windows.h>` and therefore by `standalone/resolve.h`,
+// retail's `Volume::` namespace only in spirit.
+// `<wingdi.h>`, pulled in by `<windows.h>`,
 // declares a global FUNCTION `Rectangle(HDC,int,int,int,int)`. A function name and
 // a class name may coexist in one scope, but the function HIDES the class name for
 // ordinary lookup — so a plain `sizeof(Rectangle)` after `<windows.h>` is a hard
@@ -30,8 +30,8 @@
 // files carried an ordering workaround: "runtime headers FIRST, before resolve.h".
 //
 // ENDGAME B.3.5 (b35-close) fixed it AT THE SOURCE instead. Every place in this
-// header that names one of the three classes uses the ELABORATED type specifier
-// (`struct Rectangle`, `struct Box`, `struct Frustum`), which is exactly what C++
+// header that names `Rectangle` uses the ELABORATED type specifier
+// (`struct Rectangle`), which is exactly what C++
 // provides for a class name hidden by a function: elaborated-type-specifier lookup
 // ignores non-type names ([basic.lookup.elab]). This header therefore compiles
 // with `<windows.h>` included BEFORE it or after it, and no caller needs an
@@ -129,8 +129,8 @@ static_assert(offsetof(struct Rectangle, max) == 0x08, "Volume::Rectangle::max @
 // 0x1800fa41c), so the planes are default-initialised in the mem-initialiser and
 // written in the body, as retail. The perspective ctor never stores the flag
 // again after that zero. The defaulted ctor is the implicit one the struct had
-// (planes zeroed by Vector4(), flag untouched); the tree's holders of a Frustum
-// member (Camera, PlayerController) use it.
+// (planes zeroed by Vector4(), flag untouched); Light's Frustum member and the
+// tree's default-constructed Frustum locals use it.
 struct Frustum {
     Frustum() = default;
     // ??0Frustum@Volume@@QEAA@AEBVScalar@Math@@000@Z  0x1800fa1e0
@@ -149,11 +149,10 @@ static_assert(offsetof(Frustum, planes) == 0x0, "Frustum::planes");
 static_assert(sizeof(struct Frustum) == 0x64, "Volume::Frustum must be 0x64 (100) bytes");
 static_assert(offsetof(struct Frustum, isOrthographic) == 0x60, "Volume::Frustum::isOrthographic @ +0x60");
 
-// ==== B3R W0-P0c: Runtime bodies reached by retail address ====
-// ENDGAME B.3R (B3R_RULES R5): each body below is registered at the retail
-// address in its trailing comment and read through the registry today. It is
-// declared here, copied from its definition (linkage, namespace, types), so the
-// reader can call it by name. Nothing calls it through this declaration yet.
+// ==== B3R W0-P0c: Runtime bodies called by name ====
+// Each body below carries its retail address in its trailing comment. It is
+// declared here, copied from its definition (linkage, namespace, types), so its
+// callers call it by name through this header.
 
 // ---- volume/box.cpp
 Box* RtVolume_Box_Ctor(Box* self);  // 0x180011ea0

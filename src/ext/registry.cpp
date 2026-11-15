@@ -483,9 +483,8 @@ const Entry kEntries[] = {
       0, [](State& s) -> bool& { return s.ext.better_trees; } },
     // BOATLANE (docs/extensions/handins/BOATLANE.md): the trade boats sail a lane through the middle of the
     // water, a smooth curve, instead of retail's grid steps along the cheapest bank; the same lane
-    // ext.winter_ice keeps open in the ice. Class B: a boat's route and so its travel time change. OFF by
-    // default, the B / C rule (the user's ruling, 2026-11-06; extension defaults to be revisited next
-    // release).
+    // ext.winter_ice keeps open in the ice. Class B: a boat's route and so its travel time change. ON by
+    // default, one of the B / C rows ruled ON for 1.0.3 (DESIGN.md section 2).
     { "boat_lane", Tier::Extension, Class::B, true,
       "Boat lane",
       "Trade boats sail a smooth lane down the middle of rivers and lakes instead of hugging the cheapest "
@@ -540,7 +539,7 @@ const Entry kEntries[] = {
       "Lighter far trees",
       "When the camera is zoomed out, leafy trees are drawn with fewer, larger leaves. Faster over forests.",
       0, [](State& s) -> bool& { return s.ext.leaf_lod; } },
-    // FAA-SHADOW (docs/extensions/FOLIAGE_AA.md section 7): the sun map at 4096 when the retail
+    // FAA-SHADOW (docs/extensions/FOLIAGE_AA.md section 7): the sun map at ext.max_shadow_size (4096 or 8192) when the retail
     // Shadow Resolution combo is at High; Medium / Low keep their retail sizes.
     { "max_shadow_res", Tier::Extension, Class::A, true,
       "Max shadow resolution",
@@ -786,7 +785,7 @@ const Entry kEntries[] = {
       "again, so large mod sets load faster. Same game data. Takes effect at the next start.",
       0, [](State& s) -> bool& { return s.ext.heap_slack; } },
     // NOFOG (docs/extensions/handins/NOFOG.md): the fog is pushed back on the finished lighting each frame,
-    // as far as ext.fog_distance says (100, the default: taken off), so the far map stays clear when the
+    // as far as ext.fog_distance says (100: taken off), so the far map stays clear when the
     // camera is zoomed out. The Enhanced tab's "Fog distance" slider sets both (0 = this row off). Class A: a
     // picture-only change, no sim effect, nothing saved, live. ON by default on a desktop (ruled 2026-11-08 for
     // 1.0.3) with ext.fog_distance at its default 0, which is retail's fog: the slider in place, nothing changed
@@ -871,7 +870,7 @@ const Entry kEntries[] = {
       "as iron or steel. The tool each citizen carries is recorded in the save.",
       1, [](State& s) -> bool& { return s.ext.tool_names; } },
     // TEXQUALITY (docs/extensions/handins/TEXQUALITY.md): the large mipmapped world textures are made
-    // without their ext.texture_quality_drop largest levels (half or quarter resolution), so far less
+    // without their ext.texture_quality_drop largest levels (half resolution), so far less
     // video memory and less decoding at load. Retail has no such setting. Read once at boot (next start).
     // OFF by default: how sharp the textures are is the player's choice.
     { "texture_quality", Tier::Extension, Class::A, false,
@@ -881,7 +880,7 @@ const Entry kEntries[] = {
       0, [](State& s) -> bool& { return s.ext.texture_quality; } },
     // PHONEMENU (docs/extensions/handins/PHONEMENU.md): the front end fitted to a phone held in
     // landscape -- the menu backdrop moved so the logo is whole on a screen wider than 16:9, the menu
-    // dialogs and the in-game interface laid out inside a 4.5 % safe area (rounded corners, the camera
+    // dialogs and the in-game interface laid out inside a 3.375 % safe area (rounded corners, the camera
     // cut-out), and the UI scale slider down to 25 %. Class A: layout only, nothing saved, live. OFF by
     // default on a desktop; the Android first run turns it on (src/platform/android/app_android.cpp).
     { "phone_menu", Tier::Extension, Class::A, false,
@@ -984,7 +983,7 @@ const Entry kEntries[] = {
 constexpr int kEntryCount = static_cast<int>(sizeof(kEntries) / sizeof(kEntries[0]));
 
 // THE VALUED KEYS (registry.h "VALUED KEYS"). Each names its owner row; the
-// ranges are the menu's (AO.md §3: quality 1..3 = Low / Medium / High, Off is
+// ranges are the menu's (AO.md §3: quality 1..3 = Low / Medium / High, 4 = Lowest, Off is
 // the owner row's bool; opacity 0..30 percent, default 20: the user's look of 2026-10-14 put
 // the usable maximum at 20 and anything past 30 "iffy").
 constexpr int32_t kMaxShadowSizes[] = { 4096, 8192 };

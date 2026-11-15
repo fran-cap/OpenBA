@@ -21,33 +21,21 @@
 // besides the String primitives is `GetDLLForInterface`. The three are one
 // chain; porting the wall without them leaves two nulls one call deep.
 //
-// A SEPARATE _win.cpp because these are the only bodies in the chain that need
-// <windows.h> (SetErrorMode / LoadLibraryW / GetProcAddress / FreeLibrary),
-// and PLAN §4.1 decision 1 keeps the rest of runtime/src platform-neutral.
-// All four are reached DIRECTLY by name against the exe's own KERNEL32 import,
-// never through Runtime-x64.dll's IAT, which does not exist at cutover.
+// A SEPARATE _win.cpp because SetErrorMode, the one Win32 call left in the chain,
+// needs <windows.h>; src/platform/posix/video_interfaces_posix.cpp is the twin
+// without it. Retail reached SetErrorMode / LoadLibraryW / GetProcAddress /
+// FreeLibrary through Runtime-x64.dll's IAT.
 // The slots retail used were mapped with pefile rather than guessed:
 //   0x18014b1b0 SetErrorMode   0x18014b1b8 LoadLibraryW
 //   0x18014b1c0 GetProcAddress 0x18014b118 FreeLibrary
 //
 // THE POINT OF THE WHOLE THING: THE DX11 SLOT
 // -------------------------------------------
-// `src/app/video_interface.cpp` has been asking for this port in writing
-// since Wave 9 lane ENGIO:
-//
-//     "`FillDx11Slot` is reachable ONLY from `WrapInitializeInterfaces`
-//      (grepped -- there is no other caller), so with the detour gone NOBODY
-//      FILLS THE DX11 INTERFACE SLOT AT ALL unless the ported
-//      `Video::Device::InitializeInterfaces` calls `VideoInterfaceFillDx11Slot`
-//      itself."
-//
-// This body calls it, first thing, which is exactly what the detour's wrapper
-// does today (`FillDx11Slot(device); orig(device);`). That is the whole reason
-// the pre-fill survives cutover, where there is no 0x1800f79f0 to detour.
-//
-// The detour stays installed and becomes redundant rather than wrong: it
-// resolves its target RAW, so it still patches the DLL's copy, which nothing on
-// our side reaches once these registrations are live.
+// `src/app/video_interface.cpp`'s VideoInterfaceFillDx11Slot puts our renderer in
+// slot 1, and nothing fills the DX11 interface slot unless the ported
+// `Video::Device::InitializeInterfaces` calls it. This body calls it, first thing
+// (as does its twin, src/platform/posix/video_interfaces_posix.cpp), so the loop
+// skips slot 1.
 // ============================================================================
 
 #include <windows.h>
@@ -56,13 +44,13 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
-#include <new>       // ENDGAME B.3.5: the hidden-retslot door placement-news (RULE B5-12)
+#include <new>
 
 #include "video/Device.h"
 #include "system/String.h"
 #include "system/string_internal.h"
 #include "system/widestring_internal.h"
-#include "video_interface.h"   // -Istandalone; this header is windows.h-free
+#include "video_interface.h"   // src/app/video_interface.h; this header is windows.h-free
 
 using System::String;
 using Video::Device;
@@ -126,15 +114,11 @@ constexpr int kSlotCount  = 3;
 // 0x1800f7b4e..0x1800f7b5f sends any index outside 0..2 straight to the two
 // appends at 0x1800f7c6c, SKIPPING both the assignment and the temporary's
 // release. So `GetDLLForInterface(7)` returns **"-x64.dll"** — a name, not an
-// empty string and not a failure. Reproduced exactly; the probe below tests it.
+// empty string and not a failure. Reproduced exactly.
 // ============================================================================
 // ENDGAME B.3.5 block D2, RULE B5-12. The MEMBER returns the `System::String` by
 // value, which is what `?AVString@System@@` says and what GCC's Microsoft-ABI
-// lowering implements with the same hidden slot in RDX. The DOOR keeps the
-// explicit three-parameter shape its two registry rows have always had: it
-// placement-constructs the member's prvalue into the caller's UNINITIALISED slot
-// (C++17 builds it in place — no copy, and no read of the caller's garbage) and
-// returns that slot pointer in RAX.
+// lowering implements with the same hidden slot in RDX.
 System::String Video::Device::GetDLLForInterface(int index) const {
     // `this` IS NEVER READ — `MOV [RSP+0x10],RDX` at 0x1800f7b20 spills the RET
     // SLOT, not RCX, and RCX is dead from the first instruction. The member keeps
@@ -207,21 +191,13 @@ System::String Video::Device::GetDLLForInterface(int index) const {
 //     video_interface.cpp takes a real extra reference on our own module
 //     rather than fabricating a handle.
 //
-// ORACLE: none, and not for want of trying. The body's whole effect is
-// LoadLibrary/GetProcAddress on the live process — a replay would load the same
-// DLLs a second time, and the slot values it produced could not be compared to
-// ours anyway because ours are deliberately DIFFERENT for slot 1 (our own
-// functions, by design). What IS asserted is the postcondition that actually
-// matters and that a bad port would break, checked against the pre-fill's own
-// detector.
 // ============================================================================
 void Video::Device::InitializeInterfaces() {
     // *** THE LINE THE TREE HAS BEEN ASKING FOR. ***
-    // src/app/video_interface.cpp:158 and its DETOUR FAILED message both
-    // name this call as the thing that must exist once this function is ported.
+    // src/app/video_interface.cpp (VideoInterfaceFillDx11Slot's banner) names
+    // this call as the thing that must exist once this function is ported.
     // It fills slot 1 with our own CreateDeviceData/GetDeviceName so the loop
-    // below SKIPS it — byte-for-byte what WrapInitializeInterfaces does today,
-    // minus the detour that cannot exist at cutover.
+    // below SKIPS it.
     VideoInterfaceFillDx11Slot(this);
 
     int skipped = 0, loaded = 0, rejected = 0;
@@ -238,10 +214,9 @@ void Video::Device::InitializeInterfaces() {
     // The old cutover gate never saw it because it moved the DLL aside, which
     // made the LoadLibraryW fail for the wrong reason.
     //
-    // So the loop resolves the name (GetDLLForInterface is still the body the
-    // probe below exercises) and then loads NOTHING. Slot 1 is already ours
-    // from the pre-fill above and is skipped; slot 0 gets the placeholder
-    // below; slot 2 (VideoGL) has no shipped DLL at all.
+    // So the loop resolves the name (GetDLLForInterface) and then loads NOTHING.
+    // Slot 1 is already ours from the pre-fill above and is skipped; slot 0 gets
+    // the placeholder below; slot 2 (VideoGL) has no shipped DLL at all.
     for (int i = 0; i < kSlotCount; ++i) {            // 0x1800f7afd / 0x1800f7b03
         InterfaceSlot* const slot = &dllSlots[i];
         if (slot->module != nullptr) {                // 0x1800f7a14
@@ -263,7 +238,7 @@ void Video::Device::InitializeInterfaces() {
         // loop body, which is where retail's inlined release is.
     }
 
-    // ---- CUTOVER-ONLY -----------------------------------------------------
+    // ---- NOT RETAIL --------------------------------------------------------
     // Slot 0 is now always empty (nothing loads VideoDX9-x64.dll), which leaves
     // the GraphicsInterface array one entry short of the slot count that the
     // configuration's interface index and the Options dialog's

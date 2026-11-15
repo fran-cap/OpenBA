@@ -24,8 +24,8 @@
 // ---------------------------------------------------------------------------
 // 1. WHAT `SetCommandLine` IS
 // ---------------------------------------------------------------------------
-// `System::Configuration` (0x30 bytes, ctor at 0x1800c51b0, ported by lane ENG
-// in engine_lifecycle.cpp) holds a string→string map at +0x10. Retail:
+// `System::Configuration` (0x30 bytes, ctor at 0x1800c51b0, defined in
+// system/Configuration.h) holds a string→string map at +0x10. Retail:
 //
 //     int pos = 0;                                   // [RBP+0x48]
 //     if (cmd.data == nullptr) return;               // 0x1800c47c7
@@ -44,41 +44,19 @@
 // up would silently turn the loop's exit test into a refcount test.
 //
 // ---------------------------------------------------------------------------
-// 2. THE THREE CALLEES ARE **NOT** PORTED — AND THE ROW STILL CLOSES, FOR ONE
-//    SPECIFIC REASON THAT MUST BE STATED
+// 2. THE THREE CALLEES, AND WHY THE LOOP BODY NEVER RUNS ON AN EMPTY LINE
 // ---------------------------------------------------------------------------
-// The triage rule says a port only CLOSES a row if its own callees are
-// satisfied. `ParseCommand`, `ParseValue` and the insert at 0x18002a090 are all
-// unported, so on the face of it this closes nothing. It closes it anyway,
-// because on this project's boots **the loop body never runs**:
+// `ParseCommand` (0x1800c4a00, ord 3310) and `ParseValue` (0x1800c4930, ord
+// 3311) are ported below, and the insert at 0x18002a090 is
+// `rtavl::StringMapInsert` (src/engine/collection/avl_trees.cpp). On an empty
+// command line the loop body never runs:
 //
-//   src/app/main.cpp:1930   Game::RunGameMain(hInstance, lpCmdLine ? lpCmdLine : "")
+//   src/app/main.cpp:1107   Game::RunGameMain(hInstance, lpCmdLine ? lpCmdLine : "")
 //
-// and no harness in this tree passes a command-line argument (every knob is an
-// environment variable). `String::Set(&tmp, "")` allocates a 9-byte block with
-// `length = 0` at `data-8` and `refcount = 1` at `data-4`
-// (src/engine/system/string.cpp `RtSystem_String_Set` → `RtString_SetLength`),
-// so `cmd.data` is NON-null and `len == 0`, and retail's own `JLE` at
-// 0x1800c47d7 returns before `ParseCommand` is reached.
-//
-// **So: this row closes for an EMPTY command line, which is every automated run
-// this project has. Launch `OpenBA.exe` with ANY argument at cutover and the
-// next fault is `?ParseCommand@Configuration@System@@CA?AVString@2@AEAHAEBV32@@Z`
-// (0x1800c4a00, ord 3310, 109 instructions), then `?ParseValue@` (ord 3311, 62)
-// and then an EXEC-of-0 at the insert below, which has NO name to report.**
-//
-// The loop body is written out in full and faithfully anyway — it costs
-// nothing, and the alternative (a stub that ignores a non-empty command line)
-// would be a silent behaviour change on the DLL-present path, where all three
-// callees resolve to the shipped DLL and work.
-//
-// Why the insert subtree was not ported with it: 0x18002a090 copies both
-// strings and forwards to 0x18002a170, a red-black insert (~90 instructions)
-// that calls a node allocator (0x18000f970) and a rebalance (0x18002a310), none
-// of them exported. That is a Collection lane's worth of work with a real
-// oracle available (the tree is observable), and doing it badly here — on the
-// container the whole engine reads its configuration out of — would be the
-// worst possible place to guess.
+// `String::Set(&tmp, "")` allocates a 9-byte block with `length = 0` at
+// `data-8` and `refcount = 1` at `data-4` (src/engine/system/string.cpp), so
+// `cmd.data` is NON-null and `len == 0`, and retail's own `JLE` at 0x1800c47d7
+// returns before `ParseCommand` is reached.
 //
 // ---------------------------------------------------------------------------
 // 3. THE BST FIND (0x18002ace0) IS THE SET'S `Find`
@@ -100,28 +78,22 @@
 #include "system/String.h"
 #include "system/Configuration.h"   // ENDGAME B.3.4b SYSTEM (4c)
 #include "io/Persistence.h"         // RtIo::SettingsSet, the map at +0x10
-// RtString_GetLength / RtSystem_String_SubString / RtString_ReleaseInline, the
-// three already-ported String primitives the two Parse bodies below need.
-// Spelled "./string.h" rather than "string.h": this file lives in the same
-// directory as that header, and the unqualified form would also shadow the C
-// library's <string.h> for anything included after it.
 #include "system/string_internal.h"
-#include <new>                 // placement new into the retail hidden return slot
+#include <new>
 #include "../collection/avl_trees.h"            // B3R: rtavl::StringMapInsert
 #include "collection/Collection.h"  // Collection::Array / Set (the two members)
 
 
 // ?_singleton@Configuration@System@@0PEAV12@EA  0x1801fc6f8 — the class static
-// (ENDGAME B.3.9 SYS, B39_RULES D7); RtSystemPortInit redirects the minted row
-// onto it, so the name door, the address door and this member are one cell.
+// (ENDGAME B.3.9 SYS, B39_RULES D7).
 System::Configuration* System::Configuration::_singleton = nullptr;
 
 // ============================================================================
 // ENDGAME B.3.4b SYSTEM (4c) — the `System::Configuration` member BODIES.
 // ============================================================================
 // Defined at GLOBAL scope with qualified names rather than inside a
-// `namespace System { ... }` block — rule B4b-5 and the using-declaration trap
-// noted at the top of this file. Every body is the one that used to sit in the
+// `namespace System { ... }` block — rule B4b-5. Every body is the one that
+// used to sit in the
 // door of the same name, moved VERBATIM; the edits are `self + 0xNN` becoming a
 // named field, the hidden return slots becoming ordinary by-value returns, and
 // the POD bridges that the class parameters make unnecessary.
@@ -132,8 +104,7 @@ void System::Configuration::SetCommandLine(const System::String& cmd) {
     RtIo::SettingsSet* map = &_map;
 
     // ENDGAME B.3.4b: the B.3.1 step-2 bridge is gone from this body — `cmd` IS
-    // the class now, because the parameter is. The POD-to-class conversion
-    // moved up into the door.
+    // the class now, because the parameter is.
     const System::String& src = cmd;
 
     int pos = 0;
@@ -160,12 +131,8 @@ void System::Configuration::SetCommandLine(const System::String& cmd) {
                     // ParseValue (0x1800c4930), the same way.
                     System::String val(System::Configuration::ParseValue(pos, cmd));
 
-                    // 0x1800c4829. The insert is UNEXPORTED, so it goes by address
-                    // and — unlike every other dependency in this lane — a miss here
-                    // produces NO [RtUnresolved] line, only an EXEC-of-0 whose
-                    // return address symbolises to this source line. Named here so
-                    // that crash is readable. See §2: unreachable on an empty
-                    // command line, which is every automated run in this project.
+                    // 0x1800c4829. The insert is UNEXPORTED in retail. See §2:
+                    // unreachable on an empty command line.
                     //
                     // 0x18002a090 is `rtavl::StringMapInsert`
                     // (src/engine/collection/avl_trees.cpp), the
@@ -210,13 +177,8 @@ void System::Configuration::SetCommandLine(const System::String& cmd) {
 //     R8  = const String* src  (the `AEBV32@`)
 //     RAX = ret                (0x1800c49df / 0x1800c4b36: MOV RAX,R14)
 //
-// The return type below is `String*` and the body returns `ret` for exactly
-// that reason. Declaring it `void` would compile and would even work for every
-// caller in this tree (all of them discard the result), but it would stop
-// setting RAX — and a hidden return slot a signature omits is the wild-write
-// shape reference_hidden_retslot_wild_write.md records. The two typedefs
-// already in the tree (engine_funcs.h:323/329 and `ParseFn` above) both model
-// the slot correctly, so nothing had to be corrected.
+// The members below return `System::String` BY VALUE, so the compiler
+// passes that hidden return slot and returns it in RAX itself.
 //
 // ---------------------------------------------------------------------------
 // THREE DETAILS THAT ARE FAITHFUL AND MUST NOT BE "FIXED"
@@ -230,7 +192,7 @@ void System::Configuration::SetCommandLine(const System::String& cmd) {
 // 2. THE `src[i]` READS AT 0x1800c4a92 AND 0x1800c4b08 ARE UNGUARDED, and that
 //    is CORRECT, not a missing bounds check. Both can run with `i == length`.
 //    A System::String's buffer is `length + 1` bytes with a NUL written by
-//    every producer (types/system/String.h), so `src[length]` is a legal read
+//    every producer (src/engine/system/String.h), so `src[length]` is a legal read
 //    of '\0' — which is neither '/' nor ' ' nor ':', so both tests fall the
 //    right way. A guard here would not "make it safe", it would change the
 //    result at end-of-string. CLAUDE.md's rule applies directly: retail's
@@ -238,24 +200,19 @@ void System::Configuration::SetCommandLine(const System::String& cmd) {
 //
 // 3. THE EMPTY RETURN WRITES A NULL `data` DIRECTLY. At 0x1800c4a98 retail
 //    stores RBP (which is 0) into [R14] and jumps to the epilogue — it does NOT
-//    call a String constructor. Reproduced as `ret->data = nullptr`. A port
-//    that default-constructs a String here would allocate a 9-byte block retail
-//    never allocates, and `SetCommandLine` above would then release a block
-//    that on the retail path never existed.
+//    call a String constructor. Reproduced as `return System::String()`, whose
+//    default constructor stores a null `_data` and allocates nothing
+//    (src/engine/system/String.h).
 //
 // ---------------------------------------------------------------------------
-// DEPENDENCIES: BOTH ARE ALREADY PORTED, SO THIS CLOSES DOORS WITHOUT OPENING
+// DEPENDENCIES: BOTH ARE ALREADY PORTED
 // ---------------------------------------------------------------------------
-//   ?GetLength@String@System@@QEBAHXZ        0x1800063c0 ord 2750 — string.cpp
-//   ?SubString@String@System@@QEBA?AV12@HH@Z 0x1800c9230 ord 4124 — string.cpp,
-//       registered by NAME and by ADDRESS (string.cpp:1143 / :1183)
-// They are called here as our own C++ functions, so no new resolve door of
-// either kind is created. Measured: this closes 2 ADDRESS doors
-// (engine_funcs.cpp:1727/1729) and 2 NAME doors (the two RT_EXPORT_ONCE sites
-// in SetCommandLine above) and opens ZERO.
+//   ?GetLength@String@System@@QEBAHXZ        0x1800063c0 ord 2750 — String.h
+//   ?SubString@String@System@@QEBA?AV12@HH@Z 0x1800c9230 ord 4124 — string.cpp
+// They are called here as members of `System::String`.
 //
-// `SubString`'s end index is INCLUSIVE (setupdir_helpers.cpp:68 records the
-// same trap), which is why both bodies pass `pos - 1` / `end - 1`, not `pos`.
+// `SubString`'s end index is INCLUSIVE, which is why both bodies pass
+// `pos - 1` / `end - 1`, not `pos`.
 // ============================================================================
 
 namespace {
@@ -287,16 +244,6 @@ System::String System::Configuration::ParseValue(int& pos, const System::String&
     while (pos < s.GetLength() && !IsBlank(s._data[pos]))
         ++pos;
 
-    // ORACLE. Pure in the only sense that matters: given `src` and an input
-    // `pos` it writes a fresh String and a new `pos` and touches no process
-    // state, so it is exactly replayable. `pos` is an ALIASED in/out parameter,
-    // so the original is replayed from the SNAPSHOT `posIn`, never from the
-    // value our body just advanced
-    // (reference_oracle_must_snapshot_aliased_inputs.md).
-
-    // EFFECTIVENESS CONTROL: how many calls actually consumed input. A run
-    // whose ParseValue rows are all `work=0` has proved nothing, however green
-    // (reference_probe_needs_an_effectiveness_control.md).
     return s.SubString(start, pos - 1);                      // inclusive
 }
 
@@ -321,7 +268,7 @@ System::String System::Configuration::ParseCommand(int& pos, const System::Strin
     // taken, which is precisely what retail does.
     if (s._data[pos] != '/') {
         // detail 3: retail's `*ret = 0` IS the default ctor (0x180006760). It
-        // is an empty prvalue now; the DOOR is what places it in the slot.
+        // is an empty prvalue now.
         return System::String();
     }
     ++pos;                                                   // step over the '/'
@@ -358,9 +305,8 @@ System::String System::Configuration::GetCommandLineString(
 
     // 0x1800c537f: the slot is zeroed FIRST and unconditionally, then adopted.
     // ENDGAME B.3.4b: the hidden slot is the compiler's business now, so the
-    // zero is an ordinary default-constructed local and the DOOR is what places
-    // the result in the caller's slot. `Adopt` is String's own private AddRef
-    // half, reached through the transitional accessor.
+    // zero is an ordinary default-constructed local. `Adopt` is String's own
+    // private AddRef half, reached through the transitional accessor.
     System::String out;
     System::StringPrivateAccess::Adopt(out, temp);
 
@@ -374,9 +320,6 @@ System::String System::Configuration::GetCommandLineString(
     }
 
 
-    // EFFECTIVENESS CONTROL. A run in which every lookup MISSED has exercised
-    // the null arm only and said nothing about the arm that matters; `work`
-    // counts the hits (reference_probe_needs_an_effectiveness_control.md).
     return out;
 }
 
@@ -411,7 +354,7 @@ System::String System::Configuration::GetCommandLineString(
 //                Again the whole array.
 //
 // THE THIRD SUB-OBJECT IS NOT DESTROYED, AND THAT IS RETAIL'S CHOICE.
-// ??0Configuration (engine_lifecycle.cpp) initialises THREE {pointer, int}
+// ??0Configuration (system/Configuration.h) initialises THREE {pointer, int}
 // pairs -- at +0x00, +0x10 and +0x20. This dtor touches +0x10 and +0x00 and
 // leaves +0x20 alone. That is a retail leak of the same family as the two
 // already flagged inside Engine::Shutdown (Input::Device and Audio::Device),

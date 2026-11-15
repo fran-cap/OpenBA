@@ -5,16 +5,15 @@
 //   0x18004da00  Engine_Application_ScalarDeletingDtor   116 B  (unexported)
 //
 // `~Application` immediately followed by `operator delete(this)` — a SCALAR
-// deleting destructor, and NOT a member of the `??_E` vector family
-// src/engine/object/deleting_dtor.cpp owns (no flags argument, no array
-// cookie, no vector branch).
+// deleting destructor, and NOT a member of the `??_E` vector family (no flags
+// argument, no array cookie, no vector branch).
 //
-// src/engine/engine/engine_lifecycle.cpp:972 already identified this address
+// Engine::Shutdown in src/engine/engine/engine_lifecycle.cpp identifies this address
 // and works around it by calling the two halves separately
 // (`??1Application@0@QEAA@XZ` then MemFree) — with a note that the exported
 // destructor "writes the two adjacent zeroes in the opposite order to the
-// inlined copy". This file ports the inlined copy itself, so that ordering
-// difference stops being a departure anyone has to remember.
+// inlined copy". This file ports the inlined copy itself; nothing calls it
+// (Engine::Shutdown still calls the two halves).
 // ============================================================================
 
 #include <cstdint>
@@ -26,10 +25,10 @@
 namespace {
 
 // The two Collection::Set primitives the inlined `~Application` uses on its
-// member set at +0x18. Both are unexported internals reached by ADDRESS:
+// member set at +0x18. Both are unexported internals in retail:
 //   0x18000a4f0  the RECURSIVE subtree free — `if (n) { rec(n->left);
 //                rec(n->right); freeNode(n); }`, left at +0x18 and right at
-//                +0x20. It is its own caller, so porting it is a separate job.
+//                +0x20. It is its own caller (RtApp_SetDestroyTree).
 //   0x180009c30  the single-node free.
 // B3R: both called by name (application_lifecycle.cpp, allocator.cpp).
 void SetFreeSubtree(rtsetavl::Set* set, rtsetavl::Node* node) {

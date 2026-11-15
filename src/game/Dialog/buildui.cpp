@@ -1,4 +1,4 @@
-// engine/src/ui/buildui.cpp
+// src/game/Dialog/buildui.cpp
 // Clean reimplementation of BuildUI panel methods.
 //
 // BuildUI (0x50 bytes): Building info panel showing build progress.
@@ -39,7 +39,7 @@
 #include "Component/ClearAreaComponent.h"   // X::TypeId() (B.3.8 callers)
 #include "Component/RawMaterialDescription.h"   // X::TypeId() (B.3.8 callers)
 #include "Entity/ComponentEntity.h"   // X::TypeId() (B.3.8 callers)
-#include "Component/exe_bodies.h"   // B3R: WorkPlaceComponent_SetAccepting
+#include "Component/exe_bodies.h"
 #include "Component/MapComponent.h"          // B4 DLG-a: by-name reads
 #include "Component/WorkPlaceComponent.h"
 #include "Component/StorageComponent.h"
@@ -72,7 +72,7 @@ static int CountOccupiedBuildTiles_Impl(ClearAreaComponent* clearArea)
     // Find the MapComponent on the entity (FindComponent<MapComponent>, 0x140004680)
     MapComponent* bc = entityRef->FindComponent<MapComponent>();
 
-    // The footprint, read signed (the tree's int16 reads; the header says uint16):
+    // The footprint, read signed (int16):
     //   tileX0 = originX, tileY0 = originY, tileX1 = width, tileY1 = height
     int originX = (int)(int16_t)bc->tileX0;
     int originY = (int)(int16_t)bc->tileY0;
@@ -205,10 +205,9 @@ void BuildUI::OnCreated() {
         System::String zeroStr("0");
         textTotal->SetParameter(0, zeroStr);
 
-        // smComp (the site's build-material storage, found via fn_FindComponent_SM =
-        // ClearAreaComponent) can be null in standalone if that component isn't present
-        // / its type-id didn't resolve. Retail always has it; guard the deref so a
-        // partial panel (no capacity number) beats a crash.
+        // smComp (the site's build-material storage, FindComponent<ClearAreaComponent>)
+        // can be null in standalone if that component isn't present. Retail always has
+        // it; guard the deref so a partial panel (no capacity number) beats a crash.
         int capacity = smComp ? (int)smComp->clearState : 0;
         System::String capStr = System::String::Format("%d", (int)(uint32_t)capacity);
         textTotal->SetParameter(1, capStr);
@@ -354,8 +353,8 @@ void BuildUI::OnUpdateLayout() {
     ClearAreaComponent* smComp = entity ? entity->FindComponent<ClearAreaComponent>() : nullptr;
     // Progress/percent math below unconditionally derefs smComp (+0x48 capacity, +0x10
     // entity self-ref via CountOccupiedBuildTiles). If the build-material storage
-    // component isn't found (standalone: missing component / unresolved type-id), skip
-    // this update rather than fault. Slot4 already set an initial "0/total" display.
+    // component isn't found (standalone: missing component), skip this update rather
+    // than fault. Slot4 already set an initial "0/total" display.
     if (smComp == nullptr) return;
 
     // Check if build is complete: cost * multiplier <= laborProgress
@@ -470,9 +469,8 @@ void BuildUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, UI::
         ComponentEntity* checkedEntity = BuildUI_Entity(_dataSource);
 
         // Find the WorkPlaceComponent on the entity. Retail (BuildUI_Update 0x1400b1ea0)
-        // calls FUN_140002e10 — the DAT_1401c80e0 (WorkPlaceComponent) finder. It must NOT
-        // be fn_FindComponent_Work: despite the name that helper is the DAT_1401c8070
-        // (StorageLocation/WorkComponent) finder, FUN_140003050.
+        // calls FUN_140002e10 — the DAT_1401c80e0 (WorkPlaceComponent) finder, not
+        // FUN_140003050, the DAT_1401c8070 (StorageLocation/WorkComponent) finder.
         WorkPlaceComponent* workplaceComp =
             checkedEntity ? checkedEntity->FindComponent<WorkPlaceComponent>() : nullptr;
 

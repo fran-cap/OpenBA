@@ -81,9 +81,8 @@ public:
     // ---- exported, NOT PORTED, no caller: declared, deliberately undefined --
     CharacterSet(const CharacterSet& src);              // 0x180037720
     CharacterSet& operator=(const CharacterSet& src);   // 0x1800377b0
-    // 0x180037440 — the minted record's type id (characterset.cpp).
-    // The reflection block's statics go through `System::MemoryAllocator`,
-    // a door for the whole of step 6 (B36_RULES section 7). Placement is
+    // 0x180037440 — TypeId (DECLARE_TYPE; the record is defined in characterset.cpp).
+    // CreateNewObject allocates through Object::detail::InternalMemAlloc. Placement is
     // spelt `::new (p) CharacterSet()` (B9-5): these stay undefined.
     static void* operator new(std::size_t bytes);              // 0x180037460
     static void* operator new(std::size_t bytes, void* place); // 0x1800374d0
@@ -92,7 +91,7 @@ public:
     // the null-tested in-place ctor. Defined and registered in characterset.cpp.
 
 public:
-    // ---- the 0x08 bytes CharacterSet adds (public: the doors reach them) ----
+    // ---- the 0x08 bytes CharacterSet adds (public) --------------------------
     System::String _characters;     // +0x20  the one member; see the banner
 };
 

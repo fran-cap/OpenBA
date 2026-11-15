@@ -7,15 +7,14 @@
 //
 // Implementations:
 //   Windows  src/platform/win/settings_win.cpp
-//   POSIX    (later) src/platform/posix/settings_posix.cpp — DocumentsDir is
-//            the per-user data dir WITHOUT getenv (getpwuid, or SDL's pref
-//            path once SDL3 lands); ReadLegacySettings returns false.
+//   POSIX    src/platform/posix/settings_posix.cpp — DocumentsDir is
+//            the per-user data dir WITHOUT getenv (<home>/.local/share, <home>
+//            from getpwuid_r); ReadLegacySettings returns false.
 //
 // Callers: IO::FileSystem::GetSaveDirectory (DocumentsDir, System::String);
 // IO::SettingsStore (src/engine/io/settings_store.cpp, SETTINGS E.3) for the
-// rest. Per D4_RULES C3 the two file functions are implemented directly in
-// settings_win.cpp until THREADS' file primitives land, then re-based on them
-// in one refactor commit.
+// rest. Per D4_RULES C3 settings_win.cpp's two file functions stand on THREADS'
+// file primitives (platform_file.h).
 //
 // ALLOCATOR-FREE. Every function except the System::String DocumentsDir
 // works on std::string and the CRT heap only: src/app/main.cpp's harness

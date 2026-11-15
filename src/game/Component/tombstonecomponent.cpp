@@ -5,8 +5,8 @@
 // Fields: +0x28 = Time (int64, countdown timer).
 //
 // Vtable at 0x14015a980. Three non-trivial overrides:
-//   Shutdown  (0x1400578E0) — Serialize with version halving
-//   Serialize (0x140057860) — Actually OnCreate: init random lifetime
+//   Persist   (0x1400578E0) — Serialize with version halving
+//   Startup   (0x140057860) — OnCreate: init random lifetime
 //   Update    (0x1400577D0) — Timer countdown + entity removal
 //
 
@@ -24,7 +24,7 @@
 #include <cstring>
 #include <new>
 #include "system/Value.h"   // ENDGAME B.3.4b System caller batch
-#include "Action/exe_bodies.h"   // ActHunt_MarkEntityRemoval_c2ea0
+#include "Action/exe_bodies.h"
 #include "Game/exe_constants.h"
 
 // ============================================================

@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 # tools/resave_gate/resave_gate.sh -- the load/resave byte-compare gate.
 #
-# Loads <save>.sav unattended (BANISHED_AUTOLOAD), triggers the retail autosave
-# path at a fixed frame (BANISHED_SAVE_TEST), quits through the pause menu, and
-# byte-compares the input save against the written Auto.sav. Since ENDGAME A.1
+# Loads <save>.sav unattended (BANISHED_AUTOLOAD), runs the BANISHED_SAVE_TEST check
+# (GATE_MODE below), quits through the pause menu, and byte-compares the resave
+# against the golden (roundtrip) or the input save against Auto.sav (file). Since ENDGAME A.1
 # the exe never loads Runtime-x64.dll, so there is no DLL to move aside any more.
 #
 # usage: tools/resave_gate/resave_gate.sh <save-name-without-.sav> [outdir] [seconds]
 #   GATE_MODE=roundtrip (default): BANISHED_SAVE_TEST=roundtrip -- the in-process
 #       check in gameupdateloop_serialize.cpp: right after the load restores the
-#       world, serialize it again and compare the RAW bytes. Verdict is the
-#       [Roundtrip] RESULT= line; both raw images are copied to <outdir>.
+#       world, serialize it again and compare the RAW bytes (the [Roundtrip] RESULT=
+#       line); both raw images are copied to <outdir>. The verdict is the resaved
+#       image against the golden in docs/runtime_port/resave_gate/golden/.
 #   GATE_MODE=file: the whole-file compare (sim runs ~600 frames first, the
 #       metadata block carries a thumbnail and a timestamp; expect DIFF -- kept
 #       only as a smoke test that the DLL-absent save path completes).

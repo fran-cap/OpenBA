@@ -153,7 +153,7 @@ struct StateBlock {
     uint8_t backPass = 0;
     uint8_t cullMode = 0;        // VkCullModeFlags
     uint8_t polygonMode = 0;     // VkPolygonMode
-    // P4, NOT RETAIL: ext.foliage_aa's A2C clone of a non-blending state (shader_rewrites.h), set by the
+    // P4, NOT RETAIL: ext.better_trees' A2C clone of a non-blending state (shader_rewrites.h), set by the
     // draw: kExtAlphaToCoverage, and kExtAlphaZero (the alpha factors ZERO / ZERO while the colour keeps
     // srcBlend / dstBlend). 0 for every retail state (the byte was padding: the warm list's keys are the
     // same).

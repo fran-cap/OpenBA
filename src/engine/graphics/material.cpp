@@ -4,29 +4,24 @@
 //
 // ??_7Material@Graphics@@6B@ (retail 0x180154d10), nine slots:
 //
-//   0  deleting dtor        0x180011d20  src/engine/object/deleting_dtor.cpp row 50
+//   0  deleting dtor        0x180011d20  the compiler's, for the virtual ~Material
 //   1  TypeName             0x1800118d0  here
 //   2  Type                 0x1800118b0  here
 //   3  GetFileVersion       0x180102a40  here  (returns 5)
-//   4  External::Compile    0x1800066e0  already ported (external.cpp), INHERITED
+//   4  External::Compile    0x1800066e0  already ported (external_class.cpp), INHERITED
 //   5  Serialize            0x180102a50  here
 //   6  Reconstruct          0x180011ae0  here
 //   7  Destruct             0x180011bc0  here
 //   8  Construct            0x180011b50  here
 //
 // plus ~Material (0x180102a00, ??1Material@Graphics@@UEAA@XZ), which slot 0
-// reaches through the port-aware address door.
+// reaches as the class's virtual destructor.
 //
 // ENDGAME B.3 step 5 (block G): the file-local `struct Material` that used to
 // carry the layout here MOVED to `src/engine/graphics/Material.h` as the real
 // `Graphics::Material` class (an `Object::External` subclass — read from
 // `?_ParentTypeName@Material@Graphics@@` @0x1800118a0, not inferred), and the
-// seven slot bodies below MOVED ONTO ITS MEMBERS. Every registered door keeps
-// its mangled name AND its retail address and is now a one-line QUALIFIED
-// non-virtual delegation. THE QUALIFICATION IS LOAD-BEARING (B34_BRIEFS A.1): a
-// live `Material` wears the MINTED `??_7Material@Graphics@@6B@`, whose slots
-// resolve back to these very doors, so an unqualified virtual call inside a door
-// would dispatch into itself instead of delegating.
+// slot bodies below MOVED ONTO ITS MEMBERS (Type / TypeName are DECLARE_TYPE's).
 //
 // Layout (sizeof 0x38, from the eh_vector_destructor_iterator call in slot 0),
 // now asserted in the header rather than here:
@@ -93,8 +88,7 @@ int32_t Material::GetFileVersion() const { return 5; }
 
 // [8] ?Construct@Material@Graphics@@UEAAPEAVExternal@Object@@XZ  0x180011b50
 //     `TEST RCX,RCX ; JNZ 0x1801029a0 ; XOR EAX,EAX` — retail's own null test.
-//     The test lives in the DOOR, which is where retail put it; by the time a
-//     member runs, `this` is already non-null by construction.
+//     The member has none: a virtual call's `this` is already non-null.
 //     (ENDGAME B.3.9 GFX: the null test sat in the retired door.) `::new`: the
 //     class declares its own, undefined, placement operator new.
 Object::External* Material::Construct() {
@@ -149,7 +143,7 @@ Material::~Material() {
 }
 
 // ?TypeId@Material@Graphics@@SAIXZ 0x1800118c0 -- the static twin of slot 2:
-// the minted record's +0x00 until the W3 fold (B39_RULES D6 step 1).
+// DECLARE_TYPE's TypeId over the class's own record (graphics_type_records.cpp).
 
 // ?CreateNewObject@Material@Graphics@@SAPEAVBase@Object@@XZ 0x1800119c0 --
 // `?MemAlloc@MemoryAllocator` (0x1800c7a50) of 0x38, align 8; retail's null

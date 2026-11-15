@@ -3,7 +3,7 @@
 //
 // Purpose: exercise the ONE arm of MarketWork slot 4 (0x1400eff80) that has never
 // executed — stage 3's SURPLUS SHED (retail 0x1400f09eb..0x1400f0be0, our
-// marketwork.cpp "gate=SURPLUS_SHED"). That arm fires only when
+// marketwork.cpp "shed a per-resource SURPLUS" block). That arm fires only when
 //
 //     want * 2.0  <  inMarket * (1/capacity)              [0x140172174 = 2.0]
 //
@@ -27,7 +27,7 @@
 // because that is the cheapest one to push over 2x while staying under (1).
 //
 // Injection uses the same faithful primitive the retail resource seeder uses,
-// AddItem 0x14012d000 (registered) — which, as town_storage_seed.cpp records,
+// AddItem 0x14012d000 (StorageComponent::AddItem) — which, as town_storage_seed.cpp records,
 // checks nothing about capacity. The market's own accept mask (+0x3c) IS
 // honoured here so we never park a material in a slot the market would refuse.
 //
@@ -41,8 +41,7 @@
 //                                    shot). The shed arm carries the surplus off,
 //                                    so a period lets the arm fire repeatedly.
 //
-// Trace lines are [MarketOverstock]; pair with BANISHED_MARKETBST_TRACE=1 to see
-// the resulting "gate=SURPLUS_SHED" from marketwork.cpp.
+// Trace lines are [MarketOverstock].
 
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "options.h"
@@ -52,7 +51,7 @@
 #include "Component/MarketDescription.h"
 #include "Component/RawMaterialDescription.h"
 #include "Component/StorageComponent.h"
-#include "Action/exe_bodies.h"   // StorageAdd (0x14012d000)
+#include "Action/exe_bodies.h"
 #include "Component/ComponentDescription.h"   // B4: the template's sub-descriptions
 #include "Entity/CitizenBehavior.h"           // B4: the town's material templates
 #include "Entity/ComponentEntity.h"           // B4: the component array by name

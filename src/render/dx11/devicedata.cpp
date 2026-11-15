@@ -128,7 +128,7 @@
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
-#include "system/String.h"   // -Iruntime/types
+#include "system/String.h"   // src/engine
 #include "system/Error.h"    // ENDGAME B.3.4b System callers: System::Error
 #include "system/WideString.h"  // ENDGAME B.3.4b System callers: System::WideString
 // ENDGAME B.3.5 block D2 / B35_FILEMAP §3f: the real `Video::Device` and its four
@@ -137,7 +137,7 @@
 #include "video/refresh_rate_at.h"   // Video::RefreshRateAt (review F-171)
 // B5 DEV-A: the `Video::DeviceData` base `VideoDX11::DeviceData` derives from.
 #include "video/CompanionData.h"
-#include "application/Application.h"   // -Iruntime/types: ENDGAME B.3.7 callers (K5)
+#include "application/Application.h"   // src/engine: ENDGAME B.3.7 callers (K5)
 #include "platform_gfx.h"   // Platform::ResolveD3D11CreateDevice / ResolveCreateDXGIFactory1
 #include "ao/ao_depth_views.h"   // NOT RETAIL: ext.ambient_occlusion's readable main depth (CreateDepthBuffer)
 #include "render_backend.h"   // NOT RETAIL: Render::WindowPresentedByOtherBackend (ext.render_backend, FillSwapChainDesc)
@@ -306,13 +306,13 @@ inline ::Application::Application* AppOf()    { return ::Application::Applicatio
 // drift. They are now ALIASES of the real nested classes
 // `Video::Device::{DisplayMode,RefreshRate,Adapter,GraphicsInterface}`, so there
 // is ONE description and dx11 gets the class's own field names. RULE B5-1.2 /
-// B35_RULES §1.2: dx11 compiles with the shared include set, so this needs no
-// Makefile change and is simply another `runtime/types` header included here.
+// B35_RULES §1.2: dx11 compiles with the shared include set (BANISHED_INCLUDES in
+// CMakeLists.txt), so this is simply another `src/engine` header included here.
 //
 // WHAT THIS FILE PROVED THAT THE RUNTIME SIDE COULD NOT, and it is now recorded
 // in the header instead of here: `Adapter+0x2c`/`+0x30`, which Wave 6 lane B
 // could only describe as "ctor = -1, meaning not recovered", are the DXGI
-// enumeration coordinates. `DeviceData_EnumerateInterfaces` below is the WRITER
+// enumeration coordinates. `EnumerateDxgiInterfaceInto` below is the WRITER
 // (`EnumAdapters1`'s loop counter and `EnumOutputs`'s), and `dev->dxgiAdapterIndex`
 // / `dev->dxgiOutputIndex` (Device+0x14/+0x18, the copies `ValidateConfiguration`
 // makes) are where this file READS them back. Header fields renamed to
@@ -590,9 +590,6 @@ inline bool ResizeTraceOn() { return g_resizeTraceCalls <= kResizeTraceMax; }
 // The guard rejects impossible values rather than overriding real ones: no
 // window this small can be a render target, and no user ever chose one. 64
 // matches the sentinel repair in src/app/main.cpp (HarnessGuardUnattendedBoot).
-//
-// Kill-switch for A/B: BANISHED_WINDOW_GUARD=0 restores verbatim retail
-// behaviour (window collapses and stays collapsed).
 // ------------------------------------------------------------------
 constexpr int kMinSaneWindowDim = 64;
 
@@ -746,7 +743,7 @@ int DeviceData_Resize(DeviceData* self) {
     // NOT RETAIL: a minimized window has a 0x0 client rect, and IsWindowVisible()
     // is still TRUE for it — so retail (0x180004340 tests IsWindowVisible only)
     // cheerfully latches that 0x0 the first time the player minimizes. Treat it
-    // like the not-visible case: leave kResetPending set and rebuild when the
+    // like the not-visible case: leave settingsChanged set and rebuild when the
     // window comes back. Doing this before the guard below also stops us fighting
     // a deliberate minimize.
     if (Platform::Window::IsIconic(dev->windowHandle)) {
@@ -1645,8 +1642,8 @@ void AdapterArraySetLength(GraphicsInterface* gi, int newCount,
 //   * On the probe-device path the original does NOT check the ID3D11Device
 //     out-pointer for null before calling through it.
 // ============================================================
-// The adapter/output/mode walk, factored out of DeviceData_EnumerateInterfaces
-// so the cutover-only DX9 placeholder (dx9_placeholder.cpp, through
+// The adapter/output/mode walk, factored out of DeviceData::EnumerateInterfaces
+// so the DX9 placeholder (dx9_placeholder.cpp, through
 // Dx11EnumerateDxgiInterfaces at the end of this file) can list the SAME adapters under
 // its own name (on a retail machine the DX9 plugin enumerates the same GPUs and
 // modes through d3d9). Byte-for-byte the shipped walk; only `dev` and the
@@ -2010,7 +2007,8 @@ bool DeviceData::EnumerateInterfaces() {
     return new RenderBufferData(owner);
 }
 
-// The one function in this lane with a caller outside it. 0x180004340 is a near
+// One of this file's two free functions with a caller in another file (the other:
+// Dx11EnumerateDxgiInterfaces, below). 0x180004340 is a near
 // CALL from ContextData::BeginCommands, not a vtable slot, so it needs a
 // declaration with external linkage — ContextData names it directly, and it can only do
 // that through a declaration with external linkage. (B5 DEV-A: the slots are

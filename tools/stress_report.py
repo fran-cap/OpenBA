@@ -144,7 +144,7 @@ def summarise(rows, warmup):
 
 
 # PFBENCH (docs/extensions/handins/PFBENCH.md): the pathfinding columns. A CSV written
-# before they existed (perf/baselines/current.csv) has none of them: every key below is
+# before they existed has none of them: every key below is
 # then NaN and prints as "n/a"; nothing here may raise on a missing column.
 NAN = float("nan")
 

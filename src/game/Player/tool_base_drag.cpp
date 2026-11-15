@@ -6,8 +6,8 @@
 //
 // B.4 PLAYER: the helpers read their receivers by name. The tool's owner (Tool
 // +0x10) is the PlayerToolManager: its +0x00 is the open tool dialog, its +0x48
-// the tick-sound throttle. The manager's header is block GAME-b's, so these stay
-// free functions taking the typed manager (LEFT as members, listed).
+// the tick-sound throttle. CloseToolDialog and PlayTickSound are PlayerToolManager
+// members (Game/PlayerToolManager.h).
 
 #include <new>
 #include "ui/DialogInstance.h"
@@ -148,8 +148,8 @@ void DragPlacementTool_ClearPathEntities_1018d0(const void* /*unused*/, int minC
 }
 
 // ============================================================
-// DEFERRED notes kept from the port:
-//  - 0x1400ff5d0 (cited as "TerrainValidate" in dragplacementtool.cpp) is
-//    MID-FUNCTION (inside 0x1400feec0-0x1400ff6d3). The TRUE callee in
-//    DragPlacementTool_Slot14 (0x1400fbae0) is 0x14009f5d0.
+// Note kept from the port:
+//  - 0x1400ff5d0 is MID-FUNCTION (inside 0x1400feec0-0x1400ff6d3). The terrain
+//    validation DragPlacementTool::CalcCost (0x1400fbae0) calls is 0x14009f5d0
+//    (TerrainValidate in dragplacementtool.cpp).
 // ============================================================

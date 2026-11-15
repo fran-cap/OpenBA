@@ -79,15 +79,15 @@ VkFormat SwapchainFormat();
 // Read again at CreateDevice and at every settings change.
 uint32_t MainSampleCount();
 
-// P3: a read-back in the middle of a frame (ImageBufferData::Read on the recording thread: the minimap
-// capture, the save thumbnail, the screenshot) needs the frame's commands so far on the GPU. This ends
-// the frame's command buffer, submits it (with the upload batch before it, and the acquire wait the
 // P4, device loss: records a VK_ERROR_DEVICE_LOST from `what` (any other result is ignored); the frame's
 // Finish then runs the device-lost recovery (device.cpp RecoverLostDevice). Any thread.
 void NoteResult(VkResult r, const char* what);
 // True from the first recorded loss until CreateDevice made the next device.
 bool DeviceLost();
 
+// P3: a read-back in the middle of a frame (ImageBufferData::Read on the recording thread: the minimap
+// capture, the save thumbnail, the screenshot) needs the frame's commands so far on the GPU. This ends
+// the frame's command buffer, submits it (with the upload batch before it, and the acquire wait the
 // first time), waits for it, and begins the next command buffer of the same frame, which it returns.
 // The frame's final submit (Finish) then carries only the rest. Recording thread, inside a frame.
 // VK_NULL_HANDLE when no next command buffer could be allocated: nothing was submitted, the frame

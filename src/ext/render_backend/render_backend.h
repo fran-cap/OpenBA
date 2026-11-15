@@ -28,15 +28,13 @@
 // Device::Startup, selects the backend and lists the adapters again (the two backends' adapter lists
 // mean different things: DXGI adapter / output pairs, Vulkan physical devices).
 //
-// THE DEFAULT (maintainer rulings 2026-11-08, a deliberate exception to "extension rows default off"): a
-// fresh install starts on Vulkan, an existing OpenBA player stays on DirectX 11. The table's default is
-// off; SeedFreshInstall, before Engine::Startup, writes ext.render_backend=1 and ext.render_api=1 when
-// there is no settings.cfg: with nothing to import (IO::SettingsStore::Source::None) a new file holds the
-// two keys; with a retail registry import (Source::Legacy, a retail player's first OpenBA run, which
-// counts as a fresh install) the file is written as the imported set plus the two keys. A settings.cfg
-// without the keys keeps the default: DirectX 11, never a silent switch. The fallback to DirectX 11 is on
-// in every case. The faithful profile turns every extension row off, so it always runs DirectX 11
-// (retail's renderer).
+// THE DEFAULT (maintainer rulings 2026-11-08): the table's defaults are the row on and ext.render_api 1, so
+// a settings.cfg without the keys starts on Vulkan. SeedFreshInstall, before Engine::Startup, writes
+// ext.render_backend=1 and ext.render_api=1 when there is no settings.cfg: with nothing to import
+// (IO::SettingsStore::Source::None) a new file holds the two keys; with a retail registry import
+// (Source::Legacy, a retail player's first OpenBA run, which counts as a fresh install) the file is
+// written as the imported set plus the two keys. The fallback to DirectX 11 is on in every case. The
+// faithful profile turns every extension row off, so it always runs DirectX 11 (retail's renderer).
 //
 // THE FALLBACK. At boot the wanted backend is skipped when its probe fails (Render::BackendAvailable:
 // no Vulkan loader, a loader older than 1.1, no adapter). A CreateDevice that fails later (vkCreateDevice,

@@ -3,9 +3,10 @@
 // ============================================================================
 //
 // THE FOUR NON-ACCESSOR SLOTS of `??_7Achievement@0@6B@` and
-// `??_7AchievementInstance@Achievement@@6B@`. The other eleven slots of the
-// four Achievement vtable rows are in achievement_typeinfo_accessors.cpp; read
-// that file's banner first, it carries the denominator for both.
+// `??_7AchievementInstance@Achievement@@6B@`. Goal::GetFileVersion,
+// GoalInstance::Startup and GoalInstance::CheckGoalState are in
+// achievement_typeinfo_accessors.cpp; the Type / TypeName slots are
+// DECLARE_TYPE's (achievement_type_records.cpp).
 //
 //   ?Construct@Achievement@1@UEAAPEAVExternal@Object@@XZ    0x1800012f0  slot 8
 //   ?Reconstruct@Achievement@1@UEAAPEAVExternal@Object@@XZ  0x180001270  slot 6
@@ -66,27 +67,9 @@
 //     The null test is the ONLY difference from Reconstruct's tail, and it is
 //     retail's, not a guard added here.
 //
-// THE THIRTEEN STORES ARE NOT RE-TRANSCRIBED. `RtAch_Achievement_Ctor`
-// (achievement_manager.cpp:999, Wave 5 lane B) is already the byte-faithful
-// port of that exact sequence, already carries the full-byte oracle against
-// `??0Achievement@0@QEAA@XZ` into a poisoned scratch buffer, and is already
-// registered. Writing the stores a second time here would be a second copy of
-// a constant that must never drift — the precise shape of
-// reference_grep_for_the_port_before_writing_it.md. These three bodies CALL it.
-//
-// THE DEAD VTABLE STORES SURVIVE THAT REUSE. Two of the thirteen (Base, then
-// External) are overwritten before anything reads them; they are kept inside
-// RtAch_Achievement_Ctor for the reason its own banner gives, and calling it
-// preserves them.
-//
-// NO DIFF ORACLE ON ANY OF THE THREE, and the reason is the same for all:
-// running retail's copy as a second opinion would run a SECOND destructor on a
-// live object (Destruct, Reconstruct) or a second construction over storage we
-// have already built (Construct). The oracle that matters already runs, one
-// level down, inside RtAch_Achievement_Ctor — the full-byte comparison of the
-// thirteen stores, which is the only part of these three bodies that is not a
-// single dispatch. What is NOT covered: the virtual slot-0 call itself. That is
-// one indirect call through a pointer this file does not compute.
+// THE THIRTEEN STORES ARE NOT RE-TRANSCRIBED. They are the real constructor
+// `Achievement()` (AchievementManager.h); Reconstruct and Construct run it with
+// `::new (this) Achievement()`.
 //
 // ============================================================================
 // AchievementInstance::Persist — THE OUTLIER OF THE Serialize FAMILY
@@ -101,8 +84,7 @@
 //   ser1.rw = stream->direction ? enc->CreateWriter(&ser1, 1)
 //                               : enc->CreateReader(&ser1, 1)
 //        *** THE VERSION ARGUMENT IS 1, NOT 0 ***   (MOV R8D,1 at 0x18009e4c9)
-//        Every other member of this family passes 0. `MakeCodec` in the two
-//        sibling files HARDCODES 0, which is why this file does not reuse it.
+//        Every other member of this family passes 0.
 //   if (ser1.rw->GetVersion() == 0) { ser1.rw->Skip(); goto cleanup; }
 //                                                    ; slots +0x08 and +0x10
 //   ExternalPtr<Achievement>::Serialize(&this->achievement, &ser1)  ; +0x20
@@ -126,37 +108,6 @@
 // achievement pointer AND the whole goal list. A save written by an older
 // build takes that path.
 //
-// ---- ORACLE, AND THE HONEST LIMIT OF IT ------------------------------------
-// PREFIX, stopAfter = 1, through the emission oracle — the same mechanism
-// goal_serialize.cpp and achievement_serialize.cpp use, for the same reason:
-// the tail (`SerializeInstancePtrs`, 0x180009fa0) is a loop of
-// `Object::InternalBasePtr::Serialize`, which the emission oracle names in as many
-// words as a member that "mutates the pointer AND the global factory".
-// Replaying it performs that mutation twice on the one live factory.
-//
-// stopAfter = 1 IS A FLOOR I CHOSE, NOT THE INDEX the emission oracle ASKS FOR. That
-// header says to pick "the emission index of the last call before the first
-// store", read off the disassembly. I could not derive it: the emissions before
-// the mutating loop include however many `ExternalPtr<Achievement>::Serialize`
-// (0x180006d10) makes, and that body BRANCHES on `Encoding::GetVersion()==3`
-// into paths with different record counts. So this oracle covers the codec
-// construction and AT MOST the first emission, and NOTHING after it. The
-// version argument (1 vs 0), the two-codec nesting and the early return are
-// therefore checked; the achievement pointer record, the count record and every
-// instance record are NOT.
-//
-// A SECOND LIMIT, stated because a silent one is worse: if the synthetic sink's
-// `GetVersion()` returns 0, BOTH sides take the Skip path and the comparison is
-// vacuous — a pass that proves nothing
-// (reference_probe_needs_an_effectiveness_control.md). The run's own
-// its emission counts are what distinguish that case; a compare that
-// reports zero emissions on both sides is the vacuous one.
-//
-// ---- THREE NEW ADDRESS DOORS, NAMED RATHER THAN HIDDEN ---------------------
-// Each is commented at its call site in the kickoff §4 #10 shape (SYMBOL,
-// CONDITION, CONSEQUENCE). They grow the cutover surface — the known cost of a
-// faithful port that calls DLL internals
-// (reference_porting_can_grow_the_cutover_surface.md).
 // ============================================================================
 
 #include <cstdint>
@@ -179,8 +130,6 @@ namespace {
 // null readerWriter, `enc->vtable[+0x18 / +0x20](enc, &ser, version)`, and
 // `if (rw) delete rw` at the end -- IS `IO::Serializer(Stream&, version)` and
 // `~Serializer` (serializer_class.cpp), so each body holds one IO::Serializer.
-// The ExternalPtr serialize bodies still take the `rt::io::Serializer` POD
-// view of the same bytes (object/External.h, not this block's).
 // Persist passes version 1 for the outer codec and 0 for the inner one --
 // see the banner.
 
@@ -207,7 +156,7 @@ void Achievement::Destruct() {
 // ============================================================================
 // Object::External* Achievement::Reconstruct() — SLOT 6   0x180001270
 // Destruct in place through the VIRTUAL slot 0, then the constructor's
-// thirteen stores over the same storage (the ctor DOOR — the minted tables),
+// thirteen stores over the same storage (the real constructor `Achievement()`),
 // then `return this`. On a Scenario this leaves a base-class vptr; the caller
 // re-stamps. Retail's.
 // ============================================================================
@@ -219,9 +168,8 @@ Object::External* Achievement::Reconstruct() {
 // ============================================================================
 // Object::External* Achievement::Construct() — SLOT 8   0x1800012f0
 // `TEST RCX,RCX / JZ -> return nullptr`, then the thirteen stores, `return
-// this`. The null test is RETAIL'S; it stays in the registered DOOR (the B.3.5
-// brief: "a retail null-`this` test stays in the door"), because a member
-// cannot be called on a null `this`.
+// this`. The null test is RETAIL'S and the member does not carry it, because a
+// member cannot be called on a null `this`.
 // ============================================================================
 Object::External* Achievement::Construct() {
     return ::new (this) Achievement();

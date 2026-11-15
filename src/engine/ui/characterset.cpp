@@ -15,7 +15,7 @@
 // plus ??1CharacterSet@UI@@UEAA@XZ 0x1800cb840 and the factory pair, here.
 //
 // LAYOUT, sizeof 0x28 (`MOV EDX,0x28` in the deleting destructor's array arm at
-// 0x1800378d2, and the `Allocate(0x28, 8)` in the already-ported factory row):
+// 0x1800378d2, and the `Allocate(0x28, 8)` in CreateNewObject 0x180037540):
 //     +0x00  vtable        Object::Base -> Object::External -> UI::CharacterSet
 //     +0x08 .. +0x1f       Object::External's three words
 //     +0x20  System::String   the one member: the character-set string

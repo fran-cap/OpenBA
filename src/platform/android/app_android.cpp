@@ -5,7 +5,7 @@
 // it replaces that file whole on Android. NOT RETAIL. The Android-only steps:
 //   EnterRunDirectory  the data folder (android_paths.h) becomes the working directory, so
 //                      the logs, the crash / hang dumps and the boot state land beside the
-//                      pushed WinData/ where `adb pull` and tools/android_boot_state.sh find
+//                      pushed WinData/ where `adb pull` and `tools/android.sh boot-state` find
 //                      them; the per-user Documents/ subfolder is made.
 //   PreSdlInitHints    landscape only (the manifest locks it too); P12: SDL's AAudio stream
 //                      asks for the default performance mode, not LOW_LATENCY; the logcat copy

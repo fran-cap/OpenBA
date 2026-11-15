@@ -13,15 +13,16 @@ namespace Ext {
 namespace Resources {
 
 // Parses the embedded files (tools/ext_rsc_embed.py -> ext_rsc_text.h) and
-// registers the provider for the prefixes "Dialog/Extensions" and
-// "Dialog/EnhancedOptions". Called from the ext boot (registry_boot.cpp),
-// never there under the faithful profile, AND from SaveLoadDialog::DoLoad's
-// notice seam under any profile, just before an `ext:` pseudo-mod's notice
-// dialog (Dialog/Extensions.rsc:extension*, src/ext/load_notice.h) is loaded:
-// a faithful run can open a save made with a class B / C extension, and the
-// notice must exist there too (docs/known_port_issues.md, row 1330). The
-// faithful profile therefore arms the engine's load-miss seam only when such
-// a save is opened. Idempotent: the work is done once per run. Logs `[ExtRes]`.
+// registers the provider for their "Dialog/..." prefixes (the list is in
+// resources.cpp). Called from the ext boot (registry_boot.cpp), never there
+// under a command-line faithful profile (Ext::GateProfileForced), AND from
+// SaveLoadDialog::DoLoad's notice seam under any profile, just before an
+// `ext:` pseudo-mod's notice dialog (Dialog/Extensions.rsc:extension*,
+// src/ext/load_notice.h) is loaded: a faithful run can open a save made with a
+// class B / C extension, and the notice must exist there too
+// (docs/known_port_issues.md, row 1330). A command-line faithful profile
+// therefore arms the engine's load-miss seam only when such a save is opened.
+// Idempotent: the work is done once per run. Logs `[ExtRes]`.
 void InitText();
 
 // How many objects every provider has handed the factory so far (the seam's

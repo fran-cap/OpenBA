@@ -1,6 +1,6 @@
 // src/app/frame_limiter_ceiling.h -- which frame rate a loop is paced to (NOT RETAIL; frame_limiter.h)
 //
-// Pure logic, standard C++ only (tests/unit/frame_limiter_ceiling_test.cpp). Three sources, in order:
+// Pure logic, standard C++ only (tests/unit/ext_fps_cap_test.cpp). Three sources, in order:
 //   1. BANISHED_FPS_CAP (the harness flag, Opt().fpsCap): "off" / "false" / 0 = no pacing at all, in
 //      the menu and in game; a number = that ceiling in both loops. It wins over everything below.
 //   2. The settings cap (ext.fps_cap with ext.fps_cap_rate, src/ext/fps_cap/): a ceiling in both

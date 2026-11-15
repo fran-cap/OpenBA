@@ -17,7 +17,7 @@
 // so the visible list, its order and every draw item are unchanged: there is
 // no shadow to run.
 //
-// The switches are `static constexpr`: `if constexpr` arms, so a `false` arm
+// The switches are `inline constexpr`: `if constexpr` arms, so a `false` arm
 // compiles to nothing. No flag, no Opt() field, no settings key. To A/B an arm
 // flip its line and rebuild the perf exe (only cull.cpp recompiles); count the
 // prefetch instructions with
@@ -25,8 +25,8 @@
 // against the hand-in's table before running.
 //
 // When ext.draw_gather is ON the faithful body is not reached at all (its seam
-// returns at the top of AddCulledDrawItems), so none of this runs and the
-// counters stay 0.
+// returns at the top of AddCulledDrawItems), so no arm runs and `visible` stays 0;
+// AddDrawItems / AddDrawItem still bump the draw-item and LOD counters.
 // ============================================================================
 #pragma once
 

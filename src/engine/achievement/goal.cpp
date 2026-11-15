@@ -4,11 +4,7 @@
 // ============================================================================
 // ENDGAME B.3.7 block B3: `Achievement::Goal`, `GoalInstance` and `GoalList`
 // are real classes (src/engine/achievement/Goal.h). Each ported body below
-// is now a MEMBER; each registered door keeps its mangled name and retail
-// address and is a one-line QUALIFIED, non-virtual delegation — qualified
-// because a live Goal/GoalInstance wears the MINTED table or an EXE subclass's
-// hand-built table, whose slot resolves back to the very door, so an
-// unqualified virtual call inside a door would re-enter it (B34_BRIEFS §A.1).
+// is a MEMBER.
 //
 // ENDGAME B.3.9 ENG (B39_RULES D1/D2): the two CONSTRUCTOR doors (which
 // stamped the MINTED tables), the two DESTRUCTOR doors and the slot doors are
@@ -24,7 +20,7 @@
 //   * `??1Goal@Achievement@@QEAA@XZ`, `??1GoalInstance@…@QEAA@XZ`,
 //     `?Persist@GoalInstance@…@QEAA…` and `?~Goal@…` do NOT exist in the
 //     shipped export table — the destructors and Persist are VIRTUAL and
-//     exported as UEAA. A QEAA spelling resolves null forever.
+//     exported as UEAA.
 //   * Every body is transcribed from the disassembly. No null guards retail
 //     lacks.
 // ============================================================================
@@ -34,7 +30,7 @@
 #include <cstring>
 
 #include <atomic>
-#include <new>          // placement new into the retslot doors
+#include <new>          // placement new: GetInstanceType's retslot, CreateNewObject
 
 #include "achievement/Goal.h"
 #include "system/Value.h"

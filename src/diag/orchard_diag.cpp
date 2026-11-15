@@ -12,41 +12,39 @@
 // every branch below prints something, including the "found nothing" branches, so
 // an empty log can never be misread as a pass.
 //
-// Offsets used (cross-checked against engine/types/*.h and existing scan code in
+// Offsets used (cross-checked against src/game/Component/*.h and existing scan code in
 // tool_harness.cpp's FireOrchardPanel/FireTradePanel, which use the same EntityList
 // walk):
 //   gameWorld+0xe8         -> EntityList
 //   EntityList+0x08/+0x10  -> masterArray {data, count}
 //   entity+0x30/+0x38      -> component array {data, count}
-//   component+0x10         -> owner entity (ControllerComponent, engine/types/ControllerComponent.h)
-//   OrchardComponent (engine/types/OrchardComponent.h):
+//   component+0x10         -> owner entity (ControllerComponent, src/game/Component/ControllerComponent.h)
+//   OrchardComponent (src/game/Component/OrchardComponent.h):
 //     +0x50 slot array ptr, +0x58 slot count (int32), +0x60 tree-type ExternalPtr
 //     slot stride 0x28: +0x00 tileIdx, +0x04 state, +0x08 owned entity, +0x18 growth IBP
-//     (documented in src/game/Component/orchardcomponent.cpp's OrchardComponent_GetGrowth)
-//   WorkPlaceComponent (engine/types/WorkPlaceComponent.h + src/game/Component/workplacecomponent.cpp):
+//     (documented in src/game/Component/orchardcomponent.cpp's OrchardComponent::GetGrowth)
+//   WorkPlaceComponent (src/game/Component/WorkPlaceComponent.h + src/game/Component/workplacecomponent.cpp):
 //     +0x58 worker IBP array, +0x60 roster count (int32) — CONFIRMED live (workplacecomponent.cpp
 //     uses these throughout Attach/Detach/eviction).
 //   StateMachineComponent (src/game/Component/statemachinecomponent.cpp, verified against that
-//   file's own header comment + StateMachine_TickReimpl / the link loop at lines ~803-805):
+//   file's own header comment + StateMachine::Tick / the link loops in Startup and RelinkAndResume):
 //     +0x28 root controller sub-object / chain root (vtable, then root+0x08=parent(zeroed),
 //           root+0x10=first-child == SM base+0x38)
 //     +0x38 root's first-child pointer (chain head; zero == nothing linked yet)
 //     +0x48 controllerSelf — current/active node pointer (StateMachine::Tick's sm[0])
 //     +0x50 stateFlags (uint32): byte +0x50 currentInput, +0x51 activeState,
-//           +0x52 pendingState (this is what GetDefaultState/CreateState write — see
-//           controller_live_base.h), +0x53 transitionState
+//           +0x52 pendingState (Startup writes the first controller's GetDefaultState here —
+//           see statemachinecomponent.cpp), +0x53 transitionState
 //   Each linked chain node (any ControllerComponent's embedded node, e.g. OrchardComponent's
 //   at comp+0x28) has node+0x08=parent(prev), node+0x10=child(next) — a flat singly-linked
 //   list, not a branching tree (confirmed by the link loop always appending at the current
 //   tail's +0x10 and advancing the tail). Walking from SM+0x38 via +0x10 and comparing node
 //   addresses to comp+0x28 is therefore an exact (not best-effort) linked-check.
 //   Max-worker cap: NOT on WorkPlaceComponent itself. src/game/Work/plantorchard.cpp's
-//   Slot4 caches it at matDesc+0x30 (matDesc = FindComp_MatDesc(workplaceEntity), exe
-//   0x140003050) the first time it's needed (matDesc+0x30==0 check). That's a Work-side
+//   Execute caches it at WorkComponent+0x30 (`workState`; FindComponent<WorkComponent>, exe
+//   0x140003050) the first time it's needed (workState==0 check). That's a Work-side
 //   lazy cache, not a struct field we can trust to be populated before any planting has
-//   ever been attempted, so we read it best-effort and print "not yet cached" rather than
-//   guess at an unverified WorkPlaceDescription offset — see the CLAUDE.md project note
-//   "if an offset is unverified, say so".
+//   ever been attempted, so it is not read here; the dump says so.
 
 #include "object/TypeInfo.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
@@ -244,8 +242,7 @@ void DumpOrchards(int frameNum) {
         float avgGrowth = orchComp->GetGrowth();   // 0x140051640 (was its OrchardComponent_GetGrowth forwarder; orchComp is non-null here)
 
         // Sibling WorkPlaceComponent on the same entity, via the owner-entity scan
-        // (owner = comp+0x10, CheckPtr'd per the project's raw-owner-pointer convention —
-        // see e.g. src/game/Work/cleararea.cpp:635, harvestorchard.cpp:713).
+        // (owner = comp+0x10, `_entity`).
         ComponentEntity* owner = comp->_entity.Get();                // +0x10
         WorkPlaceComponent* wpc = nullptr;
         StateMachineComponent* smc = nullptr;
@@ -326,11 +323,11 @@ void DumpOrchards(int frameNum) {
                             "(tidWorkPlaceComponent=%u)\n", static_cast<void*>(owner), tidWorkPlaceComp);
         }
 
-        // OrchardComponent's own embedded state node (comp+0x28, written by
-        // CONTROLLER_LIVE_FACTORY_STATES's InstallLive — see controller_live_base.h) and
-        // its owner back-pointer (comp+0x40, node+0x18 relative to comp+0x28). Printed
-        // raw regardless of whether a StateMachineComponent exists, so InstallLive's
-        // writes are visible even on an entity that can never tick them.
+        // OrchardComponent's own embedded state node (comp+0x28, the `_controller` member
+        // OrchardComponent's ctor builds with `_controller(this)`) and its owner back-pointer
+        // (comp+0x40, node+0x18 relative to comp+0x28). Printed raw regardless of whether a
+        // StateMachineComponent exists, so the node's writes are visible even on an entity
+        // that can never tick them.
         // The node's vtable word has no name (the compiler's vptr); it is printed raw.
         void* nodeVtbl  = *reinterpret_cast<void**>(&comp->_controller);   // +0x28  // CAST-OK: crash_walk
         void* nodeOwner = comp->_controller._owner;                    // +0x40 (node+0x18)
@@ -339,7 +336,7 @@ void DumpOrchards(int frameNum) {
 
         // StateMachineComponent — the go/no-go for whether that node ever ticks.
         // Offsets verified against src/game/Component/statemachinecomponent.cpp's own
-        // header comment + its link loop (~lines 803-805) and StateMachine_TickReimpl.
+        // header comment + its link loops (Startup, RelinkAndResume) and StateMachine::Tick.
         if (!smc) {
             fprintf(stderr, "[OrchardDiag]   hasStateMachine=NO (tidStateMachineComponent=%u) — "
                             "the node at comp+0x28 can never tick regardless of the port; the fix "

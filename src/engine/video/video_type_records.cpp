@@ -4,8 +4,7 @@
 //
 // The seven `?_typeInfo@…@Video@@` records were MINTED until this block; the
 // classes' own records, built at CRT init and head-inserted into
-// `Object::BaseTypeInfo::_firstTypeInfo`, are the only ones now
-// (tools/rt_mint_retired/ti-rest.txt).
+// `Object::BaseTypeInfo::_firstTypeInfo`, are the only ones now.
 //
 // THE LITERALS ARE THE PERSISTED ABI (ids are `~CRC32(name)`; .rsc files
 // carry them), copied from the minted rows and retail's `_TypeName` /
@@ -24,10 +23,10 @@
 // ext is the records' +0x18 in retail's .data: nullptr for all seven, even for
 // the two programs whose `_FileExtension` returns "srsl" (a separate static).
 // Factory pairs: each class's own statics (ShaderProgram's the ABSTRACT
-// class's `XOR EAX,EAX` pair), registered by name + VA in the class's TU.
+// class's `XOR EAX,EAX` pair), defined in the class's TU.
 //
 // Its own translation unit so the unit harness links it without the classes'
-// registry-bound bodies (tests/unit/b39_ti_rest_test.cpp).
+// bodies (tests/unit/b39_ti_rest_test.cpp).
 // ============================================================================
 #include "video/ImageBuffer.h"
 #include "video/ShaderProgram.h"

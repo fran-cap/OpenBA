@@ -1,6 +1,6 @@
 // ============================================================================
 // src/engine/engine/singleton_ctors.cpp — Wave 9 lane X
-//   The fourteen constructors that PUBLISH a `?_singleton@...` DATA export.
+//   The constructors that PUBLISH a `?_singleton@...` DATA export.
 // ============================================================================
 //
 // WHY THESE FOURTEEN ARE ONE FILE AND NOT FOURTEEN LANES
@@ -76,18 +76,13 @@
 // The platform half (singleton_ctors_lock.cpp).
 void RtLaneXPlatformLockInit(Platform::LockStorage* cs);
 // Installs allocator.cpp's `g_plat` function-pointer seam if it is not already
-// installed, and returns whether it took. See the long comment above the
-// MemoryAllocator subject in the probe: `rtalloc::Construct` opens with
-// `g_plat.lockInit(...)`, and on a normal run that table is all-null because the
-// only two callers of RtSystemAllocatorInstallPlatform() are opt-in.
+// installed, and returns whether `lockInit` is set (singleton_ctors_lock.cpp).
 bool RtLaneXEnsureAllocatorPlatform();
 
 // System::MemoryAllocator's constructor body already exists: lane E ported it
 // as `rtalloc::Construct` / `rtalloc::Destruct` in src/engine/system/
-// allocator.cpp, singleton store included. It was never REGISTERED, which is
-// why lane C2's writer audit still ranks that row (c) "writer exists but is NOT
-// ported". This lane registers it; the body stays where its owner put it, and
-// this file does not duplicate it.
+// allocator.cpp, singleton store included. The body stays where its owner put it,
+// and this file does not duplicate it.
 namespace rtalloc {
 void Construct(rt::system::MemoryAllocator* self);
 void Destruct(rt::system::MemoryAllocator* self);
@@ -124,7 +119,7 @@ static_assert(offsetof(RtAudio::Configuration, effectVolume) == 0x0C,
 
 }  // namespace
 
-// B3R RT-Core: the fifteen constructor bodies below have external linkage
+// B3R RT-Core: the fourteen bodies below have external linkage
 // (declared in src/engine/engine/Engine.h, namespace rtengine) because
 // engine_lifecycle.cpp's Engine::Engine / Startup call them by name; they were
 // reached through the ??0 / ??1 name rows before.
@@ -136,8 +131,6 @@ namespace rtengine {
 // ---------------------------------------------------------------------------
 // Body: lane E's `rtalloc::Construct` / `rtalloc::Destruct`. Only the MSVC
 // return-`this` convention is added here (the retail ctor ends `MOV RAX,RDI`).
-// Registering is the whole change, and it is what moves lane C2's row from (c)
-// "writer exists but is NOT ported" to (b).
 // ===========================================================================
 rt::system::MemoryAllocator* Ctor_MemoryAllocator(rt::system::MemoryAllocator* self) {
     rtalloc::Construct(self);
@@ -160,9 +153,8 @@ void Dtor_MemoryAllocator(rt::system::MemoryAllocator* self) {
 //   MOV qword ptr [RCX+0x20],RAX
 //   MOV qword ptr [0x1801fc6b0],RCX   ; _singleton
 //   MOV RAX,RCX
-// Lane M found this row independently; loops.cpp:265 reads the slot from
-// `RtEngine_Loader_Load`, which is registered at 0x1800dc050 and runs on the
-// boot path.
+// Lane M found this row independently; `Engine::Loader::Load` (0x1800dc050,
+// loops.cpp) reads the slot and runs on the boot path.
 // ===========================================================================
 IO::Modification* Ctor_Modification(IO::Modification* self) {
     self->_dirty          = 1;
@@ -209,8 +201,8 @@ IO::Modification* Ctor_Modification(IO::Modification* self) {
 //
 // The three `LEA` + store pairs are Collection::Array<T> default ctors inlined
 // (`_data = 0; _size = 0;` with `_capacity` at +0x0c of each left alone) —
-// which is why +0x0c, +0x1c and +0x2c stay unwritten. loops.cpp:257 reads this
-// slot for `_loadEnabled`, the flag `Loader::Run` holds across a load.
+// which is why +0x0c, +0x1c and +0x2c stay unwritten. `Loader::Run` (loops.cpp)
+// reads this slot for `_loadEnabled`, the flag it holds across a load.
 // ===========================================================================
 ::Object::ExternalFactory* Ctor_ExternalFactory(::Object::ExternalFactory* self) {
     self->_cleanBitIndex        = 0;
@@ -244,16 +236,9 @@ IO::Modification* Ctor_Modification(IO::Modification* self) {
 // That tail IS `System::Random::Random()` (0x1800c7f20) inlined — index zeroed
 // and the standard init_genrand recurrence over 624 words at +0x24, exactly
 // ::Random's layout (Internal.h pins `random` at +0x20). Wave 2 already ported
-// that constructor, so this body CALLS it through the port-aware door rather
+// that constructor, so this body CALLS it (placement-new into `_random`) rather
 // than transcribing the recurrence a second time; two copies of a PRNG seed
 // that must agree is how a silent desync gets written.
-//
-// TIME-SEEDED, SO NOT BYTE-DIFFED. Two calls made microseconds apart can
-// legitimately land in different seconds, and 0x6c078965 amplifies a
-// one-count seed difference across all 624 words. The probe therefore compares
-// only [0x00, 0x24) — the deterministic prefix and the Random index — and
-// verifies the 623-word recurrence against our OWN mt[0]. Same rationale
-// value_types.cpp already records for ??0Random@System@@QEAA@XZ itself.
 // ===========================================================================
 ::Object::InternalFactory* Ctor_InternalFactory(::Object::InternalFactory* self) {
     self->_objects._data        = nullptr;
@@ -571,54 +556,21 @@ Audio::Configuration* Ctor_AudioConfiguration(Audio::Configuration* self) {
 //        -> each 0x20 record's +0x10 field points at the matching 0x28 record
 //           from loop1, i.e. the two arrays are cross-linked 1:1.
 //
-// *** ORACLE DEFERRED — SAME BLOCKER AS PERSISTENCE. *** 0x1800a0e30 is
-// `??0Stream@Audio@@QEAA@XZ`, a System::Thread SUBCLASS: it calls the same
-// `??0Thread@System@@QEAA@I@Z` base that `_beginthreadex`s a suspended worker
-// and creates three events, then stamps `??_7Stream@Audio@@6B@` (0x180154950)
-// and initialises a second CRITICAL_SECTION. Running the shipped body twice
-// against scratch buffers would start two threads on fake objects and the
-// handle values would differ by construction. Registered anyway for the same
-// reason as Persistence: no caller today, and it is the only writer of
-// `?_singleton@Device@Audio@@`, which audio.cpp:880 reads.
-//
-// Audio::Stream is reached BY NAME, not by address: it is exported, and asking
-// by name is what made this call site follow the port. It IS ported now
-// (src/engine/audio/audio_stream.cpp registers `??0Stream@Audio@@QEAA@XZ`;
-// Audio::Stream is a real System::Thread subclass since ENDGAME B.3.7 block B4),
-// and the ctor stays a door (B4b-2: no real ctor on a polymorphic class).
-//
-// *** THIS RESIDUAL CUTOVER DEPENDENCY IS DISCHARGED. *** The paragraph that
-// stood here said: "The per-record vtable at 0x180157c60 is not an export and is
-// not in lane C2's mint table, so it is reached by address and will be null at
-// cutover." The second clause is NO LONGER TRUE and has not been for some time.
-// Re-derived by Wave 24 lane SMALLBODY, and independently by lane CUTOVER:
-//
-//     grep -n '180157c60' standalone/rt_data_mint_tables.inc
-//     608:  // (unexported, carried by address)  DLL 0x180157c60  7 slots
-//     1542: { nullptr, 0x180157c60ull, 7, kVSlots2, kVTable2, kVTraps2, ... }
-//
-// It IS in the mint table, carried as an unexported address-keyed row with 7
-// slots, which is exactly the shape an unexported per-record vtable needs. The
-// `ResolveAddr(Module::Runtime, 0x180157c60)` door above therefore resolves to
-// the minted row at cutover rather than to null.
-//
-// This correction is itself the Wave 23 §6 defect class — a discharge does not
-// propagate, and nothing in this project detects a stale blocker. The comment
-// was true when written and has been read as current ever since.
-//
-// NOT discharged, and deliberately still named: Persistence's 0x180155860,
-// which this paragraph used to bracket with 0x180157c60. It was NOT re-checked
-// by this lane and nothing here should be read as a verdict on it.
+// 0x1800a0e30 is `??0Stream@Audio@@QEAA@XZ`, a System::Thread SUBCLASS: it
+// calls the same `??0Thread@System@@QEAA@I@Z` base that `_beginthreadex`s a
+// suspended worker and creates three events, then stamps
+// `??_7Stream@Audio@@6B@` (0x180154950) and initialises a second
+// CRITICAL_SECTION. Audio::Stream is ported (src/engine/audio/audio_stream.cpp)
+// and is built in place below by its own constructor.
 //
 // The per-record vtable 0x180157c60 is `Audio::Device::PlatformChannel`'s (the
 // IXAudio2VoiceCallback record, `GetPlatformChannel` 0x18000c720 =
 // this+0xa98+i*0x20 -- named by block B4; B37_RULES 10).
 //
-// Audio::Device HAS a type header now (src/engine/audio/Device.h, ENDGAME
-// B.3.7 block B4): the two arrays are `Device::AudioChannel _channels[64]` at
-// +0x000 and `Device::PlatformChannel _platformChannels[64]` at +0xa98, with
-// the Stream by value at +0xa00. This constructor is still the DOOR (B7-12: no
-// real Device ctor this step), so it keeps writing the offsets it transcribed.
+// Audio::Device's type header is src/engine/audio/Device.h: the two arrays are
+// `Device::AudioChannel _channels[64]` at +0x000 and `Device::PlatformChannel
+// _platformChannels[64]` at +0xa98, with the Stream by value at +0xa00. This
+// constructor writes them through those fields.
 // ===========================================================================
 // ENDGAME B.3.9 ENG: loop 2's vptr + two zero stores are
 // `Audio::Device::PlatformChannel`'s real constructor now -- `::new` into each

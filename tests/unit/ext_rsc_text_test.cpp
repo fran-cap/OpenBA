@@ -1,7 +1,7 @@
 // ============================================================================
 // tests/unit/ext_rsc_text_test.cpp -- our .rsc text dialect (KITFREE, RSCTEXT)
 // ============================================================================
-// src/ext/resources/text_parser.{h,cpp} over the three embedded files
+// src/ext/resources/text_parser.{h,cpp} over the 24 embedded files
 // (gen/ext_rsc_text.h, the exact text the exe carries) and ResolveReference.
 // The object construction needs the live factory and the game's packages, so
 // it is checked in the exe (src/diag/rsc_text_check.cpp + tools/ext_rsc_check.py).
@@ -214,7 +214,7 @@ UNIT_TEST(ext_rsc_text_parse_enhanced_and_strings) {
     // 70: terrain_edit Redo (NextStartSuffix removed, P9), + 17 for the Town Screenshot page, + 2 for the
     // Never button and its tip, + 3 for the tree window (Show family tree, Details, the title), + 3 for the
     // picture (button, check box, its tip), + 5 for the Family page, + 3 for its drawn tree (the slide
-    // buttons and the note), + 1 for the citizen panel's Family button and its tip, + 2 for the SVG button
+    // buttons and the note), + 2 for the citizen panel's Family button and its tip, + 2 for the SVG button
     // and its tip, + 2 for the search box (its label and tip), + 3 for the town summary (button, title,
     // note), + 4 for the picture's outline check box and the Show in town button (each with its tip), + 2 for
     // the picture's main-job check box and its tip, + 10 for the Grid page, + 1 for
@@ -667,7 +667,7 @@ UNIT_TEST(ext_rsc_text_parse_touch_controls) {
     CheckKnownTypes(f, "TouchControls.rsc");
 }
 
-// P11 (docs/android/P11_TOUCH_POINTER.md): the action bar and the aim marker. The controller finds the five holders
+// P11 (docs/android/P11_TOUCH_POINTER.md): the action bar and the aim marker. The controller finds the six holders
 // and buttons by name; every look is the game's own (the toolbar's button, SpriteSheet.rsc's glyphs).
 UNIT_TEST(ext_rsc_text_parse_touch_pointer) {
     File f;

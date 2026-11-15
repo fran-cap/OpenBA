@@ -74,7 +74,7 @@
 // retail's sense and C++'s (slots 3/6/7 are `_purecall`) with a PROTECTED real
 // constructor (??0ShaderProgram 0x1800f5030) and its own concrete slot 0
 // (0x18004e360). The three minted rows, their RT_DELDTOR rows, the ??0 / ??1
-// doors and the slot doors are retired (tools/rt_mint_retired/vid.txt).
+// doors and the slot doors are retired.
 //
 // THE DESTRUCTOR IS VIRTUAL (B3X W1): retail slot 0 is
 // the deleting destructor; `~ShaderProgram()` is D1 + D0 here.
@@ -190,9 +190,9 @@ public:
     // B5-12 as amended records that GCC's ms_abi lowering passes the hidden return
     // pointer BEFORE `this` while MSVC/retail passes `this` first, so a retail
     // VTABLE SLOT that returns by value must be declared `T* M(T* ret, …)` in retail
-    // order. These two are reached only through their registered doors, which keep
-    // the explicit retail-order `(this, ret, index)` signature and placement-new the
-    // member's prvalue into the slot. The analysis is in
+    // order. These two are called as plain members, by
+    // `Graphics::Material::GetConstantName` / `GetTextureName`
+    // (src/engine/graphics/wave28_lane_gfxbody.cpp). The analysis is in
     // `src/engine/video/shader_program_names.cpp`.
     System::String GetTextureName(int32_t index) const;           // 0x18004e420
     System::String GetConstantName(int32_t index) const;          // 0x18004e4b0
@@ -307,15 +307,14 @@ public:
     // placement `operator new` (not ported): `::new (p)`.
     static void*         operator new(size_t size);               // 0x18004e570 — not ported
     static void*         operator new(size_t size, void* storage);// 0x18004e5e0 — not ported
-    static void          operator delete(void* p) { ::Object::detail::InternalMemFree(p); }                // 0x18004e5f0 — class_operator_delete.cpp
+    static void          operator delete(void* p) { ::Object::detail::InternalMemFree(p); }                // 0x18004e5f0 — MemFree
 
     // Real exported bodies, not compiler defaults; see ShaderProgram's pair.
     VertexProgram(const VertexProgram& other);                    // 0x18004e730 — not ported
     VertexProgram& operator=(const VertexProgram& other);         // 0x18004e780 — not ported
 
     // The three platform halves. `AEAA` is PRIVATE IN RETAIL, not unexported
-    // (reference_aeaa_is_private_not_unexported.md) — so each has its own
-    // registered door, which is why they are public here.
+    // (reference_aeaa_is_private_not_unexported.md); they are public here.
     void PlatformConstruct();    // 0x1800f65e0
     void PlatformDestruct();     // 0x1800f6620
     bool PlatformCreate();       // 0x1800f6640 — returns the companion's slot 1
@@ -415,7 +414,7 @@ public:
     // placement `operator new` (not ported): `::new (p)`.
     static void*         operator new(size_t size);               // 0x18004e8f0 — not ported
     static void*         operator new(size_t size, void* storage);// 0x18004e960 — not ported
-    static void          operator delete(void* p) { ::Object::detail::InternalMemFree(p); }                // 0x18004e970 — class_operator_delete.cpp
+    static void          operator delete(void* p) { ::Object::detail::InternalMemFree(p); }                // 0x18004e970 — inline
 
     PixelProgram(const PixelProgram& other);                      // 0x18004eab0 — not ported
     PixelProgram& operator=(const PixelProgram& other);           // 0x18004eb00 — not ported
@@ -472,9 +471,7 @@ static_assert(offsetof(PixelProgram, _data) == 0x50,
 // standing for two classes, and there is no single class it can name now.
 // Nothing outside this header ever used the name.
 //
-// The two vtable-offset namespaces below are UNCHANGED and are not aliases.
-// `src/engine/video/renderstate.cpp` (block C's file) includes this header for
-// exactly those two, and step 5 does not move them.
+// The `devicedata_vtbl` namespace below is not an alias.
 // ============================================================================
 namespace rt {
 namespace video {

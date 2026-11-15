@@ -33,16 +33,16 @@
 // THE RESOURCE-LOAD LOCK
 // ---------------------------------------------------------------------------
 // `ExpandRelativePath` takes `ResLoadGuard` (src/app/res_load_lock.h). It is
-// on the racy path lane FNHOOK measured — it is called only from `FindOrLoad`,
-// it does refcounted `String`/`Filename` traffic while building six
-// concatenations, and that traffic on two threads at once is one of the two
-// faces of the crash FNHOOK's lock closes.
+// on the racy path lane FNHOOK measured — `FindOrLoad` (external_compiled.cpp)
+// and ext.find_fastpath call it, it does refcounted `String`/`Filename` traffic
+// while building six concatenations, and that traffic on two threads at once is
+// one of the two faces of the crash FNHOOK's lock closes.
 //
 // **THIS IS NOT THE GUARD THE BRIEF ASKED FOR, AND IT DOES NOT REPLACE IT.**
 // The constraint was that the ported `FindOrLoad` body must take the lock;
-// `FindOrLoad` is NOT ported by this lane (§5 of the write-up), so the hole
-// FNHOOK described is still open. The lock is recursive, so a `FindOrLoad` that
-// takes it later nests over this one for free.
+// `FindOrLoad` (src/engine/object/external_compiled.cpp) takes no ResLoadGuard
+// of its own. The lock is recursive, so a `FindOrLoad` that takes it later
+// nests over this one for free.
 // ---------------------------------------------------------------------------
 
 #include "platform_file.h"   // Platform::PathAttributes
@@ -62,21 +62,6 @@
 #include "system/setupdir_helpers.h"
 #include "system/widestring_internal.h"
 #include "res_load_lock.h"
-
-// ---------------------------------------------------------------------------
-// The seam to the detour installer. `standalone/res_path_detour.cpp` patches
-// the DLL's own 0x1800bd360 so that RETAIL's callers — principally
-// `FindOrLoad`, ~22.6k calls per menu-to-gameplay run (lane FNHOOK's
-// `[ResLoad] census`) — land in the body below. Without it this port has NO
-// caller at all in the tree and would be a textbook `calls=0` port.
-//
-// `RtResPathTrampoline()` returns the trampoline holding retail's displaced
-// prologue, i.e. THE ORIGINAL BODY. The diff oracle must call that and never
-// `the raw DLL door("?ExpandRelativePath@...")`: with the detour installed,
-// GetProcAddress hands back the PATCHED address and the "original" call would
-// re-enter our own body forever (the raw DLL door IS GetProcAddress —
-// reference_rtoriginal_is_getprocaddress.md).
-// ---------------------------------------------------------------------------
 
 
 // ENDGAME B.3.1 step 2: `AdjustDelimiters` (0x1800c6970), `GetPathFilename`
@@ -119,28 +104,6 @@ namespace {
 inline const ::IO::FileSystem* FileSystemSingleton() {
     return ::IO::FileSystem::_singleton;
 }
-
-// ---------------------------------------------------------------------------
-// THE NEGATIVE CONTROL.
-//
-// Rule 6: a probe that cannot be made to FAIL has proved nothing. Four
-// perturbations, each one a single-token change to a different part of the
-// body, each one expected to make the oracle diverge. `0` is the real body and
-// is what every shipping and every measuring run uses.
-//
-// The self-test below drives all four in ONE process by setting this global
-// around each call, so a negative control does not cost a game launch each.
-// `the old DLL-era switch=<n>` also forces one for a live run.
-// ---------------------------------------------------------------------------
-
-// The self-test needs a live `ExternalFactory`, and at registration time there
-// is not one yet — MEASURED, not assumed: the first run of this port printed
-//     [ResPath] SELFTEST SKIPPED -- no ExternalFactory singleton yet
-// which is the honest skip, and it is also useless. So the self-test is armed
-// by the env var and RUN FROM INSIDE THE FIRST REAL CALL, using the `this` that
-// call was handed. `g_inSelfTest` suppresses the counters and the live diff
-// while it runs so the measurement it sits inside stays a measurement of the
-// GAME's calls and not of the script's.
 
 
 const char* kUnderscore = "_";
@@ -186,9 +149,7 @@ System::Filename* RtObject_ExternalFactory_GetPathStackFilename(const ExternalFa
     }
     ++g_pc.stackNonEmpty;
     const PathStackEntry& top = self->_pathStack._data[self->_pathStack._size - 1];
-    // Retail's copy ctor (0x1800067d0) into the hidden return slot. `filename`
-    // is a POD member of the not-yet-converted `PathStackEntry`, so it comes
-    // through the bridge.
+    // Retail's copy ctor (0x1800067d0) into the hidden return slot.
     new (ret) System::Filename(top.filename);
     return ret;
 }
@@ -241,11 +202,6 @@ System::Filename* RtObject_ExternalFactory_GetPathStackDirectory(const ExternalF
 //     GetFileAttributesW result. `GetPathStackDirectory` is the last read of
 //     the factory, which is why nothing below touches `self`.
 //
-// THE ORACLE. Replayable: the body reads the factory and the filesystem and
-// writes only its own allocations. `the diff oracle` compares the returned TEXT
-// (the two buffers are always distinct pointers). The original is reached
-// through the DETOUR TRAMPOLINE, never through GetProcAddress — see the
-// `RtResPathTrampoline` note at the top of this file.
 // ============================================================================
 // BLOCK SAVELOAD: the transcribed body is `ExpandRelativePathBody`, unchanged.
 // The exported entry point below takes the lock, asks the memo, and runs the

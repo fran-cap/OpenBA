@@ -15,12 +15,8 @@
 // Dtor (vtable +0x00, 0x14003a1c0): vtable reset + External::~External + free
 //   (the two +0x20/+0x28 fields are weak External* refs, not owned — no dtor).
 //
-// STANDALONE: the exe's per-field ExternalPtr serialize (FUN_140018020) is not
-// mapped. We reuse the proven generic ExternalPtr serialize reimpl
-// (Reimpl_ExternalPtr_Serialize_StringTable in src/game/Game/serialize_externals.cpp).
-// The typeId only drives an IsDerivedFrom validation that
-// Object::IsDerivedFromOrTrust makes a no-op in standalone, so the body is
-// stream-identical regardless of the (Profession vs StringTable) typeId source.
+// The per-field ExternalPtr serialize (FUN_140018020) is
+// ::Object::SerializeExternal<Profession> (object/External.h).
 //
 // Decompiled from Application-x64.exe (READ-ONLY recon).
 //
@@ -36,7 +32,7 @@
 #include <cstdint>
 #include <new>
 
-#include "Game/exe_bodies.h"   // the typed Reimpl_ExternalPtr_Serialize_* wrappers (B4 X7-GAME-A)
+#include "Game/exe_bodies.h"
 #include "Game/Profession.h"   // B8 RT2: ::Object::SerializeExternal<Profession> (the downcast needs it complete)
 
 // ctor (inlined into create 0x14003a090 / createInPlace 0x14003a100):

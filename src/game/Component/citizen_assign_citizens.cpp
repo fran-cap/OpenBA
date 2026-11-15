@@ -94,7 +94,7 @@
 //   AssignHousing (0x140111ee0) writes citizen+0x248: detaches from the old
 //   workplace's worker roster (FUN_14012f7e0) and attaches to the new (FUN_14012fa20).
 //
-// LEAF HELPERS called wholesale (resolved via ResolveAddr(Module::Exe, ...)):
+// LEAF HELPERS called wholesale:
 //   sub_6060  0x1400d6060  path-cost record builder; fills {citizen, fromCell,
 //             toCell, cost}; the cost comes from the region-pair tree at ctx+0x18
 //             (PathGraph::RegionPairCost, below).
@@ -103,11 +103,10 @@
 //   Entity_impl_7fb0     0x140087fb0  grid cell id of an entity (Position component)
 //   g_fUVScale           0x14017214c  (float const in the score formula)
 //
-// WIRING NOTE: replaces the docs/history/notes/ scoped stand-in (construction-only Laborer->Builder).
-// Registration is in place: RegisterCitizenAssignCitizens() maps 0x1400d43b0 to this
-// reimpl (standalone/address_registry.cpp). It is a direct (non-vtable) call, so it only
-// executes once a reimplemented caller reaches it — the employment tick FUN_1400d6f00
-// (+ its ctx) is the remaining dependency; until that caller is ported it stays dormant.
+// WIRING NOTE: replaces the scoped stand-in (construction-only Laborer->Builder) kept in
+// docs/history/notes/construction_2cB/citizen_profession_rebalance.SCOPED_REFERENCE.cpp.
+// PathGraph::ProcessPaths (citizenbehavior.cpp) calls it after ReassignWorkers; ext.drain_split
+// can defer it to the next frame (src/ext/drain_split/drain_split_town.cpp).
 
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include <algorithm>
@@ -202,13 +201,13 @@ inline CitizenComponent* CitizenAt(Object::InternalPtr<CitizenComponent>* citArr
 inline bool IsIdleHealthy(CitizenComponent* c) {
     CitizenDescription* healthComp = c->description;   // +0x288
     if (healthComp->adultAge > c->age)                 // desc +0x44 vs +0x3c
-        return false;                                   // sick/starving
+        return false;                                   // not adult yet
     if (c->school != nullptr) return false;             // +0x208 busy in an action
     return true;
 }
 
 // Find the workplace component inside an assigned entity (+0x248 value).
-// (0x140002e10, the tree's AttendanceComponent_GetJobHostComponent, is this type scan.)
+// (0x140002e10 is this type scan, FindComponent<WorkPlaceComponent>.)
 // Every caller hands a non-null entity; retail tests none (B8 RES, row 310).
 inline WorkPlaceComponent* FindWorkplaceComp(ComponentEntity* entity) {
     WorkPlaceComponent* comp = entity->FindComponent<WorkPlaceComponent>();   // 0x140002e10
@@ -624,8 +623,7 @@ void PathGraph::AssignCitizens() {
             // townMgr+0xa0 walk) is exactly
             //     if (*(float*)(desc+0x44) <= *(float*)(cz+0x3c) && *(cz+0x208) == 0)
             // i.e. adult AND no active action, with NO laborer filter — byte-for-byte
-            // what IsIdleHealthy() does above. The "idle-laborer set" phrasing in this
-            // file's header comment is the thing that is wrong, not the code.
+            // what IsIdleHealthy() does above.
             //
             // This was briefly suspected of causing a woodcutter to lose its worker.
             // It was not: measured, this arm never fired for that case. The real cause

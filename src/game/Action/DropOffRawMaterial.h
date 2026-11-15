@@ -44,7 +44,7 @@ public:
                      ComponentDescription* material);              // 0x1400c7620
     void     DropOnGround(ComponentDescription* material, int count);   // 0x1400c78c0
 
-    // ---- fields, retail order (PUBLIC: the slot bodies are C functions) ----
+    // ---- fields, retail order (PUBLIC) ----
     bool      _searchOtherStorage;          // +0x20 search for another storage when full (Persist: the bool overload)
     uint8_t   _pad21[3];         // +0x21 padding
     int32_t   _maxCount;          // +0x24 count cap (-1 = all)

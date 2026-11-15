@@ -33,7 +33,7 @@
 #include <utility>
 #include "object/Internal.h"   // ENDGAME B.3.3 step 6B
 #include "system/Configuration.h"   // B3R: System::Configuration::GetVersionString
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
 
 // ============================================================
 // File-local helper: ModDetails_StringArrayPush (FUN_14006e290)
@@ -181,8 +181,7 @@ void ModDetailsDialog::OnOpened() {
 
     // Version: "%i (%s)" with version number and version string
     {
-        // ?GetVersionString@Configuration@System@@ is a by-value static; its door
-        // placement-constructed the result over this (empty) local.
+        // ?GetVersionString@Configuration@System@@ is a by-value static.
         System::String versionStr = System::Configuration::GetVersionString((uint32_t)mod.version, false);
         System::String formatted = System::String::Format("%i (%s)", (int)(uint32_t)mod.userVersion,
                          versionStr._data);

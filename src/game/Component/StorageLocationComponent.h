@@ -5,7 +5,6 @@
 // `StorageLocationComponent` (registers a stockpile/barn as a town storage
 // location) as a real C++ class with a compiler-generated vtable and its state
 // controller as an EMBEDDED MEMBER (B38_RULES.md D1-D6). No fields of its own.
-// The engine/types POD is a forwarder to this file.
 //
 // RETAIL (B38_SLOTS.md §2 / §6, bytes read 2026-09-26):
 //   reflected "StorageLocationComponent", parent "ControllerComponent", ti 0x1401c7ee8

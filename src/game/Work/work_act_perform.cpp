@@ -14,9 +14,6 @@
 //
 // This is a REVERSE-ENGINEERING transcription of the disassembly; do NOT "improve"
 // behavior. Every offset/size/immediate below is annotated with its disasm address.
-// LEFT: the callers (BuildRoad, ClearArea, FireWork in WORK-a / WORK-b) hand the
-// citizen reference as void* and the road destination as uint32_t*; the action ctors
-// (ACT's C bodies) take their references as uint64_t*.
 //
 
 #include <new>
@@ -49,23 +46,23 @@
 // ============================================================
 // Sub-callees, called by name (B3R)
 // ============================================================
-// Every exe sub-callee is one of our own bodies (Action/, Work/, Component/ exe_bodies.h):
-//   0x1400c29a0 Entity_impl_29a0 (heading, XMM0)      ActChild_Entity29a0_c29a0
-//   0x1400c5400 TaskListCleanup                       WorkBase_TaskListCleanup_c5400
-//   0x1400c54e0 TaskListAppend                        Pf_ActStackPush_54e0
-//   0x1400012d0 Entity_FindComponent_Family           ActMv_FindComponentFamily_12d0
+// Every exe sub-callee is one of our own bodies (Action/, Component/, Entity/ headers):
+//   0x1400c29a0 Entity_impl_29a0 (heading, XMM0)      HeadingToward
+//   0x1400c5400 TaskListCleanup                       ActionStack::Clear
+//   0x1400c54e0 TaskListAppend                        ActionStackPush
+//   0x1400012d0 Entity_FindComponent_Family           ComponentEntity::FindComponent<CharacterComponent>
 //   0x140006270 FindComponent<StorageComponent>
 //   0x14012cf10 StorageComponent_QueryCount           StorageComponent::QueryCount (the member)
-//   0x1400cb1d0 SendComponentMessage copy-ctor        Pf_SendComponentMessageCopyCtor_b1d0
-//   0x1400c5da0 CompleteTask copy-ctor                Pf_CompleteTaskCopyCtor_5da0
-//   0x140042890 ShowTool ctor (R8D=toolType)          ActChild_ShowToolCtor_42890
-//   0x1400c59d0 CompleteRoad copy-ctor                ActChild_CompleteRoadCopyCtor_c59d0
-//   0x1400c63b0 ConsumeRawMaterial copy-ctor (5 args) ActChild_ConsumeRawCopyCtor_c63b0
-//   0x1400ca520 PickupStoredRawMaterial copy-ctor     ActChild_PickupStoredCopyCtor_ca520
-//   0x1400c9720 PerformWork_Action_Ctor7              Pf_PerformWorkCtor7_9720
+//   0x1400cb1d0 SendComponentMessage copy-ctor        SendComponentMessage::SendComponentMessage
+//   0x1400c5da0 CompleteTask copy-ctor                CompleteTask::CompleteTask
+//   0x140042890 ShowTool ctor (R8D=toolType)          ShowTool::ShowTool
+//   0x1400c59d0 CompleteRoad copy-ctor                CompleteRoad::CompleteRoad
+//   0x1400c63b0 ConsumeRawMaterial copy-ctor (5 args) ConsumeRawMaterial::ConsumeRawMaterial
+//   0x1400ca520 PickupStoredRawMaterial copy-ctor     PickupStoredRawMaterial::PickupStoredRawMaterial
+//   0x1400c9720 PerformWork_Action_Ctor7              PerformWork::PerformWork
 //               (RCX=self, RDX=&entityInner, XMM2=heading, R9D=actionType, [stack]=time,
 //                byte, int -- verified via disassembly)
-//   0x1400c9170 MoveTo ctor                           Pf_MoveToCtor_9170
+//   0x1400c9170 MoveTo ctor                           MoveTo::MoveTo
 // Dispatch slots:
 //   0x140152a90 InternalBasePtr ctor -> placement-new Object::InternalBasePtr
 //   0x140152b60 MemAlloc             -> System::MemoryAllocator::MemAlloc
@@ -102,14 +99,14 @@ static inline void  WAP_Append(ActionStack* list, const ::Object::InternalPtr<Ac
 // ============================================================
 // PerformWork_Action_CopyCtor (0x1400ba9f0) -> WorkAct_PerformWorkCopyCtor_ba9f0
 // ============================================================
-// Builds the forester/clear-area work-action chain for a citizen and stores it on the
+// Builds FireWork's work-action chain (its one caller, firework.cpp) and stores it on the
 // citizen's action stack (CharacterComponent +0x48).
-//   citizenIBP = InternalBasePtr*           (RCX)
+//   citizenRef = InternalBasePtr*           (RCX)
 //   workId     = u32                         (EDX -> CompleteTask workId)
 //   pos3       = float*                      (R8, param_3: Vector3 minuend src + 2nd MoveTo dest)
 //   pos4       = float*                      (R9, param_4: Vector3 subtrahend)
 //   pos5       = float*                      (stack, param_5: Entity_impl_29a0 worldPos + 1st MoveTo dest)
-//   srcEntity6 = longlong*                   (stack, param_6: 2nd SendComponentMessage entity inner)
+//   srcRef6    = longlong*                   (stack, param_6: 2nd SendComponentMessage entity inner)
 void WorkAct_PerformWorkCopyCtor_ba9f0(CitizenComponent* const* citizenRef, uint32_t workId,
                                        float* pos3, float* pos4, float* pos5,
                                        ComponentEntity* const* srcRef6) {
@@ -283,9 +280,10 @@ void WorkAct_PerformWorkCopyCtor_ba9f0(CitizenComponent* const* citizenRef, uint
 //   workId     = u32   (EDX = R15D)                 param_2  -> CompleteTask workId
 //   destination = float* (R8)                       param_3  -> MoveTo#1 destination
 //   roadP4     = int64*/int (R9D = R12D)            param_4  -> CompleteRoad p3 / ConsumeRawMaterial p4 byte chain
-//   completeRoadP5 = u32                            param_5  -> CompleteTask p5
+//   completeRoadP5 = u32                            param_5  -> CompleteRoad p2
 //   roadByte6  = byte                               param_6  -> CompleteRoad p4 byte
-//   material   = ComponentDescription*              param_8  -> ConsumeRawMaterial cond + arg
+//   completeTaskP7 = u32                            param_7  -> CompleteTask p5
+//   consumeMaterial = ComponentDescription*         param_8  -> ConsumeRawMaterial cond + arg
 //   loopCount9 = int                                param_9  -> optional pickup-chain count gate
 //   pos10      = float*                             param_10 -> Entity_impl_29a0 worldPos + MoveTo#2 dest
 //   srcRef11   = InternalPtr<ComponentEntity>*      param_11 -> pickup chain entity inner
@@ -473,7 +471,6 @@ void WorkAct_PerformWorkCtor_bffd0(CitizenComponent* const* citizenRef, uint32_t
             CitizenComponent* entObj = *citizenRef;                            // 0x1400c05a3: [R14]
             StorageComponent* storage = entObj->_entity->FindComponent<StorageComponent>();   // 0x140006270 (local_78)
             int count = 0;
-            // LEFT: 0x14012cf10's C signature (COMP-b) takes the component as an integer.
             count = storage->QueryCount(); // 0x14012cf10
             bool countPositive = (count > 0); // 0x1400c05d0: TEST EAX,EAX; SETG BL
 

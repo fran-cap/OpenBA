@@ -13,7 +13,7 @@ namespace AoStage {
 class DepthResolve {
 public:
     DepthResolve() = default;
-    // `tag` names the user in the log lines (ext.better_water's scene depth copy is the second).
+    // `tag` names the user in the log lines (the shared depth copy, depth_copy.cpp, passes "DepthCopy").
     explicit DepthResolve(const char* tag) : _tag(tag) {}
     DepthResolve(const DepthResolve&) = delete;
     DepthResolve& operator=(const DepthResolve&) = delete;
@@ -26,7 +26,7 @@ public:
     // The w x h R32F target; re-created only when the size changes.
     bool Resize(ID3D11Device* device, unsigned width, unsigned height);
 
-    // Draw `depth` (the main depth's R24_UNORM_X8 view; TEXTURE2DMS when `samples` > 1) into
+    // Draw `depth` (a depth's R24_UNORM_X8 or R32_FLOAT view; TEXTURE2DMS when `samples` > 1) into
     // the target. Binds its own RTV (no DSV), viewport, shaders and states, and unbinds the
     // depth SRV again; the caller restores everything else. Returns the target's SRV.
     ID3D11ShaderResourceView* Run(ID3D11DeviceContext* context, ID3D11ShaderResourceView* depth,

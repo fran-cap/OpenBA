@@ -27,8 +27,7 @@
 // carried until B.3.6 moved there, RULE B6-8.)
 //
 // ENDGAME B.3.6 block C2: slots 1/2/7 are MEMBERS of
-// `UI::AnimatedImageElement`; the registered doors are one-line QUALIFIED
-// delegations. Update's base call (by address 0x180116270 before) is the
+// `UI::AnimatedImageElement`. Update's base call (by address 0x180116270 before) is the
 // qualified `ImageElement::Update`, i.e. `Element::Update`.
 //
 // ENDGAME B.3.9 block UI-A: the class is CONCRETE; the slot doors and the
@@ -94,7 +93,7 @@ namespace UI {
 // The InternalPtr<DialogInstance> parameter arrives BY HIDDEN REFERENCE (RULE
 // B6-11; `MOV RAX,[R9]` at 0x1800cb29a); retail copies the pointed-to value
 // into its own home slot and forwards the address of THAT. The base call is
-// QUALIFIED: this object wears the minted table, whose slot 7 is this body.
+// QUALIFIED: an unqualified call would dispatch through this object's table, whose slot 7 is this body.
 void AnimatedImageElement::Update(const System::Time& time, UserInterface* ui,
                                   Object::InternalPtr<DialogInstance>* dialog,
                                   const UpdateState& state) {

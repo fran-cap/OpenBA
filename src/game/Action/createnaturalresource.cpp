@@ -11,14 +11,14 @@
 #include "CreateNaturalResource.h"
 #include "object/TypeInfo.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
-#include "Action/exe_bodies.h"            // CheckCellTerrain, NaturalResourcePlaceAtCell, SetGrowthProgress, ModelMesh*
+#include "Action/exe_bodies.h"
 #include "Action/saved_bounds.h"   // ActionBounds::IsMapCell (review S-005)
 #include "Game/Map.h"
 #include "Entity/EntityList.h"
 #include "Component/ComponentDescription.h"
 #include "Component/ModelComponent.h"
 #include "Component/NaturalResourceComponent.h"
-#include "Game/exe_bodies.h"            // Reimpl_ExternalPtr_Serialize_StringTable
+#include "Game/exe_bodies.h"
 #include "Entity/ComponentEntity.h"   // ComponentEntity(ComponentDescription*) (0x1400c3720)
 #include "Entity/EntityList.h"        // EntityList::RegisterEntity (0x1400c48a0)
 #include "system/MemoryAllocator.h"       // System::MemoryAllocator::MemAlloc
@@ -35,18 +35,18 @@
 
 // ============================================================
 // Helpers, called by name (B3R)
-//   0x140002340 Reimpl_ExternalPtr_Serialize_StringTable -- serialize StringHash/type ref
-//   0x1400c3720 ComponentEntity_CtorFromDescription      -- clone entity from description
-//   0x14009cb00 ActCNR_CheckTerrain_cb00                 -- check terrain validity
-//   0x1400052c0 WorkBase_FindComponent_52c0  -- find component by type (ModelComponent;
-//               member ABI: RCX=entity, RDX=retbuf)
-//   0x140126540 ActCNR_SetupModelAtCell_126540 (Entity_impl_6540) -- set up model at cell
-//   0x14000c460 ActCNR_FindComponent_c460    -- find component (GrowthComponent)
-//   0x140120db0 ActCNR_SetGrowthProgress_120db0 -- set growth progress
-//   0x140003f60 ActCNR_FindComponent_3f60    -- find component (NaturalResourceComponent)
-//   0x1401252f0 ActCNR_NR_GetVariantCount_1252f0 / 0x140125320 ActCNR_NR_GetSubVariantCount_125320
-//   0x1401253d0 ActCNR_NR_SetVariant_1253d0  -- set NR variant
-//   0x1400c48a0 EntityList_RegisterEntity_Impl -- register entity with entity list
+//   0x140002340 Object::SerializeExternal<ComponentDescription> -- serialize StringHash/type ref
+//   0x1400c3720 ComponentEntity(ComponentDescription*)    -- clone entity from description
+//   0x14009cb00 Map::CheckCellTerrain                     -- check terrain validity
+//   0x1400052c0 ComponentEntity::FindComponent<NaturalResourceComponent> (member ABI:
+//               RCX=entity, RDX=retbuf)
+//   0x140126540 NaturalResourceComponent::PlaceAtCell     -- set up model at cell
+//   0x14000c460 ComponentEntity::FindComponent<GrowthComponent>
+//   0x140120db0 GrowthComponent::SetProgress              -- set growth progress
+//   0x140003f60 ComponentEntity::FindComponent<ModelComponent>
+//   0x1401252f0 ModelComponent::MeshGroupCount / 0x140125320 ModelComponent::MeshCount
+//   0x1401253d0 ModelComponent::SelectMesh                -- set NR variant
+//   0x1400c48a0 EntityList::RegisterEntity                -- register entity with entity list
 // ============================================================
 
 // ============================================================
@@ -87,7 +87,7 @@ int  CreateNaturalResource::AbstractImpl(ActionStack* actionStack) {
     const int32_t cellIndex = this->cellIndex;
     MapCell* cells = map->cells.GetData();
 
-    // The four early-outs below all return the same failure code, so a caller can only see
+    // The early-outs below all return the same failure code, so a caller can only see
     // "no resource was created", never why. That matters here: the orchard plant chain sends
     // a bind message immediately after this action and dereferences the entity this action
     // was supposed to leave on the tile, so a silent bail surfaces as a null deref two frames

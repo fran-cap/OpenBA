@@ -4,7 +4,7 @@
 //
 // Vtable batch 8. ??_7PointList@Pathfinding@@6B@ (retail), nine slots:
 //
-//   0  deleting dtor        0x1800713b0  deleting_dtor.cpp row (registers ~PointList here)
+//   0  deleting dtor        0x1800713b0  the compiler's (~PointList here)
 //   1  TypeName             0x180070e40  here
 //   2  Type                 0x180070e20  here
 //   3  GetFileVersion       0x18010f880  here  (returns 5)
@@ -14,11 +14,9 @@
 //   7  Destruct             0x180071150  here
 //   8  Construct            0x1800710e0  here
 //
-// plus ~PointList (0x18010f8e0), registered here and appended to
-// src/engine/object/deleting_dtor.cpp's kSpecs.
+// plus ~PointList (0x18010f8e0), here.
 //
-// Layout (sizeof 0x50; Reconstruct/Construct zero +0x20..+0x48 as six qwords,
-// factory step table src/engine/pathfinding/rt_factories_pathfinding.inc agrees):
+// Layout (sizeof 0x50; Reconstruct/Construct zero +0x20..+0x48 as six qwords):
 //   +0x00  Object::External              (0x20)
 //   +0x20  System::String   _name1
 //   +0x28  System::String   _name2
@@ -44,10 +42,8 @@
 // ENDGAME B.3 step 7, block B6 (RULE B7-9): `Pathfinding::PointList` is a real
 // `Object::External` class now (src/engine/pathfinding/PointList.h). The
 // anonymous-namespace struct that used to carry the 0x50 layout here MOVED into
-// that header under the retail name (B6-8), the slot bodies are its members,
-// and every registered door below is a one-line QUALIFIED delegation — a live
-// PointList wears the MINTED table, whose slots resolve back to these doors.
-// The factory rows, the deleting-dtor row and ~PointList's door body stay.
+// that header under the retail name (B6-8), and the slot bodies are its members;
+// a live PointList wears the compiler's table.
 // Field names follow the getters: +0x20 `_meshName` (GetMeshName), +0x28
 // `_subObject` (no getter), +0x30 `_points` (Points), +0x40 `_pathPoints`
 // (PathPoints) — so "_pointsB before _pointsA" above reads "_pathPoints
@@ -90,8 +86,7 @@ using Point = Pathfinding::PointList::Point;
 // [0, count). Body B with the String at +0x00 and stride 0x18, the same rule
 // src/engine/collection/array_destroy.cpp files as kD_Str_18at00; kept here,
 // where its two callers already live, so there is one body per address.
-// REGISTERED as of batch D2 (2026-09-12): retail's 0x180071730 and 0x180071600
-// both reach it by rel32, and at cutover that rel32 will not exist.
+// Retail's 0x180071730 and 0x180071600 both reach it by rel32.
 void ReleasePointsRange(Point* data, int count) {
     for (int i = 0; i < count; ++i) {
         // The release idiom IS `~String` (0x180006c80), run on the element's
@@ -206,8 +201,7 @@ Object::External* PointList::Reconstruct() {
 void PointList::Destruct() { this->~PointList(); }
 
 // ?CreateNewObject@PointList@Pathfinding@@SAPEAVBase@Object@@XZ  0x180070f30
-// The FACTREST row this replaces (rt_factories_pathfinding.inc): MemAlloc of
-// 0x50 bytes, align 8 (the locked `?MemAlloc@MemoryAllocator@System@@`
+// MemAlloc of 0x50 bytes, align 8 (the locked `?MemAlloc@MemoryAllocator@System@@`
 // Object::detail::InternalMemAlloc reaches); retail's null branch; then the
 // inlined constructor.
 Object::Base* PointList::CreateNewObject() {
@@ -276,16 +270,9 @@ PointList::~PointList() {
 
 }  // namespace Pathfinding
 
-// ---- CUTOVER CLOSURE BATCH D2 "helpers-high" (2026-09-12) -----------------
-
 // ============================================================================
 // ENDGAME B.3.9 ENG: the eight slot doors (`RtPathfinding_PointList_Type` ..
 // `_Serialize`) and the `??1PointList` door are gone. Their only reader was
 // the minted `??_7PointList@Pathfinding@@6B@` (and, for the ??1 door, its
 // RT_DELDTOR row): every live PointList now wears the compiler's table.
 // ============================================================================
-
-// B3R (registry teardown, W1 RT-Core): every row this function registered had
-// no reader by name or by address, so they went. It registers nothing and
-// stays defined only because standalone/resolve_standalone.cpp's
-// RuntimePortInit() still calls it (the coordinator removes the call).

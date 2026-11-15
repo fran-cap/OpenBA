@@ -2,26 +2,13 @@
 // Work-gap leaf batch: closure-safe exe sub-helpers referenced from
 // src/game/Work/{cleararea,harvestarea,plantarea}.cpp.
 //
-// Like the other work_base_*.cpp files, these are exe helpers resolved via
+// Like the other work_base_*.cpp files, these are exe helpers called by name from
 #include "Work/exe_bodies.h"
-// ResolveAddr(Module::Exe, 0xADDR) from the Work class reimpls. They resolve to 0
-// (silently skipped) unless registered. This file provides faithful 1:1 ports so the call
-// sites fire real logic in the standalone exe. A single registration point lives
-// in standalone (see lead-integrated reg_*.cpp).
+// the Work class reimpls. This file provides their faithful 1:1 ports.
 //
 // Each function is a 1:1 port of the decompiled exe helper; do not "improve"
 // behavior. Struct field offsets match the decompile EXACTLY (this[0x18] = byte
 // offset +0x18, BST node children left=+0x18 / right=+0x20, etc.).
-//
-// CLOSURE-SAFETY: every exe-code sub-callee below is either already registered
-// (snapshot-verified), a sibling ported in this file, or a Runtime engine export
-// reachable through engine_funcs.h globals. The three big Action-construction
-// ctors that several of these call sites ALSO reference (PerformWork ctor
-// 0x1400bffd0, ShowTool ctor4 0x1400c1530, ShowTool ctor3 0x1400bdd20) are
-// DEFERRED — their sub-callee closure (action copy-ctors 0x1400c59d0 / 0x1400c63b0
-// / 0x1400ca520, Entity_impl 0x1400c29a0, ShowTool_Action_Ctor 0x140042890) is
-// unregistered, so porting them now would build a half-null/drifted action and
-// silently corrupt — strictly worse than the safe no-op skip.
 //
 // Bodies are unconditional so this compiles as-is in the standalone exe.
 
@@ -30,7 +17,7 @@
 #include "system/MemoryAllocator.h"
 #include "Action/PathAvl.h"   // AvlRebalance (0x140013480)
 #include "Work/GridTile.h"      // GridTile (0x14009fc00 / 0x14009d7c0)
-#include "Player/exe_bodies.h"   // B3R: PlayerPath_FindComponent_3ea0
+#include "Player/exe_bodies.h"
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch C
 #include <cstdint>
 #include "rt_libm.h"   // RtCrt_Qsort_18007f050: the MSVC CRT qsort (the exe's 0x14003ae10)
@@ -44,13 +31,13 @@
 #include "Game/Map.h"
 #include "collection/Collection.h"
 
-// 0x140003ea0 — entity-resolve behind an action IBP: PlayerPath_FindComponent_3ea0
-// (Player/exe_bodies.h), called by name (B3R).
+// 0x140003ea0 — entity-resolve behind an action IBP:
+// ComponentEntity::FindComponent<StateMachineComponent>, called by name.
 
 // ============================================================
 // Shared exe sub-callees, called by name (B3R)
 // ============================================================
-// 0x14001ca60 — BST single-node remove + rebalance: WorkCellBST_Remove_ca60 (Work/exe_bodies.h).
+// 0x14001ca60 — BST single-node remove + rebalance: WorkCellBST_Remove_ca60 (Work/CellBst.h).
 // 0x140013480 — BST rebalance/fixup after insert: AvlRebalance (Action/PathAvl.h).
 
 // ============================================================
@@ -98,7 +85,7 @@ using EntitySet = Collection::Set<WorkEntityAssignment>;
 // key. On match calls the shared single-node remove (0x14001ca60: the same link
 // layout).
 // ABI: void fn(longlong* treeRootSlot, InternalBasePtr* key)
-// Closure: 0x14001ca60 (reg) + InternalBasePtr_CheckPtr (engine). SAFE.
+// Closure: 0x14001ca60 (WorkCellBST_Remove_ca60) + InternalBasePtr_CheckPtr (engine). SAFE.
 void WorkLeaf_BstRemoveByIBP_298a0(EntitySet* set, ComponentEntity* const* key) {
     WorkEntitySetNode* node = set->_root;
     if (node == nullptr) return;
@@ -144,7 +131,7 @@ static WorkEntitySetNode* WorkLeaf_BstNewNode_9b40(const WorkEntityAssignment* p
 // otherwise it walks to a leaf, allocates a child via 9b40, then rebalances via
 // 0x140013480. The count is incremented on every insert that adds a node.
 // ABI: undefined8* fn(longlong* treeRootSlot, undefined8* outNode, InternalBasePtr* ins)
-// Closure: 0x140029b40 (inlined) + 0x140013480 (reg) + MemAlloc/CheckPtr (engine). SAFE.
+// Closure: 0x140029b40 (inlined) + 0x140013480 (AvlRebalance) + MemAlloc/CheckPtr (engine). SAFE.
 WorkEntitySetNode** WorkLeaf_BstInsertByIBP_29920(EntitySet* set, WorkEntitySetNode** outNode, const WorkEntityAssignment* ins) {
     // Retail's ClearArea::Execute hands its reused Profession* stack slot here; the
     // tree's caller holds a typed node local.

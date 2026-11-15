@@ -10,9 +10,9 @@
 // Ghidra labels these three "_Shutdown", "_Serialize" and "_OnRemove"; all three
 // are off by one. Only these three are overridden, the other 13 are base-Component
 // no-ops in 0x140118xxx (e.g. 0x140118a60 is a bare `ret`):
-//   slot 3 (+0x18) 0x140058b80  Serialize  — save/load
+//   slot 3 (+0x18) 0x140058b80  Persist    — save/load
 //   slot 4 (+0x20) 0x1400585a0  Startup    — pick endpoints, build the path, post the event
-//   slot 8 (+0x40) 0x140057cd0  Update     — per-frame movement + damage
+//   slot 8 (+0x40) 0x140057cd0  Tick       — per-frame movement + damage
 //
 // WHY SLOT 8 AND NOT SLOT 9. The house rule (charactercomponent.cpp) is that slot 8
 // (+0x40) is the full-rate EntityList update-TREE walk (component flag bit 2) and
@@ -32,8 +32,7 @@
 // inside Game_SpawnTornado (0x14005fd20), whose only caller is the debug panel.
 // That function is already ported at src/game/Dialog/debugui.cpp (command 329).
 //
-// GATE: BANISHED_LIVE_TORNADO — DEFAULT-ON since 2026-08-22 (the default-on table); the
-// env var is now a kill-switch (=0). Trace tag [Tornado] on stderr.
+// Trace tag [Tornado] on stderr.
 //
 // The particle half is done too: Tornado vtable slots 1/2/3/5/6/7/8/9 and
 // TornadoInstance::Update (0x1400d2470) are all ported in src/game/Game/tornado.cpp,
@@ -42,7 +41,7 @@
 
 // graphics/Mesh.h FIRST: it pulls src/engine/volume/Volume.h, whose
 // global-scope `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()` once
-// <windows.h> has been seen through resolve.h.  ENDGAME B.3.5 caller batch I2.
+// <windows.h> has been seen.  ENDGAME B.3.5 caller batch I2.
 #include "graphics/Mesh.h"
 #include "Component/tornadocomponent_funcs.h"
 #include "Entity/EntityList.h"   // EntityList::removalList
@@ -57,11 +56,11 @@
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch A residual
 #include "io/Stream.h"      // ENDGAME B.3.4 callers batch H: IO::Stream::GetDirection
 #include "Component/exe_bodies.h"      // the Component finders / leaves below
-#include "Component/firecomponent_funcs.h"   // the fire lane's three bodies
-#include "Action/exe_bodies.h"         // ActCNR_FindComponent_c460/_3f60, ActHunt_*
-#include "Work/exe_bodies.h"           // WorkBase_FindComponent_52c0
+#include "Component/firecomponent_funcs.h"
+#include "Action/exe_bodies.h"
+#include "Work/exe_bodies.h"
 #include "Player/exe_bodies.h"
-#include "Dialog/dialog_exe_helpers.h" // Dialog_FindComponent_d6c0
+#include "Dialog/dialog_exe_helpers.h"
 #include <new>
 #include <cstdint>
 #include <cstdio>
@@ -98,7 +97,7 @@
 static std::atomic<int> s_tornadoStruckTraced{0};
 
 // EventLog::AddEvent (0x140095580) — already ported in src/game/Game/eventlog.cpp
-// (declared in Game/exe_bodies.h). Reused rather than re-inlined: retail's Startup
+// (declared in Game/EventLog.h). Reused rather than re-inlined: retail's Startup
 // builds the same 0x28-byte record by hand, and its literals (colour 0xffff6060,
 // icon 4, popup -1) are exactly what that port's severity/icon/popup tables produce
 // for type 0x1e / severity 3. Porting the same retail body a second time here is the
@@ -141,7 +140,7 @@ constexpr int kPathNodes = kPathLast + 1;   // 129
 //   0x140003f60 ActCNR_FindComponent_3f60  (the mesh, "clear path queue")
 // Leaves:
 //   0x140053720 Tornado_ParticleReverse_53720   0x140042960 Tornado_AudioMoveEmitters_42960
-//   0x14009f3e0 Reimpl_MapGetTerrainPos (terrain clamp)
+//   0x14009f3e0 Map::GetTerrainPos (terrain clamp)
 //   0x1400c2ea0 ActHunt_MarkEntityRemoval_c2ea0 (0x1400c49d0 EntityList::QueueDestroy is inlined)
 //   0x140126780 GrowthComponent_ResetGrowthState (knockdown)
 //   0x14011e690 / 0x14011e7b0 / 0x14011ea10 the fire lane's IsBeingDemolished /
@@ -176,13 +175,12 @@ GameUpdateLoop* GameWorld() {
 //     obj = *(void**)(self + 0x18);
 //     desc = IsDerivedFrom(obj, TypeId_TornadoDescription) ? obj : nullptr;
 // and then dereferences `desc` unguarded. The type-id global (0x1401c4aa0) has no
-// storage in standalone, so the id comes from the runtime type registry instead —
-// the standard substitution here (see tornadodescription.cpp).
+// storage in standalone, so the id comes from the class's own type record instead
+// (TornadoDescription::TypeId(), DEFINE_EXE_TYPE).
 TornadoDescription* TornadoDesc(TornadoComponent* self) {
     Description* obj = self->_description;
-    // GetTypeIdByName returns 0xFFFFFFFF before Object::Factory::Startup has run, so
-    // only latch a real id — otherwise the sentinel gets cached forever. (The
-    // unchecked answer on an unregistered id is the tree's.)
+    // TypeId() is the 0xFFFFFFFF sentinel before Object::Factory::Startup has run; on
+    // that id (or 0) the description is returned unchecked (the tree's answer).
     const uint32_t typeId = TornadoDescription::TypeId();
     if (typeId == 0 || typeId == Object::kInvalidTypeId) return static_cast<TornadoDescription*>(obj);
     return Object::IsDerivedFromNullSafe(obj, typeId) ? static_cast<TornadoDescription*>(obj) : nullptr;
@@ -403,11 +401,10 @@ static void Tornado_StrikeEntityCounted(int64_t unusedFirstArg, ComponentEntity*
     if (animalComp != nullptr) {
         // --- ANIMAL (livestock or wild): remove it from the world ---
         // 0x140005500 matches type id 0x1401c6f98 = AnimalComponent (verified: the
-        // finder compares against DAT_1401c6f98, and factory_registrations.csv maps
-        // that global to AnimalComponent_RegisterType @ 0x14014e510). Its other
-        // readers agree — HerdComponent_StartMigration, PopulationComponent_helper_0f50,
-        // and 0x140047d70 (the crop lane's KillOneAnimal); reg_action_hunt.cpp:16
-        // registers it as ActHunt_FindComponent_5500.
+        // finder compares against DAT_1401c6f98, the type-id global of
+        // AnimalComponent_RegisterType @ 0x14014e510). Its other readers agree —
+        // HerdComponent_StartMigration, PopulationComponent_helper_0f50, and
+        // 0x140047d70 (the crop lane's KillOneAnimal).
         // This arm was originally named "loose entity" here, which was wrong and would
         // have mis-read the soak: a tornado crossing a pasture reports its kills here,
         // and filing livestock losses under "debris" hides a herd wipe.
@@ -495,7 +492,7 @@ void TornadoComponent::DamageTick(const System::Time* dt) {
             NaturalResourceComponent* probe = cellEntity->FindComponent<NaturalResourceComponent>();   // 0x1400052c0
             if (probe != nullptr) {
                 ComponentEntity* ibp = cellEntity;
-                Tornado_StrikeEntityCounted(reinterpret_cast<int64_t>(cellEntity), &ibp, &hitTree, &hitTreeNoKnock,   // LEFT: B6 register retail leaves unset: none of retail's three calls of 0x1400583c0 loads RCX (0x140058220 / 0x140058291 / 0x14005834f set only RDX); the leftover is the entity then clobbered by 0x1400052c0 here, the slot pointer (RBX, 0x140058275, CheckPtr is a bare RET) at :536, the cell index * 6 (0x14005832f..0x140058333) at :559, so no one declared type carries all three without a cast  // CAST-OK: ptr_int (S4 ruling)
+                Tornado_StrikeEntityCounted(reinterpret_cast<int64_t>(cellEntity), &ibp, &hitTree, &hitTreeNoKnock,   // LEFT: B6 register retail leaves unset: none of retail's three calls of 0x1400583c0 loads RCX (0x140058220 / 0x140058291 / 0x14005834f set only RDX); the leftover is the entity then clobbered by 0x1400052c0 here, the slot pointer (RBX, 0x140058275, CheckPtr is a bare RET) at :534, the cell index * 6 (0x14005832f..0x140058333) at :557, so no one declared type carries all three without a cast  // CAST-OK: ptr_int (S4 ruling)
                                      &hitBuilding, &hitBuildingNoFire, &hitAnimal, &hitCitizen);
             }
         }
@@ -514,7 +511,7 @@ void TornadoComponent::DamageTick(const System::Time* dt) {
         // a separate live value in the same function, used for the cell raster above --
         // which is exactly why passing it here looked plausible. It is not a quadtree,
         // so 0x140092990 read its +0x50 node-count table as garbage and faulted on null.
-        // citizen_updatehealth.cpp:687 was already calling this correctly.
+        // citizen_updatehealth.cpp calls this the same way (gw->m_characterGrid).
         //
         // The null test is a DELIBERATE standalone-only deviation, not a papered-over
         // fault: retail always has this manager, but ours is built by CharManager_Seed
@@ -531,7 +528,7 @@ void TornadoComponent::DamageTick(const System::Time* dt) {
         for (int i = 0; i < found.size; i++) {
             CharacterComponent** slot = &found.data[i];
             ComponentEntity* ownerEntity = (*slot)->_entity.Get();
-            Tornado_StrikeEntityCounted(reinterpret_cast<int64_t>(slot), &ownerEntity,   // LEFT: B6 register retail leaves unset (0x140058291 loads only RDX; RCX is the slot pointer left by 0x140058275): pointer here and at :500, integer (off * 6) at :559; no one declared type lets all three pass without a cast  // CAST-OK: ptr_int (S4 ruling)
+            Tornado_StrikeEntityCounted(reinterpret_cast<int64_t>(slot), &ownerEntity,   // LEFT: B6 register retail leaves unset (0x140058291 loads only RDX; RCX is the slot pointer left by 0x140058275): pointer here and at :498, integer (off * 6) at :557; no one declared type lets all three pass without a cast  // CAST-OK: ptr_int (S4 ruling)
                                  &hitTree, &hitTreeNoKnock, &hitBuilding, &hitBuildingNoFire,
                                  &hitAnimal, &hitCitizen);
         }
@@ -583,7 +580,7 @@ void TornadoComponent::DamageTick(const System::Time* dt) {
 // Both lanes independently ported these two (my address grep was clean when I ran it —
 // the fire lane's files did not exist yet), which is how
 // reference_one_retail_fn_ported_twice_diverges lands. The fire lane deleted its copies
-// and now resolves these addresses, so this is the single surviving implementation.
+// and calls these two by name (firecomponent_ignite.cpp), so this is the single implementation.
 // The two copies differed: theirs guarded `duration == 0` before the divide. This one
 // divides unguarded, matching retail (`g_fUVScale / AsSeconds(...)` at 0x14005375e with
 // no test), per the project rule against papering over a faithful crash. If a
@@ -755,7 +752,7 @@ void TornadoComponent::Startup() {
         path.points.SetSizeFill(path.points._size + 1, p);
     }
 
-    // --- post the warning to the event log, and pause if the setting says so ---
+    // --- post the warning to the event log, and set game speed 1 if AutoSlow is on ---
     EventLog* eventLog = gw->m_eventNotifier;
     Object::InternalBasePtr nullIbp(nullptr);
     eventLog->AddEvent(0x1e, 3, &nullIbp);
@@ -814,7 +811,7 @@ void TornadoComponent::Tick(const System::Time* time) {
 
     // FAITHFUL: retail dereferences the ParticleComponent unguarded — Tornado.rsc
     // always has one, so a null here is an upstream problem, not something to paper
-    // over. Startup already logged whether the finder found it.
+    // over. Startup's [Tornado] spawn trace (BANISHED_TORNADO_TRACE) says whether the finder found it.
     const bool particleAlive =
         (pc->emitters._size > 0) &&
         (pc->emitters[0].sceneId >= 0);

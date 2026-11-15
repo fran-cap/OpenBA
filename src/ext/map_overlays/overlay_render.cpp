@@ -365,10 +365,8 @@ void UploadTerrain(TerrainTexture& t) {
     t.uploaded = true;
 }
 
-// The texture of `size` with its material: the minimap's image parameters but POINT filtered (filter 0), on a
-// MaterialInstance of the Selection material's Material with the image as its "diffuse" (Selection.rsc's own
-// texture name). Null when it cannot be made.
-// A MaterialInstance of this game's Selection Material over `image`. Null when it cannot be made.
+// A MaterialInstance of this game's Selection Material over `image`, with the image as its "diffuse"
+// (Selection.rsc's own texture name). Null when it cannot be made.
 Graphics::MaterialInstance* TerrainMaterialOver(Video::ImageBuffer* image) {
     const Graphics::MaterialInstance* selection = SelectionInstance();
     const Graphics::Material* material = selection != nullptr ? selection->_material.Get() : nullptr;

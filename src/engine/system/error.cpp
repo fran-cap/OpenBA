@@ -15,7 +15,7 @@
 // 1. WHY THIS IS PORTED DESPITE BEING OFF THE CURRENT REACH PATH
 // ---------------------------------------------------------------------------
 // Iteration 2 deferred it, correctly, as failure-arm-only. The coordinator
-// asked for it anyway and the argument is right: `game_main.cpp:482-497` reads
+// asked for it anyway and the argument is right: `game_main.cpp` reads
 // `_errorString` to report WHY `Engine::Startup` returned 0, and every failure
 // arm in that 367-instruction function reaches it through `SetText`. While it
 // is unported, every `Engine::Startup` failure in the rest of this cutover work
@@ -89,22 +89,6 @@
 // `SetText` is its only caller in this wave's path and string.cpp is live in
 // another lane. Move it when both are still.
 //
-// ---------------------------------------------------------------------------
-// 4. ORACLE
-// ---------------------------------------------------------------------------
-// `StrAppend` is a PURE FUNCTION of (dst contents, capacity, src) with an
-// out-parameter, so it has a REAL differential oracle and gets one: the shadow
-// runs the shipped body on a snapshot of the same input buffer and compares
-// both the returned pointer offset and the full 0x2000 bytes. That snapshot is
-// not optional — `reference_oracle_must_snapshot_aliased_inputs.md`: `dst` is
-// both an input and the output, so running theirs after ours would run it on
-// input our own write had already destroyed.
-//
-// `SetText` gets a shadow instead. It appends to a process-wide buffer, so a
-// replay would append twice; what is checked is that the text and the trailing
-// newline are BOTH present at the end of the buffer after our call, and that
-// `_stopApplication` took the argument — none of which this body computes
-// directly, they are what `StrAppend` and the inlined second append produced.
 // ============================================================================
 
 #include <cstdint>
@@ -117,13 +101,13 @@
 // `?SetText@Error@System@@SA...` is a static member of a class named
 // `System::Error`, which a free function cannot carry.
 //
-// TWO BODIES MOVED onto members; the two registered doors keep their addresses
-// and delegate. Member bodies are defined at GLOBAL scope with qualified names,
+// TWO BODIES MOVED onto members, and callers call them by name. Member bodies
+// are defined at GLOBAL scope with qualified names,
 // the shape SYSTEM (3) adopted.
 //
 // NOT MOVED, AND NEITHER IS AN OVERSIGHT:
 //   * [SUPERSEDED by ENDGAME B.3.9 SYS: the three are class statics now,
-//     defined just below, redirected together in RtSystemPortInit.]
+//     defined just below.]
 //     the THREE statics (`_errorString`, `_stopApplication`, `_hideDisplay`)
 //     stay `RT_DATA_SLOT` reads -- rule B4b-4. All three are CUTOVER_REQUIRED
 //     rows answered by a minted cell, and making one a real `static` member
@@ -141,7 +125,7 @@
 #include "platform_window.h"   // Platform::Window::ShowErrorMessage (SDL W6)
 
 // ENDGAME B.3.9 SYS (B39_RULES D7): the three statics. Zero, as the DLL's
-// .data/.bss starts; RtSystemPortInit redirects the minted rows onto them.
+// .data/.bss starts.
 char System::Error::_errorString[0x2000] = {};   // 0x1801fc720
 bool System::Error::_hideDisplay         = false; // 0x1801fc709
 bool System::Error::_stopApplication     = false; // 0x1801fc70a
@@ -178,8 +162,7 @@ constexpr int kErrorStringCapacity = 0x2000;
 const char kNewline[] = "\n";
 
 // The three exported DATA symbols are CLASS STATICS since ENDGAME B.3.9 SYS
-// (defined below this namespace; RtSystemPortInit redirects the minted rows
-// onto them), so their three RT_DATA_SLOT accessors are gone.
+// (defined above this namespace), so their three RT_DATA_SLOT accessors are gone.
 //   ?_errorString@Error@System@@0PADA      ord 4782, 0x1801fc720 -- THE BUFFER
 //   ?_stopApplication@Error@System@@0_NA   ord 4818, 0x1801fc70a
 //   ?_hideDisplay@Error@System@@0_NA       ord 4791, 0x1801fc709
@@ -368,10 +351,12 @@ void System::Error::SetText(const char* text, bool stopApplication) {
 //
 // A modal Win32 dialog blocks boot in a way that looks exactly like a slow
 // load (CLAUDE.md, "Boot State"), so it matters WHO can reach this. On this
-// tree the answer is: `FatalOutOfMemory` in src/engine/system/allocator.cpp,
-// and only when `stopApplication` is true, which `Engine::Startup` never
-// passes; plus exe import slot 0x140152b58, which is UNREGISTERED. Retail's own
-// kill switch, `_hideDisplay`, is honoured on the first line.
+// tree: `FatalOutOfMemory` in src/engine/system/allocator.cpp (only when
+// `stopApplication` is true), src/game/Game/game_main.cpp,
+// src/game/Entity/entitylist.cpp, gamegrid_serialize.cpp, geometry_serialize.cpp,
+// gameupdateloop_serialize.cpp, src/ext/render_backend/render_backend.cpp and
+// the dx11, vulkan and metal backends. Retail's own kill switch, `_hideDisplay`,
+// is honoured on the first line.
 //
 // ORACLE: NOT RUN, and the reason is not "no route". A real differential oracle
 // exists and is described in the lane doc — set `_errorString`, call ours with
@@ -387,8 +372,7 @@ namespace {
 // The clamped append retail INLINES at 0x1800c6142 and 0x1800c61b2. It is
 // 0x1800c9020 (`StrAppend`, ported above) minus the return value, which the
 // inlined copies do not compute. Written out rather than delegated to
-// RtSystem_String_StrAppend so that this file does not fire that function's
-// oracle — which snapshots a 0x2000 buffer — twice per fatal error.
+// RtSystem_String_StrAppend.
 void AppendClamped(char* dst, int capacity, const char* src) {
     const int dstLen = RetailStrLen(dst);
     const int room   = capacity - dstLen;
@@ -521,12 +505,9 @@ void System::Error::Display() {
     // parent window, fed the SAME two clamped UTF-16 buffers (the primitive converts
     // them to the UTF-8 SDL takes), so retail's truncation point is unchanged. On
     // Windows SDL builds the box from a dialog template of the standard dialog class
-    // (#32770), which is what src/diag/boot_state_watchdog.cpp detects.
+    // (#32770), which is what src/diag/win/boot_state_watchdog.cpp detects.
     Platform::Window::ShowErrorMessage(wtext, wcap);
 
     DisplayStopIfRequested();
 
-    // EFFECTIVENESS CONTROL. `work` counts the calls that actually reached the
-    // message box; a run whose Display rows are all work=0 took the
-    // `_hideDisplay` arm every time and has exercised none of the above.
 }

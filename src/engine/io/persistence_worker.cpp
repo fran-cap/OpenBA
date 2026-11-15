@@ -42,76 +42,18 @@
 // stamps the derived vtable 0x180155860 over it (Persistence.h). All four
 // bodies below take that SUBOBJECT in RCX, so every offset in the shipped
 // listing is `Persistence offset - 0x10`. The header already pins both
-// spellings against each other field by field; this file therefore takes a
-// `Persistence*` recovered as `(char*)worker - 0x10` and uses the NAMED
-// Persistence fields, so a future change to the layout breaks the
+// spellings against each other field by field; this file therefore takes the
+// worker itself (`IO::PersistenceWorker*`, or `this` in its members) and uses its
+// NAMED fields, so a future change to the layout breaks the
 // static_asserts rather than silently shifting a raw offset here.
 //
-// AEAA / THE NAME DOOR — checked, not assumed
+// THE ARRAY INSTANTIATIONS
 // ---------------------------------------------------------------------------
-// "AEAA means PRIVATE, not unexported" — this DLL exports its private members,
-// so an address door justified by the word "unexported" in a comment is often
-// a plain name door somebody missed. It does not bite here: Wave 23 pushed all
-// 183 address-keyed census rows through an export-table screen with 100%
-// recall and 0 false positives on 1,125 in-population controls, and got 0
-// names back. These four have no mangled name to register under, so they are
-// registered by ADDRESS only (RegisterRuntimeAddr).
-//
-// ORACLE — a SHADOW site, and why not an input sweep or a replay
-// ---------------------------------------------------------------------------
-// Kickoff §1c, stated before the work started:
-//   * NOT an input sweep. None of the four is pure. All four mutate the live
-//     worker object and three of them signal a real Win32 event a real thread
-//     is blocked on; running the shipped body "for comparison" would enqueue a
-//     SECOND request, and running the dtor twice would WaitForSingleObject on
-//     a handle already closed.
-//   * NOT a write-path replay. There is no Serializer here.
-//   * NOT a synthesised oracle. A synthetic worker is buildable for the three
-//     enqueue bodies (the whole issued state is a String, some ints and two
-//     event handles) but NOT for the dtor, which joins a thread; and an oracle
-//     that covers three of four rows while the fourth is the risky one is the
-//     shape this project keeps mistaking for coverage.
-//   * SO: the diff oracle, exercised by lane DIFF's armed sweep. This lane has
-//     no game-directory lock by design.
-//
-// THESE FOUR SITES ARE LABELLED `[SELF-CHECK]` IN THEIR OWN SITE NAMES, and
-// that labelling is a deliverable, not decoration. Wave 24 lane DIFF's armed
-// sweep (99.7M calls over 630 sites) measured that AT LEAST 286 of 630 existing
-// sites (45%) cannot catch a shared misunderstanding of retail — 115 SELF-CHECK,
-// 38 ATTENDANCE, and 133 structurally incapable of printing anything but
-// `divergences=0`. None of them said so. A site that cannot fail reports GREEN,
-// which is worse than no site. So each site here declares its own class in the
-// string the sweep prints, and the "theirs" description says in words that there
-// is no DLL side rather than naming a comparison that never happened.
-//
-// AND THE LIMIT OF THAT, SAID PLAINLY: a shadow site is a SELF-CHECK, not an
-// oracle. It takes this port's own verdict and never consults the DLL
-// (reference_shadow_marker_is_not_an_oracle.md). The predicates below are
-// therefore written to re-read the OBJECT after the body has run and assert
-// the fields retail's listing says must hold — which catches a wrong offset, a
-// wrong constant and a dropped store, and does NOT catch a shared
-// misunderstanding of what retail meant. `divergences=0` on these four sites
-// means "the stores landed where this file says", not "the port is right".
-//
-// WHAT THIS FILE GROWS — the cutover surface
-// ---------------------------------------------------------------------------
-// Porting a body faithfully makes its callees OURS to satisfy at cutover
-// (reference_porting_can_grow_the_cutover_surface.md). Two addresses below are
-// NEW to the census — no literal door for them existed in the tree before this
-// file:
-//     0x18002a9d0   Array<void*>::SetSize(n)        (blockPtr array)
-//     0x18002a810   Array<{u32,u32,u32}>::SetSize(n) (blockDesc array, stride 0xc)
-// and two more were already census rows and are still unported:
-//     0x18002a930   ~Array clear-on-null, blockDesc
-//     0x18002ac40   ~Array clear-on-null, the save list
-// All four are `Collection::Array<T>` instantiations against the parameterised
-// cores this tree already owns (SetSizeCore / ArrayDtorImpl in
-// src/engine/collection/), i.e. ArraySpec/DestroySpec table entries and not
-// function bodies (WAVE23_LANE_INTERNAL.md §6).
-// **ADDRESSEE: the Wave 25 lane that takes WAVE23_LANE_INTERNAL.md residual #6
-// (the 14 spec entries).** Adding 0x18002a9d0 and 0x18002a810 to that list is
-// this file's debt, and it is recorded here rather than left for a census diff
-// to rediscover.
+// 0x18002a9d0 and 0x18002a810 (SetSize) and 0x18002a930 and 0x18002ac40 (~Array)
+// are `Collection::Array<T>` instantiations against the parameterised cores in
+// src/engine/collection/, i.e. ArraySpec/DestroySpec table entries and not
+// function bodies (docs/history/runtime_port/WAVE23_LANE_INTERNAL.md §6); the
+// list under "Collection::Array<T> instantiations" below names each one.
 // ============================================================================
 
 #include <cstdint>
@@ -140,13 +82,11 @@ namespace {
 
 // ---- CRC-32, reflected table (polynomial 0xEDB88320) -----------------------
 // System::CRC::_crcTable (exported DATA, retail 0x1801f9080) is the textbook
-// reflected CRC-32 table byte-for-byte (type_system.cpp already verified this
-// table against the DLL's copy for the type-id hash); generated here rather
-// than read out of the DLL so the SAVE job survives cutover with the DLL
-// absent (PLAN.md §4.1 decision 1). A second, independent generator from
-// type_system.cpp's rather than a shared one, for the same reason this file's
-// banner gives for not sharing ArrayClear helpers: the census greps for what
-// each file actually depends on.
+// reflected CRC-32 table byte-for-byte (src/engine/object/type_reflection.cpp
+// verified this table against the DLL's copy for the type-id hash); generated
+// here rather than read out of the DLL (docs/runtime_port/PLAN.md §4.1
+// decision 1). A second, independent generator from type_reflection.cpp's
+// rather than a shared one.
 uint32_t* CrcTable() {
     static uint32_t table[256];
     static bool built = false;
@@ -214,7 +154,7 @@ uint32_t Crc32Chunked(uint32_t crc, const void* bytes, uint32_t len, uint32_t ch
 //   0x18002a810  Array<BlockDesc12>::SetSize(n) trait-derived (kSpec_Blk12)
 //
 // B.4 R-IO: all three are `IO::PersistenceWorker` members now
-// (`_blockDescs`, `_blockPtrs`, `_saves`, PersistenceWorker.h), so every call
+// (`_blockDescs`, `_blockPtrs`, `_saves`, Persistence.h), so every call
 // site below names the container.
 
 // ---- the String field assignment the three enqueue bodies share -------------
@@ -293,11 +233,6 @@ extern "C" void RtIo_PersistenceWorker_EnqueueDelete(IO::PersistenceWorker* w, c
     w->_command = 2;
     w->_status  = static_cast<int32_t>(IO::PersistenceWorker::Status::Pending);
     SignalWorker(w);
-
-    // SHADOW — a SELF-CHECK, not an oracle (banner). It re-reads the object and
-    // asserts the two constants this body's whole purpose is to publish. It
-    // catches a wrong offset or a dropped store; it cannot catch a shared
-    // misreading of retail.
 }
 
 // ============================================================================
@@ -341,10 +276,7 @@ extern "C" void RtIo_PersistenceWorker_EnqueueLoad(IO::PersistenceWorker* w, con
     void** slots = w->_blockPtrs._data;
     for (int i = 0; i < w->_blockPtrs._size; ++i) slots[i] = nullptr;
 
-    // Counts how many caller blocks actually found a descriptor. This is the
-    // EFFECTIVENESS number: a call with blockCount==0, or with ids that match
-    // nothing, enters the body and compares clean while having matched nothing
-    // (reference_probe_needs_an_effectiveness_control.md).
+    // Counts how many caller blocks actually found a descriptor.
     int matched = 0;
     const RtIo::BlockDesc* const desc0 = w->_blockDescs._data;
     for (int b = 0; b < blockCount; ++b) {
@@ -375,28 +307,23 @@ extern "C" void RtIo_PersistenceWorker_EnqueueLoad(IO::PersistenceWorker* w, con
 // void (worker /*RCX*/, const String* filename /*RDX*/,
 //       int blockCount /*R8D*/, const SaveBlock* blocks /*R9*/)
 //
-// THIS BODY DOES NOT WRITE A COMMAND WORD, and that is the single most
+// THIS BODY WRITES NO NON-ZERO COMMAND WORD, and that is the single most
 // surprising thing in the cluster — so it is stated rather than quietly
 // reproduced. `MOV qword ptr [RSI+0x38],RDI` at 0x1800b765d is a QWORD zero
 // store covering worker+0x38..0x3f == Persistence+0x48..0x4f, i.e. `status`
-// AND `command` together; nothing afterwards sets a command. The command for a
-// save is therefore written by the CALLER (Save::SaveLoad::UpdateSave —
-// src/engine/save/saveload_update.cpp:324 is our side of that call), not
-// here. Reading the qword store as "status = 0" alone and adding a
-// `command = 4` would be an invented store; it is not in the bytes.
+// AND `command` together; nothing afterwards sets a command. The request is
+// therefore command 0, the SAVE arm of `Run`. Reading the qword store as
+// "status = 0" alone and adding a `command = 4` would be an invented store; it
+// is not in the bytes.
 //
-// It then stages a 12-byte HEADER at worker+0x44..0x4f, which lands inside
-// Persistence's `_pad54[0xc]` gap:
+// It then stages a 12-byte HEADER at worker+0x44..0x4f, the `_fileHeader`,
+// `_magic` and `_crc` fields (Persistence.h):
 //     MOV word  [RSI+0x46],BP        ; blockCount as a UINT16
 //     MOV EAX,2 / MOV word [RSI+0x44],AX
 //     MOV qword [RSI+0x48],-0x7f7f7f80   ; 0xFFFFFFFF80808080, sign-extended imm32
-// Those three fields are NOT named in Persistence.h and this lane does NOT
-// name them: a name is a claim about meaning, and nothing read here pins one.
-// What IS pinned is the WIDTH of each store and the fact that the block-offset
-// accumulator starts at `12 * (blockCount + 1)` — one 12-byte slot more than
-// there are blocks, which is the arithmetic that says this header is slot 0 of
-// the same table. They are written through a raw byte view of the pad, with a
-// static_assert that the pad still covers them.
+// The block-offset accumulator starts at `12 * (blockCount + 1)` — one 12-byte
+// slot more than there are blocks, which is the arithmetic that says this
+// header is slot 0 of the same table.
 //
 // Then, per block (the loop at 0x1800b76c0), it fills descriptor i with
 //     +0x00 = blocks[i].id        (MOV EAX,[RDX+0x4] where RDX = &block.size)
@@ -475,26 +402,18 @@ extern "C" void RtIo_PersistenceWorker_EnqueueSave(IO::PersistenceWorker* w, con
 // row as held back because it "joins and closes a real thread". That is TRUE
 // of the body — the WaitForSingleObject at 0x1800b77c3 is INFINITE and the
 // handle it waits on is the worker thread — and it is NOT a reason not to port
-// it. Re-checked on this tip:
-//   * the only caller is ??1Persistence@IO@@QEAA@XZ (0x1800b7fb0), which Wave
-//     19 ALREADY PORTED and which already reaches this body by address;
+// it:
+//   * the only caller is ??1Persistence@IO@@QEAA@XZ (0x1800b7fb0);
 //   * the join is a shutdown-time wait on a thread that is signalled to exit
 //     one instruction earlier (`SetEvent(readyEvent)` at 0x1800b77b6), so it
-//     is bounded by the worker's own loop, not by a game state;
-//   * the blocker was never a PORT blocker — it is a VERIFICATION blocker, and
-//     it is exactly why the oracle for this row is a shadow site and not a
-//     replay. Six stale blockers in two waves; this one was real about the
-//     oracle and wrong about the port.
+//     is bounded by the worker's own loop, not by a game state.
 //
 // THE VTABLE STAMPS ARE LOAD-BEARING. The body writes 0x180155860 over
 // *worker on ENTRY and 0x180155f20 (the base System::Thread vtable) on the way
 // out. That is MSVC's ordinary derived-then-base dtor sequence and it means a
-// virtual call made between the two lands in the DERIVED table. Both addresses
-// are DATA doors, not code: they are resolved through ResolveAddr so the mint
-// can take them over at cutover, and 0x180155860 is itself one of the census's
-// 45 `internal` rows (a 2-slot vtable — WAVE23_LANE_INTERNAL.md §4C records
-// that its own screen mis-called it DATA/POINTER at a 3-slot threshold, and
-// says so).
+// virtual call made between the two lands in the DERIVED table. 0x180155860 is
+// a 2-slot vtable (docs/history/runtime_port/WAVE23_LANE_INTERNAL.md §4C records
+// that its own screen mis-called it DATA/POINTER at a 3-slot threshold).
 //
 // It does NOT call the base System::Thread destructor. The four CloseHandles
 // are inlined here, and the base dtor's own work — if any — is not reached.
@@ -508,8 +427,7 @@ extern "C" void RtIo_PersistenceWorker_EnqueueSave(IO::PersistenceWorker* w, con
 // src/engine/system/thread.cpp: SetEvent(hStop = worker+0x20),
 // WaitForSingleObject(hThread = worker+0x10, INFINITE), CloseHandle on
 // +0x10 / +0x18 / +0x20 / +0x28 in that order), which the compiler runs after
-// this body with its own base-vptr store. The fields are read through the
-// Persistence POD view, as every job body here reads them.
+// this body with its own base-vptr store.
 IO::PersistenceWorker::~PersistenceWorker() {
     // NOT RETAIL (review F-101): wait for the job in flight before the members die.
     // Retail frees the four members below and only then (in the base destructor)
@@ -520,7 +438,7 @@ IO::PersistenceWorker::~PersistenceWorker() {
     WaitForFinish();
 
     // B.4 R-IO: the four releases are the members' destructors, which the
-    // compiler runs after this (empty) body in reverse declaration order --
+    // compiler runs after this body in reverse declaration order --
     //   _saves       worker+0x70  0x18002ac40 (the hand-derived
     //                             kSpec_SaveGameInfo row, array_destroy.cpp's
     //                             J2_ENTRY table)
@@ -548,7 +466,7 @@ IO::PersistenceWorker::~PersistenceWorker() {
 //   4. crc (+0x4c/P+0x5c) = Crc32Chunked(seed=crc-as-read, blockDescData,
 //      blockDescCount*0xc, chunkCap=0) — ONE uncapped pass over the
 //      descriptor array, complemented once at the end. `crc` on entry is
-//      whatever the enqueuer (BeginSaveGame, not yet ported) preset; retail
+//      whatever the enqueuer (RtIo_PersistenceWorker_EnqueueSave) preset; retail
 //      does not initialise it here.
 //   5. crc = Crc32Chunked(crc, block.data, block.size, chunkCap=0x8000) for
 //      each of the blockDescCount blocks in blockPtrData, IN ORDER, folding
@@ -565,9 +483,7 @@ IO::PersistenceWorker::~PersistenceWorker() {
 //
 // NO ORACLE, same refusal as `Run`'s banner: this writes a real file through
 // a real HANDLE and there is nothing to replay it against without writing the
-// save twice. `the diff oracle` asserts the one thing this body's contract
-// actually promises — status ends at 1 or 2, never left at whatever it was —
-// which catches a body that returns without touching it at all.
+// save twice.
 // ============================================================================
 const std::atomic<bool>* IO::PersistenceWorker::_extFixSaveTemp = nullptr;   // fix.save_failure_notice seam
 
@@ -729,55 +645,6 @@ void IO::PersistenceWorker::SaveJob() {
 // already names it: `RtIo_PersistenceWorker_EnqueueSave` (0x1800b75c0) is the
 // only enqueue path that does not write a non-zero command, i.e. **0 is SAVE**.
 // That is a reading of an ABSENCE and is labelled INFERRED, not measured.
-//
-// ---------------------------------------------------------------------------
-// WHAT THIS GROWS — five new address doors, declared, not discovered later
-// ---------------------------------------------------------------------------
-// reference_porting_can_grow_the_cutover_surface.md. Porting a dispatcher makes
-// its five arms OURS to satisfy at cutover. None of the five is exported —
-// checked individually against the retail export directory with pefile; the
-// nearest preceding export to every one of them is
-// `?Serialize@PackageFile@IO@@UEAA_NAEAVStream@2@@Z` several hundred bytes
-// back, i.e. none of them has a name to register under and all five need
-// ADDRESS doors. `AEAA` means private, not unexported, so "unexported" was
-// MEASURED rather than read off a mangling
-// (reference_aeaa_is_private_not_unexported.md).
-//
-//   SYMBOL      (unexported) 0x1800b6e00  the SAVE job
-//   SYMBOL      (unexported) 0x1800b6aa0  the LOAD job
-//   SYMBOL      (unexported) 0x1800b69c0  the DELETE job
-//   SYMBOL      (unexported) 0x1800b65b0  the GET-SAVE-INFO job
-//                                         *** PAID 2026-09-12, BATCH 8b ***
-//                                         src/engine/io/persistence_saveinfo_job.cpp
-//                                         registers this address.
-//   SYMBOL      (unexported) 0x1800b6290  the GET-SAVE-LIST job
-//                                         *** PAID 2026-09-12, batch 5 ***
-//                                         src/engine/io/persistence_savelist_job.cpp
-//                                         registers this address. With the SAVE
-//                                         job ported in this file and BATCH 8b
-//                                         above, TWO of the five remain open:
-//                                         LOAD (0x1800b6aa0) and DELETE
-//                                         (0x1800b69c0).
-//   CONDITION   each door is live the moment `Run` is dispatched out of a
-//               PROMOTED/minted 0x180155860 with the matching command pending.
-//   CONSEQUENCE with the DLL present each resolves to the shipped body and
-//               behaviour is unchanged. At cutover an unported arm resolves
-//               NULL and the worker thread executes address 0 — so these five
-//               are a cutover obligation this file CREATES and does not pay.
-//
-// Each address is spelled as a LITERAL inside its own `ResolveAddr` call, not
-// routed through a shared helper, because `tools/runtime_census.py` and
-// `tools/addr_door_audit.py` both find doors by grepping for that literal and
-// a door reached through a variable is invisible to both
-// (reference_literal_grep_blind_to_variables.md — and GFXMESH found a door
-// hidden this way in `mesh.cpp:201` for 21 waves).
-//
-// > **[ADDRESSEE — the FOUR remaining Persistence job bodies]** (was five;
-// > 0x1800b6290 landed 2026-09-12, batch 5) the Wave 29 lane scoped
-// > to IO's remaining `internal` address rows, or the cutover lane that finds
-// > them in the `[RtRawResidue]` list, whichever comes first. They are the
-// > save/load/delete/info/list workers themselves and each is several hundred
-// > bytes; they are NOT slot work and were deliberately not attempted here.
 //
 // ---------------------------------------------------------------------------
 // NO ORACLE — and the refusal is structural

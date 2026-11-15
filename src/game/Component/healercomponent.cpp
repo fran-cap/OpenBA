@@ -6,7 +6,7 @@
 //
 // Vtable at 0x140159730:
 //   [3] Shutdown  = 0x14004aeb0 -- two empty serializer blocks
-//   [7] OnCreate  = 0x14004ae70 -- registers with healer list
+//   [7] OnRemove  = 0x14004ae70 -- erases from the healer list
 //
 // Decompiled from Application-x64.exe using Ghidra.
 
@@ -26,7 +26,7 @@
 
 // FUN_140003110 was Collection::Array<void*>::SetSize(n, fill) monomorphised
 // into the exe (ENDGAME B.3.2 step 2) — converted at its call site below.
-// DAT_1401c3dd8 (the game world) is engine_funcs' g_pGameWorldSingleton.
+// DAT_1401c3dd8 (the game world) is GameUpdateLoop::_singleton.
 
 // ============================================================
 // HealerComponent::OnRemove (vtable slot [7], 0x14004ae70) — the member below
@@ -173,8 +173,5 @@ void HealerComponent::OnRemove() {
             town->healers.Remove(self);   // 0x140002cc0
     }
 }
-
-// Doors kept for their by-address rows (B.3.8): standalone/reg_cemetery_healer_serialize.cpp
-// (0x14004aeb0) and standalone/reg_town_services.cpp (0x14004ae70).
 
 DEFINE_EXE_TYPE(HealerComponent, "ControllerComponent")

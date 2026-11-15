@@ -28,45 +28,13 @@
 // All twenty lane-F mangled names — the eight held back included — were checked
 // against the export directory of the shipped C:\GOG Games\Banished\Runtime-x64.dll
 // with pefile BEFORE any body was written, and all twenty are present. The
-// addresses and ordinals above are that query's output. This step is not
-// optional: a name the DLL does not contain resolves to NULL in silence, the
-// port still registers, and the census still counts it
-// (reference_resolveexport_phantom_names.md).
+// addresses and ordinals above are that query's output.
 //
-// EVERY PORT IS REGISTERED TWICE — under its mangled name AND under its retail
-// address — because this lane's call sites already use both doors:
-// engine/funcs/engine_funcs.cpp:2856 resolves `Camera::SetCameraToWorld` by
-// ADDRESS (`ResolveAddr(Module::Runtime, 0x1800feb00)`) while every other lane-F
-// consumer resolves by name. A name-only registration would have left that one
-// call site pointed at the DLL while its siblings came here — two
-// implementations taking turns on one live Camera, which is the exact shape
-// Wave 5 lane D had to reason about for Picking::Scene.
-//
-// WHAT STAYS IN THE DLL, AND WHY
-// ------------------------------
-// EIGHT of the lane's twenty rows are NOT ported. In short (full reasons in the
-// lane doc): `Renderer::Draw` is the entire frame and reaches into
-// `Video::Context`'s private fields and `Geometry`'s virtuals, both owned by
-// other lanes running concurrently; `Renderer::AddDrawItem` and
-// `MaterialInstance::Setup`/`BuildParameters` mutate or read layouts this lane
-// did not pin and admit no safe oracle; `SunLight`'s ctor and `Set` create and
-// destroy GPU render targets; and the two `?_typeInfo@...` rows are exported
-// DATA symbols, not functions — there is nothing to register before cutover.
-//
-// IS THE CLASS SPLIT?  Camera: no — every Camera method that exists is here
-// (the class exports exactly these five symbols). Renderer and MaterialInstance:
-// YES, deliberately, and it is safe for the same reason PLAN §4.1 decision 5
-// gives — every ported body is byte-faithful on a layout both implementations
-// share, and no ported body allocates, frees or stamps anything the unported
-// half does not also produce. A Renderer built by this file is byte-identical to
-// one built by the DLL, so the DLL's own `Draw` operates on it correctly, and
-// vice versa. Nothing here changes an allocation size, a vtable, or a field the
-// other half reads.
 // ============================================================================
 
 #include <cstdint>
 #include <cstring>
-#include <new>          // the retslot doors placement-new the member's prvalue
+#include <new>
 
 #include "graphics/Camera.h"
 #include "graphics/Material.h"
@@ -87,8 +55,8 @@ namespace {
 
 // Volume::Frustum::Projection(bool) -> Math::Matrix BY VALUE.
 // Retail 0x1800f9dc0, ordinal 3435. Hidden return slot in RDX after `this`.
-// PORTED by Wave 9 lane P (src/engine/volume/frustum.cpp), so this resolve now
-// lands in our own code and this call site is the ONLY thing that exercises it.
+// PORTED by Wave 9 lane P (src/engine/volume/frustum.cpp), so this call lands
+// in our own code and this call site is the ONLY thing that exercises it.
 // Wave 1 skipped it — "Volume ported only the 12 functions our tree calls, and
 // no exe call site asks for Projection" — which was true and is what this
 // comment said until 2026-09-07. B3R: RtVolume_Frustum_Projection by name.
@@ -98,10 +66,8 @@ Matrix* RtFrustumProjection(const Frustum* self, Matrix* ret, bool zeroToOneDept
 
 // Math::Matrix::operator*(const Matrix&) -> Matrix BY VALUE.
 // Retail 0x18001d980, ordinal 1318. PORTED IN WAVE 1
-// (src/engine/math/transform.cpp:977), so this resolve lands in our own code —
-// which is what we want: it was proved bit-exact over millions of diffed calls,
-// and routing through the registry keeps one implementation of the multiply in
-// the process rather than two.
+// (src/engine/math/transform.cpp:126); it was proved bit-exact over millions of
+// diffed calls.
 // ENDGAME B.3.1 step 2: `Math::Matrix::operator*`, called as the operator it
 // is; the hidden return slot the shape carries is the caller's storage.
 Matrix* RtMatrixMul(const Matrix* lhs, Matrix* ret, const Matrix* rhs) {
@@ -111,17 +77,6 @@ Matrix* RtMatrixMul(const Matrix* lhs, Matrix* ret, const Matrix* rhs) {
 
 // (B7: the local `RtMemFree` forwarder that stood here had one caller,
 // AddTexture's hand-written release, which is the String's inline ~String now.)
-
-// ---- DLL internals, called at their retail addresses -----------------------
-// These are `FUN_`-named COMDATs: one array helper per element type, emitted by
-// MSVC per template instantiation, with no export and no name to resolve. Wave 5
-// lane D established the pattern — port the exported bodies faithfully and call
-// the unexported internals exactly where retail calls them.
-//
-// Note that all four of them allocate or free through
-// System::MemoryAllocator under that allocator's own critical section, which is
-// Win32 and therefore cannot appear in this file at all (PLAN §4.1 decision 1).
-// That is a second, independent reason to leave them where they are.
 
 // ENDGAME B.3.2 step 2 (callers) — the three forwarders that used to sit here
 // (0x18001c9e0 on `drawables`, 0x18001c8c0 `DtorEhVec` on `drawGroups`, 0x18001c7e0
@@ -147,14 +102,11 @@ Matrix* RtMatrixMul(const Matrix* lhs, Matrix* ret, const Matrix* rhs) {
 //                `Collection::Array<int32_t> drawableIds` as a real member, same
 //                argument: its own destructor already frees that inner array.
 //
-// The three registered rows stay in array.cpp / array_destroy.cpp: `code/` still
-// reaches them by address.
 
-// WAVE 9 LANE Q: 0x180061480 is registered (kSpec_StringExt), one of the three
-// NON-TRIVIAL element types in that lane -- the `INC dword ptr [*element - 4]`
-// refcount bump described below is reproduced literally in the port, and the old
-// buffer's element release still goes to retail's 0x180005930 by address.
-// Disarm on its own with RT_ARRAY_NONTRIVIAL=0.
+// 0x180061480 is the kSpec_StringExt row, one of the NON-TRIVIAL element types --
+// the `INC dword ptr [*element - 4]` refcount bump described below is reproduced
+// literally in the port, and the old buffer's element release is 0x180005930's
+// ported row (array_destroy.cpp).
 //
 // Array<{String, ExternalPtr}>::SetSize(n, fillValue). Retail 0x180061480: grows
 // (capacity*3 on a by-one append from non-empty), copy-CONSTRUCTS the tail from
@@ -189,16 +141,15 @@ void RtArraySetSizeTexturePairs(Collection::Array<MaterialTexture>* textures, ui
 // ?_singleton@Device@Video@@0PEAV12@EA at 0x1801fe7a8; +0x100 is the active
 // GraphicsInterface's backend object, and 0x38/8 == slot 7 of its vtable.
 //
-// In THIS process the answer is a compile-time constant and we know it: the
-// backend is our own src/render/dx11/, whose DeviceData slot 7 is the shipped
-// `mov al,1; ret` (src/render/dx11/devicedata_stubs.cpp:11) — always true. The port
+// In THIS process the answer is a constant and we know it: every backend's
+// DeviceData slot 7 returns true (dx11's is the shipped `mov al,1; ret`,
+// src/render/dx11/devicedata_stubs.cpp:88; vulkan and metal match it). The port
 // still makes the indirect call rather than folding the constant, because
 // folding it would bake the DX11 backend into a Runtime file that PLAN §4.1
 // decision 1 wants portable to a second backend.
 bool RtVideoDeviceUsesZeroToOneDepth() {
     // ENDGAME B.3.9 close (D7): the class static, read fresh (no cached door).
-    // B.4: `Device::deviceData` (+0x100) and `DeviceData::Slot7`, by name. LEFT:
-    // the field is `void*` in Device.h, viewed once as the companion it is.
+    // B.4: `Device::deviceData` (+0x100) and `DeviceData::Slot7`, by name.
     return ::Video::Device::_singleton->deviceData->Slot7();
 }
 
@@ -221,10 +172,9 @@ const Matrix kZUpToYUp = {{
 }  // namespace
 
 // ============================================================================
-// Graphics::Camera — THE DOORS. Every body below MOVED onto a member of the real
+// Graphics::Camera — every body MOVED onto a member of the real
 // `Graphics::Camera` (src/engine/graphics/Camera.h); see the block at the
-// bottom of this file. Each door keeps its name, its registrations and retail's
-// ABI, and delegates with a QUALIFIED non-virtual call.
+// bottom of this file.
 // ============================================================================
 
 // ??4Camera@Graphics@@QEAAAEAV01@AEBV01@@Z — retail 0x180017c40.
@@ -234,9 +184,7 @@ const Matrix kZUpToYUp = {{
 // which ported it because `BeginDrawGroup`'s reuse path is the tree's first
 // caller of it. Block F drafted a second copy of it here and DELETED it on the
 // link error, which is the duplicate-registration hazard
-// reference_grep_for_the_port_before_writing_it.md describes — an address grep
-// found only COMMENTS on 0x180017c40 because that file registers by NAME only
-// (its banner says "NO RegisterRuntimeAddr IN THIS FILE").
+// reference_grep_for_the_port_before_writing_it.md describes.
 //
 // Its body must stay where it is for the reason Camera.h's three-byte-deviation
 // banner gives: retail's `operator=` copies dwords +0x00..+0x5f, the BYTE at
@@ -259,15 +207,13 @@ const Matrix kZUpToYUp = {{
 // note on Renderer). This port leaves them unwritten too. Zeroing them would be
 // "tidier" and wrong: `Draw` assigns +0x3c from a scene entry before reading it,
 // so retail's behaviour does not depend on the value — but our object would stop
-// being byte-identical to the DLL's, and the scratch oracle below would report
-// a divergence on whatever the two buffers happened to contain.
+// being byte-identical to retail's.
 // B.4 wave Y (RT-GFX): the body is the real `Graphics::Renderer::Renderer()`.
 // Retail's stores, in order: six qword zeroes over the three Array headers
 // (+0x00..+0x2f: the members' Array() initialisers, three named stores each,
 // H7), one qword -1 over +0x30/+0x34 (two dword stores here, H7), then +0x38,
 // +0x40, +0x44, +0x48. +0x3c (_shaderDetail) and +0x4c are NOT written: they
-// have no initialiser and the body does not name them (B5-13). The door stays
-// for the exe's raw-storage holders and placement-constructs.
+// have no initialiser and the body does not name them (B5-13).
 namespace Graphics {
 
 Renderer::Renderer() : _sceneGroups(), _drawGroups(), _drawables() {
@@ -304,33 +250,6 @@ Renderer::~Renderer() {}
 //     ??_7Base@Object@@6B@              0x180154788  ord 1389
 //     ??_7External@Object@@6B@          0x1801547a0  ord 1432
 //     ??_7MaterialInstance@Graphics@@6B@ 0x1801545e0  ord 1464
-// so the port resolves each BY NAME and writes the DLL's own array. It does not
-// build a vtable of its own and does not copy slots out of a live object.
-//
-// Why that is SAFE here, specifically:
-//   1. Every stamp is the address of a table the DLL itself owns and would have
-//      written. An object built by this ctor is byte-identical to one built by
-//      the DLL's, so any virtual call — from the DLL's Renderer::Draw, from
-//      MaterialInstance::RenderTextures, from Object::External's own machinery —
-//      dispatches to exactly the same code it would have.
-//   2. MaterialInstance is CONCRETE and, in Graphics, LEAF: slot 0 of
-//      0x1801545e0 is a real scalar-deleting destructor, not `_purecall`, and no
-//      other exported ??_7 in the DLL names a class derived from it. So there is
-//      no derived ctor whose later stamp we could be racing, which is the
-//      failure mode a half-ported class hits.
-//   3. Our own two subclass-like users are unaffected because they stamp AFTER
-//      construction, not during it. src/game/Dialog/thumb_vtables.cpp:66-82
-//      copies slots 1..8 out of whatever the ctor installed and plants its own
-//      slot 0 so the exe controls the free; that mirroring reads the same table
-//      whether this port or the DLL put it there. (Worth stating plainly: that
-//      file is NOT a workaround for a missing vtable symbol — it wants a
-//      DIFFERENT slot 0. PLAN §2.2 D lists MaterialInstance under "the mirroring
-//      workaround was never necessary"; for thumb_vtables that reading is wrong,
-//      and the correction is in WAVE6_LANE_F.md.)
-//      src/game/Component/statusicon_geometry.cpp:328 builds a Geometry vtable,
-//      not a MaterialInstance one, and is not affected by this port at all.
-//   4. The ctor allocates nothing and installs nothing global, so a
-//      RT_GFXRENDER=0 run and a default run produce the same object.
 //
 // ENDGAME B.3.9 block GFX: the door that transcribed this is RETIRED. The three
 // stamps are the compiler's chain of the real `Graphics::MaterialInstance()`
@@ -344,8 +263,8 @@ Renderer::~Renderer() {}
 //     0x180004d60 (+0x50 _textures), 0x180004c80 (+0x40 _constants),
 //     0x180004b70 (+0x30 _parameters)
 // then ~External. The restamp and ~External are the compiler's chain; the
-// three calls are the body, reached BY ADDRESS (each resolves to its ported
-// J-row, which zeroes the header, so the compiler's implicit member ~Arrays
+// three calls are the body, called by name (each is its ported J-row, which
+// zeroes the header, so the compiler's implicit member ~Arrays
 // after the body are no-ops). ENDGAME B.3.9 GFX: the `ReleaseFields` split and
 // the ??1 door in deleting_dtor_leaves.cpp are gone.
 // ============================================================================
@@ -371,33 +290,23 @@ MaterialInstance::~MaterialInstance() {
 // `Camera`'s thirteen exports and ten of `Renderer`'s twenty-five, of which
 // eleven `Renderer` accessors plus `Camera::GetCameraToWorld` ×2,
 // `GetProjection`, `IsMirrored` and `SetZUp` are NEW PORTS read out of the
-// retail DLL by block F. Every registered door above kept its name and its
-// address and became a one-line delegation with a QUALIFIED non-virtual call.
-//
-// The qualification is not decoration even on a NON-POLYMORPHIC class: it is
-// what B34_BRIEFS §A.1 requires uniformly, and here it also documents that the
-// door is calling THE MEMBER and not re-entering itself through the registry.
+// retail DLL by block F.
 //
 // WHAT DID **NOT** MOVE, and why:
 //
-//  * `??0Renderer()` / `??1Renderer()` (0x180105180 / 0x1800180a0) stay DOORS
-//    (ENDGAME §B.1 decision 2, B4b-2, B35_RULES §11's leave list). The Camera
-//    constructor (0x1800fe960) is a member since B.4 wave X round 4; its
-//    extern "C" entry forwards. The Renderer constructor additionally MUST NOT become a member-initialiser
-//    list, because RULE B5-13 requires +0x3c and +0x4c stay unwritten.
+//  * `??0Renderer()` / `??1Renderer()` (0x180105180 / 0x1800180a0) are the
+//    members defined above; the constructor leaves +0x3c and +0x4c unwritten
+//    (RULE B5-13). The Camera constructor (0x1800fe960) is the member below.
 //  * `??4Camera@` (0x180017c40). Its retail body is a PARTIAL copy that leaves
 //    +0x61..+0x63 and +0xd5..+0xd7 alone, and `Graphics::Camera::operator=` is
 //    `= default` (Camera.h's three-byte-deviation banner) precisely so the class
 //    stays trivially copyable. A defaulted assignment cannot express a partial
 //    copy, so the faithful body stays in the door — which is where every copy
 //    the live engine makes goes.
-//  * The three `MaterialInstance` doors at the bottom of this file.
-//    `Graphics::MaterialInstance` is BLOCK G's class, converted concurrently.
-//    UNTOUCHED, and listed in block F's report.
+//  * The two `MaterialInstance` members at the bottom of this file (block GC's).
 //
 // NAME-LOOKUP HYGIENE (B34B_RULES §7.2): inside `namespace Graphics` below, a
-// bare `Camera` or `Renderer` binds the REAL CLASS, not the `RtGraphics` POD the
-// `using` declarations at the top of this file introduce at global scope. The
+// bare `Camera` or `Renderer` binds the REAL CLASS. The
 // file-local helpers (`RtFrustumProjection`, `RtMatrixMul`,
 // `RtVideoDeviceUsesZeroToOneDepth`, `kZUpToYUp`) are reached by unqualified
 // lookup falling through to the global unnamed namespace, which is the
@@ -405,10 +314,7 @@ MaterialInstance::~MaterialInstance() {
 //
 // RULE B5-7: nothing below adds a static initialiser, a lazy singleton or a
 // non-atomic first-call cache. `Camera` and `Renderer` are constructed on the
-// `Engine::Loader` thread while the main thread is inside `Draw`. The one cache
-// in this file, `RtVideoDeviceUsesZeroToOneDepth`'s `static void** singletonSlot`,
-// predates block F, is a pointer to an exported DATA cell rather than a value,
-// and is left exactly as it was.
+// `Engine::Loader` thread while the main thread is inside `Draw`.
 // ############################################################################
 
 namespace Graphics {
@@ -486,9 +392,8 @@ void Camera::SetCameraToWorld(const Math::Transform3& cameraToWorld) {
 // overwrite the PREVIOUS transform so the next Lerp does not smear;
 // `Graphics::Camera` has no previous-transform field for it to write, so the
 // distinction the two names draw does not exist in the shipped binary. Kept as
-// two members rather than one alias so each door checks against its OWN export
-// and a future divergence (a different build, a modded DLL) would show up
-// instead of being assumed away. `Camera::GetCameraToWorld`'s two overloads are
+// two members rather than one alias, one per export. `Camera::GetCameraToWorld`'s
+// two overloads are
 // the same finding a second time (Camera.h's banner).
 // ---------------------------------------------------------------------------
 void Camera::SnapCameraToWorld(const Math::Transform3& cameraToWorld) {
@@ -498,7 +403,7 @@ void Camera::SnapCameraToWorld(const Math::Transform3& cameraToWorld) {
 // ---------------------------------------------------------------------------
 // ?GetFrustum@Camera@Graphics@@QEBA?AVFrustum@Volume@@XZ   retail 0x1800fe3e0
 // Twenty-five dwords out of +0x00 — the pad travels. NON-VIRTUAL, so the C++
-// by-value return is right; the door carries retail's hidden slot.
+// by-value return is right.
 // ---------------------------------------------------------------------------
 ::Frustum Camera::GetFrustum() const { return _frustum; }
 
@@ -605,27 +510,24 @@ const RendererSceneEntry& Renderer::GetSceneGroup(int index) const {
 // class was block G's and was converting concurrently; block G then ran out of
 // budget before reaching them.
 //
-// THE CTOR DOOR STAYS A DOOR and is NOT one of the two. `??0MaterialInstance`
-// (0x180103980) stamps three MINTED vtables in sequence, which is right for every
-// object that reaches it and is exactly what B4b-2 and B35_RULES section 11 keep
-// as a door; a member constructor would emit GCC's table instead. Its banner
-// above is the per-class vtable-stamping argument and is unchanged.
+// The constructor is NOT one of the two: `??0MaterialInstance` (0x180103980) is
+// the real `Graphics::MaterialInstance()` (Material.h); its banner is above.
 // ============================================================================
 
 // ?SetMaterial@MaterialInstance@Graphics@@QEAAXV?$ExternalPtr@VMaterial@Graphics@@@Object@@@Z
 // retail 0x180103340 — ONE STORE, and no refcount traffic: the caller's handle
 // and the member end up sharing one reference, which is why `BuildParameters`
-// can read `_material` back without owning it. The door's banner has the rest.
+// can read `_material` back without owning it.
 void MaterialInstance::SetMaterial(Object::ExternalPtr<Material> material) {
     _material = material;
 }
 
 // ?AddTexture@MaterialInstance@Graphics@@QEAAXAEBVString@System@@V?$ExternalPtr@VImageBuffer@Video@@@Object@@@Z
-// retail 0x180103350 — see the door's banner for the refcount accounting and for
+// retail 0x180103350 — see RtArraySetSizeTexturePairs' banner for the refcount accounting and for
 // why the array helper is bridged rather than the field retyped.
 //
 // `_textures` is spelled through `RtArraySetSizeTexturePairs`, which takes the
-// POD: the element spec here is `kSpec_StringExt`, one of the twelve
+// array itself: the element spec here is `kSpec_StringExt`, one of the twelve
 // hand-derived-only rows, so the field's own trait-derived `SetSizeFill` would
 // run a bitwise copy with no refcount bump. That bridge is the reason this body
 // cannot simply say `_textures.SetSize(…)`, and it is stated at the helper.

@@ -1,8 +1,8 @@
 // src/game/Game/starttown.cpp
 // Start-town spawn-tile finder + camera placement — the CAMERA portion of
 // FUN_1400a3300 (steps 1-3). The ECS spawn steps (town center, initial
-// buildings, citizens, resource cull) are deferred to a later slice; see
-// project_starttown_a3300.
+// buildings, citizens, resource cull) are in this file too (StartTown_SpawnEntities,
+// below); see project_starttown_a3300.
 //
 // Pipeline (all read the live tile grid built by maptilegrid.cpp):
 //   * FUN_1400a2720 — spiral search from the map center: rings of 4, 8, 16, ...
@@ -12,14 +12,14 @@
 //     termination guard; we cap the ring count defensively.)
 //   * FUN_1400a2880 — validity: every cell in the townSize-radius disk around
 //     the candidate must be in-bounds AND tile type 2 (buildable).
-//   * FUN_140002080 — tile -> world: idx -> world (x,z) -> fn_MapGetTerrainPos
+//   * FUN_140002080 — tile -> world: idx -> world (x,z) -> Map::GetTerrainPos
 //     -> camera position {worldX, worldZ, height}.
 //
 // Load then writes the result to PlayerController+0x1c/+0x20/+0x24 (verified at
 // the a3300 call site, 0x14009761d).
 
 // ENDGAME B.3.5 Video/Graphics caller batch: Graphics::MeshInstance is a real
-// class. AHEAD of "resolve.h" — resolve.h pulls <windows.h>, whose <wingdi.h>
+// class. Kept ahead of any header that pulls <windows.h>, whose <wingdi.h>
 // declares a global `Rectangle` FUNCTION that hides `Volume::Rectangle`'s class
 // name inside Volume.h's own static_asserts (Mesh.h -> Geometry.h -> Volume.h).
 #include "graphics/Mesh.h"
@@ -43,9 +43,9 @@
 #include "clamped_atoi.h"     // review F-087: atoi on BANISHED_* text
 #include "Game/terrain_sidecar.h"
 #include "object/External.h"   // ENDGAME B.3.3 step 6A
-#include "Component/pickingcomponent_funcs.h"   // PickingComponent_RegisterMesh (mesh-precise picking)
-#include "Component/spawncomponent_funcs.h"     // SpawnComponent_InitialSpawn (5cc0 seed)
-#include "stress_harness.h"                     // BANISHED_STRESS targets (standalone/)
+#include "Component/pickingcomponent_funcs.h"   // PickingComponent::RefreshMesh (mesh-precise picking)
+#include "Component/spawncomponent_funcs.h"     // SpawnComponent_ReportDoSpawnCensus
+#include "stress_harness.h"                     // BANISHED_STRESS targets (src/diag/)
 #include "showroom.h"                           // BANISHED_SHOWROOM list (src/diag/)
 #include <chrono>
 #include "object/Internal.h"   // ENDGAME B.3.3 step 6B
@@ -108,9 +108,9 @@
 #include "utility/PerlinNoise.h"       // RtUtility_PerlinNoise_Ctor / _Generate (B3R)
 #include "Entity/ComponentEntity.h"   // ComponentEntity(ComponentDescription*) (0x1400c3720)
 #include "Entity/EntityList.h"        // EntityList::RegisterEntity (0x1400c48a0)
-#include "Action/exe_bodies.h"         // ActRm_StorageAdd_d000, Pf_EntityAnchorCell_7fb0
-#include "Component/exe_bodies.h"      // ResidenceComponent_*, CitizenComp_*, RawMaterialComponent_RegisterRawMaterial
-#include "Work/exe_bodies.h"           // WorkGrid_FindCell_9ccf0, WorkBase_ValidateCell_a00f0, WorkBase_FindComponent_6270
+#include "Action/exe_bodies.h"         // EntityAnchorCell (0x140087fb0)
+#include "Component/exe_bodies.h"      // CitizenComp_*
+#include "Work/exe_bodies.h"
 #include "Game/exe_constants.h"        // kRdata_14017214c, kRdata_140172220
 extern "C" void MapComponent_ReportDc20Evictions(const char* tag);  // keystone_a_map.cpp
 #include <cstdint>
@@ -126,21 +126,21 @@ extern "C" void MapComponent_ReportDc20Evictions(const char* tag);  // keystone_
 #include "ext/registry.h"      // EXT SEAM: Ext::Fix().unresolved_seeds
 
 // ============================================================================
-// Economy Brick M-D — live town storage (BANISHED_LIVE_STORAGE, default OFF).
+// Economy Brick M-D — live town storage.
 // Ports in src/game/Game/town_storage_seed.cpp (Ghidra 1:1, see that file):
-//   * TownRegistry_RegisterStorageLocation  = 0x14012d230 (townMgr+0x00 ADD;
-//     retail fires it from the StorageLocationComponent OnAdded vtable slot,
-//     which our inert components never run — so the spawn path calls it).
-//   * TownStorage_BuildCompleteInit_7ff0    = 0x140107ff0 (build-complete
+//   * Component::RegisterStorageLocation   = 0x14012d230 (townMgr+0x00 ADD;
+//     the StorageLocationComponent state-2 ENTER, run by its controller inside
+//     RegisterEntity — the spawn path does not call it).
+//   * Component::BuildCompleteStorageInit  = 0x140107ff0 (build-complete
 //     StorageComponent init: +0x38 = _volumeLimit * area, +0x3c = _storageFlags.
 //     Faithful for our start town because it spawns fully-BUILT buildings).
-//   * StartTown_SeedStartingResources       = 0x1400a1f00 (seven-mask seeding).
+//   * MapGenerator::SeedStartingResources  = 0x1400a1f00 (seven-mask seeding).
 // The raw-material TEMPLATE registration below mirrors the FUN_1400a3300 loop
 // at 0x1400a33b4 (pool startConfig+0xa0 / count +0xa8, stride 0x18 ExternalRef
 // -> FUN_140091e60 dedup-append into townMgr+0x110), which retail runs AFTER
 // the spawn passes and BEFORE Game_impl_1f00 — same order kept here.
 // ============================================================================
-// (declared in Game/exe_bodies.h, section town_storage_seed.cpp)
+// (declared in Component/Component.h and Game/MapGenerator.h)
 // Feature-path channel widths, captured by worldgen.cpp from the 0x1C-stride SOURCE
 // PathPoints (+0x14) before the copy into wg+0x1e0 narrows them to (x,y). Both return
 // -1.0f when there is no data for that path index. BankDistance = halfWidth + 2.0 =
@@ -162,22 +162,15 @@ static constexpr float kCenterBias = 0.5f;     // DAT_140172114
 ComponentEntity* g_pForceWorkBuilding = nullptr;
 
 // AssignWorkplace port (brick 4-2) — sets citizen+0x238/+0x240 + rosters. 0x1401163d0.
-// (declared in Component/exe_bodies.h)
-
-// First resolved natural-resource (tree) TEMPLATE, captured in the resource-scatter spawn
-// loop (StartTown_SpawnResources). A resource template is a description container
-// ({sub-desc array @+0x28, count @+0x30}) carrying the produced material's
-// RawMaterialDescription — i.e. exactly the descEntity a CreateRawMaterial action clones.
-// The Phase B production harness (production_harness.cpp, BANISHED_LIVE_PRODUCTION) uses it
-// as a real produced-material description to drive the ported RegisterRawMaterial count.
+// (CitizenComponent::SetHome, declared in Component/CitizenComponent.h)
 
 // Owner-entity IBP values of the spawned residence (WoodHouse) buildings, captured by
-// StartTown_RunOnCreatePass when each house's ResidenceComponent::OnCreate fires. Used by
-// StartTown_AssignFoundingHousing to pair families to houses (townMgr+0x20 is never
-// populated in standalone — see the capture site). Cleared at the start of each spawn.
+// StartTown_RunOnCreatePass for each house's ResidenceComponent. Used by
+// StartTown_AssignFoundingHousing to pair families to houses (independent of
+// townMgr+0x20 — see the capture site). Cleared at the start of each spawn.
 static std::vector<ComponentEntity*> g_foundingHouseIBPs;
 // Phase 4: founding-family CitizenComponents captured during AssignFoundingHousing;
-// the deferred employ pass seats idle adults from this list at the lodge.
+// StartTown_RegisterTownCitizens registers them into the town citizen list (townMgr+0xa0).
 static std::vector<CitizenComponent*> g_foundingCitizens;
 
 // The start-town spawn tile of the CURRENT world (set by StartTown_SpawnEntities), for
@@ -256,17 +249,14 @@ static T* FindDescriptionOnTemplate(const ComponentDescription* tmpl, uint32_t t
 // and its bit pre-set are gone).
 
 // MESH-PRECISE BUILDING PICKING. Retail lets you click anywhere on a building because
-// picking ray-tests the 3D model mesh via Picking::Scene; in standalone that mesh is
-// never registered (PickingComponent::OnAdded/Startup — 0x140128f50/c30 — are inert),
-// so EditTool falls back to the coarse terrain-cell footprint pick (StartTown_Mark-
-// BuildingCells), which only hits when the ray lands on the ground footprint => the
-// "click-the-middle" pickiness. We drive the faithful registration here for each static
-// start-town building (PickingComponent_RegisterMesh).
+// picking ray-tests the 3D model mesh via Picking::Scene. PickingComponent::OnAdded
+// (it calls PickingComponent::RefreshMesh, 0x140128f50) registers that mesh; this
+// probe calls it for each static start-town building.
 static void StartTown_PickMeshProbe(ComponentEntity* entity) {
     if (!entity) return;
     PickingComponent* pc = FindComponentOnEntity<PickingComponent>(entity, PickingComponent::TypeId());
-    // Caller batch CB6: the member (slot 6), called QUALIFIED as the old delegate
-    // body was (PickingComponent::OnAdded is `PickingComponent_RegisterMesh(this)`).
+    // Caller batch CB6: the member (slot 6), called QUALIFIED
+    // (PickingComponent::OnAdded is `RefreshMesh()`).
     if (pc) pc->PickingComponent::OnAdded();
 }
 
@@ -313,11 +303,10 @@ extern "C" void StartTown_RegisterRuntimeBuilding(ComponentEntity* entity) {
 // skipped — the profession BST is the EMPLOYER list, houses live in townMgr+0x20).
 //
 // REGISTRATION into the townMgr+0x100 profession BST is the WPC controller's state-2
-// ENTER (edf0) and runs by itself on the first SM tick when the live controller is
-// enabled (start-town structures are stamped +0x52 = 2). When the controller is off —
-// or the caller must QUERY the BST before the first tick (the ForesterLodge employ
-// pass runs FindAvailableBuilding during StartTown) — register here too; the insert
-// (impl_95a0) dedups, so both paths running is harmless.
+// ENTER (edf0) and runs by itself on the first SM tick (start-town structures are
+// stamped +0x52 = 2). A caller that must QUERY the BST before the first tick passes
+// registerNow to register here too; the insert (impl_95a0) dedups, so both paths
+// running is harmless.
 // Returns the seated profession key (0 = not an employer, nothing done).
 static Profession* StartTown_ActivateWorkplace(ComponentEntity* entity, bool registerNow,
                                                const char* logTag) {
@@ -343,9 +332,9 @@ static Profession* StartTown_ActivateWorkplace(ComponentEntity* entity, bool reg
     return profKey;
 }
 
-// WorkPlaceComponent pointers of the founding houses rostered in roster-only mode, whose
-// occupied visual was deferred to gameplay time. Drained once by
-// StartTown_ApplyPendingOccupiedVisuals on an early GameUpdateLoop tick (scene live).
+// WorkPlaceComponent pointers queued for the deferred occupied-house visual. Nothing in
+// this file queues one, so StartTown_ApplyPendingOccupiedVisuals returns at its
+// empty-list test.
 static std::vector<WorkPlaceComponent*> g_pendingOccupiedVisuals;
 // One-shot guard for the deferred occupied-visual pass, reset per town spawn.
 static bool g_occupiedVisualsApplied = false;
@@ -517,10 +506,10 @@ static ComponentDescription* StartTown_ResolveTemplate(MapGenerator::ExternalRef
 // "the initial orchard resource" and omitted it as unrelated to tab greying. Both halves
 // of that were wrong: the pool is livestock, not orchards, and the call is the town's
 // STARTING HERD — the primary source of a new town's animals. It is ported as
-// StartTown_SpawnStartingHerd (src/game/Component/pasturecomponent_spawn.cpp) and is
-// now called below.
+// MapGenerator::SpawnStartingHerd (src/game/Component/pasturecomponent_spawn.cpp) and is
+// called below.
 
-// The starting-herd spawn (retail FUN_1400a0b10): Component/exe_bodies.h.
+// The starting-herd spawn (retail FUN_1400a0b10): MapGenerator::SpawnStartingHerd, Game/MapGenerator.h.
 
 // Seed one agri pool: pick `count` random entries from the `size`-entry pool and
 // dedup-append each resolved description into townMgr+0x120. Faithful to the retail
@@ -638,11 +627,8 @@ static int StartTown_SpawnSimplePool(MapGenerator* startConfig, EntityList* enti
 //   * register the entity in the world list (category = template+0x20)
 //
 // The original then sets up the ModelComponent render transform + a random mesh
-// variant (Graphics::Geometry::SetTransform / MeshInstance::SetMesh). Those
-// dispatch on the component's Geometry sub-object, which is zeroed on our inert
-// components (Foundation D/E) — so the rendering block is guarded off until
-// ModelComponent graduates to a real renderable. The entity still exists in the
-// world at its correct grid footprint.
+// variant (Graphics::Geometry::SetTransform / MeshInstance::SetMesh); placeStructure
+// in StartTown_SpawnStructures ports both.
 // ============================================================================
 
 static constexpr int STRUCT_STRIDE   = 0x30;   // structure pool entry stride
@@ -671,15 +657,12 @@ static constexpr int ROT_FULL        = 0x168;  // 360 (rotation modulus)
 //         CheckPtr; CALL [comp_vtable + 0x38]   // OnCreate
 //   entity+0x40 |= 0x400                         // "OnCreate done" sentinel (always set)
 //
-// For a WoodHouse this calls ResidenceComponent::OnCreate (+0x38), which (once the
-// BANISHED_LIVE_RESIDENCE factory routes that slot) pushes the house into
-// townMgr+0x20. Gated on the env so the default build never runs it.
 // SURGICAL standalone variant: the faithful FUN_1400c2ea0 fires OnCreate(+0x38) on
 // EVERY bit-1 component, but several of those are only partially live in standalone
 // (notably the renderable ModelComponent, whose OnCreate re-initialises the mesh and
 // wipes the completed-build variant we hand-set in StartTown_SpawnStructures → the
-// building goes invisible). So we run OnCreate ONLY on the ResidenceComponent — the
-// one component brought up for the townMgr+0x20 residence registration. The full
+// building goes invisible). So we visit ONLY the ResidenceComponent, and of its slot 7
+// run only the init half (EvictResidents; see the note in the loop). The full
 // faithful pass is restored once the other components' OnCreate are verified
 // standalone-safe.
 //
@@ -713,15 +696,13 @@ static void StartTown_RunOnCreatePass(ComponentEntity* ent) {
             if (tid != s_tidResidence) continue;                 // ONLY ResidenceComponent
             comp = slot->Get();
             if (!comp) continue;
-            // BANISHED_LIVE_RESIDENCE_REGISTRY — GRADUATED to the default-on table 2026-08-15
-            // (`=0` is now the kill-switch). See the A/B in component_factory_base.cpp:
-            // this one erased list silently disabled every move-out, and therefore every
+            // This one erased list silently disabled every move-out, and therefore every
             // second-generation marriage, in the whole project.
             //
             // Slot 7 (vtable +0x38, "ResidenceComponent::OnCreate") does TWO things:
             //   1. ResidenceComponent_helper_9ef0 (0x140129ef0) — init/evict. Wanted.
             //   2. exe 0x140002cc0 on townMgr+0x20 — which is ERASE-BY-VALUE, not register
-            //      (the Ghidra OnCreate/OnRemove mislabel; workplacecomponent.cpp:61-66
+            //      (the Ghidra OnCreate/OnRemove mislabel; workplacecomponent.cpp:56-58
             //      already corrected the identical misnaming in its own copy). Unwanted.
             //
             // Measured 2026-07-31, seven houses, seven times: the residence controller's
@@ -753,15 +734,6 @@ static void StartTown_RunOnCreatePass(ComponentEntity* ent) {
     (void)entFlags;
 }
 
-// TODO #2 gating diagnostic — does the workplace profession key resolve LIVE in
-// standalone? For each spawned building's WorkPlaceComponent: desc = comp+0x18
-// (WorkPlaceDescription), profKey = desc+0x20 (Profession*, the key the registry
-// node is keyed by). Also logs the world profession list (gameWorld+0xb0) and the
-// component's own +0x48 key (populated only by the inert OnCreate, so expected 0
-// here). If profKey is NULL, the registry port (TODO #2) would seed nodes with
-// garbage keys → ProfessionList/Profession.rsc must be wired first. Read-only,
-// never mutates. Gated on BANISHED_PROBE_WORKPLACE_KEY.
-
 // Economy Brick M-D — bring up the storage on a freshly spawned FULLY-BUILT
 // building (StorageBarn/StorageYard). Mirrors what retail does for the same
 // entity state:
@@ -774,8 +746,8 @@ static void StartTown_RunOnCreatePass(ComponentEntity* ent) {
 //      townMgr+0x00 so the citizen eat chain (CitizenAI_helper_e370) and
 //      Game_SpawnResources can find it. In retail d230 is the ENTER handler of
 //      StorageLocationComponent state 2 — not an OnAdded slot (verified
-//      2026-07-27: 0x14012d230 is in no vtable). Calling it here is a stand-in for
-//      an SM that never reaches state 2 in this build.
+//      2026-07-27: 0x14012d230 is in no vtable), so the controller registers the
+//      building and this function does not (see below).
 // Our CopyCtor already wires comp+0x10 (entity) and +0x18 (description).
 static void StartTown_WireStorage(ComponentEntity* entity, int /*entryIdx*/) {
     if (!entity) return;
@@ -802,7 +774,7 @@ static void StartTown_WireStorage(ComponentEntity* entity, int /*entryIdx*/) {
     // The StorageLocationComponent controller registers the building itself: its
     // state-2 ENTER *is* retail's d230, and that happens inside RegisterEntity's
     // OnAdded pass, i.e. still inside the spawn loop and before
-    // StartTown_SeedStartingResources runs. Nothing to stand in for here.
+    // MapGenerator::SeedStartingResources runs. Nothing to stand in for here.
     (void)slc;
 }
 
@@ -829,7 +801,7 @@ extern "C" ComponentEntity* g_pConstructionDemoEntity;   // the demo foundation'
 // every start-town building as before.
 static bool BuildDemoEnabled() { return true; }
 
-// Retail's insta-build spawn path (BANISHED_LIVE_SM_ONADDED, opt-in). When on, the
+// Retail's insta-build spawn path, always taken. The
 // founding buildings are spawned exactly as ComponentEntity_impl_1fc0 does it —
 // SetModel(variant, frame 0) inside the gw+0xd0 bit-0 bracket — and the state machine
 // finishes them during RegisterEntity's OnAdded pass (StateMachineComponent slot 6 ticks
@@ -837,8 +809,7 @@ static bool BuildDemoEnabled() { return true; }
 // branch snaps the meshes to their final frame, stamps delivered = target, requests
 // state 2). That retires three standalone stand-ins here: the subCount-1 model frame,
 // the +0x52 = 2 stamp, and the +0x48/+0x4c build-bookkeeping stamp.
-// The flag lives on StateMachineComponent because that is the component whose slots it
-// wires; this helper only asks whether the path is available.
+// This helper only asks whether the path is available (it always is).
 static bool StartTown_InstantBuildPath() { return true; }
 static int BuildDemoIndex() {
     static int idx = -2;
@@ -874,7 +845,6 @@ static const int kExtraHouseSearchRadius = 40;   // tiles from the cluster centr
 // Defined below (template-by-path resolver used by the demo-pasture block).
 static ComponentDescription* ResolveTemplateByPath(const char* path);
 
-// ComponentEntity_impl_1fc0 — spawn the initial buildings around (spawnX,spawnY).
 // Siting inputs of the demo gatherer hut, captured at placement so its
 // accepted-resource count can be retaken after the resource scatter (see the
 // ORDERING note at the capture site).
@@ -1866,7 +1836,7 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
     // Place ONE structure from `tmpl` at (tileX,tileY): create the entity, position its
     // MapComponent + ModelComponent world transform, show the completed model (or leave it
     // at the foundation mesh when isDemoFoundation), register it, then run the OnCreate /
-    // region-cell-mark / storage-wire passes. Returns the entity (or null). Factored out of
+    // pick-mesh / storage-wire passes. Returns the entity (or null). Factored out of
     // the per-entry loop (as a faithful 1:1 lambda — same file-scope helpers/globals) so the
     // construction-demo foundation can be spawned as a FRESH extra building AFTER the loop
     // (follow-up #7) instead of cannibalising a real start house.
@@ -1945,8 +1915,8 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
         //     FUN_1400c48a0(entityList, &ibp, category);          // RegisterEntity
         //     *(uint*)(g_pGameWorldSingleton + 0xd0) &= 0xfffffffe;
         //
-        // That bit is the instant-build flag (buildcomponent_state1.cpp:320,
-        // buildcomponent_state8.cpp:298 — a build with it set skips the staged
+        // That bit is the instant-build flag (buildcomponent_state1.cpp:142,
+        // buildcomponent_state8.cpp:250 — a build with it set skips the staged
         // gather/ramp and completes immediately). Crucially it is ALSO the first test in
         // BuildComponent's OnAdded (0x140108d40): with the bit set that slot returns
         // before its Stage 3 can hide the model and stamp modelVariant = -1.
@@ -1986,13 +1956,13 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
         //   corner1  = dim*tileY + tileX                (footprint origin)
         //   corner2  = (tileY+fpH)*dim + tileX + fpW    (footprint far corner)
         //   worldXY  = f3e0(mapGrid, {idx%dim - (dim>>1), idx/dim - (dim>>1), 0})
-        //              == Reimpl_MapGetTerrainPos(0x14009f3e0, verified identical)
+        //              == Map::GetTerrainPos (0x14009f3e0, verified identical)
         //   centre   = (world1 + world2) * DAT_140172114  (=0.5f, kCenterBias)
         //   yaw      = (float)orient   (raw entry+0x28, pre-normalisation); pitch = 0
         // Retail then: FromYawPitchOffset(tmp,&yaw,&pitch,&centre) ->
         //   Transform::operator=(model+0x148,tmp) -> model+0x168 = yaw ->
         //   Graphics::Geometry::SetTransform(model+0x28, model+0x148)  (0x1400a250f).
-        // `game` is the already-deref'd mapGrid (caller: game = *(gw+0xf8), line ~2790),
+        // `game` is the already-deref'd mapGrid (caller StartTown_SpawnEntities: game = *(gw+0xf8)),
         // so dim = *(int*)game and f3e0's first arg is `game`, exactly retail's *local_b0.
         if (game) {
             ModelComponent* modelComp = FindComponentOnEntity<ModelComponent>(entity, tidModelComponent);
@@ -2040,10 +2010,9 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
         // A building MeshGroup encodes its construction stages as the sub-mesh list
         // [Build01, Build02, ..., complete]; ModelComponent::Startup leaves it at the
         // foundation (modelVariant 0) and the real game advances it to the last
-        // sub-mesh when its BuildComponent finishes — but that component is inert in
-        // standalone, so InitialStructure buildings would sit at the foundation mesh.
-        // Mirror ComponentEntity_impl_1fc0: pick a random visual style (variantIdx via
-        // the world RNG, like 1fc0) but force the LAST sub-mesh = the finished build.
+        // sub-mesh when its BuildComponent finishes. Mirror ComponentEntity_impl_1fc0:
+        // pick a random visual style (variantIdx via the world RNG, like 1fc0) at
+        // construction frame 0 and let the instant-build path finish the building.
         //
         // Construction-demo exception: the demo foundation is left at its foundation mesh
         // so the BuildComponent state machine can drive it through the real build stages.
@@ -2066,10 +2035,9 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
                     // Retail passes construction frame 0 here (XOR R8D,R8D at 0x1400a2677,
                     // disassembly-verified) and lets the instant-build path inside the
                     // bracket finish the building: State1Enter -> state 8 -> State8Enter's
-                    // INSTANT branch snaps every mesh to frameCount-1. Our subCount-1 is the
-                    // stand-in for that path; with BANISHED_LIVE_SM_ONADDED on, the path is
-                    // live (SM chain linked at Startup + slot-6 tick at register time), so
-                    // use retail's 0 and let it do the work.
+                    // INSTANT branch snaps every mesh to frameCount-1. That path is live (SM
+                    // chain linked at Startup + slot-6 tick at register time), so use retail's 0
+                    // and let it do the work; subCount-1 is the arm for when it is not.
                     const bool instantPath = StartTown_InstantBuildPath();
                     int modelVariant = instantPath ? 0
                                      : ((subCount > 0) ? subCount - 1 : 0);  // last sub-mesh = complete
@@ -2089,13 +2057,10 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
             // state (2) so the panel routes to the operational page instead. (Demo
             // foundations are excluded — the live build sim drives their real state.)
             //
-            // Resolve by NAME via FindComponentOnEntity: the exe-.rdata type-id global
-            // TypeId_StateMachineComponent_FC is still null during world-build (raw .rdata is
-            // unresolvable in SA; it's lazily filled post-Engine::Startup), so the IBP finder
-            // fn_FindComponent_BuildState returns null here. The name-based lookup matches on
-            // the live vtable GetTypeId, exactly like the modelComp lookup just above.
+            // Found with FindComponentOnEntity (exact type-id match on slot 2), exactly like
+            // the modelComp lookup just above.
             //
-            // MOSTLY RETIRED by the instant-build path (BANISHED_LIVE_SM_ONADDED): with the
+            // MOSTLY RETIRED by the instant-build path (StartTown_InstantBuildPath): with the
             // SM chain linked at Startup and its slot-6 tick live, RegisterEntity below runs
             // the real 1 -> 8 -> 2 chain inside the instant-build bracket, so +0x52 ends
             // up 2 because the state machine ENTERED state 2 — which also fires every
@@ -2125,9 +2090,9 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
             // ── Activate a pre-built EMPLOYER: seat WPC+0x48 = desc+0x20 (the key retail
             // seats at data load and f670 re-seats at build completion) + SetAccepting.
             // Registration into townMgr+0x100 is the WPC controller's state-2 enter
-            // (edf0), which the +0x52 = 2 stamp above makes fire on the first SM tick
-            // when BANISHED_LIVE_WPC_CONTROLLER is on; with it off, the helper registers
-            // inline (the pre-controller stand-in). See StartTown_ActivateWorkplace.
+            // (edf0), which fires when the state machine enters state 2, so the helper is
+            // called with registerNow=false and does not register. See
+            // StartTown_ActivateWorkplace.
             {
                 Profession* profKeyS = StartTown_ActivateWorkplace(
                     entity, /*registerNow=*/false, "startTown::struct");
@@ -2145,7 +2110,7 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
 
         // Close the instant-build bracket opened above — retail clears the bit on the
         // very next instruction after RegisterEntity, so everything from here on (the
-        // OnCreate pass, cell marking, storage wiring) sees it clear, and so does every
+        // OnCreate pass, pick-mesh registration, storage wiring) sees it clear, and so does every
         // later per-frame BuildComponent tick.
         if (gwFlags) *gwFlags &= ~1u;
 
@@ -2159,7 +2124,7 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
         // AbsorbResource's retail GetDefaultState (0x140003730) genuinely returns 0. Retail
         // stamps 0 here too, so no linker change can produce state 2 — some other retail
         // path posts it, and until that path is found this stamp is a real deviation, not a
-        // gap-filler. See the LINK-DECIDE block in statemachinecomponent.cpp.
+        // gap-filler. See StateMachineComponent::Startup in statemachinecomponent.cpp.
         // Those entities keep the pre-existing stand-in stamp. Logging both outcomes is the
         // measurement: a line
         // per entity that still needs the fallback, and silence for the ones the real
@@ -2172,7 +2137,7 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
                 FindComponentOnEntity<BuildComponent>(postEnt, BuildComponent::TypeId());
             // +0x50 is the CURRENT state, +0x52 the PENDING one (0xff = nothing pending) —
             // the pair EntityUI's page router reads as `pending < 0 ? current : pending`
-            // (entityui.cpp:588). The old stand-in wrote the PENDING byte so that the first
+            // (entityui.cpp:403). The old stand-in wrote the PENDING byte so that the first
             // tick would enter state 2; when the real chain has already run, pending is
             // back to 0xff and current is 2, so "did it work?" is a +0x50 test.
             int cur = smPost ? smPost->stateMachine.currentInput : -1;
@@ -2207,8 +2172,8 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
         }
 
         // Run the OnCreate pass on the freshly-registered entity (deferred-activation
-        // equivalent — see StartTown_RunOnCreatePass). For a WoodHouse this fires
-        // ResidenceComponent::OnCreate → registers the house into townMgr+0x20.
+        // equivalent — see StartTown_RunOnCreatePass). For a WoodHouse this runs
+        // ResidenceComponent::EvictResidents and captures the house for founding housing.
         // The entity IBP was re-resolved above (entity = (void*)entIBP); re-resolve
         // once more in case any intervening CheckPtr moved it.
         StartTown_RunOnCreatePass(entIBP.Get());
@@ -2231,10 +2196,9 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
                     logIndex, entity, bc, tileX, tileY);
             fflush(stderr);
         } else {
-            // Brick M-D (BANISHED_LIVE_STORAGE): run the build-complete storage init
-            // + town storage-location registration for this fully-built building —
-            // retail's StorageLocationComponent OnAdded fires during RegisterEntity,
-            // so this sits right after it.
+            // Brick M-D: run the build-complete storage init for this fully-built
+            // building; its town storage-location registration is the
+            // StorageLocationComponent controller's state-2 enter inside RegisterEntity.
             StartTown_WireStorage(entity, logIndex);
         }
 
@@ -2247,8 +2211,8 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
     // start-town residence itself into the demo foundation, leaving the player one home
     // short. Instead capture the first residence's template + footprint during the loop and
     // spawn a COPY as the foundation AFTER the loop, clear of the whole cluster — every real
-    // start house stays complete. Only the house-demo path (default) does this; an explicit
-    // BANISHED_BUILD_DEMO_INDEX still marks that in-place building as the foundation.
+    // start house stays complete. Only the house-demo path (BANISHED_BUILD_DEMO_HOUSE) does this;
+    // an explicit BANISHED_BUILD_DEMO_INDEX still marks that in-place building as the foundation.
     ComponentDescription* demoTmpl = nullptr;
     int demoW0 = 0, demoH0 = 0;
     int clusterMaxEdgeX = spawnX;
@@ -2344,8 +2308,8 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
     // ── BANISHED_BUILD_DEMO_PASTURE — one COMPLETED pasture (test scaffolding) ──────
     // CORRECTED 2026-09-06 (lane B closeout): "the fenced-area tool is still unported"
     // is FALSE and has been since fencedtool_calcpath.cpp landed -- FencedTool's vtable
-    // (fencedtool.cpp), its drag-commit (fencedtool_calcpath.cpp) and its tool-mode-tree
-    // node (tool_activation_standalone.cpp, CreateFencedDescription -> FencedTool) are
+    // (fencedtool.cpp), its drag-commit (fencedtool_calcpath.cpp) and its tool-registry
+    // entry (PlayerToolManager::Startup in entityui.cpp, CreateFencedDescription -> FencedTool) are
     // all in the tree, so a toolbar pasture click really does place a pasture. This flag
     // survives only as the INSTANT-BUILD shortcut (a completed pasture, no build wait);
     // for the real acquisition path use BANISHED_TOOL_HARNESS=pasture or =pasturefull.
@@ -2715,8 +2679,9 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
                         // InteractDescription -> +0x20 -> { +0x30 entries, +0x38 count },
                         // stride 0x18 = { String name @+0x00, Vector3 localPos @+0x08,
                         // float localYaw @+0x14 } — the same table retail's 0x140123880 walks.
-                        // Every demo post is placed with rotation 0, so the offset needs no
-                        // rotation; the entity origin is the footprint CENTRE, which is what
+                        // The offset is in the post's LOCAL frame; the candidate loop rotates it
+                        // with each orientation (kPierRot). The entity origin is the footprint
+                        // CENTRE, which is what
                         // makes the prediction below reproduce the measured attach point
                         // exactly (post tile (112,107) fp 12x11 + localPos (1.66,-6.53) ->
                         // world (-8.34,-22.03) -> tile (119,105), the value the route builder
@@ -2869,9 +2834,8 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
                                         // dockable — but it always loses to a reachable one.
                                         if (!reach.empty() && havePier && !pierOk)
                                             dist += 1000000000000LL;
-                                        // With BANISHED_TRADINGPOST_PATH set, rank by SETBACK
-                                        // first and distance only as a tie-break. Nearest-to-
-                                        // town on its own picks the most INLAND fit, because
+                                        // Nearest-to-town on its own picks the most INLAND
+                                        // fit, because
                                         // stepping away from the water is stepping toward the
                                         // town — measured 2026-08-22: setback 17, dock 10 tiles
                                         // from the nearest water, and both A* legs correctly
@@ -2892,18 +2856,12 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
                             }
                         }
 
-                        // FALLBACK — no usable river geometry. Measured 2026-07-30: the
-                        // worldGeom+0x1e0 array has 4 entries but every one is {pts=NULL, n=0},
-                        // at world-build time AND at frame 900. That is not a timing problem;
-                        // worldgen.cpp:598 only RESIZES detail-group-C (its own comment: "no-op
-                        // for first-light: hf detailCountA == 0 ... feature-record append loop
-                        // (empty -> skipped)"), so standalone never generates the polylines.
+                        // FALLBACK — no free footprint near any point of the worldGeom+0x1e0
+                        // river polylines.
                         //
-                        // Consequence well beyond this harness: retail's boat-route builder
-                        // (0x1400456e0) walks this same array, so until worldgen fills it a
-                        // merchant boat has no river to follow. Placing the post inland is
-                        // therefore no worse than placing it on a "river" that does not exist,
-                        // and it unblocks everything that does not need the boat: the TradeUI
+                        // Retail's boat-route builder (0x1400456e0) walks this same array, so a
+                        // post placed off the river is not dockable. Placing it inland still
+                        // unblocks everything that does not need the boat: the TradeUI
                         // panel and the post's WorkPlaceComponent accepting state.
                         // Ring-scan from the cluster centre exactly as BUILD_DEMO_PASTURE does,
                         // and say loudly that this post is NOT dockable.
@@ -3012,15 +2970,14 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
     // This block used to justify itself with "all three are acquired only through tools
     // that are still unported (drag-area for the crop field, placement for the two
     // lodges)". That is NO LONGER TRUE and was corrected 2026-09-06 (exe-closeout lane
-    // A). Both tools are fully ported and both are wired into the live tool-mode tree,
-    // which is default-on via BANISHED_LIVE_TOOLS:
+    // A). Both tools are fully ported and both are wired into the live tool-mode tree:
     //   CropField.rsc        declares `createdrag`  -> CreateDragDescription
     //                          -> DragPlacementTool   (src/game/Player/dragplacementtool.cpp)
     //   HunterLodge.rsc      declares a CreatePlacedDescription
     //   GathererShelter.rsc  declares a CreatePlacedDescription
     //                          -> PlacementTool       (src/game/Player/placementtool.cpp)
     // The nodes are inserted by PlayerToolManager::Startup (0x140101ee0,
-    // Game/gameupdateloop.cpp, D.4 DRAW), which Toolbar_ShowGroup_Impl
+    // Dialog/entityui.cpp, D.4 DRAW), which PlayerToolManager::SelectTool
     // walks to pick the tool for a clicked template. So the player CAN place all three
     // through the real tool path.
     //
@@ -3037,9 +2994,7 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
     //
     // Crop field is a ControllerComponent area like the orchard; hunter lodge and
     // gatherer shelter are ResourceProduceComponent buildings sharing the state
-    // machine in resourceproducecomponent_states.cpp. Pair these with
-    // BANISHED_LIVE_HUNTING / BANISHED_LIVE_GATHERER (and BANISHED_LIVE_CROPFIELD)
-    // — spawning the building alone leaves the component inert.
+    // machine in resourceproducecomponent_states.cpp.
     //
     // Value: 1/on = template-default footprint, "WxH" (e.g. "10x8") overrides.
     // Test-only, opt-in, NOT in the default-on table; byte-unchanged when unset.
@@ -3443,10 +3398,8 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
     // terrain mask (desc+0x2c). Drop it inland and the rate is 0 — a false negative
     // that says nothing about whether the port is right.
     //
-    // The trading-post block above seeds from the river POLYLINES, which is no use
-    // here: standalone worldgen never populates worldGeom+0x1e0 (measured — all
-    // entries {pts=NULL,n=0}), which is why that block has a cluster-centre fallback.
-    // So this searches the TERRAIN directly, scoring candidate tiles by exactly the
+    // The trading-post block above seeds from the river POLYLINES (worldGeom+0x1e0).
+    // This block searches the TERRAIN directly, scoring candidate tiles by exactly the
     // predicate slot 21 will later evaluate. That makes the harness agree with the
     // thing under test by construction instead of by luck.
     {
@@ -3633,8 +3586,8 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
 // DEFERRED SPAWN note above StartTown_SpawnStructures for why this cannot run at
 // world-build time.
 //
-// The scorer is the [HuntScan] slot walk from huntanimal.cpp, reused verbatim: it
-// reads the SAME character spatial-hash manager the hunt's proximity query walks
+// The scorer reads the SAME character spatial-hash manager the hunt's proximity query
+// (CharacterGrid::QueryNearestCharacter, huntanimal.cpp) walks
 // (gw+0x88; +0x10 slot array, stride 0x18 of {IBP, next+prev, cellIdx}, +0x18 count),
 // resolves each slot's CharacterComponent, and applies the SAME component-type test
 // (owner at +0x10, component array +0x30 / count +0x38, identity via vtable slot
@@ -3927,8 +3880,8 @@ extern "C" ComponentDescription* StartTown_ResolveTemplateByPath(const char* pat
 //
 // OnAdd is a plain append (no dedup), so the citizen pass keeps a once-guard.
 //
-// [2026-07-26] OnAdd is now ALSO reachable the retail way: CitizenComponent's vtable
-// slot 6 (+0x30) is wired under BANISHED_LIVE_CITIZEN_ONADD, so any citizen that goes
+// OnAdd is ALSO reachable the retail way: CitizenComponent's vtable
+// slot 6 (+0x30) is wired, so any citizen that goes
 // through EntityList::RegisterEntity registers itself. Since OnAdd is a plain append
 // with no dedup, this pass would double-count anyone the broadcast already added — so
 // it now checks the list first. 24 entries, once per run; the scan is free.
@@ -3964,10 +3917,10 @@ static void StartTown_RegisterTownCitizens() {
     fflush(stderr);
 }
 
-// Houses: registration into townMgr+0x20 is now RETAIL-DRIVEN. The stamped SM
-// pendingState=2 (see the +0x52 stamp in StartTown_SpawnStructures) makes the
-// first StateMachine::Tick run the ResidenceComponent state-2 Enter — the
-// helper_9de0 append (ResidenceComponent_EnterBuilt in residencecomponent.cpp).
+// Houses: registration into townMgr+0x20 is RETAIL-DRIVEN. The state machine entering
+// state 2 inside RegisterEntity's instant-build bracket (see StartTown_SpawnStructures)
+// runs the ResidenceComponent state-2 Enter — the
+// helper_9de0 append (ResidenceComponent::EnterBuilt in residencecomponent.cpp).
 // The former StartTown_RegisterTownResidences manual append was removed: with
 // the real state table wired it would double-register every founding house.
 
@@ -3977,14 +3930,11 @@ static void StartTown_RegisterTownCitizens() {
 //
 // Retail's per-citizen init FUN_140117080 sets CitizenComponent+0x1f0 =
 // ProfessionList(gw+0xb0)+0x30 (the default Laborer Profession*) for every adult
-// colonist. That initializer is guarded off in standalone, so +0x1f0 stays 0 and the
-// citizen info panel's Job line reads a null profession -> renders blank. This pass
-// reproduces just the laborer seed for the founding colonists WITHOUT the forester-
-// employment gating.
+// colonist; StartTown_SpawnColonistRetail (founding_spawn.cpp) runs it. This pass
+// seeds the Laborer on any adult in the live citizen list still at +0x1f0 == 0.
 // Children keep +0x1f0 == 0 (their panel branch uses ProfessionList+0x40 "Student").
-// Idempotent (sets only when +0x1f0 == 0), so it composes with EmployForesters' own
-// seed. Depends on the founding-housing pass having collected g_foundingCitizens and on
-// ProfessionList (gw+0xb0) being live (LoadProfessionList_Step2, default-on). Build-time
+// Idempotent (sets only when +0x1f0 == 0). Walks the live citizen list (see below) and
+// depends on ProfessionList (gw+0xb0) being live (LoadProfessionList_Step2). Build-time
 // pass that reproduces what retail runs at runtime in FUN_140117080.
 static void StartTown_SeedLaborerProfessions() {
     if (GameUpdateLoop::_singleton == nullptr) return;
@@ -4052,17 +4002,9 @@ static void StartTown_SeedLaborerProfessions() {
 // model variant + world transform, education, housing assignment, movement
 // speed, AnimalComponent animation state.
 //
-// That init dereferences the CitizenComponent's real sub-objects (owner entity
-// IBP +0x10, AnimalComponent IBP +0x278, CitizenDescription +0x288, housing
-// +0x1f0/+0x248) — all ZEROED on our inert components (Foundation D/E) — and
-// calls a chain of exe helpers (Entity_ClearPathQueue, FUN_1401253d0,
-// FUN_140003870, FUN_1400a4c60, CitizenComponent_Setup{Young,Elder},
-// CitizenComponent_AssignHousing, AnimalComponent_impl_a1f0) that are NULL in
-// standalone. So the init block — and the spouse/child linking, which walks the
-// same CitizenComponent fields — is GUARDED OFF, exactly like the structures'
-// render transform. The citizen entities still exist in the world with their
-// full (inert) component sets; animating them needs a real CitizenComponent
-// (the "Foundation F"-class gate, shared with visible buildings).
+// The port of that spawn (sub_1040, which runs FUN_140117080) is
+// StartTown_SpawnColonistRetail in founding_spawn.cpp; the spouse / child linking is
+// done in StartTown_SpawnCitizens.
 //
 // Type ids confirmed via RegisterType DATA xrefs: CitizenComponent = 1401c7158,
 // CitizenDescription = 1401c7190 (the "CitizenAI" naming on the exe helpers is a
@@ -4074,23 +4016,15 @@ static constexpr int FAMILY_ARR     = 0x60;    // startConfig+0x60 = family arra
 static constexpr int FAMILY_CNT     = 0x68;    // startConfig+0x68 = family count
 static constexpr int FAMILY_STRIDE  = 8;       // {bool _educated@+0, int _maxChildCount@+4}
 
-// ---- Citizen carry-storage capacity init (BANISHED_LIVE_CITIZEN_CARRY) ----------
+// ---- Citizen carry-storage capacity check ---------------------------------------
 // A citizen's carry StorageComponent has a valid StorageDescription (maxPerSlot +0x24
-// = 100, not area-based) but its capacity (+0x38) stays 0 in standalone: the component's
-// OnAdded/Draw slot (StorageComponent_Draw 0x14012c640, which sets +0x38 = maxPerSlot *
-// tileArea) never runs for citizens (inert in SA). With capacity 0 a citizen can carry
-// nothing, so every haul aborts — GatherRawMaterials::Execute recomputes remaining=0 and
-// replans, and no construction (or general economy) hauling ever completes. Run the
-// faithful Draw setup once at spawn. The carry storage is located exactly as
-// GatherRawMaterials does (Entity_FindComponent_Storage 0x140006270 on entity+0x10).
-// Gated default-OFF (A/B); fold into SA_LIVE_ENV once verified.
-//
-// STANDS DOWN when BANISHED_LIVE_STORAGE_ONADDED wires StorageComponent's real slot 6
-// (storagecomponent.cpp): that runs for EVERY entity at RegisterEntity time, including
-// citizens born after world start, which these four founding-colonist call sites never
-// covered. It still runs as a VERIFIER in that mode — it reads the capacity the slot
-// left behind and logs it instead of calling Draw again, so "the slot ran" is an
-// observed outcome rather than an assumption.
+// = 100, not area-based); its capacity (+0x38) is set by StorageComponent's slot 6
+// (StorageComponent::OnAdded 0x14012c640, storagecomponent.cpp: +0x38 = maxPerSlot *
+// tileArea), which runs for every entity at RegisterEntity time. With capacity 0 a
+// citizen can carry nothing, so every haul aborts — GatherRawMaterials::Execute
+// recomputes remaining=0 and replans. This is a VERIFIER for the three founding-colonist
+// call sites: it reads the capacity the slot left behind and logs it when it is still 0,
+// so "the slot ran" is an observed outcome rather than an assumption.
 static void CitizenCarryStorageInit(ComponentEntity* ent) {
     if (!ent) return;
 
@@ -4132,7 +4066,7 @@ extern "C" ComponentEntity* StartTown_SpawnColonistRetail(MapGenerator* startCon
 // ring (host +0x260 head, member +0x268/+0x270 links, member +0x258 host back-ref).
 // Ported as CitizenComponent::AddChild (0x1401168a0), called by name.
 
-// ---- Founding-family housing (BANISHED_LIVE_HOUSING) ------------------------
+// ---- Founding-family housing ------------------------------------------------
 // Vanilla has NO dedicated founding-family→house placement: the founding spawner
 // (CitizenComponent_impl_0dd0) only spawns + spouse/child-links citizens, and houses
 // are assigned per-tick by CitizenComponent::Update via the townMgr+0x100
@@ -4143,8 +4077,8 @@ extern "C" ComponentEntity* StartTown_SpawnColonistRetail(MapGenerator* startCon
 // correctly return 0.
 //
 // As a self-contained founding placement we pair each founding family with one spawned
-// WoodHouse (captured at ResidenceComponent::OnCreate, see g_foundingHouseIBPs — townMgr+0x20
-// itself is never populated in standalone) and make each member a RESIDENT of that house.
+// WoodHouse (captured by StartTown_RunOnCreatePass, see g_foundingHouseIBPs; the pairing is
+// independent of townMgr+0x20) and make each member a RESIDENT of that house.
 //
 // CORRECTED field semantics (the two exe assigner names are INVERTED vs effect — verified
 // from the faithful citizen-panel button port + the retail housing solver FUN_1400d62a0):
@@ -4162,7 +4096,7 @@ extern "C" ComponentEntity* StartTown_SpawnColonistRetail(MapGenerator* startCon
 // sets +0x238 = home, rosters into c7cf0 slot[0], and leaves +0x248 = 0 so the Profession
 // button correctly greys out. The occupied-house mesh visual (residence a710 model-notify
 // 2b70 = an empty no-op even in retail; AmbientEmitter smoke = inert in standalone) is a
-// separate rendering follow-up. Requires BANISHED_LIVE_RESIDENCE (else no houses are captured).
+// separate rendering follow-up.
 
 // Ensure the house's ResidenceComponent (c7cf0) resident-roster array (+0x50/+0x58) is
 // allocated. Retail sizes it in ResidenceComponent::Serialize/Slot14 (0x14012a120):
@@ -4222,7 +4156,7 @@ static void StartTown_AssignFoundingHousing(const std::vector<std::vector<Compon
         // Locate the house's ResidenceComponent (c7cf0) — the RESIDENT roster the faithful
         // residence assigner (AssignWorkplace 0x1401163d0 -> a710) appends into. Its slot
         // array (+0x50) is sized to the residence capacity by ResidenceComponent::Serialize
-        // during spawn (BANISHED_LIVE_RESIDENCE). Guard against an un-serialized roster
+        // during spawn. Guard against an un-serialized roster
         // (null slot-array base / zero slots) so a710's Roster(+0x50)[0] can't deref null.
         ResidenceComponent* resComp =
             FindComponentOnEntity<ResidenceComponent>(houseIBP, tidResidence);
@@ -4249,7 +4183,7 @@ static void StartTown_AssignFoundingHousing(const std::vector<std::vector<Compon
         for (ComponentEntity* ent : families[f]) {
             CitizenComponent* citComp = FindComponentOnEntity<CitizenComponent>(ent, tidCitizen);
             if (!citComp) continue;
-            g_foundingCitizens.push_back(citComp);   // Phase 4: source for the employ pass
+            g_foundingCitizens.push_back(citComp);   // source for StartTown_RegisterTownCitizens
             // Faithful residence assignment — the retail housing solver FUN_1400d62a0 calls
             // AssignWorkplace(citizen, houseOwnerEntityIBP, 0). It (a) sets CitizenComponent
             // +0x238 = home and (b) rosters the citizen into the house's ResidenceComponent
@@ -4326,12 +4260,12 @@ extern "C" void StartTown_ApplyPendingOccupiedVisuals(int frameNum) {
     fflush(stderr);
 }
 
-// ---- Founding-house household food inventory (BANISHED_LIVE_HOUSING) -----------------------
+// ---- Founding-house household food inventory -----------------------------------------------
 // Seed edible food into each founding WoodHouse's plain StorageComponent (c7e78), using
 // AddItem FUN_14012d000 (append/increment a storage slot at comp+0x28; no Scene op,
-// build-time safe). MUST run AFTER StartTown_SeedStartingResources so the town raw-material
+// build-time safe). MUST run AFTER MapGenerator::SeedStartingResources so the town raw-material
 // TEMPLATE pool (townMgr+0x110) — the same edible templates the barn seeder uses — is
-// populated. Gated on BANISHED_LIVE_HOUSING.
+// populated.
 //
 // The StorageComponent is the ONE household container (exe-faithful): the eat loop,
 // Storage_GetResourceCount (0x14012a9d0 — walks owner→c7e78 via finder 0x140006270),
@@ -4551,16 +4485,13 @@ static int StartTown_SpawnCitizens(MapGenerator* startConfig, EntityList* entity
     }
 
     // Child count uses the world RNG (g_pGameWorldSingleton+0xd8), as the original
-    // does. The exact sequence already diverges from vanilla (we skip the many
-    // RandFloat/RandFloatTol draws inside the deferred init), so this only needs
-    // to produce a plausible population.
+    // does.
     System::Random* rng = nullptr;
     if (GameUpdateLoop::_singleton != nullptr)
         rng = GameUpdateLoop::_singleton->m_random;
 
     // Collect each family's spawned citizen entities so the founding-housing pass
-    // (below) can pair family f with one registered WoodHouse. Only used when
-    // BANISHED_LIVE_HOUSING is set; otherwise the vector is simply discarded.
+    // (below) can pair family f with one registered WoodHouse.
     std::vector<std::vector<ComponentEntity*>> famEntities;
 
     // Kid gender alternates across the whole spawn (retail's `bVar12`), persisting
@@ -4628,7 +4559,7 @@ static int StartTown_SpawnCitizens(MapGenerator* startConfig, EntityList* entity
             if (ComponentEntity* a = StartTown_SpawnColonistRetail(startConfig, citizenTemplate, entityList,
                                                         base, ageA, '\0', (char)educated, &adultA)) {
                 ++spawned; fe.push_back(a);
-                CitizenCarryStorageInit(a);   // standalone-only: inert StorageComponent OnAdded
+                CitizenCarryStorageInit(a);   // verify-only: StorageComponent slot 6 sets the capacity
             }
             float ageB = StartTown_FoundingAdultAge(citizenTemplate);
             if (ComponentEntity* b = StartTown_SpawnColonistRetail(startConfig, citizenTemplate, entityList,
@@ -4682,7 +4613,7 @@ static int StartTown_SpawnCitizens(MapGenerator* startConfig, EntityList* entity
     }
 
     // Founding-family housing: roster each family into a registered WoodHouse via the
-    // faithful AssignHousing primitive (env BANISHED_LIVE_HOUSING; default no-op).
+    // faithful residence assigner (CitizenComponent::SetHome, 0x1401163d0).
     StartTown_AssignFoundingHousing(famEntities);
 
     return spawned;
@@ -4710,12 +4641,11 @@ static int StartTown_SpawnCitizens(MapGenerator* startConfig, EntityList* entity
 //
 // The original then sets the resource's grid cell + growth/age + model variant via
 // NaturalResourceComponent helpers (Entity_impl_6540, FUN_140120db0,
-// ComponentEntity_impl_5cc0) + a per-variant model selection (FUN_1401253d0). All
-// dispatch on real (non-inert) components, so that block is GUARDED OFF — the
-// resource entities exist + are registered but carry inert components and don't
-// render, same gate as structures/citizens. a12b0 also queries height/slope via a
-// Picking-ray variant of QuarryComponent_helper_aa20 (NULL in standalone); we use
-// the heightmap sampler (Reimpl_MapGetTerrainPos, which fills height + slope) instead.
+// ComponentEntity_impl_5cc0) + a per-variant model selection (FUN_1401253d0); here those
+// are StartTown_PlaceResourceCell, StartTown_GrowthInitResource, SeedInitialSpawn and
+// ApplyResourceModelVariant. a12b0 also queries height/slope via a Picking-ray variant
+// of QuarryComponent_helper_aa20; we use the heightmap sampler (Map::GetTerrainPos,
+// which fills height + slope) instead.
 // ============================================================================
 
 static constexpr int RES_ARR      = 0x70;     // startConfig+0x70 resource pool array
@@ -4728,7 +4658,7 @@ static constexpr int CELL_OCCUPANT = 0x08;    // cell +0x08 = occupant ptr (0 = 
 // with no resources at all. The old 16384 "safety" cap was sized from a
 // Mountains medium map (~10k trees) and clipped every Valleys map (a large
 // Valleys map wants well over 16k trees) -- seen 2026-09-13 as "no trees on the
-// top half of the map". BANISHED_RES_CAP=<n> (diagnostic) still bounds a pool.
+// top half of the map".
 static constexpr int RES_POOL_CAP = 0x7fffffff;
 
 // ---- Natural-resource model-variant selection (FUN_1401253d0 + the
@@ -4788,23 +4718,19 @@ static void ApplyResourceModelVariant(ComponentEntity* entity, uint32_t tidModel
 //   Entity_impl_6540(NRComp, cellIdx)  — grid placement + jittered model transform
 //   FUN_140120db0(GrowthComp, RandFloat) — growth/age + mesh scale init
 // (ComponentEntity_impl_5cc0/SpawnComponent — the initial sub-resource spawner —
-//  is DEFERRED: it recursively spawns more entities via ComponentEntity_impl_5780
-//  and reads GrowthComponent+0x28 which is only linked when GrowthComponent is LIVE.
-//  Not needed for grid placement / economy; left guarded off.)
+//  runs separately, after RegisterEntity: SeedInitialSpawn in StartTown_SpawnResources.)
 //
 // Standalone deviations from the disassembly (all documented project policies):
 //   * No IsDerivedFrom gate on the linked descriptions — IsDerivedFrom is
 //     unreliable in the partial standalone factory tree (returns false → null d →
 //     crash). We trust comp+0x18 (the copy-ctor stored the resource's own desc)
 //     and null-guard every deref (IsDerivedFromOrTrust policy).
-//   * Position jitter / random yaw use Random::RandFloatTol when its Runtime export
-//     is resolved (byte-faithful, matches Entity_impl_6540); if unresolved, fall back
-//     to the RandFloat∈[0,1] → [-1,1] remap (same draw count, approximate values).
+//   * Position jitter / random yaw use Random::RandFloatTol (byte-faithful, matches
+//     Entity_impl_6540); with no rng they are 0.
 //   * The 120db0 growth/scale block only runs when the GrowthComponent's sibling
 //     links (+0x28 MeshInstance host, +0x30 ModelComponent, +0x38 GrowthDescription)
-//     are populated — i.e. when GrowthComponent is LIVE (BANISHED_LIVE_GROWTH) and
-//     its Startup has run. Default-inert build → those are zero → growth is a
-//     no-op (never a null deref), exactly as the rest of the inert spawn path.
+//     are populated, i.e. once GrowthComponent::Startup has run; otherwise growth is
+//     a no-op (never a null deref).
 static float ResYawScale() {
     return kRdata_140172220;   // DAT_140172220 = 180.0
 }
@@ -4812,10 +4738,9 @@ static float ResYawScale() {
 // ---- CreateNaturalResource grid marking (impl_dee0 chain) ------------------
 // Faithful, standalone-safe port of CreateNaturalResource_impl_dee0 (0x14009dee0),
 // the cell-grid TERRAIN-TYPE writer that the real game runs from
-// MapComponent::OnCreate -> CreateNaturalResource_impl_4750 -> impl_dee0. In
-// standalone MapComponent is COMPONENT_INERT_FACTORY (OnCreate is a stub) and
-// impl_4750 is unregistered (ResolveAddr -> 0), so that chain never fires — we
-// invoke this directly from the resource spawn path instead.
+// MapComponent::OnCreate -> CreateNaturalResource_impl_4750 -> impl_dee0. The port
+// is StartTown_UnmarkResourceCellGrid below, called from MapComponent::RemoveFromMap
+// (mapcomponent.cpp).
 //
 // What it does, per the disassembly:
 //   for (iy=0..h) for (ix=0..w):
@@ -4836,9 +4761,7 @@ static float ResYawScale() {
 // "type-class changed" bit into Game+0xa2 (dirty flag), and — when the type's
 // walkable-class flips — fires two notify side effects: FUN_1400a8c90 (region/
 // minimap dirty-rect, via Game+0x70) and FUN_1400a6fe0 (a worker-thread message
-// queue, via Game+0x68). Both touch live subsystems that are inert/unbuilt in
-// standalone (Game+0x68/0x70 are zero); we port the core type-byte write + the
-// +0xa2 flag and GUARD OFF the two notify calls (null-guarded — a no-op).
+// queue, via Game+0x68). The port is Map::SetTerrainType, called as is (see below).
 //
 // dee0 sets the cell TERRAIN-TYPE/walkability (the real "a tree-type cell exists
 // here" marking that pathfinding + harvest-search read) and CLEARS cell+0x08; it
@@ -4999,10 +4922,7 @@ static void StartTown_PlaceResourceCell(ComponentEntity* entity, int cellIdx, Ma
     game->GetTerrainPos(pos, in, 0, nullptr);
 
     // Per-resource jitter/yaw tolerance — byte-faithful to Entity_impl_6540, which
-    // uses System::Random::RandFloatTol → [-1,1]. fn_Random_RandFloatTol is the
-    // worldgen_f390_shims link shim over the Runtime export (same Random family as the
-    // RandFloat/RandTol/Rand this function already requires); it returns 0 only if the
-    // export can't resolve, which never happens once the engine funcs are wired.
+    // uses System::Random::RandFloatTol → [-1,1]. A null rng gives 0 (no jitter, yaw 0).
     auto rtol = [&]() -> float { return rng ? rng->RandFloatTol() : 0.0f; };
     float worldX = rtol() * jitter + pos[0];
     float worldY = rtol() * jitter + pos[1];
@@ -5029,14 +4949,12 @@ static void StartTown_PlaceResourceCell(ComponentEntity* entity, int cellIdx, Ma
 }
 
 // FUN_140120db0 — growth/age + mesh-scale init on the GrowthComponent. Delegates to
-// the verified ActCNR_SetGrowthProgress_120db0 reimpl (src/game/Action/
-// action_base_cnr.cpp), which is a 1:1 port using the real Math::Vector4 / Time
-// ctors. We pre-check that the component's sibling links are populated (+0x28
+// GrowthComponent::SetProgress (defined in src/game/Action/action_base_cnr.cpp).
+// We pre-check that the component's sibling links are populated (+0x28
 // MeshInstance host, +0x30 ModelComponent, +0x38 GrowthDescription) so it is a
-// faithful no-op on a default-inert GrowthComponent (those are zero until
-// GrowthComponent::Startup runs, i.e. the LIVE build) rather than a null deref.
+// no-op, not a null deref, while they are zero (GrowthComponent::Startup sets them).
 // The original passes Random::RandFloat(rng) as the growth progress (staged trees).
-// (SetGrowthProgress: Action/exe_bodies.h)
+// (SetProgress: Component/GrowthComponent.h)
 
 static void StartTown_GrowthInitResource(ComponentEntity* entity, uint32_t tidGrowth,
                                          System::Random* rng) {
@@ -5046,46 +4964,16 @@ static void StartTown_GrowthInitResource(ComponentEntity* entity, uint32_t tidGr
     ::Object::InternalPtr<GrowthComponent> gIBP(gComp);
     GrowthComponent* s = gIBP.Get();
     if (!s) return;
-    // Sibling links populated only when GrowthComponent::Startup ran (LIVE build).
+    // Sibling links populated only when GrowthComponent::Startup ran.
     if (!s->resource.Get() || !s->model.Get() || !s->config)
         return;   // inert → faithful no-op (matches the rest of the inert spawn path)
     const float progress = rng ? rng->RandFloat() : 0.0f;
     s->SetProgress(progress);
 }
 
-// Mature the start-town forest so the forester can harvest it.
-//
-// ⚠️ CORRECTED 2026-07-01 (live-verified): the prior claim that "trees carry NO
-// GrowthComponent" is FALSE. The tree template (NaturalResourceFigTree.rsc etc.)
-// declares a `growth` component and the standalone entity factory DOES materialise it —
-// FindComponent(GrowthComponent) returns non-null on every tree, and with
-// BANISHED_LIVE_GROWTH its Startup links +0x28 (NaturalResourceComponent) and +0x38
-// (GrowthDescription). The one thing that was broken: +0x30 (the ModelComponent sibling)
-// never linked, because GrowthComponent::Startup finds it via ActCNR_FindComponent_3f60,
-// whose ModelComponent type-id (raw .rdata 0x1401c7a50) resolved NULL in standalone.
-// That is now FIXED (action_base_cnr.cpp GetTypeIdByName fallback) → all three siblings
-// link and StartTown_GrowthInitResource stages growth at random progress, exactly like
-// retail (Random::RandFloat → FUN_140120db0). So growth STAGING + per-tick ticking work.
-//
-// M-A UPDATE (2026-07-01): the "DoHarvestReset faults because resourceMgr+0x80 is
-// not built" claim was a MISDIAGNOSIS. `*(gameWorld+0xF8)` is the `Game` object and
-// its +0x80 per-tile grid IS built in standalone (MapTileGrid_Build = the faithful
-// front-half of CreateNaturalResource_impl_ef20 0x14009ef20: dim*dim records, stride
-// 0x30). The real fault was a stray extra deref in the DoHarvestReset reimpl (it read
-// `*(uintptr_t*)gridBase` and wrote near-null). That is FIXED (growthcomponent.cpp),
-// and BANISHED_LIVE_GROWTH now runs the growth sim through DoHarvestReset crash-free
-// (verified: 8 harvest-resets, valid gridBase + in-bounds resIdx, 0-byte crash log).
-// ⇒ MATURE_TREES is no longer needed to AVOID A CRASH — live growth is safe. It
-// remains a default-OFF CONVENIENCE that makes trees instantly forester-harvestable
-// (naturally reaching the growth threshold takes a long sim horizon).
-//
-// The forester's harvest gate reads the NaturalResourceComponent's growth field directly
-// (natResComp+0x28 >= threshold 1.0, foresterwork.cpp), so we set that field to a mature
-// value at spawn — the faithful END-STATE of a fully-grown tree (what 120db0 writes at
-// The 5cc0 initial sub-resource seed for one scattered resource, factored out so the
-// correct (post-register) call site and the BANISHED_SPAWN_INITIAL_PREREG A/B arm run
-// byte-identical code and differ ONLY in when they are called. See the ordering comment
-// at the call site and docs/history/notes/generation_deviations.md deviation #4.
+// The 5cc0 initial sub-resource seed for one scattered resource, called after
+// RegisterEntity. See the ordering comment at the call site and
+// docs/history/notes/generation_deviations.md deviation #4.
 static void SeedInitialSpawn(ComponentEntity* ent, uint32_t tidSpawnComp,
                              int& withSpawnComp, int& withSpawnEntries) {
     if (!ent) return;
@@ -5250,7 +5138,7 @@ static int StartTown_SpawnResources(MapGenerator* startConfig, GameUpdateLoop* w
                 // ENTITY raster (cell+8) is free. This pass runs AFTER the structures are
                 // placed (measured: dock at log line 381, scatter at 482), so it can drop
                 // a tree inside a finished building. cell+8 alone does not catch that,
-                // because BANISHED_LIVE_WALKWAY_DROPCELLS (default on) deliberately leaves
+                // because the port's dc20 (keystone_a_map.cpp) deliberately leaves
                 // a dock's '_' walkway cells at cell+8 == 0 — which is exactly where its
                 // mode-2 drop spots sit.
                 //
@@ -5311,8 +5199,8 @@ static int StartTown_SpawnResources(MapGenerator* startConfig, GameUpdateLoop* w
                 }
 
                 // FUN_140120db0 — growth/age + mesh-scale init on the GrowthComponent.
-                // No-op on the default-inert GrowthComponent (siblings unlinked); when
-                // BANISHED_LIVE_GROWTH is on it stages the tree at a random growth value.
+                // Stages the tree at a random growth value; a no-op when the component's
+                // sibling links are unset.
                 StartTown_GrowthInitResource(ent, tidGrowth, rng);
 
                 entityList->RegisterEntity(&entIBP, category);
@@ -5322,9 +5210,8 @@ static int StartTown_SpawnResources(MapGenerator* startConfig, GameUpdateLoop* w
                 // 0x1400a1cb2, guarded there on the same "does this entity carry a
                 // SpawnComponent" test). This is what puts the gatherer's four
                 // accepted resources on the map at t=0; it was deviation #4 in
-                // docs/history/notes/generation_deviations.md. Opt-in (BANISHED_SPAWN_INITIAL)
-                // until measured — it runs the full DoSpawn closure thousands of
-                // times during world build.
+                // docs/history/notes/generation_deviations.md. It runs the full DoSpawn
+                // closure thousands of times during world build.
                 //
                 // ORDERING IS LOAD-BEARING — it must run AFTER RegisterEntity.
                 // Verified in Ghidra 2026-08-13: a12b0 registers the parent at
@@ -5472,8 +5359,8 @@ static int StartTown_SpawnEnvironment(MapGenerator* startConfig, GameUpdateLoop*
         }
     }
 
-    // Pass 2 — ambient environment volumes on a chunk grid. When ambient audio is
-    // live, stamp each volume's biome-sample region + emitter position from its
+    // Pass 2 — ambient environment volumes on a chunk grid. Stamp each volume's
+    // biome-sample region + emitter position from its
     // tile (gridX=x, gridY=y, rw=rh=chunk) so biome sampling varies by location and
     // the emitters aren't all stuck at the world origin.
     ComponentDescription* ambTmpl = StartTown_ResolveTemplate(&startConfig->mapAmbient);
@@ -5637,8 +5524,8 @@ extern "C" void StartTown_SpawnEntities(MapGenerator* startConfig, GameUpdateLoo
 
     // Town-manager registry (ungated) — register the founding citizens into
     // townMgr+0xa0 (the town-hall statistics list). Houses register into
-    // townMgr+0x20 via the ResidenceComponent state-2 Enter on the first SM tick
-    // (retail flow) — no manual append here anymore.
+    // townMgr+0x20 via the ResidenceComponent state-2 Enter, which the instant-build
+    // path runs inside RegisterEntity (retail flow) — no manual append here.
     StartTown_RegisterTownCitizens();
 
     // RESOURCES (impl_a12b0) — perlin scatter of trees/stone/iron across the map,
@@ -5681,15 +5568,15 @@ extern "C" void StartTown_SpawnEntities(MapGenerator* startConfig, GameUpdateLoo
     StartTown_SeedAvailableAgriculture(sc, game, spawnX, spawnY);
 
     // ========================================================================
-    // Brick M-D (BANISHED_LIVE_STORAGE) — starting-resource seeding. Mirrors
+    // Brick M-D — starting-resource seeding. Mirrors
     // the tail of FUN_1400a3300 (after all spawn passes):
     //   1. 0x1400a33b4 loop: register the raw-material TEMPLATE pool
     //      (startConfig+0xa0, count +0xa8, stride 0x18 ExternalRef) into
-    //      townMgr+0x110 via FUN_140091e60 (dedup-append; already ported +
-    //      registered as RawMaterialComponent_RegisterRawMaterial).
+    //      townMgr+0x110 via FUN_140091e60 (dedup-append; ported as
+    //      CitizenBehavior::RegisterRawMaterial).
     //   2. 0x1400a342b: Game_impl_1f00(startConfig) — seed the seven start
-    //      resources (wood/stone/iron/fuel/FOOD/herb/tool) into the registered
-    //      storage locations (barn/yard, wired in StartTown_WireStorage above).
+    //      resources (wood/stone/iron/tool/FOOD/fuel/clothing) into the registered
+    //      storage locations (barn/yard, registered by their StorageLocationComponent).
     // ========================================================================
     {
         CitizenBehavior* townMgr = nullptr;
@@ -5751,7 +5638,7 @@ extern "C" void StartTown_SpawnEntities(MapGenerator* startConfig, GameUpdateLoo
 
 
 
-        // Founding-house household inventory (BANISHED_LIVE_HOUSING): now that the town
+        // Founding-house household inventory: now that the town
         // raw-material TEMPLATE pool (townMgr+0x110) is populated, seed a small edible-food
         // stock into each founding WoodHouse's StorageComponent so a clicked house shows a
         // non-empty inventory. Must run here (post-seed), not in the housing pass (which runs

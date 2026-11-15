@@ -1,4 +1,4 @@
-// engine/src/ui/eventlogui.cpp
+// src/game/Dialog/eventlogui.cpp
 // Clean reimplementation of EventLogUI game logic.
 //
 // EventLogUI (0x80 bytes) — event log panel.
@@ -209,7 +209,7 @@ void EventLogUI::ToggleNotification(int32_t btnIdx) {
     // UI::CheckElement::_checked is uint8_t (src/engine/ui/CheckElement.h) and the
     // target EventLog::notifyCategories bool[6] (Game/EventLog.h); a uint8_t -> bool store
     // would normalise the check box's raw byte, the byte store does not.
-    *reinterpret_cast<uint8_t*>(&eventLog->notifyCategories[btnIdx]) = btnElem->_checked;   // LEFT: H8, byte_io candidate: retail 0x14006734f / 0x14006735b is MOVZX byte [check+0xd8] then MOV byte [eventLog+0x10+idx], a raw byte copy (MSVC bool to bool); the field stays bool because GameUpdateLoop serializes it through Serialize(6, bool*) (gameupdateloop_serialize.cpp:165); a uint8_t -> bool assignment adds a != 0 normalisation where retail moves the check box's byte (CheckElement::_checked, uint8_t): a byte_io marker candidate  // CAST-OK: byte_io (S4 ruling)
+    *reinterpret_cast<uint8_t*>(&eventLog->notifyCategories[btnIdx]) = btnElem->_checked;   // LEFT: H8, byte_io candidate: retail 0x14006734f / 0x14006735b is MOVZX byte [check+0xd8] then MOV byte [eventLog+0x10+idx], a raw byte copy (MSVC bool to bool); the field stays bool because EventLog::Serialize serializes it through Serialize(6, bool*) (gameupdateloop_serialize.cpp); a uint8_t -> bool assignment adds a != 0 normalisation where retail moves the check box's byte (CheckElement::_checked, uint8_t): a byte_io marker candidate  // CAST-OK: byte_io (S4 ruling)
 }
 
 // ============================================================
@@ -309,8 +309,6 @@ void EventLogUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, U
 //                       `const Time&`, which a void(*)(void*) override silently drops.
 //   +0x48 idx9 Slot9  = button dispatch (scroll / notify toggle / row click)
 //
-// EventLogUI_Slot5/7/9 read the event-log struct (gameWorld+0x138) but dereference
-// no exe-.rdata type-id globals, so no EnsureGlobals lazy-fill is needed.
 
 #include "Object/factory_registration.h"
 #include <cstddef>

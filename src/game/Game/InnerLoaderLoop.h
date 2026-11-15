@@ -24,7 +24,7 @@
 // ============================================================================
 
 #include <cstdint>
-#include "engine/UpdateLoop.h"   // -Iruntime/types: Engine::LoaderLoop
+#include "engine/UpdateLoop.h"   // -Isrc/engine: Engine::LoaderLoop
 
 class InnerLoaderLoop final : public Engine::LoaderLoop {
 public:

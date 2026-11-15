@@ -8,9 +8,7 @@
 //   | ?Frame@MainLoop@Engine@@QEAA_N_N@Z       | 0x1800dd100 | 2377 |  684  |
 //
 // This is the fixed-timestep frame driver: the body `MainLoop::Run` calls once
-// per iteration and the one function standing between our `Run` port and the
-// DLL for everything a frame does.  It closes the NAME door `mainloop_run.cpp`
-// §3 opened when it ported `Run` and had to reach `Frame` by export.
+// per iteration (mainloop_run.cpp).
 //
 // ---------------------------------------------------------------------------
 // 0. WHY THIS ROW WAS UNCLAIMED FOR FIFTEEN WAVES, AND WHAT THE BLOCKER WAS
@@ -46,8 +44,9 @@
 //     0x18014b5c0  USER32!DispatchMessageW
 //     0x18014b418  KERNEL32!SwitchToThread
 //
-// They are called DIRECTLY here, not through those slots: the slots are the
-// DLL's IAT and do not exist once the DLL is gone.
+// They are reached through the Platform:: seams here (Platform::PerfCounter,
+// Platform::Pump, Platform::Window::PostQuitMessage, Platform::YieldThread), not
+// through those slots: the slots are the DLL's IAT.
 //
 // ---------------------------------------------------------------------------
 // 2. THREE THINGS THE DISASSEMBLY SETTLES THAT A DECOMPILE WOULD TIDY AWAY
@@ -137,9 +136,8 @@
 // ---------------------------------------------------------------------------
 // 3. A HEADER FACT THIS BODY ANSWERS
 // ---------------------------------------------------------------------------
-// `src/engine/engine/MainLoop.h` says of `_startTicks` (+0x30): "Whether
-// MainLoop::Frame (0x1800dd100, DLL-internal) also rewrites it per frame was
-// NOT checked by lane B."  IT DOES — every call, unconditionally, at
+// Does Frame rewrite `_startTicks` (+0x30, src/engine/engine/MainLoop.h) per
+// frame?  IT DOES — every call, unconditionally, at
 // 0x1800dd146, and it uses the previous value as the delta base:
 //
 //     now  = CurrentTimeTicks()
@@ -167,62 +165,34 @@
 // invokes it.  Recorded here because the six holdbacks are still open and this
 // is the first ported function that drives them.
 //
-// `?FreeChannelPlatform@Device@Audio@@` (0x1800de6f0) is PRIVATE and not
-// ported, so it is reached BY ADDRESS — see §5.
+// `?FreeChannelPlatform@Device@Audio@@` (0x1800de6f0) is PRIVATE; it is ported in
+// src/engine/audio/audio_device.cpp and called as a member — see §5.
 //
 // ---------------------------------------------------------------------------
-// 5. DOOR ARITHMETIC — DECLARED, INCLUDING THE PART THAT GOES UP
+// 5. FRAME'S FOUR INTERNAL CALLEES
 // ---------------------------------------------------------------------------
 // Frame's four internal callees:
 //
-//   0x1800e1490  Input::Device::Update          NOT ported (lane INPUT's)
-//   0x1800de6f0  Audio::Device::FreeChannelPlatform  NOT ported, PRIVATE
+//   0x1800e1490  Input::Device::Update          PORTED (input_device_update.cpp)
+//   0x1800de6f0  Audio::Device::FreeChannelPlatform  PORTED, PRIVATE (audio_device.cpp)
 //   0x1800dd070  MainLoop::Update               PORTED (mainloop_run.cpp)
-//   0x1800dcd40  MainLoop::Draw                 NOT ported
+//   0x1800dcd40  MainLoop::Draw                 PORTED (loops.cpp)
 //
-// CLOSES:  the NAME door `?Frame@MainLoop@Engine@@QEAA_N_N@Z`, which
-//          mainloop_run.cpp opened, plus its ADDRESS door 0x1800dd100.
-// OPENS:   `?Draw@MainLoop@Engine@@QEAAXM@Z`                    ord 2251
-//          `?FreeChannelPlatform@Device@Audio@@AEAAXH@Z`        ord 2380
-//          — BOTH are NAME doors.  `?Update@Device@Input@@` was ALREADY opened
-//          by mainloop_run.cpp and is NOT new surface.
-//
-// THE SECOND ONE WAS ALMOST AN ADDRESS DOOR, AND THE REASON IS WORTH KEEPING.
-// `?FreeChannelPlatform@` is spelled `AEAA` — PRIVATE — and this file's first
-// draft reached it by address on the strength of that, writing "it is private,
-// so there is no name to use".  **`AEAA` MEANS PRIVATE, NOT UNEXPORTED**
-// (reference_aeaa_is_private_not_unexported.md): Runtime-x64.dll exports its
-// private members, and this one is ordinal 2380 in the shipped export
-// directory.  A `pefile` lookup BY ADDRESS found the name in one command.  Had
-// it stayed an address door it would have been a silent null at cutover
-// instead of an `[RtUnresolved]` line.
-//
-// NET DECLARED SURFACE GROWTH FOR THIS FILE: **+2 census rows, both NAME doors**
-// against 1 row moved into `ported`.  The flattering number would have been
-// "+1, Input was already there"
-// (reference_porting_can_grow_the_cutover_surface.md,
-// reference_count_the_doors_not_the_calls.md).
+// `?FreeChannelPlatform@` is spelled `AEAA` — PRIVATE.  **`AEAA` MEANS PRIVATE,
+// NOT UNEXPORTED** (reference_aeaa_is_private_not_unexported.md): Runtime-x64.dll
+// exports its private members, and this one is ordinal 2380 in the shipped
+// export directory.
 //
 // ---------------------------------------------------------------------------
 // 6. VERIFICATION — WHAT THIS SITE IS AND IS NOT  (kickoff §1b)
 // ---------------------------------------------------------------------------
-// The site below is named **"Engine::MainLoop::Frame [ATTENDANCE]"** and that
-// label is the honest one.  Frame has NO ORACLE, for the same structural reason
-// `Run` has none and a stronger one besides: it advances the world irreversibly
-// through two virtual calls and a Win32 message pump, so there is no second arm
-// to run and nothing to restore.  A `[SELF-CHECK]` shadow rides alongside it on
-// the one post-condition the body's own loop establishes — after the
-// fixed-timestep loop, `_accumulator < _deltaTime` — and is labelled as a
-// self-check, not dressed up as a comparison against retail.
+// Frame has NO ORACLE, for the same structural reason `Run` has none and a
+// stronger one besides: it advances the world irreversibly through two virtual
+// calls and the platform message pump (Platform::Pump), so there is no second
+// arm to run and nothing to restore.
 //
-// This is deliberately NOT one of the 133 NO-COMPARISON sites the kickoff
-// complains about, because it does not print `divergences=0` and let a reader
-// take that for a pass: `divergences` is only meaningful on `[ORACLE]` rows and
-// the class is in the site's own name.
-//
-// The real test is a BOOT.  With the DLL present, our `Run` calls this by
-// direct C++ call and it drives every frame of the session.  `worked=N` is the
-// number that carries information here; `calls=0` is CORRECT and expected.
+// The real test is a BOOT: `Run` calls this by direct C++ call and it drives
+// every frame of the session.
 //
 // ---------------------------------------------------------------------------
 // 7. RE-DERIVE EVERYTHING ABOVE
@@ -232,7 +202,6 @@
 //   (extent: walk .pdata, union RUNTIME_FUNCTION entries whose start == the
 //    previous end; import names: pefile DIRECTORY_ENTRY_IMPORT by slot VA.)
 //
-// Kill switch: RT_MAINLOOPFRAME=0 returns every call to the DLL.
 // ============================================================================
 
 #include <cstdint>
@@ -313,10 +282,6 @@ Engine::MainLoop::ExtFrameFn Engine::MainLoop::_extFrame = nullptr;
 // 0x1800dd115 and only ever tested as a byte).  `Run` passes false.
 bool Engine::MainLoop::Frame(bool skipUpdate) {
 
-    // Ported already -> BY ADDRESS, so the port registry is consulted first and
-    // our body is used rather than the DLL's.  NOT ported -> BY NAME where a
-    // name exists, so the miss at cutover prints [RtUnresolved] and is counted
-    // instead of being a silent null; BY ADDRESS only where there is no name.
     // ENDGAME B.3.9 close (D7): Timer::_secondsPerTick is the class static.
     const double* secondsPerTick = &::System::Timer::_secondsPerTick;
 
@@ -440,10 +405,6 @@ bool Engine::MainLoop::Frame(bool skipUpdate) {
         _totalTime   += _deltaTime._ticks;
     }
 
-    // SELF-CHECK, not an oracle (§6): the post-condition this body's own loop
-    // establishes. It would catch a botched loop condition; it cannot catch a
-    // wrong-but-self-consistent frame.
-
     // --- 0x1800dd318..0x1800dd39e : the tail, which ALWAYS runs -------------
     // Reached both by falling out of the loop and by the top test skipping it
     // entirely (0x1800dd175 jumps straight here).
@@ -472,9 +433,8 @@ bool Engine::MainLoop::Frame(bool skipUpdate) {
     context->_time.w = 0.0f;
     context->_dirty |= RtVideo::kDirtyGlobalConstants;   // +0x10, beside `_time` (+0x3c8)
 
-    // MainLoop::Draw — NOT ported. By NAME (it is exported), so the cutover
-    // miss is diagnosable rather than a silent null (§5). The float is `alpha`,
-    // in XMM1 (§2d) — omitting it was this file's first and worst bug.
+    // MainLoop::Draw (loops.cpp). The float is `alpha`, in XMM1 (§2d) — omitting
+    // it was this file's first and worst bug.
     Draw(alpha);   // ENDGAME B.3.7: a member call (was the ord-2251 name door)
     }
 

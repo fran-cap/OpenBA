@@ -2,13 +2,14 @@
 //
 // Not part of the engine: a ~200 line stand-alone program, built by tools/macos/make_app.sh.
 // The engine looks for WinData/ and writes UserData/ and its logs beside its own executable
-// path (src/platform/posix/file_posix.cpp, settings_posix.cpp). A signed .app must stay
+// path (src/platform/darwin/file_darwin.cpp, ExecutablePath). A signed .app must stay
 // read-only and must not contain game data, so this launcher:
 //   1. finds the user's own Banished WinData folder (lookup order below, READ-ONLY use),
 //   2. builds ~/Library/Application Support/OpenBA/Run/ holding two symlinks
 //      (WinData -> the user's folder, OpenBA -> the engine inside this bundle),
-//   3. chdir()s there and execv()s that symlink. Saves, logs and settings therefore live in
-//      ~/Library/Application Support/OpenBA/Run/ ; nothing is copied, nothing is written
+//   3. chdir()s there and execv()s that symlink. Logs therefore live in
+//      ~/Library/Application Support/OpenBA/Run/ ; saves and settings.cfg under ~/Documents/Banished/
+//      (src/platform/darwin/settings_darwin.cpp); nothing is copied, nothing is written
 //      to the game folder.
 // Lookup order for the game folder (first one that contains data0.pkg wins):
 //   a. argument  --game-dir <Banished or WinData folder>

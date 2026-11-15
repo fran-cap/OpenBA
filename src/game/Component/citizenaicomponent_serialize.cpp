@@ -25,17 +25,16 @@
 //   if (ser.GetVersion() > 2) { Time::Serialize(self+0xc0, ser); }
 //   if (ser.GetVersion() > 3) { Time::Serialize(self+0xc8, ser); }
 //
-// Sub-callees: all resolved through the shared engine_funcs.h globals already
-// initialized at startup (g_fn_Serializer_Ctor/Dtor/GetVersion, g_fn_Serialize_Int,
-// g_fn_Serialize_Bool, g_fn_Time_Serialize, fn_Time_Ctor_Float, fn_InternalBasePtr_Serialize,
-// fn_IsDerivedFrom) plus the already-ported Component base serialize
+// Sub-callees: IO::Serializer (ctor / dtor / GetVersion / Serialize), System::Time::Serialize,
+// RtSystem_Time_Ctor, Object::InternalBasePtr::Serialize and Object::IsDerivedFromNullSafe,
+// plus the already-ported Component base serialize
 // (Component::Persist, component.cpp — called qualified).
 // No new sub-function ports were required.
 //
 // Validation type for +0x38 (sibling CitizenComponent) is CitizenComponent's own
 // type id, 0x1401c7158 — GRADUATED default-on (see project_citid_graduated memory),
-// so we resolve it the same self-contained way citizenaicomponent.cpp already does
-// for its own sibling-find (GetTypeIdByName, not the raw .rdata global).
+// so it is read as the class's own record, CitizenComponent::TypeId(), not the raw
+// .rdata global.
 
 #include "object/TypeInfo.h"
 #include "Object/factory_registration.h"

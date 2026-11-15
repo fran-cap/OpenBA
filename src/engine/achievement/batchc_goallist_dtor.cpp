@@ -22,16 +22,10 @@
 // `delete` (slot 0, flags 1) (Goal.h's slot 0).
 //
 // THE FREE IS INLINED IN RETAIL as lock / Free / unlock around the allocator's
-// +0x640 critical section. goal_list.cpp:194 already records that this triple
-// IS `?MemFree@MemoryAllocator@System@@SAXPEAX@Z` (0x1800c7ad0) instruction for
-// instruction, and reuses `rtcoll::MemFree` for it; so does this file, for the
-// same reason and through the same declaration.
+// +0x640 critical section. goal_list.cpp records that this triple IS
+// `?MemFree@MemoryAllocator@System@@SAXPEAX@Z` (0x1800c7ad0) instruction for
+// instruction; here it is the compiler-emitted `~Array` of `_goals` (below).
 //
-// ORACLE: NONE, and it is stated rather than faked. Running the shipped body
-// afterwards would call slot 0 with flag 1 on already-freed GoalInstances — a
-// double free, not a comparison. the diff oracle records how many calls actually
-// had goals to destroy; a GoalList destroyed empty is the common case and
-// `calls=` alone would hide that.
 // ============================================================================
 
 #include <cstddef>

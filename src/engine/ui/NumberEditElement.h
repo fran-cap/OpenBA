@@ -13,7 +13,6 @@
 // `sizeof(EditElement) == 0xE8` up to +0xF8. Retail's EditElement is 0xF8
 // (EditElement.h), so `_min` begins EXACTLY at the end of EditElement and the
 // pad is gone. Size 0x100 (`MOV EDX,0x100` in the deleting dtor 0x180046540).
-// The POD moved to `RtUI::NumberEditElement` (B4b-1) for widgets_input.cpp.
 //
 // ENDGAME B.3 step 9 (block UI-A, B39_RULES D1/D2): CONCRETE. The real public
 // ctor is retail's `??0NumberEditElement@UI@@QEAA@XZ` (0x1800d4c70) minus its vptr stores;
@@ -33,7 +32,7 @@
 // ENDGAME B.3 step 6 (block C3) — `UI::NumberEditElement`, the REAL C++ class
 // ############################################################################
 //
-// PARENT `UI::EditElement` — READ (B36_SLOTS.md section 3), RECORDED, NOT USED:
+// PARENT `UI::EditElement` — READ (B36_SLOTS.md section 3), RECORDED; DEFINE_TYPE in numbereditelement.cpp carries both:
 //     ?_TypeName@NumberEditElement@UI@@CAPEBDXZ       @0x180046210 -> "NumberEditElement"
 //     ?_ParentTypeName@NumberEditElement@UI@@CAPEBDXZ @0x180046220 -> "EditElement"
 //
@@ -82,7 +81,7 @@ public:
     NumberEditElement& operator=(const NumberEditElement& src);  // 0x1800464b0  not ported
     static void* operator new(std::size_t bytes);                // 0x180046260  not ported
     static void* operator new(std::size_t bytes, void* place);   // 0x1800462d0  not ported
-    static void  operator delete(void* p) { ::Object::detail::InternalMemFree(p); }                       // 0x1800462e0  not ported
+    static void  operator delete(void* p) { ::Object::detail::InternalMemFree(p); }                       // 0x1800462e0
 
 private:
 

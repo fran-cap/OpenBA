@@ -33,9 +33,8 @@
 #include "ui/SpriteSheet.h"   // B8 RT2: ::Object::SerializeExternal<UI::SpriteSheet> (the downcast needs it complete)
 #include "ui/StringTable.h"   // B8 RT2: ::Object::SerializeExternal<UI::StringTable> (the downcast needs it complete)
 
-// FUN_14000bf40 / FUN_14000bd30 -- the two ExternalPtr serialize variants.
-// Both addresses are registered to this one body (address_registry.cpp); it is
-// called directly (the old lazily-resolved pointers resolved to it).
+// FUN_14000bf40 / FUN_14000bd30 -- the two ExternalPtr serialize variants: the
+// ::Object::SerializeExternal<T> calls in Serialize below.
 
 // ============================================================
 // Profession::Profession (0x1400a9030)

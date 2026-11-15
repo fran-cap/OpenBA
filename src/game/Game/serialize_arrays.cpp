@@ -131,8 +131,6 @@ WorldGeometry::WorldGeometry() {
 // round trip stayed self-consistent — only the RETAIL-authored packaged tutorial
 // save could expose it.
 //
-// All four callees are Runtime exports, so a null here means engine_funcs never
-// resolved — report that loudly rather than silently dropping the read.
 void PlayerController::Serialize(IO::Stream& stream) {
     IO::Serializer ser(stream, 0);
     // ?Serialize@Transform@Math@@QEAAXAEAVSerializer@IO@@@Z  retail 0x180059b90
@@ -162,7 +160,7 @@ void PlayerController::Serialize(IO::Stream& stream) {
 //   }
 //   for slot in [start..newCount):
 //       if (slot < oldCount) memcpy elem from oldBuf
-//       else if (newBuf was reallocated) zero-init elem
+//       else zero-init elem
 //   if (oldBuf != newBuf) MemFree(oldBuf)
 //
 // `start` = oldCount when buf didn't reallocate, else 0.
@@ -191,9 +189,9 @@ void PlayerController::Serialize(IO::Stream& stream) {
 // deliberate differences: the allocation now goes through the LOCKING static
 // `MemAlloc` (0x1800c7a50) instead of the unlocked instance `Allocate` these
 // bodies reached through `fn_MemAlloc` (same allocator, same heap); and the
-// "fn_MemAlloc unavailable" scaffold guard + printf is gone — fn_MemAlloc is
-// resolved before any serializer runs, so that arm was dead. The `!arrayHeader`
-// early-out stays on each entry point exactly as before.
+// "fn_MemAlloc unavailable" scaffold guard + printf is gone. The `!arrayHeader`
+// early-out stays on Reimpl_Array_Resize_Stride10_Spawn; Reimpl_Array_Resize_Stride08
+// has none (its first read is the header's count).
 namespace {
 
 // Whole-stride byte copy, for the plain-data rows.
@@ -291,7 +289,7 @@ extern "C" void Reimpl_Array_Resize_Stride08(void* arrayHeader, int newCount) {
 // ============================================================
 // The growable array behind SpawnDescription+0x20: elements are
 // { ExternalPtr @+0x00 (8B), float minSpawnAge @+0x08, float maxSpawnAge @+0x0c }.
-// It cannot use GenericArrayResize because a NEW element is not zero-filled: the
+// It has its own row (kSpec_SpawnEntry) because a NEW element is not zero-filled: the
 // original writes ptr=0, min=0.0f, and max = 0x41200000 = **10.0f** (see the
 // `*(undefined4*)((longlong)puVar9 + 0xc) = 0x41200000` stores in all four
 // unrolled arms and the scalar tail of the decompile). That 10.0f is a real
@@ -303,24 +301,15 @@ extern "C" void Reimpl_Array_Resize_Stride08(void* arrayHeader, int newCount) {
 // which is why SpawnDescription::Serialize read the entry count into a LOCAL,
 // found `resize` null, and left the description at count=0 with a null array:
 // every tree carried an EMPTY spawn table, so no wild food could ever spawn and
-// the Gatherer's Hut had nothing it accepts anywhere on the map. Registered in
-// address_registry.cpp alongside the other resize variants.
+// the Gatherer's Hut had nothing it accepts anywhere on the map. SpawnDescription::Serialize
+// calls it by name.
 extern "C" void Reimpl_Array_Resize_Stride10_Spawn(SpawnDescription::EntryArray* arrayHeader, int newCount) {
     if (!arrayHeader) return;
     arrayHeader->SetSize(newCount);   // SpawnDescription+0x20, typed (its spec is kSpec_SpawnEntry)
 }
 
 // Helper #6 -- 0x14001bbf0 is IO::Serializer::Serialize<MenuSceneMesh> (src/engine/io/Serializer.h)
-// over MenuSceneMesh::Serialize (MenuScene.h); MenuScene_Slot5 calls it (B9 RT2).
+// over MenuSceneMesh::Serialize (MenuScene.h); MenuScene::Serialize calls it (B9 RT2).
 
 // (Helpers #7 / #8, the four Array_Serialize_External bodies, are
 // Object::SerializeExternalArray<T> at their callers since B8 RT2.)
-
-// ============================================================
-// STANDALONE_EXE: address registry hooks
-// ============================================================
-//
-// In standalone we do NOT have the original exe's code mapped. The
-// fn_Geometry_Init / fn_Array_Resize_* / etc. function pointers above stay
-// null when ResolveAddr can't find them, and the Reimpl_* fallbacks above
-// kick in. To wire the registry up, see standalone/address_registry.cpp.

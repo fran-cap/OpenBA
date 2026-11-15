@@ -89,7 +89,7 @@
 // THE CHECK. The debug exe runs the walk behind every shortcut it would take
 // and compares: `found == cur`, and N's mask afterwards equal to what the hit
 // arm would have left (OPENBA_VISITPASS_CHECK, one `[VisitPass] MISMATCH` line
-// per difference, a running count at every power of two). The perf and release
+// per difference, a running count at every power of two from 4096). The perf and release
 // exes trust it. The verifying walk and the recorded flag are the same in every
 // build.
 //

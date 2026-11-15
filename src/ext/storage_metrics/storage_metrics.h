@@ -37,13 +37,13 @@ Snapshot Gather();
 void TownHallCreated(const TownHallUI* hall, UI::TabElement* tabs);
 void TownHallUpdate(const TownHallUI* hall);
 void TownHallClosed(const TownHallUI* hall);
-// The tab index the window's settings record for `tab`: the Storage tab is written as the first tab, so
-// the record never names a tab the game without the extension does not have.
 // The end of TownHallUI::OnSerializeSettings. Written (the window closes): notes whether an added tab was
 // showing. Read (it reopens): shows the last added tab again when the note says so. The note is kept in
 // memory per building for the session; nothing of it is in the settings record or the save.
 void TownHallSettings(const TownHallUI* hall, bool reading);
 
+// The tab index the window's settings record for `tab`: the Storage tab is written as the first tab, so
+// the record never names a tab the game without the extension does not have.
 int32_t SavedTab(const TownHallUI* hall, int32_t tab);
 
 }  // namespace StorageMetrics

@@ -16,7 +16,7 @@
 //      gate FruitComponent::Update tests as `growthRate >= 1.0f` before it will accumulate
 //      ANY ripeness — which is why a young orchard correctly bears nothing.
 //   2. only once a tree is mature, fruit ripeness at FruitComponent(slot+0x18) + 0x30, the
-//      field OrchardComponent_GetGrowth averages and TryHarvest compares against 0.99.
+//      field OrchardComponent::GetGrowth averages and TryHarvest compares against 0.99.
 // So a harvest driven by this harness is still a real harvest: TryHarvest still has to fire,
 // the year check at +0x4c still has to pass, and state 11 still has to do its job.
 //

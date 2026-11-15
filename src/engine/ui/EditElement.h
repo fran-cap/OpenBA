@@ -41,11 +41,6 @@
 // So `NumberEditElement` is EditElement + `_min`/`_max` at +0xF8/+0xFC = 0x100,
 // exactly what the old pad arithmetic happened to land on.
 //
-// The old POD moved to `RtUI::EditElement` (B4b-1), WIDENED to the retail 0xF8
-// with the same fields, and keeps its legacy names (`base`, `_text`, `_flagE0`)
-// for widgets_input.cpp, which still reaches EditElement / NumberEditElement /
-// SpinnerElement's child through the PODs.
-//
 // ENDGAME B.3 step 9 (block UI-A, B39_RULES D1/D2): CONCRETE. The real public
 // ctor is retail's `??0EditElement@UI@@QEAA@XZ` (0x1800d0f10) minus its vptr stores;
 // slot 0 is the class's own vector deleting dtor; ~EditElement is public and
@@ -129,10 +124,10 @@ public:
 
     // ---- non-virtual ---------------------------------------------------------
     // ?SetText@EditElement@UI@@QEAAXAEBVString@System@@@Z  0x1800d0db0 — the
-    // body is widgets_input.cpp's door (fragment pass); declared, undefined.
+    // body is in widgets_input.cpp.
     void SetText(const System::String& text);
     // ?SelectCharacter@EditElement@UI@@AEBADH@Z  0x1800cfd40 — `AEBA` private;
-    // the body is element_bodies_b5.cpp's door; declared, undefined.
+    // the body is in element_bodies_b5.cpp.
     char SelectCharacter(int32_t keyIndex) const;
     // The three one-instruction accessors, whole bodies (disassembly above).
     const System::String& GetText() const {                      // 0x18003fc60
@@ -145,7 +140,7 @@ public:
     EditElement& operator=(const EditElement& src);              // 0x18003fd70  not ported
     static void* operator new(std::size_t bytes);                // 0x18003faf0  not ported
     static void* operator new(std::size_t bytes, void* place);   // 0x18003fb60  not ported
-    static void  operator delete(void* p) { ::Object::detail::InternalMemFree(p); }                       // 0x18003fb70  not ported
+    static void  operator delete(void* p) { ::Object::detail::InternalMemFree(p); }                       // 0x18003fb70
 
 private:
 
@@ -184,6 +179,5 @@ static_assert(offsetof(EditElement, _active)           == 0xe0, "");
 static_assert(offsetof(EditElement, _caret)            == 0xe4, "");
 static_assert(offsetof(EditElement, _blinkOn)          == 0xe8, "");
 static_assert(offsetof(EditElement, _blinkAccumulator) == 0xf0, "");
-// The class and the RtUI POD describe the same bytes.
 
 }  // namespace UI

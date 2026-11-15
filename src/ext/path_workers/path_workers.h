@@ -1,5 +1,5 @@
 // ============================================================================
-// src/ext/path_workers/path_workers.h -- ext.path_workers (class B, default OFF)
+// src/ext/path_workers/path_workers.h -- ext.path_workers (class B, default ON)
 // ============================================================================
 // NOT RETAIL. The game glue around pool.h: the once-per-game selection, the
 // dispatcher that replaces the worker loop's body, the pool threads and their

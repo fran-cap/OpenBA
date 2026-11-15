@@ -29,11 +29,10 @@
 // the dtor, so the Engine object's address IS the allocator singleton.
 //
 // ---------------------------------------------------------------------------
-// THE ALLOCATION HEADER — and a correction to the note in
-// standalone/filename_runtime_hook.cpp
+// THE ALLOCATION HEADER — String's header is not this allocator's
 // ---------------------------------------------------------------------------
-// That file's header says "refcount at ptr-4, user pointer at ptr-8". Verified
-// against the disassembly: that is TRUE, and it describes System::String, NOT
+// "Refcount at ptr-4, user pointer at ptr-8" is verified against the
+// disassembly: that is TRUE, and it describes System::String, NOT
 // this allocator. `System::String::SetLength` (0x1800c8220) is the proof:
 //
 //     U   = MemoryAllocator::Allocate(_singleton, len + 1 + 8, 4);
@@ -144,28 +143,25 @@
 //                           `size` argument ever passed to Allocate. Written
 //                           unconditionally at the top of Allocate; nothing
 //                           reads it in retail. Named g_largestRequestedSize
-//                           here; the port maintains it because it is a store
-//                           our shadow oracle can observe.
+//                           here (allocator.cpp); the port maintains it.
 //
 // There is no guard byte, no fill pattern and no leak list. Allocate returns
-// DIRTY memory (already noted in src/game/Game/serialize_arrays.cpp:354).
+// DIRTY memory (already noted in src/game/Game/serialize_arrays.cpp:262).
 //
 // ---------------------------------------------------------------------------
 // PORTABILITY (PLAN.md §4.1)
 // ---------------------------------------------------------------------------
 // This header must not include <windows.h>. The allocator genuinely needs
-// VirtualAlloc/VirtualFree and a recursive mutex, so those five operations are
+// VirtualAlloc/VirtualFree and a recursive mutex, so those ten operations are
 // a function-pointer seam (RtSysMemPlatform below) that the host installs. The
-// Win32 implementation belongs in `src/engine/system/MemoryAllocator_win.cpp`
-// — a file this lane is not allowed to create; its exact contents are given in
-// docs/history/runtime_port/WAVE2_ALLOCATOR.md for the lead to land. Until it is
+// Win32 implementation is `src/platform/win/allocator_win.cpp` (twins in
+// src/platform/posix/ and src/platform/darwin/). Until it is
 // installed the port refuses to arm and says so, which is why nothing here can
 // silently run on a half-built seam.
 //
 // The CRITICAL_SECTION at +0x640 is declared as an opaque 0x28-byte blob. It
 // is 40 bytes on x64 MSVC and the object layout depends on that; the lock/
-// unlock seam operates on its address, which is exactly what
-// standalone/allocator_lock.cpp already does (`self + 0x640`).
+// unlock seam operates on its address (`self + 0x640`).
 // ============================================================================
 
 #include <cstdint>
@@ -263,18 +259,16 @@ namespace System {
 //
 // B3R W0-A0: every exported member is declared here with retail's name and
 // signature (the mangled name and address beside each). The bodies are in
-// src/engine/system/allocator.cpp (the portable half) and allocator_win.cpp
-// (the six Platform* members). Retail's access is noted per member ("retail:
-// private" = the `AEAA`/`AEBA`/`CA` mangling); the port keeps them public
-// because the registration thunks and the shadow oracle in allocator.cpp call
-// them from outside the class.
+// src/engine/system/allocator.cpp (the portable half) and
+// src/platform/win/allocator_win.cpp (the six Platform* members). Retail's
+// access is noted per member ("retail: private" = the `AEAA`/`AEBA`/`CA`
+// mangling); the port keeps them public.
 //
 // NOT DECLARED, ON PURPOSE: the constructor ??0MemoryAllocator@System@@QEAA@XZ
 // (0x1800c79a0) and destructor ??1MemoryAllocator@System@@QEAA@XZ (0x1800c7960).
-// `Engine::Engine::_allocator` (Engine.h) and allocator.cpp's shadow replica
-// hold this class BY VALUE; a user-declared ctor/dtor would run on the shadow
-// at static init / exit (the shadow must never touch `_singleton`) and would
-// make every by-value holder non-trivial. Their bodies stay the free functions
+// `Engine::Engine::_allocator` (Engine.h) holds this class BY VALUE; a
+// user-declared ctor/dtor would make that by-value holder non-trivial. Their
+// bodies stay the free functions
 // `rtalloc::Construct` / `rtalloc::Destruct` (allocator.cpp), reached through
 // the ??0 / ??1 rows in src/engine/engine/singleton_ctors.cpp.
 // ---------------------------------------------------------------------------
@@ -284,7 +278,7 @@ public:
     // ctor (0x1800c79a0), cleared by the dtor (0x1800c7960): non-null exactly
     // while the Engine that embeds the allocator at +0 is alive. Defined in
     // src/engine/system/allocator.cpp. PUBLIC: foreign files read it directly
-    // (the crash log, the engine_funcs snapshot, RunStartupSelfTests).
+    // (the crash log, RunStartupSelfTests).
     static MemoryAllocator* _singleton;
 
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/HEAPSLACK.md): ext.heap_slack's commit /
@@ -391,7 +385,7 @@ public:
 // Allocate/Free members), so an allocation is instrumented exactly once.
 // No flag of its own (B3R_RULES R9).
 // ---------------------------------------------------------------------------
-// BANISHED_ASAN_HEAP: 1 in an AddressSanitizer build (CMakeLists.txt BANISHED_SANITIZE=asan|fuzz),
+// BANISHED_ASAN_HEAP: 1 in a non-Windows AddressSanitizer build (CMakeLists.txt BANISHED_SANITIZE=asan|fuzz),
 // where allocator.cpp arms the seat from the start with the C heap so ASan sees engine allocations.
 #if defined(__SANITIZE_ADDRESS__)
 #define BANISHED_ASAN_ON 1
@@ -441,7 +435,7 @@ static_assert(offsetof(MemoryAllocator, allocCount) == 0x638, "allocCount");
 static_assert(offsetof(MemoryAllocator, freeTagCount) == 0x63c, "freeTagCount");
 static_assert(offsetof(MemoryAllocator, lock) == 0x640, "lock");
 static_assert(offsetof(MemoryAllocator, pageSize) == 0x668, "pageSize");
-// The by-value holders (Engine::_allocator, the shadow replica) rely on this:
+// The by-value holder (Engine::_allocator) relies on this:
 // no user-declared ctor/dtor, a trivial operator=.
 static_assert(std::is_trivially_copyable<MemoryAllocator>::value &&
               std::is_trivially_default_constructible<MemoryAllocator>::value,
@@ -477,7 +471,7 @@ struct RtSysMemPlatform {
 } // namespace system
 } // namespace rt
 
-// Installed by the host (standalone/) before RtSystemAllocatorArm() runs.
+// Called by each platform's RtSystemAllocatorInstallPlatform(), which RtSystemAllocatorArm() runs.
 // Declared extern "C" so the _win file can be a plain translation unit.
 extern "C" void RtSysMemPlatformInstall(const rt::system::RtSysMemPlatform* p);
 
@@ -505,6 +499,7 @@ void RtSystemAllocatorSetCommitSeam(const rt::system::MemoryAllocatorCommitSeam*
 // (The DLL-present detour-installer and lock-retire seams died with the DLL, ENDGAME A.3.)
 
 // src/platform/win/allocator_win.cpp — installs the Win32 seam and holds the
-// six exported Platform* bodies. The portable half calls this once, under
-// #if defined(_WIN32); a _posix/_sdl twin provides the same symbol.
+// six exported Platform* bodies. RtSystemAllocatorArm() calls it on every
+// platform; src/platform/posix/allocator_posix.cpp and
+// src/platform/darwin/allocator_darwin.cpp provide the same symbol.
 extern "C" void RtSystemAllocatorInstallPlatform();

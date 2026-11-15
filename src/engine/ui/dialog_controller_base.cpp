@@ -42,12 +42,8 @@
 //     `CC` padding — so 0x1800cd250 is a function START, not the tail of a
 //     larger body that the 16-byte stride happened to sample.
 //
-// So all seven really are empty virtuals. **"Trivial" does not exempt them from
-// the gates.** They are registered under BOTH doors like every other row in this
-// namespace, and the promotion of `??_7DialogController@UI@@6B@` that they
-// unlock is A/B'd in a real boot — see docs/history/runtime_port/WAVE10B_LANE_DLGV.md.
-// An empty body is exactly the shape whose registration can be forgotten and
-// read as absent later (reference_half_registered_port_reads_as_absent.md).
+// So all seven really are empty virtuals. The promotion A/B of
+// `??_7DialogController@UI@@6B@` is in docs/history/runtime_port/WAVE10B_LANE_DLGV.md.
 //
 // A note on ARITY, because an empty body hides it. `OnUpdate` takes
 // `const System::Time&`, `OnSerializeSettings` takes `IO::Stream&`, and
@@ -55,11 +51,8 @@
 // five ints and a `void*`. None of that is observable through a body that reads
 // nothing and returns nothing: on Win64 the caller cleans the stack and every
 // argument is either in a volatile register or in the caller's own home space.
-// The parameters below are spelled at the right ARITY with opaque types so the
-// declaration documents the contract; they are deliberately not given precise
-// types this file would have to invent. (`InternalPtr` is taken as `void*`,
-// which is correct either way: if it is one pointer it is passed in a register,
-// and if it were larger than 8 bytes MSVC would pass a hidden pointer to it.)
+// The parameters below carry the types DialogController.h declares; the bodies
+// read none of them.
 //
 // ----------------------------------------------------------------------------
 // THE TWO THAT ARE NOT EMPTY — both read one BaseTypeInfo
@@ -81,18 +74,8 @@
 //
 // *** AEAA / `0V…` MEANS PRIVATE, NOT UNEXPORTED. *** This DLL exports its
 // private members and `?_typeInfo@DialogController@UI@@0VBaseTypeInfo@Object@@A`
-// IS in the shipped export directory (reference_aeaa_is_private_not_unexported),
-// so it is resolved BY NAME through RT_DATA_SLOT and there is NO address door to
-// justify here. RT_DATA_SLOT is the retry-a-miss form: it caches a hit and
-// re-resolves a miss, so a null early in startup does not freeze for the life of
-// the process.
-//
-// Note which side of the mint that leaves this: unlike
-// `?_typeInfo@DialogInstance@UI@@` (0x1801faac0), which lane MINTSEL PROMOTED,
-// the DialogController row is NOT promoted, so this resolves the DLL's own live
-// static and reads the value retail's own two instructions read. If that row is
-// ever promoted these two bodies follow it automatically, which is the correct
-// coupling — they read a symbol, not an address.
+// IS in the shipped export directory (reference_aeaa_is_private_not_unexported).
+// The port reads the class's own record (DEFINE_TYPE at the end of this file).
 //
 // Returning the string literal "DialogController" was rejected for `TypeName`,
 // for the reason dialog.cpp records at the same slot of the sibling class: it
@@ -100,33 +83,8 @@
 // POINTER from the one `Factory::Startup` CRC'd into the type id. A port whose
 // only failure mode is pointer identity fails silently and late.
 //
-// ----------------------------------------------------------------------------
-// NO ORACLE, AND WHY THAT IS NOT A HOLDBACK HERE
-// ----------------------------------------------------------------------------
-// No oracle. Seven of these bodies read nothing,
-// write nothing and return nothing — there is no post-state to compare, and a
-// probe over them would report `divergences=0` over work that never happened,
-// which is the green-count-over-nothing shape this project already named
-// (reference_probe_needs_an_effectiveness_control.md). The other two are pure
-// one-instruction loads of a named exported static; the check that they are
-// right is that the static resolves and that the value matches, and the mint
-// shadow's `BaseTypeInfo` field comparison already compares that very static's
-// typeId against the loaded DLL's own node on every run.
-//
-// What IS measured, and is in the lane doc: the promotion A/B. The boot that
-// reaches gameplay with the row registered, matched against the same boot
-// without it, is this lane's evidence.
-//
-// *** CORRECTED, WAVE 10E LANE FINAL. *** This paragraph used to claim "our
-// ported constructors stamp that table into real objects, so the DLL's own
-// dispatch runs these nine bodies". THAT IS FALSE and it kept a route hunt
-// alive for two waves. A complete grep of the symbol over code/, runtime/,
-// engine/ and standalone/ finds exactly ONE live read — `RtUiDialogController_
-// Dtor` (src/engine/ui/dialog.cpp). No constructor anywhere stamps it. See
-// docs/history/runtime_port/WAVE10E_LANE_FINAL.md for the four independent proofs that
-// the row is permanently unpromotable, including the one that does not depend
-// on reachability at all: the single consumer's stamp is overwritten, unread,
-// by the first statement of `??1Internal@Object@@`.
+// docs/history/runtime_port/WAVE10E_LANE_FINAL.md holds the proofs about the minted
+// `??_7DialogController@UI@@6B@` row; DialogController's vtable is the compiler's.
 // ============================================================================
 
 #include <cstdint>
@@ -148,10 +106,7 @@ namespace {
 // (src/engine/ui/DialogController.h). ENDGAME B.3.9 block UI-D: the minted
 // `??_7DialogController@UI@@6B@` is retired, and with it the six slot doors
 // whose only reader it was and the `[DlgCtrl] ATTENDANCE` counters that
-// measured its promotion. Three C bodies stay (below): OnOpened, OnClosed and
-// OnSerializeSettings were registered at 0x1800cd2a0 / 0x1800cd290 / 0x1800cd250
-// for standalone/dlgctrl_route.cpp; B3R W2-RES deleted that route and the rows,
-// and nothing references the three any more (listed for the close).
+// measured its promotion.
 // ============================================================================
 namespace UI {
 

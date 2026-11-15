@@ -5,9 +5,8 @@
 //   ConstantBuffer -> AssignConstants -> Context ctor -> CreateVideoContext.
 // ============================================================================
 //
-// THE ORACLE WAS CHOSEN BEFORE ANY BODY WAS WRITTEN, AND MY EARLIER REASON FOR
-// THINKING IT IMPOSSIBLE WAS WRONG
-// ---------------------------------------------------------------------------
+// WHICH OF THE CTOR'S VIRTUAL CALLS ARE GUARDED
+// ---------------------------------------------
 // Phase 3's lane doc said the ctor "makes seven CALL [RAX+0x58] virtual calls on
 // a real Video::Device, so the synthetic subject that verified AssignConstants
 // does not carry over". **That is wrong, and reading the bodies is what showed
@@ -23,26 +22,6 @@
 // `img->+0x60->vtbl[1|2]()` in the default-render-buffer branch — and every one
 // of those sits behind an ARGUMENT-VALUE guard the caller controls
 // (`size > 0`, `renderBuffer == nullptr`).
-//
-// So the subject is synthetic, in TWO configurations, and neither needs a
-// device:
-//
-//   A. `Context(zeroedDevice, 0, 0, 0, aNonNullRenderBuffer)`. Every guarded
-//      virtual takes its null branch and every unguarded one is skipped
-//      entirely. This covers the seven inlined ConstantBuffer constructors, the
-//      four zero-fills, the four memsets, AssignConstants and the whole field
-//      map — with no allocation and no backend at all.
-//   B. The LIVE shape, `(device, 0x800000, 0x400000, 0x100000, nullptr)`, which
-//      is literally what CreateVideoContext passes, driven against a
-//      DEVICE-LEVEL FAKE: one object with a vtable whose slot 11 and slot 9
-//      hand back fake companions, installed in the `?_singleton@Device@Video@@`
-//      slot for the duration (borrow-and-restore, the trick lane VID2 already
-//      used for Video::Configuration) so that the ported PlatformConstructs
-//      find it too.
-//
-// A live `RT_VIDCONSTBUF` A/B was the alternative and was REJECTED: it
-// can only report "did it boot", which is precisely the executed-but-undiffed
-// state, and it cannot compare a single field of the object under construction.
 //
 // THE FOUR "ARRAY FILLS" ARE NOT ARRAY FILLS
 // ------------------------------------------
@@ -72,16 +51,13 @@
 // shape of `?MemAlloc@MemoryAllocator@System@@` (0x1800c7a50), with align 4 for
 // `operator new` and align 8 for the Context block. So both are expressed here
 // as System::MemoryAllocator::MemAlloc, called directly, and
-// engine_lifecycle.cpp:1111 records the same equivalence and the same reason
-// for not registering 0x180011640 itself.
+// engine_lifecycle.cpp records the same equivalence beside its `MemAlloc` wrapper.
 //
-// FIELDS THE CTOR NEVER WRITES — an oracle must not compare them
-// ---------------------------------------------------------------
+// FIELDS THE CTOR NEVER WRITES
+// ----------------------------
 // The inlined ConstantBuffer constructor writes +0x18 as a BYTE and +0x1c as an
 // UNALIGNED QWORD, so **+0x19, +0x1a and +0x1b are never written**. In a fresh
-// heap block they hold whatever was there. The probe compares fields, not
-// bytes, and does not look at them
-// (reference_oracle_must_not_compare_unwritten_bytes.md).
+// heap block they hold whatever was there.
 // ============================================================================
 
 #include <cstddef>
@@ -104,8 +80,8 @@
 // ============================================================================
 // ENDGAME B.3.5 block D1 — WHAT DID AND DID NOT CHANGE HERE
 // ============================================================================
-// NOTHING IN THIS FILE BECOMES A MEMBER. `??0Context@Video@@` stays a registered
-// ctor DOOR (B4b-2 / B35_RULES 11): it runs on 0x2168 raw bytes from
+// NOTHING IN THIS FILE BECOMES A MEMBER. `??0Context@Video@@` stays the free
+// function `RtVideo_Context_Ctor` (B4b-2 / B35_RULES 11): it runs on 0x2168 raw bytes from
 // `System::MemoryAllocator` whose first field it then writes, it is inlined
 // seven times over `Video::ConstantBuffer`'s own constructor, and a real
 // constructor would additionally destroy `std::is_trivially_copyable<Context>`,
@@ -129,24 +105,22 @@
 //
 // No other referencer exists, so the attribution is proved rather than guessed,
 // and the second caller is new information: the four zero-fills are SHARED by
-// both Context constructors, which is why they are registered separately
+// both Context constructors, which is why they stay separate functions
 // instead of being folded into the ported ctor.
 //
 // The two `operator new`s this file ports — `??2ImageBuffer@Video@@` and
 // `??2RenderBuffer@Video@@` — are `Video::ImageBuffer`'s and
 // `Video::RenderBuffer`'s members (proved by their mangled names, not by a
 // prefix), i.e. block C's and block D2's classes. ENDGAME B.3.5 block VC (the
-// fragment pass) MOVED BOTH BODIES onto those members; the two doors keep their
-// names and both rows each.
+// fragment pass) MOVED BOTH BODIES onto those members.
 //
 // BLOCK VC ALSO CONVERTED EVERY BINDING IN THIS FILE. Nine `RT_EXPORT_ONCE` name
 // doors (spelling 3) and five hand-inlined `(*(void***)p)[N]` dispatches
 // (spelling 5) are gone: the `*Data` receivers are block A's real abstract
 // classes with named slots, and `Video::{Vertex,Index,Render}Buffer::
 // PlatformConstruct`, `RenderBuffer::Create` and the two `operator new`s are
-// members. `??0Context@Video@@`, the four sub-object zero-fills and
-// `??0ImageBuffer@Video@@` remain DOORS for B4b-2's reason, and the last is now
-// CALLED as a door by direct near call instead of through a resolver.
+// members. `??0Context@Video@@` and the four sub-object zero-fills remain free
+// functions for B4b-2's reason; `??0ImageBuffer@Video@@` is the real constructor.
 // ============================================================================
 
 extern "C" void RtVideo_Context_Dtor(Video::Context* self);    // context_lifecycle.cpp
@@ -154,18 +128,10 @@ extern "C" void RtVideo_Context_Dtor(Video::Context* self);    // context_lifecy
 // used to be an `RT_EXPORT_ONCE(…, "??3Context@Video@@SAXPEAX@Z")` indirect call
 // — binding spelling (c) — on a symbol whose only implementation in the process
 // is the one three lines away in this block's own file set. B.3.5 makes it a
-// direct call; the registration in context_lifecycle.cpp is untouched, so an
-// outside caller that still asks by name or by address gets the same body.
+// direct call.
 extern "C" void Video_Context_OperatorDelete(void* p);         // context_lifecycle.cpp
-// `??0ImageBuffer@Video@@QEAA@XZ`'s ported body — a ctor DOOR, not a constructor
-// (B4b-2: it runs on raw `operator new` bytes and stamps the MINTED vtable).
-// ENDGAME B.3.5 block VC: this used to be an
-// `RT_EXPORT_ONCE(VoidThisFn, "??0ImageBuffer@Video@@QEAA@XZ")` indirect call
-// (spelling 3) on a symbol whose only implementation in the process is
-// buffers.cpp's. Now a direct call; the registration there is untouched, so an
-// outside caller that still asks by name or address gets the same body.
-// ENDGAME B.3.9 VS: the door is gone; the two default images below are built by
-// the real constructor (`::new (p) Video::ImageBuffer()`).
+// `??0ImageBuffer@Video@@QEAA@XZ`: the two default images below are built by the
+// real constructor (`::new (p) Video::ImageBuffer()`).
 
 namespace {
 

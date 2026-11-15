@@ -15,7 +15,7 @@
 //
 // ── How the loop closes ──────────────────────────────────────────────────────
 // Ignite mints a FireWork (0x1400e9bd0) and POSTS it to the work-reservation
-// ledger via CitizenAI_impl_ec60(workComp, 0x4000, 0, &workIBP). There is no
+// ledger via workComp->PostWork(0x4000, 0, &workIBP) (0x14012ec60). There is no
 // CreateWork slot-18 factory anywhere in this lane — xrefs prove Ignite is the
 // ONLY caller of the FireWork ctor. A citizen taking the job runs
 // FireWork::Execute (slot 4), whose action queue ends in a SendComponentMessage
@@ -26,8 +26,8 @@
 //
 // ⚠ That message id is the reason the lane was inert even where it was ported:
 // 0x1401c41e0 was never registered, so work_act_perform.cpp read msgId = 0, the
-// dispatcher matched no component, and the water silently went nowhere. It is
-// registered by standalone/reg_fire.cpp now.
+// dispatcher matched no component, and the water silently went nowhere. The id is
+// FireComponent::TypeId(), which work_act_perform.cpp reads.
 //
 // Faithful, offset-by-offset ports of the Ghidra decompilations. Every constant,
 // every field offset and the order of every call were transcribed from the
@@ -71,8 +71,8 @@
 #include "Game/EventLog.h"   // EventLog::AddEvent (0x140095580)
 
 // EventLog::AddEvent (0x140095580) — ported by the tornado lane (eventlog.cpp),
-// declared in Game/exe_bodies.h. The three shared SM-state helpers are ported once
-// in firecomponent_smstate.cpp (firecomponent_funcs.h).
+// declared in Game/EventLog.h. The three shared SM-state helpers are ported once
+// in firecomponent_smstate.cpp (DestroyComponent.h).
 
 // ============================================================
 // Dependencies, called directly
@@ -83,10 +83,10 @@
 //   0x140004680 MapComponent finder       FindComponent<MapComponent>
 //   0x140002280 AmbientEmitterComponent finder  FindComponent<AmbientEmitterComponent> (D.4 AUDIOCOMP)
 //   0x140003f60 ModelComponent finder          FindComponent<ModelComponent>
-//   0x14012ec60 CitizenAI_WorkScheduler_Post, 0x1400f9ad0 RemovalCalc_CitizenAI_9ad0,
-//   0x14012eb50 WorkComponent_RegisterWorkSlot, 0x140053660 ParticleComponent_StartEmitterFade,
-//   0x140053720 Tornado_ParticleReverse_53720 (tornado lane's port),
-//   0x14011e710 PlayerPath_Sub_11e710.
+//   0x14012ec60 WorkComponent::PostWork, 0x1400f9ad0 WorkScheduler::PrioritizeWork,
+//   0x14012eb50 WorkComponent::CancelWork, 0x140053660 ParticleComponent::StartEmitterFade,
+//   0x140053720 ParticleComponent::FadeOutEmitter (tornado lane's port),
+//   0x14011e710 DestroyComponent::InRemovalState.
 //   .rdata: 0x140172234 = 300.0f (seconds-per-unit scale), 0x140172114 = 0.5f.
 namespace {
 
@@ -101,10 +101,6 @@ inline int64_t MakeTime(float seconds) {
 }
 
 }  // namespace
-
-// ============================================================
-// Type ids this lane reads out of exe .rdata.
-// ============================================================
 
 // The +0x18 description, validated the way retail validates it.
 //
@@ -175,8 +171,8 @@ void FireComponent::MarkDanger(short delta) {
 }
 
 // ── 0x140053720 (ParticleComponent fade-out) and 0x140042960 (move this entity's
-// audio emitters) are NOT ported here. The TORNADO lane ported and registered both
-// first (tornadocomponent.cpp:977 / :1002, standalone/reg_tornado.cpp:80-81) and
+// audio emitters) are NOT ported here. The TORNADO lane ported both first
+// (ParticleComponent::FadeOutEmitter / AmbientEmitterComponent::MoveTo, tornadocomponent.cpp) and
 // its damage arm calls them for the same reason this lane does. Calling those
 // bodies keeps ONE body per retail function
 // (reference_one_retail_fn_ported_twice_diverges) — writing a second copy here
@@ -185,7 +181,7 @@ void FireComponent::MarkDanger(short delta) {
 
 // ============================================================
 // FireWork_Ctor (0x1400e9bd0) — the 3-arg ctor, the ONLY producer of a FireWork:
-// FireWork(void* pEntityIBP, uint32_t capacity) (FireWork.h), called by name from
+// FireWork(ComponentEntity* const* pEntityIBP, uint32_t capacity) (FireWork.h), called by name from
 // Ignite below. The C wrapper around it (FireWork_CtorFull_e9bd0) is gone.
 // ============================================================
 
@@ -236,7 +232,6 @@ void FireComponent::Extinguish() {
 
     MarkDanger(-1);
 
-    // OUTCOME trace — say which of the two Slot15/Update conditions brought us here.
 }
 
 // ============================================================
@@ -350,7 +345,6 @@ void FireComponent::Ignite() {
 // ============================================================
 // FireComponent_SpreadToNeighbors (0x140049130)
 // ============================================================
-// Spread census — see the comment at the roll site below.
 
 void FireComponent::SpreadToNeighbors() {
     GameUpdateLoop* gw = GameWorld();
@@ -388,7 +382,7 @@ void FireComponent::SpreadToNeighbors() {
     // (desc+0x30 * 300) being non-zero — each pass adds it to +0x38 and the loop
     // exits as soon as +0x38 goes positive. HANG GUARD ONLY (not a behaviour
     // change): a .rsc with a zero interval would spin here forever and say nothing.
-    // The cap is far above any real pass count; tripping it is a loud report.
+    // The cap is far above any real pass count; tripping it breaks out of the loop.
     const int kMaxPasses = 4096;
     int passes = 0;
 

@@ -5,9 +5,9 @@
 // Fields: +0x48=array ptr, +0x50=count. Manages cemetery plot grid for tombstone placement.
 //
 // Vtable at 0x1401590a0. Non-trivial overrides:
-//   Shutdown  (0x1400475C0) -- serialize array of tile indices
-//   Draw      (0x140047200) -- complex grid rendering (233 instrs), delegates to original
-//   OnCreate  (0x1400471C0) -- register entity in cemetery list
+//   Persist   (0x1400475C0) -- serialize array of tile indices
+//   OnAdded   (0x140047200) -- build the grave-plot cell list from the footprint
+//   OnRemove  (0x1400471C0) -- unregister from the cemetery list
 //
 // Decompiled from Application-x64.exe using Ghidra.
 
@@ -54,16 +54,7 @@
 // System::MemoryAllocator::MemAlloc(size, align) / MemFree(ptr): the import slots
 // 0x140152b60 / 0x140152b68, called directly.
 
-// TombstoneComponent type id (.rdata DAT_1401c4a30, storage + fill in
-// standalone/reg_citizen_lifeevent_handler.cpp).
-
-// ============================================================
-// CemeteryComponent::Shutdown (vtable slot [3], 0x1400475C0)
-// ============================================================
-// Serializes:
-//   1. Component_Serialize base
-//   2. Empty serializer block (controller compat stub)
-//   3. Serializer(version=0): count from +0x50, resize on load, bulk serialize int array
+// TombstoneComponent type id (.rdata DAT_1401c4a30): TombstoneComponent::TypeId().
 
 // ============================================================
 // DynArray<int>::Push -- inlined by the plot-grid builder at 0x1400473a2
@@ -98,7 +89,7 @@ static void CemeteryComponent_PushPlot(CemeteryComponent* self, int cell) {
 
 
 // ============================================================
-// CemeteryComponent::BuildPlotGrid (vtable slot [6], 0x140047200)
+// CemeteryComponent::OnAdded (vtable slot [6], 0x140047200)
 // ============================================================
 // Ghidra calls this slot Draw; it draws nothing. It BUILDS the grave-plot cell list
 // (self->plots: data / size / capacity) from the footprint, and it is the reason a
@@ -133,8 +124,8 @@ static void CemeteryComponent_PushPlot(CemeteryComponent* self, int cell) {
 // UNregisters from the TownManager cemetery list at *(GameWorld+0xF0)+0x40.
 // Ghidra labels the slot OnCreate; 0x140002cc0 is the ERASE,
 // Collection::Array<InternalPtr<T>>::Remove (Collection.h; the 1:1 port that lived
-// here is rtcoll::ArrayRemove8 since B9 RT). The matching REGISTER is the state-2
-// enter at the bottom.
+// here is rtcoll::ArrayRemove8 since B9 RT). The body is at the end of the file; the
+// matching REGISTER is the state-2 enter below.
 
 // ============================================================
 // CemeteryComponent state-2 "built" enter -- 0x140046fc0
@@ -209,9 +200,8 @@ char CemeteryComponent::EnterBuilt() {
         {
             PathfinderThread* pf = world->pathfinder;   // +0x68
             // Retail 0x140047145: RCX = pf, EDX = cellIdx, R8D = 2, R9 not set. The body's
-            // fourth parameter reaches only Pf_WorkerApplyCmd_a6430's cmd-5 arm; this is
-            // cmd 2, so it is never read (quarrycomponent_deform.cpp / starttown.cpp pass
-            // nullptr the same way).
+            // fourth register reaches only Pf_WorkerApplyCmd_a6430's cmd-5 arm; this is
+            // cmd 2, so it is never read, and SetCellTerrain takes no fourth parameter.
             if (pf) pf->SetCellTerrain(cellIdx, ToUnderlying(PathType::Normal));   // 0x1400a6fe0
         }
 

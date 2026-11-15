@@ -8,7 +8,7 @@
 // RETAIL (Application-x64.exe, B38_SLOTS.md section 6):
 //   reflected "AutoSaveDialog", parent "UI::DialogInstance", ti 0x1401c4d08
 //   create 0x1400106c0 (MemAlloc(0xd0, 8)), createInPlace 0x140010730
-//   ctor 0x14005e230 (the door the tree registers), 0x14005e200, 0x14005e320
+//   ctor 0x14005e230 (the tree's (ui, dialog, parent) ctor), 0x14005e200, 0x14005e320
 //   table 0x14015b120, 10 slots:
 //     [0] 0x140010780 scalar deleting dtor  [1] TypeName  [2] Type
 //     [3] DialogInstance::Persist (import)
@@ -61,5 +61,5 @@ static_assert(sizeof(AutoSaveDialog) == 0xD0, "AutoSaveDialog is 0xd0 (create 0x
 static_assert(offsetof(AutoSaveDialog, _padCC) == 0xCC, "AutoSaveDialog::_padCC");
 static_assert(alignof(AutoSaveDialog) == 8, "AutoSaveDialog is qword-aligned");
 
-// The slot-4 door (autosavedialog.cpp): registered at 0x14005e120 / 0x14005e110.
+// Slot 4's body (0x14005e120 / 0x14005e110, autosavedialog.cpp), called by name from optionsdialog.cpp.
 void AutoSaveDialog_Slot4(AutoSaveDialog* self);

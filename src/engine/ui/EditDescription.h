@@ -3,9 +3,8 @@
 // src/engine/ui/EditDescription.h — UI::EditDescription, the REAL C++ class
 // ============================================================================
 //
-// ENDGAME B.3 step 6, block C3. The POD `RtUI::EditDescription` stays in
-// DescriptionsBatch1.h untouched (RULE B6-4.4); this class is cross-asserted
-// against it at the bottom.
+// ENDGAME B.3 step 6, block C3. `RtUI::EditDescription` in DescriptionsBatch1.h
+// is an alias of this class; the offsets are asserted at the bottom.
 //
 // PARENT `UI::ElementDescription` — READ (B36_SLOTS.md section 3), RECORDED:
 //     ?_TypeName@EditDescription@UI@@CAPEBDXZ       @0x18003f690 -> "EditDescription"
@@ -42,7 +41,7 @@
 #include <cstddef>
 
 #include "ElementDescription.h"
-#include "DescriptionsBatch1.h"   // kVtbl* names; RtUI::EditDescription aliases this class
+#include "DescriptionsBatch1.h"   // RtUI::EditDescription aliases this class
 #include "../object/Internal.h"   // Object::detail::InternalMemFree
 
 namespace UI {
@@ -89,7 +88,7 @@ public:
     EditDescription& operator=(const EditDescription& src);      // 0x18003f920  not ported
     static void* operator new(std::size_t bytes);                // 0x18003f6e0  not ported
     static void* operator new(std::size_t bytes, void* place);   // 0x18003f750  not ported
-    static void  operator delete(void* p) { ::Object::detail::InternalMemFree(p); }                       // 0x18003f760  not ported
+    static void  operator delete(void* p) { ::Object::detail::InternalMemFree(p); }                       // 0x18003f760
 
 private:
 

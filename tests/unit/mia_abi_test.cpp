@@ -4,13 +4,12 @@
 // The ABI claims block MI-A makes for its town `ControllerComponent` leaves,
 // measured on the SHIPPED HEADERS (src/game/Component/<Class>.h):
 //
-// PART A — LAYOUT. sizeof / alignof against each retail create function's
-//   MemAlloc (B38_RULES §1.3), the controller member at retail's per-class
-//   offset (B38_SLOTS.md §2: slot 17 `LEA RAX,[RCX+off]`), its back-pointer at
-//   off+0x18, and the own fields the ported bodies read raw.
+// PART A — LAYOUT. The controller member at retail's per-class offset
+//   (B38_SLOTS.md §2: slot 17 `LEA RAX,[RCX+off]`), its back-pointer at
+//   off+0x18, and the StateController's 0x20 bytes.
 // PART B — SHAPE. Every class is concrete, `final`, single inheritance from
 //   `ControllerComponent` (so from Component and Object::Internal), polymorphic,
-//   NO virtual destructor.
+//   a virtual destructor (its StateController member has none).
 // PART C — SLOT ORDER, read off pointers to VIRTUAL members (Itanium PMF =
 //   1 + vtable byte offset, adjustment 0): every override lands on the retail
 //   index of B38_SLOTS.md §6; 16/17 are GetDefaultState/GetController.
@@ -18,8 +17,7 @@
 //   `TableController<Tag>` of one of this block's tags reaches the handler with
 //   RCX = the owner (every retail member slot body: `MOV RCX,[RCX+0x18]; JMP`).
 //
-// NOT PROVEN HERE: the bodies and the constructors (they stand on the address
-// registry and cannot link into a host test). No slot of these classes is a
+// NOT PROVEN HERE: the bodies and the constructors. No slot of these classes is a
 // retslot or takes a hidden pointer.
 // ============================================================================
 #include "unit.h"

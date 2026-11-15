@@ -1,21 +1,17 @@
 // src/game/Dialog/toolbar_utility_helpers.cpp
 // GUI_PLAN Keystone F, Phase 4 — Utility dialogs (toolbar case 2).
 //
-// Two exe helpers that Toolbar_Utility_Impl (toolbardialog.cpp, FUN_140101a80)
-// depends on, ported so ResolveAddr(Module::Exe, addr) resolves them in the
-// standalone exe. Both are unregistered otherwise → the engine_funcs pointers
-// fn_FindDialogByControllerType / fn_BST_Insert_0x14 stay NULL → the very first
-// calls in Toolbar_Utility_Impl are null-calls (EXEC of 0).
+// Two exe helpers that PlayerToolManager::ToggleUtilityDialog (toolbardialog.cpp,
+// FUN_140101a80) calls: PlayerToolManager::FindUtilityDialog and Avl38SetInsert.
 //
 //   FUN_140100270  FindDialogByControllerType — walk the live UI dialog list and
 //     return the open dialog whose ToolUI controller's +0x30 (its Description
 //     pointer) == param. Used to detect an already-open utility dialog (toggle).
 //   FUN_140014890  BST_Insert_0x14 — AVL find-or-insert of a 0x38-byte
 //     utility-dialog position node keyed by the Description ptr; rebalances via
-//     the already-registered retrace 0x140014b40.
+//     the shared retrace 0x140014b40 (Avl38Retrace).
 //
-// Faithful 1:1 against the Ghidra disassembly (offsets verified). Registered via
-// standalone/reg_toolbar_utility.cpp.
+// Faithful 1:1 against the Ghidra disassembly (offsets verified).
 
 #include "Player/exe_bodies.h"   // Avl38Retrace (0x140014b40)
 #include "object/TypeInfo.h"
@@ -32,7 +28,7 @@
 #include <type_traits>  // BstInsertCore's node type
 #include "Dialog/ToolUI.h"   // X::TypeId() (B.3.8 callers)
 #include "Dialog/exe_bodies.h"
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc
 
 namespace {
 
@@ -171,7 +167,7 @@ UI::DialogInstance* PlayerToolManager::FindUtilityDialog(const ComponentDescript
     return nullptr;
 }
 
-// The typed wrappers (Dialog/exe_bodies.h) over the one core 0x140014890.
+// The typed wrappers (Dialog/exe_bodies.h, Dialog/TownHallUI.h) over the one core 0x140014890.
 PinnedToolNode* Avl38SetInsert(AvlTreeHead<PinnedToolNode>* set, const PinnedToolEntry& rec) {
     return BstInsertCore(set, rec);
 }

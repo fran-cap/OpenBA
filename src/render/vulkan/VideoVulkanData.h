@@ -5,8 +5,9 @@
 // NOT RETAIL. The Vulkan subclasses of the runtime's abstract Video::*Data bases
 // (src/engine/video/CompanionData.h): the eleven objects Video::Device::Create*Data hands
 // out plus the DeviceData itself. Same shape as src/render/metal/VideoMetalData.h; the
-// bodies are device.cpp (DeviceData, ContextData, the render-target attach slots) and
-// companions.cpp (buffers, images, programs, layouts, states).
+// bodies are device.cpp (DeviceData, ContextData's command bracket, the render-target attach slots),
+// draw.cpp (ContextData's clears, binds and draws) and companions.cpp (buffers, images, programs,
+// layouts, states).
 //
 // P0 (docs/vulkan/PLAN.md §5): the device, swap chain and frame loop are real. P1: the two
 // program classes convert their DXBC to SPIR-V shader modules. P2: buffers, images, layouts,

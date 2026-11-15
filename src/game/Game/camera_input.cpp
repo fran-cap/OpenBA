@@ -38,7 +38,7 @@
 #include "options.h"
 #include "clamped_atoi.h"     // review F-087: BANISHED_CAMERA_PIN read without sscanf
 #include "showroom.h"          // BANISHED_SHOWROOM camera focus (src/diag/)
-#include "Game/exe_bodies.h"   // Reimpl_MapGetTerrainPos
+#include "Game/exe_bodies.h"   // g_gameSettings
 #include <cstdint>
 #include <cstring>
 #include <cmath>
@@ -99,7 +99,7 @@ inline const Input::KeyMap* CamKeyMap() {
     return Input::Configuration::_singleton->_keyMap;
 }
 
-// f3e0 = 0x14009f3e0 grid->world: Reimpl_MapGetTerrainPos (Game/exe_bodies.h).
+// f3e0 = 0x14009f3e0 grid->world: Map::GetTerrainPos (Game/Map.h).
 
 // Video::Device (screen dims): retail reads **exref 0x140151a80; the class static
 // is that cell (ENDGAME B.3.9 SS2). +4=W, +8=H.
@@ -439,7 +439,7 @@ void PlayerToolManager::UpdateCamera(int inputFlag, int64_t timeTicks) {
 // ============================================================
 void PlayerToolManager::ApplyCameraView(int index) {
     PlayerCameraView* table = cameraViews._data;
-    if (!table) return; // no preset table in standalone yet
+    if (!table) return; // no preset table
     const PlayerCameraView* p = &table[index];
     if (!p->used) return; // preset slot not set
 

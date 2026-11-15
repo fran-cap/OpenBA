@@ -108,7 +108,7 @@ void* NativeHandle() {
 // ============================================================================
 // Were IsWindowVisible / ShowWindow(SW_SHOWDEFAULT) on the SDL-created HWND
 // (src/platform/win/window_win.cpp) and the SDL pair in src/platform/posix/window_posix.cpp;
-// both files are gone. RENDER-3 routed the retail call sites here (VideoDX11-x64.dll, now
+// neither file holds them now. RENDER-3 routed the retail call sites here (VideoDX11-x64.dll, now
 // src/render/dx11/devicedata.cpp; plus our BootWindow reveal):
 //
 //   0x180004340  the swap-chain resize helper (DeviceData_Resize):

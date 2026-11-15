@@ -20,8 +20,8 @@
 //   ctor 0x1400efc60 (NOT transcribed — the tree built the object with
 //   Work_GenericCtor: the Work base init and the leaf field zeroed; that is kept).
 //   AttendanceComponent's state-2 enter (attendancecomponent_states.cpp, block MI-A)
-//   builds a LocationWork BY HAND and stamps 0x1401616a0; that registration serves
-//   LocationWork::Vtable() (B38 D5).
+//   builds a LocationWork with the entity-seeded ctor below (retail inlines it and
+//   stamps 0x1401616a0).
 // ============================================================================
 
 #include <cstdint>

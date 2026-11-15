@@ -4,7 +4,7 @@
 // ============================================================================
 // src/ext/walk_batch/walk_batch_rules.h holds the arithmetic and the decline rule the batched
 // tick runs (walk_batch.cpp composes them around the game types). These tests check:
-//   * the registry rows: walk_batch (class A, formatVersion 0, default off, live under a game's
+//   * the registry rows: walk_batch (class A, formatVersion 0, default on, live under a game's
 //     lock, never a pseudo-mod); walk_batch_grid's row (class B) is ext_walk_batch_grid_test.cpp;
 //   * each rule against a literal copy of its retail body (terrain speed, the cell, the decline
 //     rule's truth table);
@@ -159,7 +159,7 @@ void ExecuteRef(const World& wd, Walker& k) {
     UpdateFacing(wd, k);
 }
 
-// The move tick's tail (citizenai_executor.cpp:314-573), the StillPath block left out (it only
+// The move tick's tail (citizenai_executor.cpp:340-578), the StillPath block left out (it only
 // skips stores of identical bits; STILLPATH proves it), the pushes left out (presentation).
 void TailRef(const World& wd, Walker& k, bool rootOnly) {
     float fx = k.pos[0], fy = k.pos[1], fz = k.pos[2];

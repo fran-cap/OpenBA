@@ -9,11 +9,11 @@
 // PART B — SLOT ORDER, read off pointers to VIRTUAL members (Itanium PMF =
 //   1 + vtable byte offset, adjustment 0: single inheritance), against the
 //   retail tables of B38_SLOTS.md section 6.
-// PART C — SHAPE. polymorphic, abstract exactly where retail is abstract, no
-//   virtual destructor (ENDGAME decision 2), the proved parent.
+// PART C — SHAPE. polymorphic, abstract exactly where retail is abstract, a
+//   virtual destructor, the proved parent.
 //
-// NOT PROVEN HERE: the member bodies (they stand on the address registry and
-// the Runtime and cannot link into a host test; rb_achievement_abi_test.cpp
+// NOT PROVEN HERE: the member bodies (they are not linked into the host test;
+// rb_achievement_abi_test.cpp
 // pins the Goal::GetInstanceType retslot shape the two overrides take). The
 // real run and the resave gate verify those.
 // ============================================================================

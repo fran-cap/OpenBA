@@ -9,8 +9,8 @@
 //
 // All three are UNEXPORTED — measured against the retail export directory with
 // pefile before this file was written, not read off an `AEAA`
-// (reference_aeaa_is_private_not_unexported.md) — so all three are ADDRESS
-// rows. Renamed in retail Ghidra as `Audio_Scene_SerializeEffectSlots`,
+// (reference_aeaa_is_private_not_unexported.md). Renamed in retail Ghidra as
+// `Audio_Scene_SerializeEffectSlots`,
 // `Audio_Scene_SerializeEmitterInstances` and
 // `Collection_Array_EmitterInstance_SetSize`.
 //
@@ -41,7 +41,7 @@
 // TWO FIELDS ARE DELIBERATELY NOT SERIALIZED and that is the interesting half:
 //   * `channelHandle` (+0x20) — a live handle into the Channel table. A save
 //     that restored it would point at a channel that is not playing.
-//   * `_pad2c` (+0x2c) — the four bytes array.cpp:596 already records as NEVER
+//   * `_pad2c` (+0x2c) — the four bytes array.cpp:1384 already records as NEVER
 //     WRITTEN by either the default-init or the copy-assign arm. Three
 //     unrelated bodies now agree that this window is dead; that agreement is
 //     the point, and it is why an oracle must not compare it
@@ -66,15 +66,6 @@
 // walk uses `rbx = arr->_data` loaded at 0x180051e45 — i.e. AFTER the resize
 // may have reallocated. Both are transcribed in that order.
 //
-// ---------------------------------------------------------------------------
-// ORACLE — none of its own, for the reason audio.cpp gives for
-// `Audio::Scene::Serialize`: a Serialize cannot be replayed into one stream
-// twice. The WRITE path is a pure read of the object, so the existing
-// save-stream A/B (the Wave 9 lane S emission oracle), which already covers
-// `Audio::Scene::Serialize` and therefore covers this bulk pass underneath it,
-// is the instrument. The emission oracle already named 0x180052640 as the body
-// "the bulk element pass ... derives its own reader/writer from" — that note
-// is corrected in this commit to say it is ours.
 // ============================================================================
 
 #include <cstdint>
@@ -86,9 +77,8 @@
 #include "../collection/array_internal.h"  // ENDGAME B.3.2 step 2: AsArray bridge
 
 // `kSpec_EmitterInstance` (0x180052330, BATCH 8b) is defined in
-// src/engine/collection/array.cpp but was never added to array_internal.h's
-// `extern` list (unlike its siblings) — declared locally rather than editing
-// that shared header, which this batch does not own.
+// src/engine/collection/array.cpp and declared in array_internal.h; the line
+// below repeats that declaration.
 namespace rtcoll { extern const ArraySpec kSpec_EmitterInstance; }
 
 using RtAudio::EffectSlot;

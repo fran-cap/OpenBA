@@ -26,8 +26,9 @@
 // shared UpdateLoop base slots 0x180031740..0x180031790 — bringing the file to
 // 18.  See "WAVE 25 lane VTIO" below for what that does and does not buy.
 //
-// NOT ported, both deliberately — the reasons are in docs/runtime_port/
-// WAVE8_LANE_A.md §3 and are summarised at the bottom of this file:
+// Two more names of the family: LoadResources is ported in
+// updateloop_loadresources.cpp and `_loader` is the class static defined in this
+// file (Wave 8 lane A's notes on both: docs/history/runtime_port/WAVE8_LANE_A.md §7):
 //
 //   ?LoadResources@UpdateLoop@Engine@@QEAAXXZ              0x1800dd7d0  ord 3210
 //   ?_loader@LoaderLoop@Engine@@1VLoader@2@A               0x1801fe7b8  ord 4794
@@ -45,48 +46,21 @@
 //   DialogLoaderLoopT LEA RAX,[0x1801578d0] @0x1800db0fd   == ??_7DialogLoaderLoopT@Engine@@6B@
 //   Loader            LEA RAX,[0x180157a08] @0x1800dc111   == ??_7Loader@Engine@@6B@
 //
-// So this lane needs NO detour, for Wave 6's reason rather than Wave 7's luck:
-// every ported ctor RESOLVES THE EXPORTED SYMBOL BY NAME and stamps that, so an
-// object our ctor built and one the DLL's ctor built carry the identical table
-// and a virtual call from either side lands on the same body. Nothing here
-// mints a table. The detour count for the whole port therefore stays at 0
-// after this lane, and WAVE8.md §1's "state which reason applies" is answered:
-// the vtables are exported and are stamped by name.
+// In this tree every live loop wears the compiler's table: the real
+// constructors in src/engine/engine/UpdateLoop.h run the bodies below, and
+// nothing here mints or stamps one (retail verdicts:
+// docs/history/runtime_port/WAVE8.md).
 //
 // ---------------------------------------------------------------------------
-// IS THE PORT ACTUALLY REACHED? (WAVE8.md, and
-// reference_uncalled_port_is_not_verified.md — a port with zero callers reports
-// `calls=0 divergences=0` forever, which reads as a pass.)
-//
-// Three of this lane's functions are `UEAA` — virtuals. Registering an export
-// flips OUR call sites; it does NOT rewrite the DLL's own vtables, so a call
-// the DLL makes through ??_7DialogLoopT@Engine@@6B@ still reaches the DLL. That
-// would normally leave a ported virtual dead. It does not here, and the reason
-// is specific and checked:
-//
-//   * Every DialogLoopT / DialogLoaderLoopT object in our process is built by
-//     our tree (fn_DialogLoopT_Ctor …) and then has its vtable OVERWRITTEN with
-//     an exe-subclass table we own: g_menuDialogLoopVtable
-//     (standalone/menudialogloopt_stubs.cpp, 13 slots), g_splashDialogLoopVtable
-//     (standalone/splash_loop_stubs.cpp), g_outerLoaderLoopVtable
-//     (standalone/loader_loop_stubs.cpp).
-//   * Those stubs call the base implementation through fn_DialogLoopT_Startup /
-//     _Load / _Update, which engine_funcs.cpp resolves with ResolveExport.
-//   * EngineFuncsInit runs AFTER RuntimePortInit (src/app/main.cpp:1614 then
-//     1631), so those pointers pick up this file's registrations.
-//
-// `?IsRunning@` reaches us the same way, through a dispatch slot:
-// standalone/reg_unreg_lane3.cpp registers exe slot 0x140152850 with
-// ResolveExport("?IsRunning@UpdateLoop@Engine@@QEBA_NXZ"), and
-// AddressRegistryInit also runs after RuntimePortInit.
-//
-// The four ctors and Loader::Load are plain `QEAA` and are reached directly.
+// IS THE PORT ACTUALLY REACHED? (docs/history/runtime_port/WAVE8.md) The
+// virtuals below are slots of the compiler's tables every live loop wears
+// (UpdateLoop.h); the non-virtual members are called directly.
 //
 // ---------------------------------------------------------------------------
 // PORTABILITY: no <windows.h> in this file (PLAN.md §4.1 decision 1).
 // Loader::Load ends in an inlined System::Thread::Start — two Win32 event
-// calls — and reaches them through the already-ported
-// RtSystem_Thread_Start (src/platform/win/thread_win.cpp), which is the
+// calls — and reaches them through the member `System::Thread::Start`
+// (src/engine/system/thread.cpp), whose Platform::Event* calls are the
 // platform seam for exactly this.
 // ============================================================================
 
@@ -133,9 +107,7 @@ namespace {
 
 // The five mangled-name constants that stood here (kUpdateLoopCtor, kIsRunning,
 // kLoaderLoopCtor, kDialogLoopTCtor, kDialogLoaderCtor) lost their last reader
-// with the diff guards; B.3.7 close removed them. Every RegisterRuntimeExport
-// call at the bottom of this file spells its literal in full (tools/
-// runtime_census.py greps the literal at the registration site).
+// with the diff guards; B.3.7 close removed them.
 
 // ============================================================================
 // Dependencies — B3R: every one is called by name at its site below (they were
@@ -162,9 +134,6 @@ namespace {
 // used by src/engine/ui/element.cpp — the two addresses are not
 // interchangeable, and the Wave 2 collection header explains why (the node/copy
 // code is emitted per element type).
-// WAVE 9 LANE Q: both addresses are now registered ports
-// (src/engine/collection/array.cpp), so this reaches our SetSize. They stay
-// separate registrations for exactly the reason above.
 //
 // ENDGAME B.3.2 step 2 — the forwarder above is GONE at both call sites below:
 // `UserInterface::_addDialogs` is already `Collection::Array<DialogInstancePtr>`
@@ -172,30 +141,21 @@ namespace {
 // (`Assign8Z`, a zero-then-copy double write — see achievement_manager.cpp's
 // banner on the same assign body for why that keeps a row from being
 // trait-equivalent even for a trivial pointer element), so it stays a
-// hand-derived `rtcoll::AsArray<&kSpec_Fill8Z>` bridge. The row stays
-// registered in array.cpp for src/engine/ui/element.cpp's own instantiation.
+// hand-derived `rtcoll::AsArray<&kSpec_Fill8Z>` bridge.
 
 // ---- exported DATA symbols --------------------------------------------------
-// Wave 15 lane ORDER converted the three singleton accessors below from
-// `static T** p = DataExport<T*>(...)` — a frozen static, which keeps the FIRST
-// answer including a non-null one — to the caching door that now refuses to
-// freeze a pre-init answer (rt_resolve_cache.cpp §6). All three names are Wave
-// 15 rows. (`DataExport` went with its last users, the four `??_7` vtable reads
-// of the retired loop ctor / dtor doors, ENDGAME B.3.9 ENG W2.)
-// ENDGAME B.3.9 SS1 (B39_RULES D7): `?_singleton@ExternalFactory@Object@@` and
-// `?_singleton@Modification@IO@@` are class statics now (redirect in their
-// namespace's *PortInit) -- read fresh, no lazy RT_DATA_SLOT cache.
+// The three singleton accessors below read the class statics directly
+// (`ExternalFactory::_singleton`, `Modification::_singleton`,
+// `MainLoop::_singleton`) -- read fresh, no cache.
 ::Object::ExternalFactory* Factory() {
     return ::Object::ExternalFactory::_singleton;
 }
 // IO::Modification::_singleton. Note the `2PEAV12@EA` spelling — a PUBLIC
-// static, where every neighbouring singleton is `0PEAV12@EA`; the other
-// spelling is a phantom that resolves NULL in silence
-// (reference_resolveexport_phantom_names.md).
+// static, where every neighbouring singleton is `0PEAV12@EA`.
 IO::Modification* ModificationSingleton() {
     return ::IO::Modification::_singleton;
 }
-// Engine::MainLoop::_singleton — the DLL data symbol holding a MainLoop*.
+// Engine::MainLoop::_singleton — the class static holding the MainLoop*.
 //     IsRunning:          MOV RAX,[0x1801fe750]; CMP RCX,[RAX+0x20]
 //     LoaderLoop::Exit:   MOV [RAX+0x28], this->_nextLoop
 // so +0x20 is the CURRENT loop and +0x28 the PENDING one.
@@ -247,15 +207,6 @@ Engine::MainLoop* MainLoopSingleton() {
 // runtime global) never has to be duplicated on our side. This is the decision
 // Wave 2 already took for System::Time's own ctor and AsSeconds
 // (src/engine/system/value_types.cpp) — same reasoning, same two exports.
-//
-// RT_EXPORT_ONCE since 2026-09-07 (Wave 9 lane R), and the reason is a good
-// advertisement for running the checker after every landing: both names were
-// UNPORTED when the paragraph above was written, so raw and non-raw reached the
-// same DLL body and the choice was purely about GetProcAddress cost. Wave 9
-// lane B3 has since PORTED both (src/engine/system/timer.cpp) -- and at that
-// instant these two lines would have become port bypasses, with nothing in this
-// file changing. RT_EXPORT_ONCE keeps the caching the paragraph above argues
-// for and reaches whichever implementation is armed.
 int64_t SecondsToTicks(float seconds) {
     return System::Timer::SecondsToTicks(seconds);   // 0x1800ca800
 }
@@ -428,7 +379,7 @@ void Engine::Loader::Load(UpdateLoop* loop) {
     // (0x1800ca610). Calling the ported Start keeps the two Win32 calls behind
     // the platform seam instead of dragging <windows.h> into this file.
     // ENDGAME B.3.7: `Loader` IS a `System::Thread` now; `Start` is a
-    // non-virtual member of the base (thread_win.cpp), called directly.
+    // non-virtual member of the base (src/engine/system/thread.cpp), called directly.
     Start();
 }
 
@@ -492,12 +443,8 @@ void Engine::DialogLoopT::Startup() {
 
 // ---- ?Update@DialogLoopT@Engine@@UEAA_NAEBVTime@System@@@Z  0x1800db270 -----
 //      ord 4485
-// Partly oracled, and the split is the point. The body has two halves: a PURE
-// Time round-trip through float, and a call into UI::UserInterface::Update
-// which advances the whole front end. The round trip is replayed against the
-// DLL's own two Timer conversions on every call — that is a full oracle for the
-// only arithmetic in the function. The UI call is not replayed, for the obvious
-// reason.
+// The body has two halves: a PURE Time round-trip through float, and a call
+// into UI::UserInterface::Update which advances the whole front end.
 bool Engine::DialogLoopT::Update(const System::Time& time) {
 
     // CVTSI2SD / MULSD / CVTPD2PS / CVTPS2PD / DIVSD / CVTTSD2SI — i.e. the
@@ -597,17 +544,6 @@ void Engine::DialogLoaderLoopT::Startup() {
 // return on x64.  RCX (`this`) is never read by any of the six, so none of them
 // touches the object at all.
 //
-// WHAT PORTING THEM DOES, AND WHAT IT DOES NOT.
-//   IT DOES: take `??_7UpdateLoop@Engine@@6B@` from ours 1/7 to **7/7
-//     COMPLETE**, and move LoaderLoop 1/12 -> 6/12, DialogLoopT 4/12 -> 10/12,
-//     DialogLoaderLoopT 3/12 -> 8/12.  At CUTOVER these six bodies are
-//     REQUIRED: retail's are gone and the minted tables are the only owner.
-//   IT DOES NOT: promote anything, or change any dispatch today.  COMPLETE is
-//     the STATIC half of readiness only (WAVE20_GUIDE §2), and all four tables
-//     still have retail stampers.  It also moves NO census column: an unpromoted
-//     vtable's slots move nothing, exactly as Wave 21 lane ENC recorded.  The
-//     value claimed here is cutover readiness, not a number.
-//
 // FAITHFULNESS.  Each body is written as retail's, unguarded.  The two
 // value-returning ones matter more than they look: `?GetResourceFilename@`
 // returns `PEBD` (const char*) and retail zeroes EAX, so the answer is a null
@@ -616,17 +552,8 @@ void Engine::DialogLoaderLoopT::Startup() {
 // defines only AL for a bool return, so `return false` is correct and a caller
 // that read EAX would be reading retail's garbage too.
 // ----------------------------------------------------------------------------
-// `self` is deliberately unnamed-but-typed `void*`: retail never reads RCX, and
-// giving these a real `UpdateLoop*` would imply a field access that does not
-// exist.  The RT_DIFF sites are labelled with their CLASS in their own name
-// (WAVE25_KICKOFF §1b): there is nothing to compare inside a body that reads
-// nothing and returns nothing, so the four void slots carry an honest
-// [ATTENDANCE] site rather than a `divergences=0` site that cannot fail.  The
-// real check on all six is the [ORACLE] probe below, which consults the DLL.
 
-// ENDGAME B.3.7: the six bodies are members of Engine::UpdateLoop; each door
-// delegates with a QUALIFIED call (the doors sit in minted and exe tables, so
-// an unqualified call would dispatch through those tables).
+// ENDGAME B.3.7: the six bodies are members of Engine::UpdateLoop.
 void Engine::UpdateLoop::DrawFailed() {
     // retail 0x180031740: `ret`. Nothing else.
 }
@@ -679,10 +606,9 @@ bool Engine::UpdateLoop::AllowsModChanges() {
 // Three of these bodies end in `WaitForSingleObject(<HANDLE at 0x1801fe7e0>,
 // INFINITE)`. That address is `_loader._thread.hFinished` (0x1801fe7b8 + 0x28,
 // and Thread::hFinished is at +0x28 by src/engine/system/Thread.h) — i.e.
-// retail inlined `System::Thread::WaitForFinish`. So the port calls the
-// REGISTERED `?WaitForFinish@Thread@System@@QEAAXXZ`, whose own body
-// (src/platform/win/thread_win.cpp:274) is that one Win32 call. No
-// <windows.h> enters this file.
+// retail inlined `System::Thread::WaitForFinish`. So the port calls the member
+// `System::Thread::WaitForFinish`, whose own body (src/engine/system/thread.cpp)
+// is that one wait (Platform::EventWait). No <windows.h> enters this file.
 // ============================================================================
 
 namespace {
@@ -714,14 +640,10 @@ inline Video::ContextData* CtxDataOf(Video::Context* ctx) {
 }
 
 // MainLoop::_singleton: NOT redefined here. `MainLoopSingleton()` already exists
-// at the top of this file (line ~303) and goes through RT_DATA_SLOT, which caches
-// and is the idiom the rest of the tree uses; the bodies below call THAT one. The
-// row is tagged RT_UNPROMOTABLE (HARMFUL while the DLL is present) in
-// reg_mint_promoted.cpp, so it necessarily reads the DLL's own slot — which is
-// what every body below needs, because retail's MainLoop ctor wrote it.
+// at the top of this file and reads the class static; the bodies below call THAT one.
 
 // `?_singleton@Application@1@0PEAV11@EA` -- the class static since ENDGAME
-// B.3.9 ENG (the minted row is redirected onto it).
+// B.3.9 ENG.
 Application::Application* ApplicationSingleton() {
     return ::Application::Application::_singleton;
 }
@@ -763,9 +685,6 @@ void LoaderLoopAdvance(Engine::LoaderLoop* self, const System::Time& time) {
 //     mov  0x28(%rcx),%rdx          ; this->_nextLoop
 //     lea  0x1801fe7b8(%rip),%rcx   ; &LoaderLoop::_loader
 //     jmp  0x1800dc050              ; tail-call Loader::Load
-// The LEA-then-work-through-the-register shape is exactly what the
-// `?_loader@LoaderLoop@` UNPROMOTABLE tag names as the reason a RIP-relative
-// read/write census reports R=0 for that row.
 void Engine::LoaderLoop::Startup() {
     LoaderLoopLoader()->Load(_nextLoop);
 }
@@ -777,7 +696,7 @@ void Engine::LoaderLoop::Startup() {
 // `self` is not read at all — the wait is on the one static loader.
 void Engine::LoaderLoop::Shutdown() {
     // ENDGAME B.3.7: `Loader` IS a `System::Thread`; `WaitForFinish` is the
-    // base's non-virtual member (thread_win.cpp), called directly.
+    // base's non-virtual member (src/engine/system/thread.cpp), called directly.
     LoaderLoopLoader()->WaitForFinish();
 }
 
@@ -973,11 +892,9 @@ void Engine::DialogLoopT::Draw(float /*interpolation*/) {
 // 0x1800dbfe0). Reproduced, because the load it brackets can legitimately
 // replace that object and the reload is the reason retail survives that.
 //
-// THE ONE HELD-BACK CALLEE. `?LoadResources@UpdateLoop@Engine@@QEAAXXZ`
-// (0x1800dd7d0) is deliberately NOT ported — see the "NOT REGISTERED" block
-// below and WAVE8_LANE_A.md §3. This body reaches it through ResolveExport, so
-// it gets the DLL's implementation today and will pick up a port the moment one
-// is registered, with no edit here.
+// `?LoadResources@UpdateLoop@Engine@@QEAAXXZ` (0x1800dd7d0) is ported in
+// updateloop_loadresources.cpp and called directly below (Wave 8 lane A's
+// hold-back of it: docs/history/runtime_port/WAVE8_LANE_A.md §7).
 void Engine::Loader::Run() {
     // LOADER THREAD. ENDGAME B.3.7 (RULE B7-7.1): the two singleton reads were
     // uncached ResolveExport calls and `LoadResources` a function-local `static`
@@ -986,11 +903,7 @@ void Engine::Loader::Run() {
     // static too now, so the AtomicExport cache is gone (B9-10); the ORDER of
     // the reads below is unchanged (B7-7.4: the device-lost / loader race is
     // the user's decision, and this conversion neither moves nor adds a call
-    // in the bracket). The `if (!engineSlot || !factorySlot) return;` guard
-    // below is KEPT as-is: nothing in this file ever commented it as scaffolding
-    // for a cell that might not exist, so removing it cannot be justified the
-    // way the FileSystem/Configuration door guards elsewhere in this batch
-    // could be (coordinator correction, ENDGAME B.3.9 SS1 round 2).
+    // in the bracket).
     // (The `if (!engineSlot || !factorySlot) return;` that stood here tested
     // the ADDRESSES of the two class statics, which are never null.)
     ::Engine::Engine* engine = ::Engine::Engine::_singleton;
@@ -1052,12 +965,8 @@ Engine::Loader Engine::LoaderLoop::_loader;
 // ---- ?Draw@MainLoop@Engine@@QEAAXM@Z  0x1800dcd40  ord 2251 -----------------
 // The census BODY row, and the per-frame draw half of the main loop.
 //
-// CORRECTION TO src/engine/engine/MainLoop.h: that header lists `Draw` under
-// a heading "Internal, NOT exported". IT IS EXPORTED — ordinal 2251, read out
-// of the shipped export directory with pefile. This is the AEAA trap in its
-// other form (reference_aeaa_is_private_not_unexported.md): the name is public
-// (QEAA) and the "not exported" was never checked. Corrected here AND at the
-// header's own line, because a reader reaches the header first.
+// `Draw` IS EXPORTED — ordinal 2251, read out of the shipped export directory
+// with pefile; the name is public (QEAA) (reference_aeaa_is_private_not_unexported.md).
 //
 // TWO THINGS IN THIS BODY ARE EASY TO GET WRONG AND ARE DELIBERATE:
 //

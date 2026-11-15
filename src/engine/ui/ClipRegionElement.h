@@ -8,8 +8,8 @@
 //
 // PARENT `UI::Element` — READ (B36_SLOTS.md section 3):
 //     ?_ParentTypeName@ClipRegionElement@UI@@CAPEBDXZ  @0x180037f40 -> "Element"
-// RULE B5-15 / B6-7 — RECORDED, NOT USED (`?_typeInfo@ClipRegionElement@UI@@…`
-// 0x1801f9d68 stays the minted record):
+// RULE B5-15 / B6-7 — DEFINE_TYPE (clipregionelement.cpp) defines both, and the class's own
+// `_typeInfo` record (retail `?_typeInfo@ClipRegionElement@UI@@…` 0x1801f9d68):
 //     ?_TypeName@ClipRegionElement@UI@@CAPEBDXZ        @0x180037f30 -> "ClipRegionElement"
 //     ?_ParentTypeName@ClipRegionElement@UI@@CAPEBDXZ  @0x180037f40 -> "Element"
 //
@@ -37,8 +37,7 @@
 // LAYOUT — 0xd8 bytes, six dwords past UI::Element
 // ---------------------------------------------------------------------------
 // `??0ClipRegionElement@UI@@QEAA@XZ` (0x1800cbe60) and its two inlined copies
-// write ALL six, with overlapping stores (kClipRegionElement rows in
-// src/engine/ui/factory_ui1_tables.inc, and ClipRegionDescription::
+// write ALL six, with overlapping stores (ClipRegionDescription::
 // CreateInstance 0x1800cbf42..0x1800cbf60):
 //     MOV dword [+0xc0],0x64 ; MOV qword [+0xc4],0x64 (+0xc4 = 100, +0xc8 = 0)
 //     MOV qword [+0xcc],0    ; MOV dword [+0xd4],0

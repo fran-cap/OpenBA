@@ -46,7 +46,7 @@ UNIT_TEST(ext_town_screenshot_registry_row) {
     CHECK(e != nullptr);
     if (e == nullptr) return;
     CHECK(e->tier == Ext::Tier::Extension);
-    CHECK(e->cls == Ext::Class::B);   // the window's pages belong to B / C rows; a screenshot changes no play
+    CHECK(e->cls == Ext::Class::B);   // a screenshot changes no play
     CHECK(!e->defaultOn);
     CHECK(Ext::SettingsKey(*e) == "ext.town_screenshot");
     CHECK(!ResolveText("").ext.town_screenshot);

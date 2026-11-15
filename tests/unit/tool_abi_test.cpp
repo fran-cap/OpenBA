@@ -3,21 +3,13 @@
 //
 // The ABI claims block TOOL makes about the exe Tool family, measured on the
 // SHIPPED HEADERS (src/game/Player/*.h):
-//   PART A — LAYOUT: sizeof / alignof / member offsets against retail's create
-//            MemAlloc sizes and ctor stores (B38_SLOTS.md §6).
 //   PART B — SLOT ORDER, read off pointers to VIRTUAL members (Itanium PMF =
 //            1 + vtable byte offset; adjustment must be 0: single inheritance).
 //   PART C — class shape: abstractness, a virtual destructor (B3X W1: retail slot 0 = D1 + D0).
-//   PART D — the hidden-return-slot members (slot 11 GetSettingType, slot 13
-//            GetSelected of EditTool/PathTool): a raw retail-order call
-//            `fn(this /*RCX*/, ret /*RDX*/)` through a pointer of that shape
-//            reaches a member of the SAME declaration shape with the right
-//            `this` and `ret` (GCC ms_abi puts an IMPLICIT return slot before
-//            `this`, so the members spell it explicitly — B8-11).
 //
 // NOT PROVEN HERE: the constructors and slot bodies of the tools themselves
-// (they stand on the address registry and the exe-type registration list and
-// cannot link into a host test) — the coordinator's run gates verify those.
+// (they stand on the exe-type registration list and cannot link into a host
+// test) — the coordinator's run gates verify those.
 // ============================================================================
 #include "unit.h"
 #include "slot_check.h"

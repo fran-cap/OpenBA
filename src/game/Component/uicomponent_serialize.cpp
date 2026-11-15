@@ -17,19 +17,15 @@
 // elements (MemAlloc(newCap, /*align*/1)) — i.e. self+0x28 is a genuine
 // growable uint8_t array whose header spans self+0x28..0x37 (ptr@0x28,
 // count@0x30, cap@0x34). This fills every byte of UIComponent that the ctor
-// (engine/types/UIComponent.h) leaves zeroed — data/dataCount/dataCap are that
-// header, not two independent scratch pointers — so this class is NOT empty:
+// (Component/UIComponent.h) leaves zeroed — the `data` member, a Collection::Array<uint8_t>,
+// is that header, not two independent scratch pointers — so this class is NOT empty:
 // it round-trips a real per-instance byte buffer through save/load.
 //
 // The byte-array Serialize overload is a distinct dispatch slot from the
 // scalar int/bool/float Serialize used elsewhere (0x140152400, called as
 // Serialize(ser, count, ptr, name) — RCX=ser, EDX=count, R8=ptr, R9=name).
 //
-// ⚠ NOT WIRED as an opt-in feature: slot 3 is wired UNCONDITIONALLY (see
-// UIComponent_FinishInertVtableSer in uicomponent.cpp) — serialize round-trip
-// is not behind any BANISHED_LIVE_* gate. Standalone has no save/load driver
-// yet (GameUpdateLoop::SaveRestore is a no-op stub), so this is unreachable
-// today; it brings the class to parity with the rest of the save/load wave.
+// Slot 3 is UIComponent::Persist below, a plain virtual override that no flag gates.
 #include "Component/UIComponent.h"
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch A
 #include <cstdint>

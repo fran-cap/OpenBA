@@ -153,7 +153,7 @@ UNIT_TEST(mac_keys_layer_targets_reach_a_dik) {
     for (const MK::LayerEntry& e : MK::kExtendedFKeys) {
         CHECK(kSdlScancodeToDik[e.to] != 0);
     }
-    // The three keys a Mac keyboard lacks land on the PC's DIK codes.
+    // The four keys a Mac keyboard lacks land on the PC's DIK codes.
     CHECK_EQ(kSdlScancodeToDik[MK::kInsert], 0xD2);
     CHECK_EQ(kSdlScancodeToDik[MK::kPrintScreen], 0xB7);
     CHECK_EQ(kSdlScancodeToDik[MK::kScrollLock], 0x46);

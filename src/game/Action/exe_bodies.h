@@ -6,7 +6,6 @@
 // B3R_RULES R5: every DIRECT body is declared in exactly one header, written from its
 // DEFINITION (linkage included), and each defining .cpp includes this header so the
 // compiler checks the pair. Readers call these by name through this header (R2).
-// Making them members of real classes is B.4's work; this header is where it finds them.
 //
 // Grouped by defining file; the retail address is the trailing comment on each line.
 // `uint` in a definition (a file-local typedef there) is spelled `unsigned int` here.
@@ -113,7 +112,7 @@ class InteractComponent;      // Component/InteractComponent.h
 class StorageComponent;       // Component/StorageComponent.h
 template <class T> struct RawArray;   // Action/PathSearch.h
 
-// ---- action_pf_geom.cpp
+// ---- action_pf_geom.cpp (Pf_RayTriIntersect_aa810: Game/worldgeometry_ray.cpp)
 int Pf_RayTriIntersect_aa810(void*, const float* P, const float* D, const float* maxT, const float* V0, const float* V1, const float* V2, float* outT, float* outNormal);  // 0x1400aa810  // B8: free in retail -- RCX dead: its four calls (0x1400aac26..0x1400aacd6) never load it
 int Pf_TileShapeLut_ae180(void*, char p2, char p3, char p4, char p5, char p6, char p7, char p8, char p9);  // 0x1400ae180  // B8: free in retail -- RCX dead: at 0x1400ad355 the caller leaves a byte in CL (its stack argument 5)
 class PopulationComponent;    // Component/PopulationComponent.h

@@ -17,9 +17,6 @@
 //                                CitizenComponent::OnRemove's step-4 family branch: the
 //                                start town begins with every link null, so an untargeted
 //                                kill (or a natural death) exercises the empty path.
-//
-// Pair it with BANISHED_LIVE_CITIZEN_ONREMOVE=1 and BANISHED_ONREMOVE_TRACE=1 to see
-// each teardown, and with BANISHED_OBJAUDIT=1 to watch the object tally.
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "options.h"
 #include "clamped_atoi.h"     // review F-087: checked parse of BANISHED_* text
@@ -45,16 +42,16 @@
 #include <unordered_set>
 #include <vector>
 
-// CitizenComponent_HandleLifeEvent (0x140116dd0) — Component/exe_bodies.h.
-// CitizenComponent_sub_1fa0 (0x140111fa0) — re-parent a citizen: detach from the current
+// CitizenComponent::HandleLifeEvent (0x140116dd0) — Component/CitizenComponent.h.
+// CitizenComponent::SetParent (0x140111fa0) — re-parent a citizen: detach from the current
 // guardian's family ring (+0x258 / the host's +0x260 ring) and attach to the new one.
 // Passing a null IBP is exactly what CitizenComponent::Update does when a grown child
-// finds its own home and moves out. Declared in Component/exe_bodies.h.
-// CitizenComponent_AssignWorkplace (0x1401163d0) — MISNAMED in retail: this is the
+// finds its own home and moves out. Declared in Component/CitizenComponent.h.
+// CitizenComponent::SetHome (0x1401163d0, tree: "AssignWorkplace") — the
 // RESIDENCE assigner (sets +0x238 = home and rosters the citizen into the house's
 // ResidenceComponent). Update calls it right after the move-out with the house sub_0e70
 // found; the harness calls it with the house the citizen already lived in.
-// Declared in Component/exe_bodies.h.
+// Declared in Component/CitizenComponent.h.
 
 namespace {
 int  s_count       = -1;   // -1 = not yet read from the environment
@@ -147,7 +144,7 @@ inline bool HasFamily(CitizenComponent* c) {
 // CitizenComponent::Update behind a chain of tests, and "no births" alone does not say
 // which one nobody passes. This walks the SAME chain, in the same order, read-only, and
 // reports the first test each female fails. It calls nothing that mutates state: the two
-// resolved helpers (FindComponent_Residence, helper_a4f0) are both pure queries.
+// helpers (FindComponent<ResidenceComponent>, ResidenceComponent::IsFamilyFull) are both pure queries.
 //
 // The chain, from Update's LAB_140113873 tail:
 //   1. +0x38 == 0            female
@@ -161,7 +158,7 @@ inline bool HasFamily(CitizenComponent* c) {
 //   7. +0x4C == 0            timer idle (a NEGATIVE +0x4C is the post-birth cooldown)
 //   8. desc+0x50 <= age <= desc+0x54    within the childbearing window
 //   9. residence component found off the home entity
-//  10. !helper_a4f0          household not full: desc+0x24 > slot[+0x240].count
+//  10. !IsFamilyFull         household not full: desc+0x24 > slot[+0x240].count
 // Passing all ten is what seeds +0x4C = desc+0x58 and starts the countdown to a birth.
 //
 // n = how many per-citizen detail lines to print (the aggregate always prints when set).
@@ -449,8 +446,8 @@ void Census(int frameNum) {
     // A grown child can only stop being someone's dependant (+0x258) by finding a home of
     // its OWN: CitizenComponent::Update -> sub_0e70 -> sub_1fa0(self, null). sub_0e70 scans
     // the town building registry at townMgr+0x20/+0x28 and the profession/category BST at
-    // townMgr+0x100. Both are populated by WorkPlaceComponent::OnCreate in retail and are
-    // empty in standalone's start town, so report them next to the gate counts — an
+    // townMgr+0x100. Both are populated by WorkPlaceComponent::OnCreate in retail. Report them
+    // next to the gate counts — an
     // "ELIGIBLE=0 / noGuardian=0" census means nothing without knowing whether the finder
     // it depends on had anything to find.
     Object::InternalPtr<ComponentEntity>* reg = townMgr->residences._data;           // +0x20
@@ -558,23 +555,23 @@ void MoveOutGrownChildren(int frameNum) {
 // deliveries — the founding cohort ages out first.
 //
 // So call the DELIVERY leaf directly. This is not a shortcut around the code under
-// test: CitizenComp_helper_1b90 (0x140111b90) is exactly what CitizenComponent::Update
+// test: CitizenComponent::GiveBirth (0x140111b90) is exactly what CitizenComponent::Update
 // invokes when the gestation timer fires, and it owns the whole newborn path —
 // allocate + copy-construct the child entity, DeferredInit_117080, and
 // EntityList_RegisterEntity (0x1400c48a0), whose tail is the OnAddedPass that
 // broadcasts component vtable slot 6. Everything the birth arm needs to exercise is
 // inside it; only the gestation countdown is skipped.
 //
-// Requirements on the "mother": a description (+0x288) and a ModelComponent (+0x278,
-// for the spawn position). A spouse is optional — helper_1b90 tests +0x250 before
+// Requirements on the "mother": a description (+0x288) and a CharacterComponent (+0x278,
+// for the spawn position). A spouse is optional — GiveBirth tests +0x250 before
 // flagging it. Any founding adult qualifies.
 //
 //   BANISHED_FORCE_BIRTH=<n>        deliver n babies (0 / unset = disabled)
 //   BANISHED_FORCE_BIRTH_FRAME=<f>  frame to fire on (default 1200)
 //
-// Pair with BANISHED_BIRTH_TRACE=1 to get the [Birth] BABY BORN line and the newborn's
-// carry capacity, which is the point of the exercise.
-// CitizenComp_helper_1b90 is declared in Component/exe_bodies.h.
+// 120 frames after the deliveries the [BirthCheck] lines list each newborn in the town list
+// (age, gender, profession, parent, home) and check one arrived per delivery, none with a
+// null profession. CitizenComponent::GiveBirth is declared in Component/CitizenComponent.h.
 
 namespace {
 // The newborn check: the citizens before the deliveries, and the frame the town list is

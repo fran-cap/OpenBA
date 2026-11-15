@@ -21,18 +21,15 @@ WHAT IT DOES
 ------------
 1. Disassembles nothing. It reads the SHIPPED PE directly with pefile, walks the
    byte range of `AssignConstants`, and finds every `LEA reg,[rip+disp32]` whose
-   target lands in a read-only data section.
+   target lies inside one of the PE's sections.
 2. Reads each target as a NUL-terminated ASCII string straight out of the file
    image.
 3. Emits a generated C++ include with one row per literal: the RVA, the length,
    and the string as a C literal with every byte escaped explicitly.
 
-The emitted rows carry the RVA so the port can CHECK ITSELF at runtime against
-the loaded DLL (see `RtVideoShaderConstantsVerify` in
-src/engine/video/constant_buffer.cpp): with the DLL present, every literal we
-compiled in is compared byte-for-byte against the bytes at its recorded RVA. A
-typo fails loudly at startup instead of silently unbinding a parameter. With the
-DLL absent the check skips, which is exactly when our copy is the only copy.
+The emitted rows carry the RVA each literal was lifted from, so `--verify` can
+re-extract from the DLL and diff the committed .inc row by row: a typo fails the
+diff instead of silently unbinding a parameter.
 
 USAGE
     tools/extract_shader_constants.py                 # print the table

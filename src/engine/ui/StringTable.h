@@ -85,7 +85,7 @@ public:
 
     // [0] 0x180002740 — MSVC's VECTOR deleting destructor (`MOV EDX,0x30`, the
     // element size; the scalar arm is ??1 inlined, then ??3StringTable — one
-    // body with the global MemFree, stringtable_lifecycle.cpp's banner).
+    // body with the global MemFree).
     // 0x18011d8f0 — an empty body: `_entries`' ~Array (0x180004a90), then
     // ~External, both compiler-chained (stringtable_factory.cpp).
     ~StringTable() override;
@@ -104,7 +104,7 @@ public:
 
     // ---- ported non-virtual members (src/engine/ui/sprite.cpp) ------------
     int32_t GetCount() const;                                       // 0x180002610
-    // The two GetText overloads — non-virtual, THE DOOR DECIDES THE OVERLOAD.
+    // The two GetText overloads — non-virtual.
     // Both are RETSLOT in retail; plain by-value returns here.
     System::String GetText(int32_t index) const;                    // 0x180002550
     // NOT RETAIL (review F-009): the body of GetText(int), static so that
@@ -117,7 +117,7 @@ public:
     // ---- exported, NOT PORTED, no caller: declared, deliberately undefined --
     StringTable(const StringTable& src);                // 0x180002620  not ported
     StringTable& operator=(const StringTable& src);     // 0x1800026b0  not ported
-    // 0x180002180 — the minted record's type id (stringtable_factory.cpp).
+    // 0x180002180 — the type id; the class's own record is DEFINE_TYPE in stringtable_factory.cpp.
     // Placement is spelt `::new (p) StringTable()` (B9-5): these stay undefined;
     // `??3` is the inline member below (its C door and stringtable_lifecycle.cpp
     // went in B.4 R0: unreferenced).

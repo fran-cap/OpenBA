@@ -14,16 +14,14 @@
 // `??_7Dialog@UI@@6B@` is EXPORTED, at 0x1801562a0.
 // `?_typeInfo@Dialog@UI@@0VBaseTypeInfo@Object@@A` — the class's
 // `Object::BaseTypeInfo`, used by `IsDerivedFrom` — is exported as a DATA
-// symbol at 0x1801faa88 (ordinal 4847). It is not a function and nothing in
-// this lane ports it; our tree reads the DLL's.
+// symbol at 0x1801faa88 (ordinal 4847). It is not a function; the tree's own
+// record is the DEFINE_TYPE in dialog_vtable.cpp.
 //
 // ---------------------------------------------------------------------------
 // WHAT THIS HEADER PROVES, AND WHAT IT DOES NOT
 // ---------------------------------------------------------------------------
-// This lane ports exactly ONE Dialog method (`?GetTemplate@`), so the layout
-// below is deliberately partial: it records every offset three decompiled
-// bodies pin, and says "unknown" everywhere else rather than inventing names.
-// The three bodies are
+// The table below records every offset four decompiled bodies pin. The four
+// bodies are
 //
 //   ??0DialogInstance@UI@@QEAA@…@Z   0x180114870  — reads +0x20/+0x28/+0x38/
 //                                                   +0x40/+0x48/+0x50
@@ -61,11 +59,9 @@
 //   0x78  _references        ?GetReference@ is one line:
 //                            `*out = ((void**)this[0x78])[index]`
 //
-// +0x68 and +0x78 are almost certainly `Collection::Array<ExternalPtr<...>>`
-// (data / size / capacity), because that is what every other indexed list in
-// this class is — but neither accessor bounds-checks, so neither reads the
-// size, so neither PROVES a size field is there. They are declared as bare
-// pointers plus explicitly-named unknown bytes.
+// +0x68 and +0x78 are declared as `Collection::Array` members in UI::Dialog
+// below (data / size / capacity), like every other indexed list in this class.
+// Neither accessor bounds-checks, so neither reads the size.
 //
 // PORTABILITY: no <windows.h>, per PLAN.md §4.1 decision 1.
 // ============================================================================
@@ -185,16 +181,11 @@ static_assert(offsetof(DialogNamedTemplate, _name) == 0x8, "DialogNamedTemplate:
 // measurement, and it happens to agree with DLG2's lower bound exactly, which
 // is the interesting part — there are no trailing members.
 //
-// Re-derived from the shipped DLL, independently of this comment, by
-// tools/rt_deleting_dtor_verify.py (row "UI::Dialog": `size=0x88`), and that
-// script has a negative control that perturbs a row and must report exactly one
-// problem.
 //
 // The ONE FOUR-BYTE HOLE: +0x44..+0x47. 0x180112e0b is a DWORD store to +0x40
 // and the next store is a QWORD at +0x48, so retail never writes +0x44 in the
-// ctor. `src/engine/ui/dialog_ctor_dtor.cpp`'s oracle excludes those four
-// bytes from its compare and says so; a port that zeroed +0x40 as a qword
-// would be writing over caller stack retail leaves alone.
+// ctor, and `UI::Dialog::Dialog()` leaves `_pad44` unwritten; a port that
+// zeroed +0x40 as a qword would be writing over caller stack retail leaves alone.
 
 }  // namespace RtUI
 
@@ -202,9 +193,6 @@ static_assert(offsetof(DialogNamedTemplate, _name) == 0x8, "DialogNamedTemplate:
 // UI::Dialog — THE REAL CLASS (ENDGAME B.3 step 6, block B)
 // ############################################################################
 //
-// The `RtUI::Dialog` POD above stays, field-identical and cross-asserted: the
-// ctor/dtor/factory DOORS (dialog_ctor_dtor.cpp, dialog_factory.cpp) and the
-// stack temporaries in dialog.cpp / dialog_create.cpp build through it.
 //
 // PARENT: `Object::External` — the "base, 0x20 bytes, NOT PROVEN" note above
 // is now proved by
@@ -289,7 +277,7 @@ public:
     virtual Object::External* Construct();                        // [8] 0x180038750
 
     // ---- PORTED non-virtual members ---------------------------------------
-    // RETSLOT in retail; plain by-value returns here, the doors placement-new.
+    // RETSLOT in retail; plain by-value returns here.
     Object::ExternalPtr<ElementDescription> GetTemplate(int32_t index) const;  // 0x1800388b0
     Object::ExternalPtr<Object::External> GetReference(int32_t index) const;   // 0x1800388d0
     Object::InternalPtr<Element> CreateElement(
@@ -323,7 +311,7 @@ public:
     //   0x180038410  ?_ParentTypeName@ -> "Object::External"
 
 public:
-    // ---- the 0x68 bytes Dialog adds (evidence: the POD's banner) ---------
+    // ---- the 0x68 bytes Dialog adds (evidence: the banner above) ---------
     SpriteSheet* _spriteSheet;         // +0x20  (B4 H4: typed)
     System::String _spriteName;        // +0x28  ctor 0x180112df9, dtor 0x180112e88
     uint32_t _backgroundColor;         // +0x30  ctor = 0xFFFFFFFF

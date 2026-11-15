@@ -2,7 +2,7 @@
 // Clean reimplementation of MineComponent lifecycle methods from Application-x64.exe.
 //
 // MineComponent (0x28 bytes) — simplest possible component, no additional fields.
-// Vtable at 0x140159ed0. Only Shutdown has real logic.
+// Vtable at 0x140159ed0. Only Persist has real logic.
 //
 // Decompiled from Application-x64.exe using Ghidra.
 

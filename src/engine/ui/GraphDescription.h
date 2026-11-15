@@ -3,11 +3,10 @@
 // src/engine/ui/GraphDescription.h — UI::GraphDescription, the REAL class
 // ============================================================================
 //
-// ENDGAME B.3 step 6, block C5. The layout was pinned by the Wave 7 batch as
-// the POD `RtUI::GraphDescription` in DescriptionsBatch1.h, which four leaf
-// clusters share and none may edit (RULE B6-4.4); this header carries the class
-// and cross-asserts every offset against that POD. The closing pass turns the
-// POD into an alias.
+// ENDGAME B.3 step 6, block C5. The layout was pinned by the Wave 7 batch in
+// DescriptionsBatch1.h, which four leaf clusters share (RULE B6-4.4); there
+// `RtUI::GraphDescription` is an alias of this class, and the asserts at the
+// bottom of this header carry the offsets.
 //
 // PARENT, read (B36_SLOTS.md section 3):
 //     ?_TypeName@GraphDescription@UI@@CAPEBDXZ       @0x180040050 -> "GraphDescription"
@@ -16,16 +15,12 @@
 //
 // `??_7GraphDescription@UI@@6B@` @ 0x180156a30, TEN slots; sizeof 0x88
 // (`MOV EDX,0x88` in the slot-0 vector deleting dtor 0x1800403a0):
-//   [0] 0x1800403a0 deleting dtor (RT_DELDTOR row)  [1] 0x180040090 TypeName
+//   [0] 0x1800403a0 deleting dtor                   [1] 0x180040090 TypeName
 //   [2] 0x180040070 Type            [3] 0x1800d1b20 GetFileVersion (0x104)
 //   [4] External::Compile (inherited — NOT declared, B6-1.5)
 //   [5] 0x1800d1a30 Serialize       [6] 0x180040210 Reconstruct
 //   [7] 0x180040240 Destruct        [8] 0x1800d1920 CreateInstance RETSLOT (B6-2)
 //   [9] 0x180040230 Construct — INTRODUCED here, behind CreateInstance (B6-1.1)
-//
-// ABSTRACT (slot 0 `= 0`), NO real ctor: every live one is built by the
-// `??0GraphDescription@UI@@QEAA@XZ` door (0x1800d1bd0, factory_ui1.cpp) and
-// wears the MINTED table.
 //
 // ENDGAME B.3 step 9 (block UI-B, B39_RULES D1/D2): CONCRETE. A real public
 // ctor (retail's 0x1800d1bd0 stores), its own slot 0, the factory pair as the
@@ -38,7 +33,7 @@
 #include <cstdint>
 
 #include "ElementDescription.h"
-#include "DescriptionsBatch1.h"   // kVtbl* names; RtUI::GraphDescription aliases this class
+#include "DescriptionsBatch1.h"   // RtUI::GraphDescription aliases this class
 
 namespace UI {
 
@@ -87,7 +82,7 @@ public:
 private:
 
 public:
-    // Ctor 0x1800d1bd0 stores (factory_ui1_tables.inc kGraphDescription) and
+    // Ctor 0x1800d1bd0 stores and
     // what CreateInstance (0x1800d1920) copies each into on the GraphElement.
     int32_t  _width;        // +0x68  ctor 100 -> GraphElement::_width     (+0xc0)
     int32_t  _height;       // +0x6c  ctor 100 -> GraphElement::_height    (+0xc4)

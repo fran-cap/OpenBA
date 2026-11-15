@@ -43,10 +43,8 @@
 //   ??_7Base@Object@@6B@      0x180154788
 //   ??_7External@Object@@6B@  0x1801547a0
 //   ??_7Dialog@UI@@6B@        0x1801562a0
-// They are read through `ResolveExport` rather than minted. A ported ctor that
-// mints its own vtable puts a SECOND vtable in play and the object then fails
-// every `IsDerivedFrom` the DLL performs on it — the `??_7Geometry@Graphics@@6B@`
-// lever this project has already paid for once.
+// In the port the three stores are the compiler's (`UI::Dialog::Dialog()`,
+// Dialog.h).
 //
 // ---------------------------------------------------------------------------
 // `??0Dialog@UI@@QEAA@XZ` — the shipped body, 0x2b instructions
@@ -72,29 +70,23 @@
 //
 //  (a) THE FIRST QWORD IS WRITTEN THREE TIMES. Base, then External, then Dialog
 //      — the ordinary MSVC base-ctor chain, fully inlined. The first two stores
-//      are dead in the shipped binary, and they are TRANSCRIBED ANYWAY. "It is
-//      provably overwritten in this build" is a claim a port should not bake in,
-//      and a debugger single-stepping our body should see what it sees in retail.
+//      are dead in the shipped binary; in the port all three are the
+//      compiler's base-ctor chain (`UI::Dialog::Dialog()`, Dialog.h).
 //
 //  (b) `+0x44` IS NEVER WRITTEN. 0x180112e0b is a DWORD store to +0x40 and the
 //      next store is a QWORD at +0x48. A "tidy" port that zeroes +0x40 as a
 //      qword would write four bytes retail leaves holding whatever the caller's
 //      buffer held — and on the 6-arg AddController's path that is UNINITIALISED
-//      STACK. The oracle below therefore EXCLUDES +0x44..+0x47 from its compare,
-//      counts the exclusion, and prints it. Comparing bytes neither side writes
-//      fails 100 % of calls and reads as a catastrophic port defect
-//      (reference_oracle_must_not_compare_unwritten_bytes.md).
+//      STACK. The port's ctor (`UI::Dialog::Dialog()`, Dialog.h) leaves
+//      +0x44..+0x47 unwritten too.
 //
 //  (c) `+0x30` IS -1, NOT 0. The single most likely transcription slip in a
-//      body that is otherwise 16 zero stores, and it is what negative control
-//      (i) below corrupts.
+//      body that is otherwise 16 zero stores.
 //
 // THE CTOR'S WRITTEN EXTENT IS +0x00..+0x87 (the last store is a QWORD at
-// +0x80). `src/engine/ui/Dialog.h` declares out to +0x7f and carries NO
-// `sizeof` assert, deliberately. This lane does not invent one either: it adds
-// the one member the ctor proves is there (+0x80) and says the size is still
-// unknown, because a ctor's written extent is a LOWER BOUND on a class size,
-// never the size itself.
+// +0x80). `src/engine/ui/Dialog.h` asserts `sizeof(Dialog) == 0x88` from the
+// vector deleting destructor's stride (`MOV EDX,0x88` at 0x180038b3f), not from
+// this extent: a ctor's written extent is a LOWER BOUND on a class size.
 //
 // ---------------------------------------------------------------------------
 // `??1Dialog@UI@@UEAA@XZ` — the shipped body
@@ -107,28 +99,28 @@
 //   180112e88  the System::String release at +0x28 (see below)
 //   180112eb2  MOV RCX,RBX ; JMP 0x1800bc950              <- TAIL-JUMP ~External
 //
-// THE STRING RELEASE IS RETAIL'S ASYMMETRIC ONE, transcribed rather than
-// tidied. `_spriteName` at +0x28 is a refcounted `char*` whose count sits at
+// THE STRING RELEASE IS RETAIL'S ASYMMETRIC ONE, kept rather than tidied by
+// `~String` (String.h). `_spriteName` at +0x28 is a refcounted `char*` whose count sits at
 // `data - 4`:
 //   * count reaches zero -> the FIELD is first rewritten to `data - 8`
 //     (`ADD qword [RBX+0x28],-0x8`) and THAT is what is handed to `MemFree`.
 //     The field is LEFT holding `data - 8`; it is not nulled.
 //   * count is still positive -> the field IS nulled.
 // The two branches leave the field in different states and that difference is
-// observable. `??1DialogInstance@` and `?CreateInstance@ElementDescription@`
-// both already reproduce it; this is the third instance of the same shape.
+// observable. `?CreateElement@Dialog@` and `?CreateInstance@ElementDescription@`
+// reproduce the same shape (dialog.cpp).
 //
 // ---------------------------------------------------------------------------
 // EVERY CALLEE, AND ITS DISPOSITION — the honest version
 // ---------------------------------------------------------------------------
 //   0x180009460  ~Array  (+0x78)   PORTED  J1_ENTRY, array.cpp (lane UIC)
 //   0x180039440  ~Array  (+0x68)   PORTED  J1_ENTRY, array.cpp (lane UIC)
-//   0x180039360  ~Array  (+0x58)   *** NOT PORTED — DLL, by address ***
-//   0x180039280  ~Array  (+0x48)   *** NOT PORTED — DLL, by address ***
-//   0x1800c7ad0  ?MemFree@         PORTED  (Wave 2 / lane ALLOC), by address
-//   0x1800bc950  ~External         PORTED  (external.cpp), by address
+//   0x180039360  ~Array  (+0x58)   PORTED  J2_ENTRY, array_destroy.cpp
+//   0x180039280  ~Array  (+0x48)   PORTED  J2_ENTRY, array_destroy.cpp
+//   0x1800c7ad0  ?MemFree@         PORTED  (Wave 2 / lane ALLOC)
+//   0x1800bc950  ~External         PORTED  (external_class.cpp)
 //
-// THE TWO UNPORTED ONES ARE STATED, NOT GLOSSED. WAVE10_LANE_UI3.md §7b called
+// THE TWO WITH AN ELEMENT PASS ARE STATED, NOT GLOSSED. WAVE10_LANE_UI3.md §7b called
 // all four "the same family" and suggested two more `J1_ENTRY` lines. **THAT IS
 // WRONG AND THIS LANE MEASURED IT RATHER THAN INHERITING IT**
 // (reference_holdback_blockers_are_stale_check_them_first.md). All 115 leading
@@ -138,30 +130,22 @@
 //   0x180009460 / 0x180039440   J1 shape: `MOV RDI,RCX ; MOV RSI,[RCX] ; TEST`
 //   0x180039360 / 0x180039280   `MOV RDI,RCX ; MOV R8D,[RCX+8] ; MOV RDX,[RCX]
 //                                ; CALL rel32` — an EXTRA element-destroy pass
-//                                before the free (targets 0x180039641 and
-//                                0x180039581 respectively, two DIFFERENT helpers)
+//                                before the free (targets 0x180039640 and
+//                                0x180039580 respectively, two DIFFERENT helpers)
 //
 // They are `~Array<T>` for a T that HAS a destructor. Registering them as J1
 // would have silently replaced a body that destroys every element with one that
 // only frees the block — a leak, landed under a comment claiming a byte-level
-// identity that does not hold. They are called BY ADDRESS through
-// `ResolveAddr(Module::Runtime, …)`, which reaches the DLL today and our port
-// the moment someone lands one, and they are recorded in the lane doc as this
-// port's OWED cutover residue.
+// identity that does not hold. In the port they are the destructors of the
+// `_namedTemplates` and `_controllerConfigs` Array members (`~Dialog` below).
 //
-// Neither is exported (checked against all 4,926 export names), so the address
-// door here is a genuine unexported internal and not the "the comment said
-// unexported and it was merely private" mistake
-// (reference_aeaa_is_private_not_unexported.md).
+// Neither is exported (checked against all 4,926 export names).
 //
 // ---------------------------------------------------------------------------
 // THE ALLOCATOR, AND WHY IT IS NOT A BLOCKER
 // ---------------------------------------------------------------------------
-// The dtor frees. `?MemFree@MemoryAllocator@System@@SAXPEAX@Z` is reached BY
-// ADDRESS (0x1800c7ad0), which is the discipline
-// `src/engine/collection/array.cpp` set three waves ago: that address is the
-// ported allocator. THERE IS NO CONFIGURATION IN WHICH THE TWO SIDES SEE
-// DIFFERENT HEAPS.
+// The dtor frees: `_spriteName`'s ~String calls the ported allocator's
+// `?MemFree@MemoryAllocator@System@@SAXPEAX@Z` (0x1800c7ad0) by name.
 //
 // PORTABILITY: no <windows.h>, per PLAN.md §4.1 decision 1.
 // ============================================================================

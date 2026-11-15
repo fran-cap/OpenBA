@@ -31,9 +31,8 @@ template <class Node> Node* AvlRotateRight(Node** root, Node* node);
 // (0x140013480 / 0x14001a8c0). *cursor ends null.
 template <class Node> void  AvlRebalance(Node** root, Node** cursor);
 
-// The generic nodes the unconverted trees of other blocks hand to the C
-// forwarders (their element is read by no body here except the inserts', whose
-// keys are ints).
+// The generic nodes of the other blocks' trees (their element is read by no body
+// here except the inserts', whose keys are ints).
 struct AvlNode30 {                     // 0x30: a 0x10-byte element
     int32_t    key0;                   // +0x00
     int32_t    key1;                   // +0x04
@@ -87,7 +86,7 @@ struct AvlTreeHead {
 };
 static_assert(sizeof(AvlTreeHead<AvlNode30>) == 0x10, "Set header is 0x10");
 
-// Node allocation + the two inserts (MemAlloc nodes, not pooled).
+// Node allocation + the three inserts (MemAlloc nodes, not pooled).
 AvlNode28* AvlNewNode28(const int32_t* key, AvlNode28* parent);                   // 0x14001a680
 AvlNode30* AvlNewNode30(const int32_t* key, AvlNode30* parent);                   // 0x14001cc40
 AvlNode30** AvlInsert30(AvlTreeHead<AvlNode30>* tree, AvlNode30** out, const int32_t* key);   // 0x14001c940

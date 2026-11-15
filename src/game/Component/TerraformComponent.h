@@ -3,7 +3,7 @@
 // src/game/Component/TerraformComponent.h — ENDGAME B.3.8 block VIS
 //
 // `TerraformComponent` as a real C++ class with a compiler-generated vtable
-// (B38_RULES.md D1-D4). The engine/types POD is a forwarder to this file.
+// (B38_RULES.md D1-D4).
 //
 // RETAIL (Application-x64.exe, B38_SLOTS.md §6):
 //   reflected "TerraformComponent", parent "Component", ti 0x1401c49c0
@@ -19,8 +19,6 @@
 //     [6]  0x1400574f0 own `RET`             [7] 0x140057350 OnRemove (replay the undo)
 //     [12] 0x140057310 OnEvent (msg 4: apply the deformation)
 //     every other slot = Component's
-// The [12] body is ALSO registered by address (standalone/reg_terraform_live.cpp),
-// so it stays a free function and the member delegates (B38 D5).
 // ============================================================================
 
 #include <cstdint>

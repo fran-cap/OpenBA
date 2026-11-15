@@ -7,14 +7,14 @@
 // PARENT `UI::ElementDescription` — READ, not inferred:
 //     ?_ParentTypeName@TableDescription@UI@@CAPEBDXZ @0x180078ea0 -> "ElementDescription"
 //
-// RULE B5-15 / B6-7 — THE TWO NAME LITERALS, RECORDED, NOT USED (slots 1/2 keep
-// reading the minted `?_typeInfo@TableDescription@UI@@…`, 0x1801fae40):
+// RULE B5-15 / B6-7 — THE TWO NAME LITERALS, RECORDED (the class's own record is
+// DEFINE_TYPE in tabledescription.cpp):
 //     ?_TypeName@TableDescription@UI@@CAPEBDXZ       @0x180078e90 -> "TableDescription"
 //     ?_ParentTypeName@TableDescription@UI@@CAPEBDXZ @0x180078ea0 -> "ElementDescription"
 //
 // `??_7TableDescription@UI@@6B@` @ 0x1801592c0, TEN slots (B36_SLOTS.md
 // section 1; sizeof from `MOV EDX,0x98` in slot 0 0x180079210):
-//   [0] 0x180079210 deleting dtor (row)  [1] 0x180078ed0 TypeName
+//   [0] 0x180079210 deleting dtor        [1] 0x180078ed0 TypeName
 //   [2] 0x180078eb0 Type                 [3] 0x18011e6e0 GetFileVersion
 //   [4] 0x1800066e0 External::Compile INHERITED
 //   [5] 0x18011e590 Serialize            [6] 0x180079050 Reconstruct
@@ -26,8 +26,7 @@
 // own slot 0 (the vector deleting dtor), a virtual ~TableDescription holding
 // the retired ??1 door's body, and the factory pair as the class's own statics;
 // every live one wears the COMPILER's table. The minted `??_7TableDescription@UI@@6B@`,
-// its RT_DELDTOR row 0x180079210 and the ctor / dtor / slot doors are retired
-// (tools/rt_mint_retired/ui-b.txt).
+// its RT_DELDTOR row 0x180079210 and the ctor / dtor / slot doors are retired.
 // ABSTRACT (slot 0 pure), no real ctor: every live one is built by the
 // `??0TableDescription` DOOR (tabledescription.cpp) and wears the MINTED table.
 //

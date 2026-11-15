@@ -20,9 +20,8 @@
 //   helper_e270 @ 0x1400ae270   — vertex position (normal) compute via heightmap deltas.
 //
 // All three are invoked from `TradeWork_impl_04d0` (Geometry::Serialize body)
-// step 5 in M35_geom_serialize_findings.md. They are NOT yet wired into
-// Geometry::Serialize itself (that's session 8). The goal of session 6 is
-// just that the helpers exist + are callable + standalone build links cleanly.
+// step 5 in docs/history/notes/M35_geom_serialize_findings.md. WorldGeometry::Serialize
+// (geometry_serialize.cpp) calls BuildTerrainMesh in that step on loading.
 //
 // Math constants (verified via Ghidra `inspect_memory_content`):
 //   g_fUVScale       @ 0x14017214c = 0x3F800000 = 1.0f
@@ -43,12 +42,10 @@
 //   +0x0e : byte    nz         (normal.z scaled to [0,255])
 //   +0x0f : byte    pad/zero
 // (The original disasm writes these in a fairly idiosyncratic order — see
-//  fAUC_1400ac880 below for line-for-line decompile.)
+//  WorldGeometry::FillTerrainVertices below.)
 
 // ENDGAME B.3.5 Video/Graphics caller batch: Video::{Vertex,Index}Buffer are
-// real classes. Ahead of "resolve.h" — resolve.h pulls <windows.h>, whose
-// <wingdi.h> declares a global `Rectangle` FUNCTION that hides
-// `Volume::Rectangle`'s class name inside Volume.h's own static_asserts.
+// real classes.
 #include "video/Buffers.h"
 #include "WorldGeometry.h"   // caller batch CB6: RebuildDirtyChunks is the class's
 #include <atomic>

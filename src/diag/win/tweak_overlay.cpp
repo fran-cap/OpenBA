@@ -1,5 +1,5 @@
 // ============================================================================
-// src/diag/tweak_overlay.cpp -- tweak_overlay.h (debug flavour only: CMake compiles this
+// src/diag/win/tweak_overlay.cpp -- tweak_overlay.h (debug flavour only: CMake compiles this
 // file only with BANISHED_TWEAK_OVERLAY on)
 // ============================================================================
 // NOT RETAIL. Block TWEAKUI; docs/reference/tweak_overlay.md (the panels, how to add a
@@ -95,7 +95,7 @@ struct Action {
     int         value;
 };
 
-std::mutex          g_mu;          // guards everything below up to g_drawMu
+std::mutex          g_mu;          // guards g_events, g_actions, g_snap and g_justOpened
 std::vector<SDL_Event> g_events;   // pump -> presenting thread
 std::vector<Action> g_actions;     // presenting thread -> pump
 Snapshot            g_snap;
@@ -620,7 +620,7 @@ void DrawPanels(const Snapshot& s) {
     }
 
     if (ImGui::CollapsingHeader("Billboard shadow")) {
-        // TS-TWEAK / TS-DAPPLE: the rewrite's three immediates; each applied on release (a change
+        // TS-TWEAK / TS-DAPPLE: basis / margin / jitter / noise; each applied on release (a change
         // re-creates the rewritten copies once, through the stage's reset path), snapped to 0.05.
         RowCheckbox(s, RowIndex("better_trees"), "better_trees");
         bool changed = false;

@@ -37,13 +37,13 @@
 namespace Game { void Hotkey_BuildKeyName(UI::String* retval, int device, int keyIndex); }
 
 // ============================================================
-// Exe helper, resolved PER CALL (ENDGAME B.3.8, B6-5). The External ctor
+// Exe helper, called by name (ENDGAME B.3.8, B6-5). The External ctor
 // dispatch slot and the two vtable addresses this file cached lazily are
 // gone: the compiler runs External() and stamps both tables.
 // ============================================================
 
 // TutorialImage_sub_7ad0 -- ExternalPtr serialize helper (exe 0x140027ad0)
-// called by name: TutBase_SerializeImageRef (Tutorial/exe_bodies.h)
+// called by name: ::Object::SerializeExternal<UI::ElementDescription> (object/External.h)
 
 // ============================================================
 // Construction / destruction (ENDGAME B.3.8 block GOAL)
@@ -133,11 +133,9 @@ Object::InternalPtr<UI::Element>* TutorialImageInputKey::CreateElement(Object::I
 
     // 9. Get key name as UI::String (a zeroed buffer, as the tree's was)
     UI::String uiStr(Object::ExternalPtr<UI::StringTable>(nullptr), 0);
-    // LANE1 row 36: 0x140099c20 is unregistered, so fn_GetInputKeyName was
-    // permanently null and every tutorial key name rendered blank. The function is
-    // already ported byte-for-byte as Hotkey_BuildKeyName (hotkeytooltipui.cpp);
-    // retail's param_1 is the KeyMap container and that port looks up the same
-    // *g_pKeyMapSingleton, so this is the identical call, not a fourth copy.
+    // 0x140099c20 is ported byte-for-byte as Hotkey_BuildKeyName (hotkeytooltipui.cpp);
+    // retail's param_1 is the KeyMap container, and that port reads the same keyNames
+    // table through g_gameContainer, so this is the identical call, not a fourth copy.
     Game::Hotkey_BuildKeyName(&uiStr, deviceType, inputIndex);
 
     // 10. Set text on the TextElement

@@ -16,8 +16,8 @@
 // so MSVC passes a hidden return-slot pointer in RDX after `this` in RCX and
 // returns that same pointer in RAX. A typedef that omits the slot is a wild
 // write that still returns the right answer
-// (reference_hidden_retslot_wild_write.md). Ports in renderer.cpp spell the slot
-// out as an explicit parameter.
+// (reference_hidden_retslot_wild_write.md). The ports in renderer.cpp are
+// members that return by value.
 // ============================================================================
 
 #include <cstdint>
@@ -111,8 +111,6 @@
 // Renderer against the DLL's would diverge on whatever the caller's memory
 // happened to hold. renderer.cpp reproduces the gap exactly.
 //
-// sizeof 0x50 also matches the pre-existing note at
-// engine/funcs/engine_funcs.h:3081 ("Object size 0x50, alignment 4").
 // ============================================================
 
 
@@ -125,8 +123,8 @@
 // from the retail DLL (Runtime-x64.dll, 15290 functions, image base
 // 0x180000000) this pass. Every one of the seventeen is an ACCESSOR whose whole
 // body is one to six instructions, read as DISASSEMBLY (`disassemble_function`,
-// never decompiled C), and between them they NAME eight fields the `RtGraphics`
-// PODs above left as `field_NN` or as an opaque blob:
+// never decompiled C), and between them they NAME eight fields the retired
+// `RtGraphics` PODs left as `field_NN` or as an opaque blob:
 //
 //   ?GetCurrentSceneGroup@Renderer@  0x180018030  MOV EAX,[RCX+0x30]
 //   ?GetMaterialTypeFlags@Renderer@  0x180017ff0  group[cur] + 0x1bc
@@ -150,18 +148,16 @@
 //                                                 0x64..0xd0 dwords, 0xd4 BYTE
 //
 // -------------------------------------------------------------------------
-// EIGHT CORRECTIONS TO THE PODs ABOVE. The POD field NAMES stay (they have
-// live users in eight files outside block F's set, and B4b-1 only renames a POD
-// that OCCUPIES the retail name — `RtGraphics` is a SIBLING of `Graphics`, so
-// nothing has to move). The classes below carry the CORRECT names and every
-// offset is cross-asserted against the POD, so the two cannot drift.
+// EIGHT CORRECTIONS TO THE RETIRED `RtGraphics` PODs' FIELD NAMES. Each item
+// gives the POD's name, then the name an accessor proves; the classes below
+// carry the CORRECT names, and their offsets are static_asserted.
 // -------------------------------------------------------------------------
 //  1. `Renderer::contextSerial` (+0x44) is the FRAME INDEX.
 //     `?GetFrameIndex@Renderer@Graphics@@QEBAHXZ` @0x180018080 is
 //     `MOV EAX,[RCX+0x44]; RET`. The POD's comment ("Draw copies Context+0x08")
 //     is not contradicted — it says what Context+0x08 IS.
 //  2. `Renderer::field_48` is the DETAIL ID. `?GetDetailId@` @0x180018070.
-//     `cull.cpp` already compares `geo->_detailId <= renderer->field_48`, which
+//     `cull.cpp` compares `geo->_detailId <= renderer->_detailId`, which
 //     is the same field in the same role from the other side.
 //  3. `Renderer::field_3c` is the SHADER DETAIL, with BOTH accessors:
 //     `?SetShaderDetail@` @0x180018050 writes it, `?GetShaderDetail@`
@@ -249,11 +245,11 @@
 // alignment pad bytes are not
 // (`Volume.h`: "the pad bytes carry no meaning"; `Math.h`: `Frustum`'s
 // +0x61..+0x63 exist only to satisfy alignment, and no retail call site reads
-// past +0x60). So: `= default` here, and BOTH RETAIL BODIES KEEP THEIR
-// REGISTERED DOORS — `RtGraphics_Camera_CopyCtor` (wave9_lane_gfxd.cpp) and the
-// new `RtGraphics_Camera_Assign` (renderer.cpp) — so every copy the live engine
-// makes is still retail's partial one. The deviation is reachable only from C++
-// code that copies a `Graphics::Camera` directly, and nothing does.
+// past +0x60). So: `= default` here, and BOTH RETAIL BODIES ARE PORTED AS PLAIN
+// FUNCTIONS — `RtGraphics_Camera_CopyCtor` (wave9_lane_gfxd.cpp) and
+// `RtGraphics_Camera_Assign` (wave28_lane_gfxbody.cpp, which `BeginDrawGroup`'s
+// reuse path calls). The deviation is reachable only from C++ code that copies a
+// `Graphics::Camera` directly, as draw_gather.cpp and render_pipe.cpp do.
 //
 // SUPERSEDED FOR THE COPY CONSTRUCTOR (B.4 S4 GFX2, a `behaviour:` commit): the
 // copy ctor IS retail's partial body 0x180017a70 now, because every retail
@@ -263,20 +259,20 @@
 // is the door's `(this, src)` shape over it. `operator=` is unchanged.
 //
 // -------------------------------------------------------------------------
-// NO REAL CONSTRUCTOR, NO REAL DESTRUCTOR (ENDGAME §B.1 decision 2, B4b-2,
+// THE CONSTRUCTORS AND THE DESTRUCTOR (ENDGAME §B.1 decision 2, B4b-2,
 // B35_RULES §11)
 // -------------------------------------------------------------------------
-// `??0Camera()` (0x1800fe7f0), `??0Renderer()` (0x180105180) and
-// `??1Renderer()` (0x1800180a0) keep their doors — `fn_Graphics_Renderer_Ctor`
-// is named in B35_RULES §11's leave list. (`??0Camera(const Frustum&, const
-// Transform3&, bool)` 0x1800fe960 is a defined member since B.4 wave X round 4.)
-// `Renderer`'s ctor must not become an init-list,
+// `??0Camera()` (0x1800fe7f0) is `RtGraphics_Camera_DefaultCtor`
+// (wave9_lane_gfxd.cpp); `??0Renderer()` (0x180105180) and `??1Renderer()`
+// (0x1800180a0) are the members `Renderer()` / `~Renderer()` in renderer.cpp.
+// (`??0Camera(const Frustum&, const Transform3&, bool)` 0x1800fe960 is a defined
+// member since B.4 wave X round 4.) `Renderer`'s ctor must not become an init-list,
 // because RULE B5-13 requires +0x3c and +0x4c stay unwritten.
 //
 // RULE B5-7: nothing below adds a static initialiser, a lazy singleton or a
 // non-atomic first-call cache. `Camera`, `Renderer` and `Scene` are constructed
-// on the `Engine::Loader` thread (`src/game/Game/gameupdateloop_load.cpp:570`,
-// `:986`, `:1090`) while the main thread is inside `Draw`.
+// on the `Engine::Loader` thread (`src/game/Game/gameupdateloop_load.cpp:806`,
+// `:814`, `:915`) while the main thread is inside `Draw`.
 // ############################################################################
 
 #include <type_traits>
@@ -308,22 +304,21 @@ public:
     // B.4 S4 GFX2 (behaviour): the copy constructor is retail's PARTIAL body
     // 0x180017a70 (defined in wave9_lane_gfxd.cpp): 53 dwords +0x00..+0xd3,
     // then the byte at +0xd4; +0xd5..+0xd7 unwritten. `operator=` stays
-    // `= default` (its partial body 0x180017c40 keeps its door in renderer.cpp)
-    // — see the banner.
+    // `= default` (its partial body 0x180017c40 is `RtGraphics_Camera_Assign`
+    // in wave28_lane_gfxbody.cpp) — see the banner.
     Camera(const Camera& src);                            // 0x180017a70
-    Camera& operator=(const Camera& src) = default;       // 0x180017c40  door: renderer.cpp
+    Camera& operator=(const Camera& src) = default;       // 0x180017c40  body: wave28_lane_gfxbody.cpp
 
     // `??0Camera@Graphics@@QEAA@AEBVFrustum@Volume@@AEBVTransform3@Math@@_N@Z`
     // @ 0x1800fe960 — defined in renderer.cpp (its disassembly quoted there);
-    // Its callers (saveload_draw.cpp, userinterface_draw.cpp) construct it directly.
+    // Its callers (saveload_draw.cpp, userinterface_draw.cpp, lights_vtable.cpp, sun_camera.cpp,
+    // minimap_paint.cpp, the PlayerController ctors) construct it directly.
     Camera(const ::Frustum& frustum, const Math::Transform3& cameraToWorld, bool zUp);
 
     // ---- the ten non-constructor exports ----------------------------------
     // The four by-value returns are NON-VIRTUAL, so an ordinary C++ by-value
-    // return is correct and safe: `Camera` has no vtable at all, both ends of
-    // every member call are this same GCC, and each registered door keeps
-    // retail's `(this, ret)` shape as a separate function that placement-news
-    // the prvalue into the caller's slot. (A VIRTUAL by-value return would NOT
+    // return is correct and safe: `Camera` has no vtable at all and both ends of
+    // every member call are this same GCC. (A VIRTUAL by-value return would NOT
     // be safe — Geometry.h's B5-12 block, as amended by block E.)
     Math::Transform3 GetCameraToWorld() const;            // 0x180017e70  RETSLOT
     Math::Transform3 GetCameraToWorld(float t) const;     // 0x180017e10  RETSLOT, IGNORES t
@@ -352,11 +347,9 @@ public:
     Math::Matrix     _projection;      // +0x94 .. +0xd3
     // +0xd4 — `?SetZUp@Camera@Graphics@@QEAAX_N@Z` (0x1800fe550) is
     // `MOV byte ptr [RCX+0xd4],DL; RET`, so retail's own name for this byte is
-    // Z-UP. The POD above calls it `swapZUpToYUp` and its long comment explains
-    // WHAT it selects (whether `SetFrustum` post-multiplies the projection by
-    // the fixed basis swap (x,y,z,w) -> (x,z,-y,w), i.e. a Z-up world into a
-    // Y-up clip space) and why it is NOT "isPerspective". Both readings are the
-    // same byte; the class takes retail's name and the POD's comment stands.
+    // Z-UP. It selects whether `SetFrustum` post-multiplies the projection by
+    // the fixed basis swap (x,y,z,w) -> (x,z,-y,w) (renderer.cpp's `kZUpToYUp`),
+    // i.e. a Z-up world into a Y-up clip space; it is NOT "isPerspective".
     uint8_t          _zUp;             // +0xd4
     uint8_t          _pad_d5[3];       // +0xd5..+0xd7 — NEVER WRITTEN by the
                                        // copy ctor, by `operator=` or by
@@ -374,7 +367,7 @@ static_assert(alignof(Camera) == 4, "Camera's widest member is a float");
 // NOTE what is NOT claimed. `RendererDrawGroup` and `RendererSceneEntry` are NOT
 // trivially copyable and never were, as PODs or as classes: each embeds a
 // `Collection::Array<T>`, whose destructor is user-declared and whose
-// `operator=` is retail's DEEP `ArrayAssignCore` (Collection.h:333 and its
+// `operator=` is retail's DEEP `ArrayAssignCore` (Collection.h:372 and its
 // banner). `rtcoll::SpecFor<T>` therefore already derives `byteCopy = false` and
 // a real `destroy` hook for both — which is exactly what renderer.cpp's
 // `~Renderer` comment and `wave9_lane_gfxd.cpp`'s `kSpec_SceneEntry` rely on.
@@ -551,9 +544,9 @@ static_assert(offsetof(RendererDrawGroup, _cullCamera) - offsetof(RendererDrawGr
 // other. `Renderer::SceneGroup` below is a member alias, so retail's spelling
 // still names it. Recorded as a naming deviation, not an unknown.
 //
-// The three `RtGraphics` PODs and `wave9_lane_gfxd.cpp`'s ArraySpec label
-// string ("Array<Graphics::Renderer::SceneEntry>") keep the old name: the label
-// is debug output and the PODs have users outside block F.
+// `wave9_lane_gfxd.cpp`'s ArraySpec label string
+// ("Array<Graphics::Renderer::SceneEntry>") keeps the old name: the label
+// is debug output.
 //
 // `SceneEntryInit` (0x180062860) and `SceneEntryAssign` (0x18001bdc0) leave
 // +0xfc UNWRITTEN — plus the embedded Camera's +0xd5..+0xd7 tail, which lands
@@ -561,8 +554,7 @@ static_assert(offsetof(RendererDrawGroup, _cullCamera) - offsetof(RendererDrawGr
 // ============================================================
 class RendererSceneEntry {
 public:
-    // The implicit default constructor, kept (`SpecFor<T>`'s TInit and
-    // imagebuffer_derived.cpp's stack record use it).
+    // The implicit default constructor, kept (`SpecFor<T>`'s TInit uses it).
     RendererSceneEntry() = default;
     // Retail's SceneGroup constructor 0x1800628d0 (unexported; `AddScene`
     // 0x180105700 inlines it into its stack record, store for store). Stores,
@@ -631,8 +623,7 @@ static_assert(offsetof(RendererSceneEntry, _camera) + sizeof(Camera) == 0x0e8,
 //   wave9_lane_gfx.cpp       AddDrawItem                          NOT block F's
 //   batchc_gfx_leaves.cpp    DrawItemList                         NOT block F's
 //
-// The four bodies in files block F does not own keep their doors untouched and are
-// listed in its report; the caller batches and blocks G / the owner convert them.
+// The four bodies in files block F does not own are members too, defined in those files.
 // The only two exports with NO port anywhere are the copy constructor
 // (0x1800180e0) and `operator=` (0x180018180), and neither has a caller: both are
 // DECLARED below and deliberately left undefined.
@@ -648,17 +639,15 @@ public:
     using DrawItem   = RendererDrawItem;
     using Drawable   = RendererDrawable;
 
-    // ---- the four lifetime exports, ALL FOUR DOORS (B4b-2, §11) -----------
-    Renderer();                                    // 0x180105180  renderer.cpp (the door placement-news it)
+    // ---- the four lifetime exports (B4b-2, §11) ----------------------------
+    Renderer();                                    // 0x180105180  renderer.cpp
     Renderer(const Renderer& src);                 // 0x1800180e0  not ported, no caller
     Renderer& operator=(const Renderer& src);      // 0x180018180  not ported, no caller
     ~Renderer();                                   // 0x1800180a0  renderer.cpp: the three Arrays, reverse order
 
     // ---- the four big bodies, ALL PORTED but NOT IN BLOCK F'S FILE SET -----
-    // Declared here so no later block or caller batch has to edit this header,
-    // and deliberately left UNDEFINED: each body is a door in a file block F may
-    // not touch (see the banner's table), and whoever owns that file moves the
-    // body onto the member. `Draw` is the whole frame.
+    // Members, each defined in the file the banner's table names (none of them
+    // block F's). `Draw` is the whole frame.
     void AddDrawItem(const Geometry* geometry, const MaterialInstance* material,
                      uint16_t a, uint16_t b, float sortKey, float c, int d,
                      const void* userData, uint32_t e);                    // 0x1801057b0
@@ -747,7 +736,7 @@ public:
 
 static_assert(sizeof(Renderer) == 0x50, "Graphics::Renderer is 0x50 (80) bytes");
 static_assert(alignof(Renderer) == 8, "Renderer's widest member is a pointer");
-// And against the retail bodies directly, so a POD edit cannot move both.
+// Every offset, against the retail bodies directly.
 static_assert(offsetof(Renderer, _sceneGroups)       == 0x00, "Renderer::_sceneGroups @ +0x00 (GetSceneGroup 0x180018090)");
 static_assert(offsetof(Renderer, _drawGroups)        == 0x10, "Renderer::_drawGroups @ +0x10 (GetCamera 0x180017f70)");
 static_assert(offsetof(Renderer, _drawables)         == 0x20, "Renderer::_drawables @ +0x20");

@@ -77,20 +77,14 @@
 //
 // The dead branches are still TRANSCRIBED here, faithfully, because the gate is
 // a property of the BACKEND and not of SunLight: a DX9 device could answer
-// true. They carry their own branch counters so the claim "unreachable" is
-// measured on every diff run rather than asserted (see the [branch:] sites).
+// true.
 //
 // ---------------------------------------------------------------------------
 // WHY THE DTOR IS HERE THOUGH IT IS NOT ON THE RESIDUE LIST
 // ---------------------------------------------------------------------------
 // `??1SunLight@Graphics@@UEAA@XZ` is reached through the SunLight vtable, not by
-// name, so a name-keyed residue scan never recorded it. At cutover that
-// vtable is minted, and a minted vtable slot pointing at a DLL that is not
-// there is the "mint is blind to what its own minted vtables READ" failure
-// (reference_mint_population_rule_blind_to_its_own_output.md). It is also
-// nineteen instructions, it is the exact teardown the ctor's construction
-// needs, and the probe below needs a teardown for BOTH sides. Porting it is
-// cheaper than arguing about it.
+// name, so a name-keyed residue scan never recorded it. It is nineteen
+// instructions and the exact teardown the ctor's construction needs.
 //
 // ---------------------------------------------------------------------------
 // operator new / operator delete
@@ -140,8 +134,7 @@ namespace {
 // `dd->vtable[6]()` — the capability gate, `Video::DeviceData::Slot6`. See the
 // header block: this is `xor al,al; ret` on DX11 and therefore always false in
 // this process, but the call is made rather than folded away, because the
-// answer belongs to the device and not to us. LEFT: `Device::deviceData` is a
-// `void*` in Device.h (video's header), so the one view of it is here.
+// answer belongs to the device and not to us.
 bool DeviceSupportsColourShadowTarget() {
     return ::Video::Device::_singleton->deviceData->Slot6();
 }
@@ -162,19 +155,12 @@ void  OperatorDelete(void* p) { if (p != nullptr) System::MemoryAllocator::MemFr
 // -1 (standalone_crash.log, RIP inside ImageBufferCreate+0x76, with R8=1/R9=7/
 // RSI=0x40 — this file's own depth-target argument tuple).
 //
-// THE CAUSE IS A PORT-SEAM ABI HAZARD, worth stating rather than just fixing.
 // MSVC returns `this` in RAX from a constructor, so retail's `MOV RCX,RAX` is
-// correct against the SHIPPED body. But `??0ImageBuffer@Video@@QEAA@XZ` is
-// PORTED, and our port is declared `void Video_ImageBuffer_Ctor(ImageBuffer*)`
-// (src/engine/video/buffers.cpp:387) — a void-returning C++ function whose RAX
-// is whatever the last expression left there. Reading a ported constructor's
-// return value therefore reads garbage, on the DLL-present path AND at cutover.
-// (`RtGraphics_Geometry_Ctor` does return `Geometry*`; the convention is not
-// uniform across the tree, which is exactly why this must not be relied on.)
+// correct against the SHIPPED body. Here the object is built with a
+// placement-new expression, whose value is `p`.
 //
 // `p` and the returned `this` are the same pointer by construction, so using
-// `p` is byte-faithful to what retail computes while being independent of how
-// any port spells its signature.
+// `p` is byte-faithful to what retail computes.
 Video::ImageBuffer* NewImageBuffer() {
     void* p = OperatorNew(0x68);
     if (p == nullptr)
@@ -233,30 +219,6 @@ const float kBoundsMax = BitsToFloat(0x49742400u);   // DAT_18016173c
 const float kBoundsMin = BitsToFloat(0xc9742400u);   // DAT_180161778
 
 }  // namespace
-
-// ============================================================================
-// Graphics::SunLight::Set(const Math::Vector3& dir, const Math::Vector4& sun,
-//                         const Math::Vector4& ambient)   — 0x180107f10
-//
-// ELEVEN DWORD COPIES, then two rebuild branches that this backend never takes.
-// The copies are `MOV EAX,[src] / MOV [this+off],EAX` in the shipped body — no
-// float arithmetic at all, so there is no association order to get wrong and no
-// bit-exactness risk here (WAVE9_LANE_GFX.md §6.5 finding 1, confirmed).
-//
-// THE ORACLE, and its one refusal. On the copy-only path this is a pure写-once
-// function of three inputs that our body does not touch, so it replays exactly:
-// snapshot the eleven dwords, run ours, read them back, restore the snapshot,
-// run the shipped body, read again, compare. The three SOURCE vectors are the
-// caller's and are never written by either side, so the aliasing trap in
-// reference_oracle_must_snapshot_aliased_inputs.md does not apply — but the
-// DESTINATION is `this`, which is live state, which is why the snapshot is
-// restored before the shipped body runs rather than after.
-//
-// If either rebuild branch is taken the diff is REFUSED, not faked: replaying
-// would destroy and rebuild GPU resources a second time and the "comparison"
-// would be between two different objects. That call is counted on its own site
-// so a refusal is visible instead of silently inflating `calls=`.
-// ============================================================================
 
 namespace Graphics {
 
@@ -424,10 +386,6 @@ void SunLight::Set(const Math::Vector3& direction, const Math::Vector4& sun,
         _renderBuffer = NewRenderBuffer();
         _renderBuffer->Create(_colourTarget, _depthTarget);
     }
-    // A rebuild call verifies NOTHING against an oracle here, and the old
-    // `float pre[11]` / `bool rebuilt` locals that said so were dead: both were
-    // written and never read, and both were -Wunused warnings in the perf build.
-    // The refusal is stated in the banner above the door instead.
 }
 
 }  // namespace Graphics
@@ -447,9 +405,8 @@ void SunLight::Set(const Math::Vector3& direction, const Math::Vector4& sun,
 // ============================================================================
 // Graphics::SunLight::InitFields / ReleaseFields (ENDGAME B.3.8 block RB,
 // RULE B8-1): 0x1801081f0 after its two stamps, and 0x180108160 between its
-// restamp and the ~Geometry tail. Shared by the real ctor/dtor (SunLight.h)
-// and the two doors above. B.4: on the class's own fields (the POD view is
-// gone).
+// restamp and the ~Geometry tail. Run by the real ctor/dtor (SunLight.h).
+// B.4: on the class's own fields (the POD view is gone).
 // ============================================================================
 void Graphics::SunLight::InitFields() {
     // +0xC0..+0xE8 (_direction, _sun, _ambient) are SunLight()'s

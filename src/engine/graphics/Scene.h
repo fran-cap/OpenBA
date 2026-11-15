@@ -15,10 +15,8 @@
 //
 // The grid half of the object is shared with other classes: the ctor body,
 // the insert, the unthread and the re-index are all `FUN_`-named internals that
-// several containers call. This lane calls those at their retail addresses
-// rather than re-deriving them, exactly as Wave 5 lane D did for
-// `Picking::Scene` (src/engine/picking/scene.cpp) — see the banner in
-// src/engine/graphics/scene.cpp for the argument.
+// several containers call. They are ported in `src/engine/graphics/scene_grid.cpp`
+// (`scene_grid.h` is their contract).
 // ============================================================================
 
 #include <cstdint>
@@ -129,20 +127,17 @@ using SceneObjectId = uint32_t;
 // `RtGraphics::Scene`, a `0x78`-sized member, and the game loops block 0 named as
 // the suspects. Every site that owns a Scene owns it INDIRECTLY:
 //
-//   src/game/Game/gameupdateloop_load.cpp:1090  MemAlloc(0x78) then the ctor
-//                                                door; the loop keeps a
-//                                                `void* m_graphicsScene` at
+//   src/game/Game/gameupdateloop_load.cpp       AllocSub(0x78, 8) then placement
+//                                                `::new Graphics::Scene()`; the
+//                                                loop keeps a `Graphics::Scene*
+//                                                m_graphicsScene` at
 //                                                GameUpdateLoop+0x60
-//                                                (engine/types/GameUpdateLoop.h:61)
-//   src/game/Game/menudialogloopt.cpp:715       MemAlloc(0x78, 8) then the ctor
-//                                                door; held as `void* scene`
-//                                                (menudialogloopt_funcs.h:70)
-//   src/game/Game/minimap_paint.cpp:250         `alignas(16) uint8_t scene[256]`
-//                                                — RAW STORAGE, not a typed
-//                                                member: no default constructor
-//                                                is required of `Scene` and no
-//                                                copy is ever made of it
-//   engine/types/{FencedTool,PlacementTool}.h    an int32 scene OBJECT ID, not a
+//                                                (src/game/Game/GameUpdateLoop.h)
+//   src/game/Game/menudialogloopt.cpp           MemAlloc(0x78, 8) then placement
+//                                                `::new Graphics::Scene()`
+//   src/game/Game/minimap_paint.cpp             a `Graphics::Scene` stack local,
+//                                                not a member
+//   src/game/Player/{FencedTool,PlacementTool}.h an int32 scene OBJECT ID, not a
 //                                                Scene
 //
 // So no `Collection::Array<Scene>`, no embedded `Scene` member, no `Scene` copy
@@ -153,8 +148,8 @@ using SceneObjectId = uint32_t;
 // are deleted).
 //
 // RULE B5-7 applies here as much as to `Camera` and `Renderer`: the
-// `Engine::Loader` thread constructs the Scene (`gameupdateloop_load.cpp:1090`)
-// and calls `Scene::AddGlobalObject` (`:1654`) while the main thread is inside
+// `Engine::Loader` thread constructs the Scene (`gameupdateloop_load.cpp`)
+// and calls `Scene::AddGlobalObject` while the main thread is inside
 // `Draw`. Nothing below adds a static initialiser, a lazy singleton or a
 // non-atomic first-call cache.
 //
@@ -211,11 +206,11 @@ static_assert(offsetof(SceneNode, _cell)  == 0x10, "SceneNode::_cell @ +0x10 (Sc
 // doubly linked list of "global" objects that skip the grid and are always
 // visited. The field evidence is the POD's banner above, function by function.
 //
-// FIFTEEN exports (B35_SLOTS.md), and after this block ELEVEN of them are
-// ported — the nine wave 6 lane D ported (`scene.cpp`), `AddCulledDrawItems`
-// (`cull.cpp`), `AddGlobalDrawItems` (`wave29_lane_gfxbody.cpp`) and the public
-// `AddDrawItems`, which block F read out of the DLL and ported this pass. The
-// four that stay are the copy constructor, `operator=` and the three
+// FIFTEEN exports (B35_SLOTS.md), and TEN of them are ported — eight in
+// `scene.cpp` (the constructor, the destructor, `AddObject`, `RemoveObject`,
+// `Clean`, `AddGlobalObject`, `RemoveGlobalObject` and `AddDrawItems`),
+// `AddCulledDrawItems` (`cull.cpp`) and `AddGlobalDrawItems` (`wave29_lane_gfxbody.cpp`).
+// The five that stay are the copy constructor, `operator=` and the three
 // class-scoped allocation operators, none of which has a caller anywhere in the
 // tree; each is declared below and deliberately left undefined.
 // ============================================================
@@ -286,17 +281,16 @@ public:
 
     // ---- drawing -----------------------------------------------------------
     // `?AddDrawItems@Scene@Graphics@@QEBAXAEAVRenderer@2@@Z` (0x1801023b0) is the
-    // PUBLIC entry and the only caller of the two private ones; block F read it
+    // PUBLIC entry and calls the two private ones; block F read it
     // this pass (13 instructions) and ported it into `scene.cpp`.
     void AddDrawItems(Renderer& renderer) const;             // 0x1801023b0
 
     // Both are `AEBA` in retail — PRIVATE const members, which this DLL exports
     // anyway (reference_aeaa_is_private_not_unexported.md). They are declared
-    // PUBLIC here for the same reason `SunLight::CreateTargets` (also `AEAA`) is:
-    // access control is not ABI, and each one's REGISTERED DOOR is a free
-    // `extern "C"` function that has to call it. Retail's access is recorded in
-    // this comment rather than enforced by a `friend` list that would have to name
-    // two door symbols in a layout header.
+    // PUBLIC here because code outside the class calls them by name
+    // (lights_vtable.cpp, wave27_lane_gfxbig.cpp, wave28_lane_partsys.cpp,
+    // src/ext/render_pipe/passes.cpp): access control is not ABI. Retail's access
+    // is recorded in this comment rather than enforced by a `friend` list.
     void AddCulledDrawItems(Renderer& renderer) const;       // 0x1801017a0  cull.cpp
     void AddGlobalDrawItems(Renderer& renderer) const;       // 0x180102330  wave29_lane_gfxbody.cpp
 
@@ -327,11 +321,11 @@ static_assert(offsetof(Scene, _grid) == 0x0, "Scene::_grid");
 static_assert(alignof(Scene) == 8, "Scene's widest members are pointers");
 // Nothing holds a Scene by value (§13 item 5, closed above), but the Arrays and
 // the LinkedList still own heap, so the destructor must NOT be trivial — that is
-// what `??1Scene@` frees, in retail's order, through its door.
+// what `??1Scene@` frees, in retail's order.
 static_assert(!std::is_trivially_destructible_v<Scene>,
               "the five Arrays and the global list are what ??1Scene@ frees");
 
-// And against the retail bodies directly, so a POD edit cannot move both.
+// And against the retail bodies directly.
 static_assert(offsetof(Scene, _grid._levelCount) == 0x0c, "Scene::_levelCount @ +0x0c (FUN_18005ee30)");
 static_assert(offsetof(Scene, _grid._nodes) == 0x10, "Scene::_nodes @ +0x10 (Scene::Clean 0x1801023f0)");
 static_assert(offsetof(Scene, _grid._freeIds) == 0x20, "Scene::_freeIds @ +0x20 (RemoveObject 0x180102600)");
@@ -343,10 +337,9 @@ static_assert(offsetof(Scene, _globals)      == 0x60, "Scene::_globals @ +0x60 (
 }  // namespace Graphics
 
 // ==== B3R W0-P0c: Runtime bodies reached by retail address ====
-// ENDGAME B.3R (B3R_RULES R5): each body below is registered at the retail
-// address in its trailing comment and read through the registry today. It is
-// declared here, copied from its definition (linkage, namespace, types), so the
-// reader can call it by name. Nothing calls it through this declaration yet.
+// Each body below is declared here, copied from its definition (linkage,
+// namespace, types), so its callers call it by name; the trailing comment is
+// its retail address.
 
 // ---- graphics/closure_batch2b.cpp
 extern "C" void* RtGraphics_DrawGroup_CopyCtor(void* self, const void* src);  // 0x18001be60

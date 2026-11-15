@@ -3,13 +3,11 @@
 //   ?EnumerateVideoModes@Device@Video@@QEAA_NXZ  retail 0x1800f8610  ord 2319
 // ============================================================================
 //
-// ATTEMPT 22'S WALL. Our ported `Engine::Startup` calls it at
-// engine_lifecycle.cpp:678 and **discards the result** — `(void)RT_EXPORT_ONCE(
-// BoolThisFn, "?EnumerateVideoModes@...")(videoDevice)` — because retail does
-// not test it either. So the `_N` return is not load-bearing for control flow;
-// what has to be right is the SIDE EFFECT, and a later consumer faults on that
-// some distance from the actual defect. That is why the verification for this
-// lane lives in video_mode_sort_probe.cpp and not in a return-value compare.
+// `Engine::Startup` calls it (src/engine/engine/engine_lifecycle.cpp) and
+// **discards the result** — `(void)videoDevice->EnumerateVideoModes()` — because
+// retail does not test it either. So the `_N` return is not load-bearing for
+// control flow; what has to be right is the SIDE EFFECT, and a later consumer
+// faults on that some distance from the actual defect.
 //
 // THE BODY IS TWO HALVES
 // ----------------------
@@ -21,23 +19,15 @@
 //
 // WHAT IT WRITES INTO THE DEVICE, WHICH IS THE QUESTION THE BRIEF ASKED
 // ---------------------------------------------------------------------
-// Exactly two regions change across the call, and NEITHER is comparable:
+// Exactly two regions change across the call:
 //   * +0x40/+0x48/+0x4C — the `Array<GraphicsInterface>` header, filled
 //     indirectly by the plugin virtual. `_data` is a heap pointer: different
-//     between any two runs by construction. This is the false-mismatch class
-//     lane GFXD hit (five "mismatches", all `_data` pointers at one offset).
+//     between any two runs by construction.
 //   * +0xb0..+0xf7 — the three `InterfaceSlot`s, written by
-//     `InitializeInterfaces`: an HMODULE and two GetProcAddress results.
-//     Different every run, and different IN KIND between ours and theirs,
-//     because slot 1 is deliberately ours.
-// A snapshot-before/compare-after over the 0x108 device would therefore be 100%
-// mismatch on every byte either side writes, and silent about everything else.
-// It is not built.
+//     `InitializeInterfaces`: a module handle and two entry points each.
 //
-// THE SORT PASS IS THE ONLY REAL COMPUTATION, and it IS comparable — a pure
-// permutation of buffers the caller owns. video_mode_sort.cpp transcribes the
-// two introsorts and video_mode_sort_probe.cpp compares their permutations
-// against the shipped bodies over a tie-heavy corpus.
+// THE SORT PASS IS THE ONLY REAL COMPUTATION — a pure permutation of buffers
+// the caller owns. video_mode_sort.cpp transcribes the two introsorts.
 //
 // FOUR TRANSCRIBED DETAILS
 // ------------------------
@@ -106,9 +96,9 @@ static_assert(sizeof(Video::Device::dllSlots) / sizeof(InterfaceSlot) == kSlotCo
 // ENDGAME B.3.5 block D2. `InitializeInterfaces` is a sibling member now, and the
 // two hand-inlined `DeviceData` vtable dispatches became virtual calls on block
 // A's real `Video::DeviceData` (slot 1 `EnumerateInterfaces`, slot 0 the
-// virtual destructor via `delete`, B5 DEV-A). The file's `__try`/`__except` structure and every branch are
-// untouched — B35_RULES §6.1 and §B.1.7 put SEH last, and the unguarded deref at
-// 0x1800f8678 is what that SEH region exists for.
+// virtual destructor via `delete`, B5 DEV-A). Every branch is untouched; the file
+// has no `__try`/`__except` (see the banner), and the unguarded deref at
+// 0x1800f8678 is what retail's SEH region exists for.
 bool Video::Device::EnumerateVideoModes() {
     Video::Device::InitializeInterfaces();              // 0x1800f8627
 
@@ -162,8 +152,7 @@ bool Video::Device::EnumerateVideoModes() {
             // Retail RE-READS `adapter->modeCount` for the inner loop bound
             // (0x1800f8723 and again at 0x1800f8755) rather than reusing the
             // value it just tested. Kept: the sort above can in principle be
-            // handed a count the array does not have, and folding the two reads
-            // would change which of the two implementations walks off the end.
+            // handed a count the array does not have.
             for (int32_t mi = 0; mi < adapter->modeCount; ++mi) { // 0x1800f8730
                 DisplayMode* const mode = adapter->modeData + mi;
                 if (mode->refreshCount > 1) {                     // 0x1800f8738

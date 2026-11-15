@@ -1,7 +1,7 @@
 // src/game/Game/weather_sim.cpp
 //
 // Clean reimplementation of the per-tick Weather SIMULATION driver
-// (Weather::ResetTime, exe 0x1400944e0) — the sub-simulation that evolves the
+// (WeatherSimulation::Update, exe 0x1400944e0) — the sub-simulation that evolves the
 // world temperature and writes the four terrain "weather" params the terrain
 // shader reads (snow coverage + seasonal fades + active-weather intensity).
 //
@@ -12,7 +12,7 @@
 // real, animated temperature model.
 //
 // SCOPE (decompiled from Application-x64.exe, verified in Ghidra):
-//   Weather::ResetTime has SIX logical parts. All are now ported — envRes loads
+//   WeatherSimulation::Update has SIX logical parts. All are now ported — envRes loads
 //   from Environment.rsc (GameUpdateLoop::Load Step 16), so the effect array
 //   (weather+0x50, count weather+0x58 == weatherDescCount) is live and the
 //   rain/snow particles spawn, integrate, and render:
@@ -48,9 +48,6 @@
 //   +0x34 temperatureBase=50  +0x38 tempVariation=30  +0x3c precip=5  +0x40 wind=10
 
 // ENDGAME B.3.5 Video/Graphics caller batch: Graphics::Scene is a real class.
-// This header MUST precede "resolve.h": resolve.h pulls <windows.h>, whose
-// <wingdi.h> declares a global `Rectangle` FUNCTION that hides
-// `Volume::Rectangle`'s class name in Volume.h's own static_asserts.
 #include "graphics/Scene.h"
 #include <new>
 #include "graphics/Camera.h"
@@ -108,9 +105,9 @@ const float kPerlinOctaves = 4.0f;             // DAT_140172194
 const float k1_12          = f32(0x3daaaaab);  // DAT_1401720e0 = 1/12
 const float kKfCount       = 48.0f;            // DAT_1401721e4
 
-// Called by name (Entity/componententity_funcs.h): ComponentEntity_CtorFromDescription
-// (0x1400c3720, clone an entity from a template desc) and EntityList_RegisterEntity_Impl
-// (0x1400c48a0, RCX=entityList(gameWorld+0xe8), RDX=IBP*, R8D=typeId).
+// Called by name: the ComponentEntity(ComponentDescription*) ctor (Entity/ComponentEntity.h,
+// 0x1400c3720, clone an entity from a template desc) and EntityList::RegisterEntity
+// (Entity/EntityList.h, 0x1400c48a0, RCX=entityList(gameWorld+0xe8), RDX=IBP*, R8D=typeId).
 
 // Part 6 ambient-audio entity spawn: clone the environment's +0x20 template
 // (an AmbientEnvironment carrier entity — biome wind/nature beds) and register it
@@ -232,7 +229,7 @@ WeatherSimulation::WeatherSimulation()
 // WeatherSimulation::Update (exe 0x1400944e0; the tree's old name for it was
 // Weather::ResetTime) — snow/temperature sub-sim
 //   this = gameWorld+0x130 (the weather sim struct)
-//   time = the tick delta — only the deferred spawn path uses it
+//   time = the tick delta — Part 1's effect Update and the +0x70 spawn accumulator read it
 // ============================================================
 void WeatherSimulation::Update(const System::Time* time) {
     // --- Game clock (seconds) — reads the sim clock at gameWorld+0x128 -> Time+8,

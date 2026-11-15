@@ -26,8 +26,6 @@
 // the distinction reference_synthetic_subject_beats_a_fake.md is about: no
 // fake is needed here, because a REAL SpriteCapture can be built and driven.
 //
-// The probe in spritecapture_probe.cpp does exactly that and is where these
-// two bodies are verified. See its banner for the oracle argument.
 //
 // ---------------------------------------------------------------------------
 // WHAT THE DISASSEMBLY SAYS THAT THE DECOMPILED C DOES NOT
@@ -53,27 +51,11 @@
 #include "system/MemoryAllocator.h"
 #include "../collection/array_internal.h" // ENDGAME B.3.2 step 2 — kSpec_CaptureEntry
 
-// ----------------------------------------------------------------------------
-// Module / ResolveAddr, forward-declared rather than pulled in from
-// standalone/resolve.h, which drags in <windows.h> (PLAN §4.1 keeps it out of
-// src/engine/). Byte-identical to resolve.h's; the linker checks them. Same
-// spelling as src/engine/ui/spritecontext.cpp and sprite.cpp.
-// ----------------------------------------------------------------------------
 namespace {
 
 using UI::Sprite;
 using UI::CaptureEntry;
 using UI::SpriteCapture;
-
-// ---- the internals, reached by address --------------------------------------
-// Each address is a LITERAL inside a `ResolveAddr(Module::Runtime, …)` call,
-// once, and that is not a style choice: tools/addr_door_audit.py matches a
-// literal and nothing else, so folding these into one helper template would
-// make every door in this file invisible to the number the wave steers by
-// (reference_literal_grep_blind_to_variables.md, five instances and counting).
-//
-// None caches a null — rt_port.h's contract: a miss during early boot must not
-// freeze the answer for the process.
 
 // ENDGAME B.3.2 step 2 — the two by-address SetSize forwarders that used to
 // sit here are GONE.
@@ -90,8 +72,7 @@ using UI::SpriteCapture;
 //                `name`'s String refcount — stays the hand-derived
 //                `ExplicitSpec`.
 //
-// (0x18004bde0 is registered by array.cpp now — the "NOT PORTED" half of the
-// old comment here is stale.)
+// (0x18004bde0 is kSpec_CaptureEntry, defined in array.cpp.)
 
 // System::MemoryAllocator::MemAlloc / MemFree (0x1800c7a50 / 0x1800c7ad0),
 // called directly. Retail spells both open in these bodies
@@ -106,8 +87,7 @@ inline void MemFree(void* p) {
 
 // ---- the System::String refcount idiom -------------------------------------
 // Layout is [int32 length][int32 refcount][chars…] with the String's stored
-// pointer aimed at `chars`. Same idiom src/engine/system/String.h documents
-// and src/engine/ui/sprite.cpp's ReleaseStringRef uses.
+// pointer aimed at `chars`. Same idiom src/engine/system/String.h documents.
 inline int32_t& StringRc(char* data) {
     return RtSystem::StringRefCount(data);
 }
@@ -280,13 +260,9 @@ void SpriteCapture::AddSprite(const Sprite& sprite, int32_t x1, int32_t y1,
         // through a sign-extended int — the failure mode
         // reference_hidden_retslot_wild_write.md describes.
         //
-        // A NAME door, not an address door: this symbol is exported
-        // (0x1800032d0). `AEAA` would mean private, not unexported, and this
-        // one is QEBA anyway — reference_aeaa_is_private_not_unexported.md.
-        // ENDGAME B.3.6 block D: was an RT_EXPORT_ONCE door on the mangled
-        // name; now the member. The returned temporary's own reference is
-        // released by its destructor at the end of this block, exactly where
-        // retail releases the slot.
+        // The member is retail's exported 0x1800032d0. The returned
+        // temporary's own reference is released by its destructor at the end
+        // of this block, exactly where retail releases the slot.
         System::String slot = sprite.spriteSheet
                                   ->GetSpriteNameFromIndex(sprite.spriteIndex);
         name = slot._data;
@@ -372,10 +348,8 @@ void SpriteCapture::EndAddingSprites() {
     const int32_t count = _entries._size;
     CaptureEntry* entries = _entries._data;
 
-    // The work verdict is "pass 1 actually saw a non-scissor entry". A capture
-    // with zero entries, or one holding nothing but scissors, runs the whole
-    // body and computes the degenerate extent - `calls=` would count that as
-    // exercised and it is not (reference_probe_needs_an_effectiveness_control.md).
+    // `contributed` counts the non-scissor entries pass 1 takes into the box;
+    // nothing reads it.
     int32_t contributed = 0;
 
     int32_t minX =  0x8000, minY =  0x8000;
@@ -407,9 +381,8 @@ void SpriteCapture::EndAddingSprites() {
 // 0x1800d9010 ?BeginAddingSprites@SpriteCapture@UI@@QEAAXXZ — read this pass:
 // the qword at +0x50 (width AND height) zeroed, then _sprites and _entries cut
 // to size 0 through their NON-TRIVIAL rows (kSpec_SpriteIndexZ 0x1800370c0,
-// then a tail-jump to kSpec_CaptureEntryZ 0x18004ba90). Not registered: no
-// caller in the tree reaches it by name; SpriteContext::Begin, which inlines
-// the same three steps, now calls it.
+// then a tail-jump to kSpec_CaptureEntryZ 0x18004ba90). SpriteContext::Begin,
+// into which retail inlines the same three steps, calls it.
 void SpriteCapture::BeginAddingSprites() {
     _width  = 0;                                                       // 0x1800d901d
     _height = 0;                                                       //   (one qword)

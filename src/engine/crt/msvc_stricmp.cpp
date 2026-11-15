@@ -6,7 +6,7 @@
 //
 // WHY THIS IS A PORT AND NOT A CALL TO std::strcasecmp
 // ----------------------------------------------------
-// `src/engine/io/filesystem_openfile.cpp:185` already recorded the reason
+// `src/engine/io/filesystem_openfile.cpp:167` already recorded the reason
 // and it is worth restating rather than re-deriving:
 //
 //     "It must NOT be replaced by std::strcasecmp or shared with
@@ -42,10 +42,10 @@
 // comparison — so the wrong answer is not "a slightly different order", it is a
 // resource resolving to the wrong package.
 //
-// THREE LIVE CALLERS, all through the same address door:
-//   src/engine/io/filesystem_openfile.cpp:192   PathStrICmp   (OpenFile)
-//   src/engine/io/filesystem_packages.cpp:438       PathStrICmp   (IndexFind)
-//   src/engine/collection/avl_trees.cpp             PathStrICmp   (the insert)
+// THE PATH WRAPPERS, each calling it by name (rtcrt::StrICmp has other callers too):
+//   src/engine/io/filesystem_openfile.cpp:172   PathStrICmp   (OpenFile)
+//   src/engine/io/filesystem_packages.cpp:406       PathStrICmp   (IndexFind)
+//   src/engine/collection/avl_trees.cpp:689         PathStrICmp   (the insert)
 //
 // ============================================================================
 // THE LOCALE BRANCH, AND WHY IT IS AN ABORT RATHER THAN A FALLBACK
@@ -72,19 +72,13 @@
 // not a call site. Nothing in Runtime-x64.dll ever calls setlocale, so the flag
 // is zero for the life of the process and `_stricmp_l` never runs.
 //
-// So the locale half is DECLINED, deliberately, and the arm ABORTS LOUDLY
-// rather than quietly falling through to the ASCII path. That distinction is
+// So the locale half is DECLINED, deliberately, and the arm REPORTS LOUDLY and
+// returns 0 rather than quietly falling through to the ASCII path. That distinction is
 // the point: a silent fallback would make a broken premise indistinguishable
 // from a correct one, which is the shape of half the defects this wave found.
 // If this ever fires, `_stricmp_l` (0x18007ef44) is a further ~50 instructions
 // plus `_LocaleUpdate` (0x18007ee00) and `_tolower_l` (0x180081d0c) — a real
 // CRT subsystem, and a separate lane.
-//
-// While the DLL is still loaded the premise is also CHECKED AT RUNTIME rather
-// than only argued: `RtCrtStrICmpCheckLocaleFlag()` reads the shipped flag
-// through the raw door and reports it. An argument from a static reference
-// count and a live read of the byte are different evidence and this file has
-// both.
 //
 // ============================================================================
 // ORACLE
@@ -169,11 +163,10 @@ static bool g_nullReported = false;
 // 0x18007eefc — `_stricmp`.
 // ---------------------------------------------------------------------------
 int StrICmp(const char* a, const char* b) {
-    // The locale arm. See the banner: measured unreachable, and it aborts
-    // loudly rather than falling through, so a broken premise cannot look like
-    // a correct one. `g_localeSelected` is a constant here because after
-    // cutover there is no DLL flag to read; while the DLL exists the real byte
-    // is checked by RtCrtStrICmpCheckLocaleFlag() below.
+    // The locale arm. See the banner: measured unreachable, and it reports
+    // loudly and returns 0 rather than falling through, so a broken premise
+    // cannot look like a correct one. `kLocaleSelected` is a constant here
+    // because there is no DLL flag to read.
     static const int kLocaleSelected = 0;
     if (kLocaleSelected != 0) {
         std::fprintf(stderr,

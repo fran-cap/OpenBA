@@ -8,8 +8,7 @@
 //
 // EXPORT TABLE, read with pefile out of the shipped
 // C:\GOG Games\Banished\Runtime-x64.dll BEFORE a line of this file was written
-// (reference_resolveexport_phantom_names.md — a name the DLL does not contain
-// resolves NULL in silence):
+// (reference_resolveexport_phantom_names.md):
 //
 //   | Export                                                 | Retail      |
 //   |--------------------------------------------------------|-------------|
@@ -24,7 +23,7 @@
 // 0x1801550e0), `??_7ParticleSystemInstance@Graphics@@6B@` (0x180155040) and
 // `??_7Particle@Graphics@@6B@` (0x180155130). The three ParticleInstance bodies
 // are SHARED slots: they appear at the same indices in the
-// ParticleSystemInstance table, so one registration closes two rows.
+// ParticleSystemInstance table, so one body serves both tables.
 //
 // EVERY BODY BELOW WAS TRANSCRIBED FROM `disassemble_function`, NOT FROM
 // GHIDRA'S C (reference_ghidra_c_output_vs_disassembly.md: the decompiler drops
@@ -37,18 +36,16 @@
 // ---------------------------------------------------------------------------
 // `?_rng@Particle@Graphics@@1VRandom@System@@A` (retail 0x1801fe7f0) is a
 // PROTECTED STATIC `System::Random` — one MT19937 shared by every Particle in
-// the process, seeded from `time()` at load by 0x180149650. It is tagged
-// RT_UNPROMOTABLE | HARMFUL in standalone/reg_mint_promoted.cpp on the
-// DLL-PRESENT route, precisely because in-DLL RIP-relative readers keep using
-// the DLL's copy.
+// the process, seeded from `time()` at load by 0x180149650. The port spells it
+// as the class static `Graphics::Particle::_rng` (defined in animation.cpp).
 //
 // `ParticleInstance::SetParticle` DRAWS FROM IT, and retail INLINES the draw —
 // the tempering, the index advance and the 0x270 wrap are in SetParticle's own
-// bytes, not behind a call. So this port must read and write THAT OBJECT, at
-// that address, through the same door `src/game/Game/tornado.cpp:253` already
-// uses. Constructing our own generator would compile, run, look right, and
-// desync every particle placement from the DLL's other consumers — a divergence
-// that would not look like a port bug.
+// bytes, not behind a call. So this port must read and write THAT OBJECT, the
+// one `src/game/Game/tornado.cpp` also draws from. Constructing our own
+// generator would compile, run, look right, and desync every particle placement
+// from the generator's other consumers — a divergence that would not look like a
+// port bug.
 //
 // The tempering constants below are the SHIPPED ones, lifted from the
 // disassembly rather than retyped from an MT19937 reference: retail's masks are
@@ -96,10 +93,10 @@
 #include "system/MemoryAllocator.h"
 
 namespace rtcoll {
-// Lane Q's `?MemAlloc@MemoryAllocator@System@@SAPEAX_KH@Z` (0x1800c7a50) door:
+// `?MemAlloc@MemoryAllocator@System@@SAPEAX_KH@Z` (0x1800c7a50):
 // `EnterCriticalSection(_singleton+0x640); Allocate(_singleton, n, align);
-// LeaveCriticalSection`. Declared, not re-derived, so lane E has ONE place to
-// repoint when the allocator moves. Defined in src/engine/collection/array.cpp.
+// LeaveCriticalSection`, i.e. `System::MemoryAllocator::MemAlloc`. Declared, not
+// re-derived. Defined in src/engine/collection/array.cpp.
 void* MemAlloc(uint64_t bytes, int align);
 }  // namespace rtcoll
 
@@ -261,9 +258,8 @@ bool Particle::Serialize(IO::Stream& streamv) {
     rw->SerializeInt(_subCount, nullptr);      // +0xa0
 
     // 0x180014520, the `Object::ExternalBasePtr::Serialize` instantiation
-    // (UNNAMED in the export directory) — RtObject_ExternalPtrSerialize_
-    // MaterialInstance, by name. LEFT: it takes object's POD spellings
-    // (External.h).
+    // (UNNAMED in the export directory): `Object::SerializeExternal`
+    // over the bare `T*` field (External.h).
     Object::SerializeExternal<Graphics::MaterialInstance>(ser, _material);
 
     if (stream._direction == IO::kReading && _active != 0) {
@@ -848,7 +844,7 @@ void ParticleInstance::Draw(Video::Context& context, const Camera& camera,
 // The emitter's allocate / destroy / free trio   (cutover closure batch D1)
 // ============================================================================
 // *** ENDGAME B.3.5 block H2 CHECKED THE EXPORT TABLE: "Emitter" AND
-// "ParticlePool" ARE NOT RETAIL CLASSES. *** `standalone/rt_export_addrs.inc`
+// "ParticlePool" ARE NOT RETAIL CLASSES. *** The export directory
 // contains no `@Emitter@Graphics@@`, no `Pool@Graphics@@` and no mangled name at
 // any of 0x1800205a0 / 0x180020600 / 0x180020d60 / 0x180061a80 / 0x180103bf0 —
 // the only `Emitter` symbols in the whole DLL are `Audio::Scene`'s

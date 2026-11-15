@@ -1,10 +1,8 @@
 // src/game/Player/tool_base_edit.cpp
-// Player registration wave (batch "edit") — shared exe sub-helpers resolved from
-// src/game/Player/edittool.cpp and fencedtool.cpp via ResolveAddr(Module::Exe, 0xADDR).
+// Shared Player exe sub-helpers, called by name from src/game/Player/edittool.cpp,
+// pathtool.cpp, fencedtool.cpp and fencedtool_calcpath.cpp.
 //
-// These resolve to 0 (the guarded call site is silently skipped) unless registered.
-// This file provides faithful 1:1 reimplementations; registration lives in
-// standalone/reg_player_edit.cpp (RegisterPlayerEditBatch).
+// This file provides faithful 1:1 reimplementations.
 //
 // Each body is a literal port of the decompiled exe helper — no "improvements".
 
@@ -24,7 +22,7 @@
 // ============================================================
 // FUN_1400a0280 — EntityAtCell: get the entity occupying a world cell.
 // ============================================================
-// Closure: only fn_InternalBasePtr_Ctor (Runtime export). No exe sub-callees.
+// Closure: only the InternalBasePtr ctor (0x140152a90). No exe sub-callees.
 //
 // Reads the Map's cell [cellIndex] (+0x80, stride 0x30). The blocker (+0x00) is the
 // primary occupant, the occupant (+0x08) the secondary; the first non-null is stored
@@ -50,19 +48,19 @@ ComponentEntity** Map::EntityAtCell(ComponentEntity** retIBP, int cellIndex) con
 // FUN_140101730 — CharacterComponent_impl_1730: average terrain height over a
 // rectangular cell range (helper of FencedTool anchor calc).
 // ============================================================
-// Closure: exe sub-callee 0x14009f3e0 (terrain height query — ALREADY registered)
+// Closure: exe sub-callee 0x14009f3e0 (terrain height query, Map::GetTerrainPos)
 // + Math::Vector3::operator+= (inlined component-wise add here) + g_fUVScale +
-// DAT_140172114 (= 0.5f). No unregistered sub-callees.
+// DAT_140172114 (= 0.5f).
 //
 // Iterates every cell (col in [p2,p4], row in [p3,p5]) of the world grid (width at
 // *(g_pGameWorldSingleton+0xf8)), queries terrain height per cell via f3e0, scales
 // each sample by uvScale = g_fUVScale / cellCount, accumulates into a Vector3, and
-// returns the accumulated .x (the mean height). Faithful to the disasm: the
-// accumulator's other lanes are computed but only .x (RSP+0x38 / accum[0]) is
+// returns the accumulated .z (the mean height). Faithful to the disasm: the
+// accumulator's other lanes are computed but only .z (RSP+0x38 / accum[2]) is
 // returned; if the row range is empty the result is 0.
 //
 // Caller signature (via 0x1400dbf90): float fn(void* gameWorld, int p2,p3,p4,p5)
-// (0x14009f3e0 = Reimpl_MapGetTerrainPos, Game/exe_bodies.h, called by name.)
+// (0x14009f3e0 = Map::GetTerrainPos, Game/Map.h, called by name.)
 
 float PlayerEdit_AvgTerrainHeight_101730(void* /*param_1*/, int p2, int p3, int p4, int p5) {
     // The original ignores its param_1 and reads g_pGameWorldSingleton directly.
@@ -114,9 +112,9 @@ float PlayerEdit_AvgTerrainHeight_101730(void* /*param_1*/, int p2, int p3, int 
 // ============================================================
 // FUN_1400dbf90 — FencedTool anchor/rotation rectangle calc.
 // ============================================================
-// Closure: exe sub-callees 0x140101730 (registered in THIS batch) + 0x14009f3e0
-// (registered earlier) + InternalBasePtr_CheckPtr (Runtime export) + g_fUVScale +
-// DAT_140172114 (= 0.5f) + g_pGameWorldSingleton. No unregistered sub-callees.
+// Closure: exe sub-callees 0x140101730 (above) + 0x14009f3e0 (Map::GetTerrainPos)
+// + InternalBasePtr::CheckPtr + g_fUVScale + DAT_140172114 (= 0.5f) +
+// g_pGameWorldSingleton.
 //
 // Converts the tool's two stored cell indices (self+0x2c start, self+0x30 end) to
 // (col,row) pairs in the world grid, normalizes them so p2<=p4 and p3<=p5, rejects

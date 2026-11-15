@@ -25,8 +25,7 @@
 //   - comp(a,b) > 0          becomes  COMISS Key(a), Key(b) / JA
 //   - swap(a,b,width)        becomes  8 interleaved dword MOVs
 // It is a template/inline instantiation, so it has NO callee outside the pair
-// (b680 -> bd80) — no exe helper resolves are needed and nothing here can
-// EXEC-of-0 in standalone.
+// (b680 -> bd80).
 //
 // ============================================================================
 // TRUE SIGNATURES  (Ghidra's `undefined` return + `undefined4*` params mislead)

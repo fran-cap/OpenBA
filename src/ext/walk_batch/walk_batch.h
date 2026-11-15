@@ -49,14 +49,14 @@ enum Walk : int {
 };
 
 // Batched ticks taken (or, under BANISHED_STRESS_COMPPROF=4, the ticks the shadow checked).
-// Main thread only; read by the [COMPPROF] /char walkbatch row.
+// Main thread only; nothing reads it (the /char walkbatch row reads g_profCalls / g_profTicks).
 extern long long g_batchedTicks;
-// COMPPROF >= 2: the RDTSC ticks the batched ticks charged (entitylist.cpp's bracket) and
-// their count; reset with the report window.
+// COMPPROF=2: the RDTSC ticks the batched ticks charged (TickCharacter's bracket, as
+// entitylist.cpp's TickOneComponent) and their count; reset with the report window.
 extern long long g_profTicks;
 extern long long g_profCalls;
 
-// COMPPROF >= 2: the decline census. One count per exit of the batched decision (Eligible in
+// COMPPROF=2: the decline census. One count per exit of the batched decision (Eligible in
 // walk_batch.cpp; the last five are walk_batch_rules.h's Decline, in its order) for every
 // intermediate character tick the batched walk saw, read before the tick. Printed and reset
 // with the [COMPPROF] /char walkbatch row.
@@ -117,7 +117,7 @@ bool TickGrid(CharacterComponent* self, const System::Time* time);
 
 // The batched walk's slot-8 tick of a CharacterComponent: Tick (EntityList::UpdateWalkBatch)
 // or TickGrid (EntityList::UpdateWalkBatchGrid), else CharacterComponent::Tick. At
-// BANISHED_STRESS_COMPPROF >= 2 it brackets the tick as the faithful walk's TickOneComponent
+// BANISHED_STRESS_COMPPROF=2 it brackets the tick as the faithful walk's TickOneComponent
 // does (the /tree and /char rows) and charges a batched tick to g_profTicks / g_profCalls.
 // Defined here, out of line, so the walk's translation unit compiles its faithful
 // instantiation as before.

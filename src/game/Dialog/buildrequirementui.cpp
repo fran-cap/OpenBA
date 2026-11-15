@@ -1,16 +1,16 @@
 // src/game/Dialog/buildrequirementui.cpp
-// Clean reimplementation of BuildRequirementUI::Slot4.
+// Clean reimplementation of BuildRequirementUI::OnCreated (slot 4).
 //
 // BuildRequirementUI (0x60 bytes) — shows building icon, title, and resource requirements.
 // Layout:
-//   +0x10 = datasource description (from DialogController)
+//   +0x10 = config (DialogControllerConfig, from DialogController)
 //   +0x18 = dialog instance (InternalBasePtr, from DialogController)
 //   +0x20 = dialog element (InternalBasePtr, from DialogController)
 //   +0x28 = entity/data source (InternalBasePtr, from DialogController)
 //   +0x30 = resolved description pointer
-//   +0x38 = initial value 1 (unused after init)
+//   +0x38 = sizeMultiplier (initial value 1; SetSizeMultiplier writes it)
 //   +0x40 = label element array ptr (dynamic array)
-//   +0x44 = label count (uint32), +0x48 padding -> actually +0x48 = count, +0x4c = capacity
+//   +0x48 = label count, +0x4c = capacity
 //   +0x50 = requirement data array ptr (dynamic array)
 //   +0x58 = req data count (uint32)
 //

@@ -1,7 +1,7 @@
 // tests/unit/ext_sheet_builder_test.cpp -- block RSCSPRITE (KITFREE.md §3, §5).
 //
-// 1. The packer: the baked Extensions bitmaps fit the .rsc's sheet (512 x 512 since
-//    2026-10-18; 256 x 256 held 28 and refused the 29th),
+// 1. The packer: the baked Extensions bitmaps fit the .rsc's sheet (512 x 1024; 256 x 256
+//    held 28 and refused the 29th),
 //    every sprite's own pixels are its source (RGBA -> BGRA), the pad ring
 //    replicates its edge, no two sprites overlap, the records are the kit's form.
 // 2. The cross-check against the kit (KITFREE.md §5): when the kit's compiled

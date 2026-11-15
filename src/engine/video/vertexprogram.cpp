@@ -16,9 +16,9 @@
 //   8  Construct            0x18004e700  here
 //
 // plus ??0VertexProgram@Video@@QEAA@XZ (0x1800f6100) — the ctor the cutover
-// gate died on, called from the factory step at 0x18004e6af
-// (rt_factories_video.inc) — ~VertexProgram (0x1800f61b0), the three private
-// Platform* helpers and the non-virtual GetData / Bind.
+// gate died on, called from the factory step at 0x18004e6af — ~VertexProgram
+// (0x1800f61b0), the three private Platform* helpers and the non-virtual
+// GetData / Bind.
 //
 // Layout: src/engine/video/ShaderProgram.h (ShaderProgram 0x50 + _data, 0x58).
 //
@@ -50,9 +50,7 @@
 //
 // It is ported anyway, and it is ported as retail wrote it — including the
 // ExternalPtr<VertexLayout> that is read and dropped. Five of the helpers it
-// calls are unexported internals reached through ResolveAddr, which is the same
-// door src/engine/io/package_file_serialize.cpp already holds open for
-// 0x180029bb0:
+// calls are unexported internals:
 //     0x1800567d0  SetSize, stride 0x18 {String, String, uint, int}
 //     0x180056960  ~Array of that element
 //     0x180056af0  SetSize, the second legacy element type
@@ -65,17 +63,13 @@
 // `Video::VertexProgram` is a real C++ class deriving from the real
 // `Video::ShaderProgram` (src/engine/video/ShaderProgram.h). Every body below
 // is a member, defined in the `namespace Video` block at the bottom of this file
-// (B34_BRIEFS A.2), and each registered DOOR is a one-line QUALIFIED
-// non-virtual delegation through a `reinterpret_cast` bridge — qualified because
-// a live VertexProgram wears the MINTED `??_7VertexProgram@Video@@6B@`, whose
-// slots resolve back to these very doors (B34_BRIEFS A.1).
+// (B34_BRIEFS A.2).
 //
 // THE DESTRUCTOR CHAIN IS RETAIL'S INLINED TEARDOWN, FOR FREE. ~VertexProgram
 // (0x1800f61b0) is: stamp ??_7VertexProgram, PlatformDestruct, stamp
 // ??_7ShaderProgram, the three array teardowns, stamp ??_7CompiledExternal,
-// tail-JMP ~External. The member below writes the first stamp (by hand, naming
-// the MINTED address — GCC's own vptr store names GCC's table) and calls
-// PlatformDestruct; everything after that is `~ShaderProgram()` →
+// tail-JMP ~External. The member below calls PlatformDestruct; the compiler
+// writes the stamps, and everything after PlatformDestruct is `~ShaderProgram()` →
 // `~CompiledExternal()` → `~External()`, which is what the compiler emits for
 // this inheritance chain. `RtVideo_ShaderProgram_DestroyArrays` — the cross-file
 // `extern "C"` that used to run ShaderProgram's half by hand — IS GONE, and so
@@ -89,11 +83,11 @@
 // CORRECTION (cutover closure batch D1, 2026-09-12). This banner used to read
 // "five ... UNPORTED internals ... with the DLL gone those five resolve to
 // nothing, so a version-0 asset would call address zero". ALL FIVE ARE NOW
-// PORTED AND REGISTERED — 0x1800567d0 / 0x180056af0 as `kSpec_VtxElement18` and
+// PORTED — 0x1800567d0 / 0x180056af0 as `kSpec_VtxElement18` and
 // `kSpec_VtxStream18` in src/engine/collection/array.cpp, 0x180056960 and
-// 0x180056cb0 in array_destroy.cpp, and 0x180056db0 at the bottom of THIS file.
-// ResolveAddr is registry-first, so the five calls above already land on our
-// bodies, and they will keep working with the DLL gone. What remains true is
+// 0x180056cb0 in array_destroy.cpp, and 0x180056db0 near the top of THIS file
+// (RtVideo_VertexProgram_SerializeStreams). The five calls name those bodies
+// directly. What remains true is
 // that the block is unreachable for any shipped asset (every one is version 1).
 // ============================================================================
 #include <cstddef>
@@ -139,7 +133,7 @@ using System::MemoryAllocator;
 // ============================================================================
 // The legacy Stream element serialize loop   0x180056db0   (batch D1)
 // ============================================================================
-// SerializeLegacyV0 below calls this by address. The element is
+// SerializeLegacyV0 below calls this by name. The element is
 // {Collection::Array<Element> @+0x00, System::String* @+0x10}, stride 0x18 —
 // the layout array.cpp's kSpec_VtxStream18 and array_destroy.cpp's
 // 0x180056cb0 row independently agree on. B.4 (R-VIDEO): its one caller is
@@ -336,8 +330,6 @@ bool VertexProgram::Serialize(IO::Stream& streamv) {
     // unqualified `Serialize(stream)` would re-enter this function.
     this->ShaderProgram::Serialize(streamv);
 
-    // LEFT (B.4 R-VIDEO): the slot is `Serialize(IO::Stream&)`; the override
-    // keeps `External`'s `void*` parameter (R-OBJ's declaration).
     IO::Stream& stream = streamv;
     IO::Serializer ser(stream, 1);
 

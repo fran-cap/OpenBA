@@ -328,16 +328,11 @@ void FollowDialog::OnUpdate(const System::Time& /*time*/) {
 #include "Object/factory_registration.h"
 #include "Component/ModelComponent.h"   // X::TypeId() (B.3.8 callers)
 
-// ENDGAME B.3.8 block DLG: FollowDialog is a real class (Dialog/FollowDialog.h);
-// the hand-built table above is gone. Since the CB2 caller batch CitizenUI's
-// Follow button (citizenui.cpp) builds the dialog with the real ctor below and
-// fills +0xB8/+0xC0 itself; the door + stamp (and its FollowDialog_GetStandalone-
-// Vtable getter) are gone. 0x14015be00 stays unregistered; engine_funcs.cpp's
-// g_FollowDialog_Vtable has no reader left.
+// ENDGAME B.3.8 block DLG: FollowDialog is a real class (Dialog/FollowDialog.h).
+// CitizenUI's Follow button (citizenui.cpp) builds the dialog with the real ctor
+// below and fills +0xB8/+0xC0 itself.
 
-// ENDGAME B.3.9: ModelComponent (cell 0x1401c7a50, the class TypeId_ModelComponent_FC
-// is really bound to -- Table 1's authority) has a ported TypeId() now, so the
-// EnsureFollowGlobals() lazy-cache is dead.
+// ENDGAME B.3.9: ModelComponent (cell 0x1401c7a50) has a ported TypeId().
 
 FollowDialog::FollowDialog()
     : citizen(nullptr), citizenUI(nullptr), textFollow(nullptr), textAction(nullptr) {}

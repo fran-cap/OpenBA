@@ -31,14 +31,14 @@
 // (startConfig+0x90, count +0x98) is `_populations` and holds exactly one entry,
 // PopulationDeer — verified from a live run (simple(+0x98)=1). The livestock come from
 // the THIRD agri-pool loop's FUN_1400a0b10 call, ported below as
-// StartTown_SpawnStartingHerd. LivestockComponent::OnAdd
+// MapGenerator::SpawnStartingHerd. LivestockComponent::OnAdd
 // (0x140123c70) files each one into the world's free-roaming livestock list at
 // gameState+0x80, and when the player later builds a pasture and picks a type, the
 // pasture's state-2 adopt pass (sub_7140) pulls the matching wanderers in. That is the
 // "the pasture stocks itself at town start" behaviour — there is no auto-assignment of
 // pasture+0x28 anywhere in retail.
 //
-// For standalone bring-up (no pasture dialog yet) BANISHED_PASTURE_AUTOTYPE lets the
+// For the stress town (perf/README.md) BANISHED_PASTURE_AUTOTYPE lets the
 // pasture pick its type itself. That is NOT retail behaviour, so it is opt-in only.
 
 #include "Component/PastureComponent.h"
@@ -76,8 +76,6 @@
 //   0x140107400 AnimalComponent::Place              0x140107320 AnimalComponent::UpdateBehavior
 //   0x140128570 PastureComponent::ComputeCapacity
 //   .rdata 0x140172220 yaw spread (180.0f), 0x140172114 half cell (0.5f)
-// LEFT (B.4 COMP-d): GameUpdateLoop m_game / m_citizenList / m_entityList are void* (W0
-// header).
 
 // ============================================================
 // Game_helper_8670 (0x140128670) — spawn ONE livestock into this pasture.
@@ -189,7 +187,6 @@ void PastureComponent::SpawnLivestock(AnimalComponent* const* parent) {
     }
 
     Object::InternalPtr<ComponentEntity> regRef = ent;
-    // LEFT: GameUpdateLoop::m_entityList is void* (W0 header); the forwarder takes it.
     w->m_entityList->RegisterEntity(&regRef, tmpl->_category);
 }
 
@@ -265,19 +262,19 @@ extern "C" void Pasture_SetLivestockType(PastureComponent* pasture, ComponentDes
 //
 // Complete CALL set of 0x1400a0b10 contains no trade leaf (no 0x14005ace0, no trading
 // post, no storage): it is MemAlloc -> CopyCtor -> place -> register, the same primitive
-// shape as Pasture_SpawnOneLivestock. Livestock via TRADE is real but SECONDARY; the two
-// paths are independent, so this does not depend on the unported trade lane.
+// shape as PastureComponent::SpawnLivestock. Livestock via TRADE is real but SECONDARY; the two
+// paths are independent (trade's is TradeComponent::SpawnPurchasedLivestock).
 //
 // Easy.rsc: _livestockCount=1, _livestockOffsetX/Y=0, _livestockRadius=4,
 //           _livestockGroupCount=8.  Medium/Hard set _livestockCount=0 — no starting herd
 //           there, which is faithful, not a bug.
 // So an Easy start rolls ONE of the three types in _initialLivestockList
 // [Chicken, Cow, Sheep] and spawns EIGHT free-roaming animals of it. A pasture later set
-// to either of the other two types will correctly show 0 animals until trade exists.
+// to either of the other two types will correctly show 0 animals until some are bought by trade.
 //
 // These animals are free-roaming, NOT placed in a pasture. LivestockComponent::OnAdd
 // (0x140123c70) files them into gameState+0x80, and the pasture state-2 adopt pass
-// (sub_7140, pasturecomponent_states.cpp:287) pulls matching ones in once the player
+// (sub_7140, PastureComponent::AdoptWanderers) pulls matching ones in once the player
 // builds a pasture and picks that type. Both of those are already ported and live.
 int MapGenerator::SpawnStartingHerd(const float* centre, ComponentDescription* tmpl) {
     // 0x1400a0b10-0x1400a0b77: RCX / RDX / R8 saved, [0x1401c3dd8]+0xd8 read, Rand(2), and
@@ -335,7 +332,6 @@ int MapGenerator::SpawnStartingHerd(const float* centre, ComponentDescription* t
         }
 
         Object::InternalPtr<ComponentEntity> regRef = ent;
-        // LEFT: GameUpdateLoop::m_entityList is void* (W0 header); the forwarder takes it.
         w->m_entityList->RegisterEntity(&regRef, templ->_category);
         ++spawned;
     }

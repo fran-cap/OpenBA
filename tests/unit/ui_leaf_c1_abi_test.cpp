@@ -17,8 +17,8 @@
 // differs is spelled out.
 //
 // PART A — LAYOUT: sizeof / alignof / every offset the headers claim, the
-//   class-vs-POD agreement for the Descriptions (DescriptionsBatch1.h), the
-//   parent edges `_ParentTypeName` proves, abstract (B3X W1: a public virtual destructor).
+//   class-vs-alias agreement for the Descriptions (DescriptionsBatch1.h), the
+//   parent edges `_ParentTypeName` proves, concrete (B3X W1: a public virtual destructor).
 // PART B — SLOT ORDER: probe subclasses of the REAL classes; each own slot is
 //   raw-called by byte offset and the marker that runs names the member; each
 //   INHERITED slot is compared, pointer for pointer, with the parent's entry
@@ -493,7 +493,7 @@ UNIT_TEST(ui_c1_buttonelement_slot_order_is_retails) {
     // INHERITED from UI::Element: 3 Persist, 9 Contains, 10 SetColor, 11 GetBorder.
     for (int off : { kE3_Persist, kE9_Contains, kE10_SetColor, kE11_GetBorder })
         CHECK(vt[Retail(off / 8)] == pv[Retail(off / 8)]);
-    // ... and the six own ones are NOT the parent's.
+    // ... and the seven own ones are NOT the parent's.
     for (int off : { kE1_TypeName, kE2_Type, kE4_ComputeSize, kE5_ComputeLayout,
                      kE6_Draw, kE7_Update, kE8_Enable })
         CHECK(vt[Retail(off / 8)] != pv[Retail(off / 8)]);
@@ -775,9 +775,8 @@ UNIT_TEST(ui_c1_clipregion_contains_reaches_the_base_without_reentry) {
 // ===========================================================================
 namespace {
 
-// Build three elements behind an array cookie, run the ARRAY arm of slot 0 and
-// check it destroys downward, frees and returns the block; then the scalar
-// arm with a free. `Make` placement-constructs one real object.
+// Slot 0's scalar arm on one real object, its free on a Recording<T> stand-in,
+// then the array arm (`delete[]`). `Make` placement-constructs one real object.
 // B3X W1: retail's flags-1 arm is `delete one` (T's own D0: the chain once,
 // then T's class-scope operator delete, InternalMemFree == free here); the
 // free is PROVEN on a dtor_check::Recording<T> stand-in. Retail's flags-3

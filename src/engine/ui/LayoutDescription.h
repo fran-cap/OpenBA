@@ -7,8 +7,8 @@
 // PARENT `UI::ElementDescription` — READ, not inferred:
 //     ?_ParentTypeName@LayoutDescription@UI@@CAPEBDXZ @0x180042d10 -> "ElementDescription"
 //
-// RULE B5-15 / B6-7 — THE TWO NAME LITERALS, RECORDED, NOT USED (slots 1/2 keep
-// reading the minted `?_typeInfo@LayoutDescription@UI@@…`, 0x1801fa078):
+// RULE B5-15 / B6-7 — THE TWO NAME LITERALS (retail's `?_typeInfo@LayoutDescription@UI@@…`,
+// 0x1801fa078); slots 1/2 read the class's own DEFINE_TYPE record, which carries them:
 //     ?_TypeName@LayoutDescription@UI@@CAPEBDXZ       @0x180042d00 -> "LayoutDescription"
 //     ?_ParentTypeName@LayoutDescription@UI@@CAPEBDXZ @0x180042d10 -> "ElementDescription"
 //
@@ -26,8 +26,7 @@
 // own slot 0 (the vector deleting dtor), a virtual ~LayoutDescription holding
 // the retired ??1 door's body, and the factory pair as the class's own statics;
 // every live one wears the COMPILER's table. The minted `??_7LayoutDescription@UI@@6B@`,
-// its RT_DELDTOR row 0x1800431d0 and the ctor / dtor / slot doors are retired
-// (tools/rt_mint_retired/ui-b.txt).
+// its RT_DELDTOR row 0x1800431d0 and the ctor / dtor / slot doors are retired.
 // ABSTRACT (slot 0 pure), no real ctor. `??0LayoutDescription@UI@@QEAA@XZ`
 // (0x1800d3a90) is ui_factory_wave28.cpp's door; Construct and Reconstruct
 // INLINE the same stores (0x180043076.., 0x180042fde..).
@@ -162,11 +161,11 @@ static_assert(offsetof(LayoutDescription, _entries) == 0x68, "");
 
 }  // namespace UI
 
-// ==== B3R W0-P0c: Runtime bodies reached by retail address ====
-// ENDGAME B.3R (B3R_RULES R5): each body below is registered at the retail
-// address in its trailing comment and read through the registry today. It is
-// declared here, copied from its definition (linkage, namespace, types), so the
-// reader can call it by name. Nothing calls it through this declaration yet.
+// ==== B3R W0-P0c: Runtime bodies declared for callers by name ====
+// ENDGAME B.3R (B3R_RULES R5): each body below carries its retail address in its
+// trailing comment. It is declared here, copied from its definition (linkage,
+// namespace, types), so a caller can call it by name; layoutdescription.cpp
+// defines it and LayoutDescription::Serialize calls it.
 
 // ---- ui/layoutdescription.cpp
 namespace IO { class Serializer; }

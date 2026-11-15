@@ -15,9 +15,8 @@
 // ?UpdateSave@SaveLoad builds SaveBlock entry 0.
 //
 // Its reader is ?LoadMetaData@SaveLoad@Save@@ (0x1800c1b30, a parallel Wave 14
-// lane). Its ONE caller is ?UpdateSave@SaveLoad@Save@@ (0x1800c2a80), ported by
-// Wave 13 in saveload_update.cpp, which resolves it BY NAME — so registering
-// the mangled name below is what flips that call site onto this body.
+// lane). Its ONE caller is ?UpdateSave@SaveLoad@Save@@ (0x1800c2a80), in
+// saveload_update.cpp, which calls it as a member.
 //
 // ----------------------------------------------------------------------------
 // THE RECORD FORMAT, which falls out of the body in full
@@ -58,7 +57,7 @@
 //     1800c168c  CALL 0x1800c95d0         ; String::Set(&work, that suffix)
 //
 // i.e. it STRIPS the data-directory prefix. ?UpdateLoad@SaveLoad (Wave 13,
-// saveload_update.cpp:797) does `GetDataDirectory() + modInfo.path` and matches
+// saveload_update.cpp:693) does `GetDataDirectory() + modInfo.path` and matches
 // the result against Mod+0x58 — putting the prefix back. The two are exact
 // inverses, which is the strongest available confirmation that this reading of
 // an otherwise anonymous pointer add is right.
@@ -95,9 +94,8 @@
 //    CLASS BY VALUE. It is a MEMBER function, so the hidden return slot is RDX
 //    and there are no other arguments (`LEA RDX,[RSP+0x40]` at 0x1800c165b).
 //    A typedef that omits the slot is a wild write that still returns the right
-//    answer (reference_hidden_retslot_wild_write.md);
-//    RtSaveDetail::GetDataDirectoryFn already spells it correctly and is reused
-//    rather than re-declared.
+//    answer (reference_hidden_retslot_wild_write.md); the body calls the
+//    member `GetDataDirectory()` through `RtSaveDetail::FileSystemSingleton()`.
 //
 // ----------------------------------------------------------------------------
 // THE BY-VALUE `System::String` — WHO DESTROYS IT
@@ -116,13 +114,6 @@
 // The two halves now exist in the tree and agree; releasing here is required,
 // not optional, and NOT releasing would leak the save name on every save.
 //
-// ----------------------------------------------------------------------------
-// WHY THIS BODY IS NOT WRITTEN AGAINST AN RtSink
-// ----------------------------------------------------------------------------
-// The five Wave 13 state machines next door take an RtSink (src/engine/
-// rt_sink.h). This one does not: its entire observable output is a heap block
-// produced by running a real compressor over a real stream, so there is no set
-// of scalar stores for a sink to carry.
 // ============================================================================
 
 #include <cstdint>
@@ -150,7 +141,7 @@ namespace {
 // ---------------------------------------------------------------------------
 // The standard Wave 2 Collection triple. Spelled locally because the three
 // helpers below are the ModInfo INSTANTIATION of Array's members and are
-// unexported internals of the DLL; nothing else in the tree reaches them.
+// unexported internals of the DLL.
 struct ModInfoArray {
     ModInfo* data;       // +0x00
     int32_t  size;       // +0x08
@@ -164,10 +155,8 @@ static_assert(sizeof(ModInfoArray) == 0x10, "Collection::Array header is 16 byte
 // UNEXPORTED (checked against the shipped export table with pefile, not
 // inferred from the `AEAA`-vs-`QEAA` spelling of anything —
 // reference_aeaa_is_private_not_unexported.md). It is a template instantiation
-// the linker folded in, so there is no name to register; ported as a file-local
-// static rather than reached through an address door, which keeps this file
-// free of by-address calls that would go null at cutover
-// (reference_by_address_door_dies_at_cutover.md).
+// the linker folded in, so there is no name to call it by; ported as a
+// file-local function.
 //
 // ORDER MATTERS AND IS TRANSCRIBED: +0x08 (path) is released BEFORE +0x00
 // (name) — 0x180034217 reads [RBX+8], 0x180034270 reads [RBX]. The refcounts
@@ -289,13 +278,6 @@ void ModInfoArraySetSize(ModInfoArray* a, int32_t newSize) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// The DLL entry points this body calls, all by MANGLED NAME.
-// ---------------------------------------------------------------------------
-// Every one of these is a real export (verified against the shipped export
-// table before it was written down — a name the DLL does not contain resolves
-// NULL in silence, reference_resolveexport_phantom_names.md). There is not one
-// address door in this file.
 // ENDGAME B.3.1 step 2: the String::Serialize and String::Set door typedefs
 // are gone with their call sites — both are class members now.
 
@@ -359,8 +341,7 @@ void Save::SaveLoad::SaveMetaData(void* pixels, int width, int height,
         ::IO::ReaderWriter* const rwc = ser._readerWriter;
         // ---- the record -------------------------------------------------------
         // ENDGAME B.3.1 step 2: `?Serialize@String@System@@QEAAXAEAVSerializer@IO@@@Z`
-        // (0x1800c9930) is the class's own member now. `name` is the registered
-        // entry point's POD parameter, so it comes through the one bridge.
+        // (0x1800c9930) is the class's own member.
         name->Serialize(ser);
 
         // Retail serialises the ARGUMENT HOME SLOTS: it spills R8D/R9D at entry

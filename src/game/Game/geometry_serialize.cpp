@@ -7,46 +7,26 @@
 // (0x1400b04d0) and WorldGeometry::SerializeLegacyBatches (0x1400af1a0), reading
 // the class's fields and the nine _arrays through their named accessors.
 //
-// Two top-level reimpls that drive `Geometry::Serialize` end-to-end so that
-// the standalone-exe MenuScene 3D milestone can deserialize terrain without
-// the original exe code page being mapped:
+// Two top-level bodies that drive the terrain's serialization end-to-end:
 //
-//   `Reimpl_TradeWork_impl_04d0`  — exe 0x1400b04d0 (~700 bytes, 15 steps)
-//                                    Geometry::Serialize body (master schema, version 6).
-//   `Reimpl_TradeWork_impl_f1a0`  — exe 0x1400af1a0 (~196 bytes, 4 steps)
-//                                    Version-gated extra serialize (parallel schema, version 4).
+//   `WorldGeometry::Serialize`              — exe 0x1400b04d0 (~700 bytes, 15 steps)
+//                                             (master schema, version 6).
+//   `WorldGeometry::SerializeLegacyBatches` — exe 0x1400af1a0 (~196 bytes, 4 steps)
+//                                             Version-gated extra serialize (parallel schema, version 4).
 //
 // Both walk the spec in `docs/history/notes/M35_geom_serialize_findings.md`. Each step
-// delegates to a previously-implemented session helper:
+// delegates to a helper:
 //
-//   session 2 — the GeometryBatch resize / copy / destroy (now GeometryBatchArray, B.4 H5-P2)
-//   session 3 — Reimpl_ExternalPtr_Serialize_Typed_7140 (MaterialInstance)
-//   session 4 — Reimpl_Struct60B_Serialize, Reimpl_Array_Serialize_External_MaterialInstance
-//   session 5 — Reimpl_Array_Resize_Stride02/16A/16B/04/_ArrayOfArrays
-//   session 6 — Reimpl_TradeWork_sub_c1e0 (heightmap mesh build)
-//   session 7 — Reimpl_TradeWork_sub_c780 (heightmap → texture upload)
-//   prior     — Reimpl_Array_Resize_Stride08 (stride 8) from serialize_arrays.cpp
-//
-// Cascade safety: every Runtime primitive (Serializer ctor/dtor, dispatch slot
-// for Serialize_Int/Bool/Float/Byte/SerializeBytes, Vector2::Serialize, IndexBuffer/
-// VertexBuffer::Create) is null-guarded with one-shot `printf` warnings; on
-// missing primitives we soft-fail per-step rather than crashing.
-//
-// On first run in standalone we expect cascades on the 4 typed-ExternalPtr
-// serialize call sites (MaterialInstance via FUN_140007140 at +0xF8, +0x150,
-// +0x158 inside 04d0; FUN_140020150 at +0x210; FUN_14001ffa0's interior call
-// for each 0x60B element). Session 3 + session 4 reimpls already log
-// one-shot warnings in those branches and return early — so the menu
-// shouldn't crash even with partial type registration. Document expected
-// failure points inline so the user can iterate.
-//
-// Dispatch pattern: try the original exe address first (usable when
-// 0x1400b04d0 / 0x1400af1a0 is RegisterExeAddr-able). If null, fall
-// through to the cleaned C body. Both functions self-resolve each Runtime
-// dispatch slot lazily on first use.
+//   GeometryBatch_Resize / GeometryBatch_Serialize (GeometryBatchArray, WorldGeometryElements.h)
+//   ::Object::SerializeExternal<Graphics::MaterialInstance> (0x140007140) and
+//   ::Object::SerializeExternalArray<Graphics::MaterialInstance> (0x140020150)
+//   RawArraySetSize (the RawArray resizes)
+//   BuildTerrainMesh (heightmap mesh build, 0x1400ac1e0)
+//   UploadHeightImage (heightmap → texture upload, 0x1400ac780)
+//   Reimpl_Array_Resize_Stride08 (stride 8) from serialize_arrays.cpp
 
 // ENDGAME B.3.5 batch K1: the runtime type header comes FIRST. video/Buffers.h reaches
-// no Volume.h, but the house rule (a runtime type header ahead of resolve.h's
+// no Volume.h, but the house rule (a runtime type header ahead of any
 // <windows.h>, whose <wingdi.h> `Rectangle()` hides Volume.h's global
 // `struct Rectangle`) is kept so a later include change cannot break it silently.
 #include "video/Buffers.h"   // Video::{Vertex,Index}Buffer

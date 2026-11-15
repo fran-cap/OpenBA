@@ -2,13 +2,14 @@
 // src/platform/android/window_android.cpp -- Platform::Window hooks (Android)
 // ============================================================================
 // The Android twin of src/platform/posix/window_posix.cpp (src/platform/android/README.md):
-// it replaces that file whole on Android. One body differs: PrepareCreate adds
+// it replaces that file whole on Android. PrepareCreate adds
 // SDL_WINDOW_FULLSCREEN to the Vulkan flag. An Android window always covers the activity, but
 // only a fullscreen SDL window puts the activity in immersive mode (status and navigation bars
 // hidden; a swipe brings them back for a moment), which is how a game owns the screen there. The
 // engine's own "fullscreen" (a borderless window placed over the display, SetFramed) has no
 // meaning on Android and stays as the shared SDL code does it. P7: RenderScale reads the phone's
-// render scale (below); P8: SetRenderScale changes it in the run. P12: SetPreferredFrameRate tells
+// render scale (below); P8: SetRenderScale changes it in the run, and RenderScaleAdjustable and
+// FixedDisplaySurface answer true. P12: SetPreferredFrameRate / ReapplyPreferredFrameRate tell
 // the display the rate the game is paced to (below). Every other hook is the identity.
 // ============================================================================
 
@@ -33,7 +34,7 @@ namespace Window {
 
 // P7: `VideoRenderScale=<percent>` in the user's settings.cfg (Documents/Banished under the data
 // folder), read once at the first call: the window's creation, after EnterRunDirectory has seeded a
-// first run's file (app_android.cpp: 50). Absent or out of 25..100: 100, the window's own size. The
+// first run's file (app_android.cpp, SeedPhoneSettings). Absent or out of 25..100: 100, the window's own size. The
 // engine keeps the key with the rest (IO::Persistence writes back every key it read). P8: the
 // Options dialog's Render scale row changes it in the run (SetRenderScale) and records the key. The
 // percent is an atomic: the Vulkan backend reads the scale where it rebuilds the swap chain, which is

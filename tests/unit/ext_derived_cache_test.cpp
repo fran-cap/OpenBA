@@ -101,7 +101,7 @@ UNIT_TEST(ext_derived_cache_hash64_is_xxh64) {
     std::vector<uint8_t> v(1003);
     for (size_t i = 0; i < v.size(); ++i)
         v[i] = static_cast<uint8_t>(i * 7 + 3);
-    CHECK_EQ(Hash64(v.data(), v.size()), 0x778430D269B09BD7ull);   // every tail path: 31 stripes + 8 + 4 + 3
+    CHECK_EQ(Hash64(v.data(), v.size()), 0x778430D269B09BD7ull);   // 31 stripes + 8 + 3
 }
 
 UNIT_TEST(ext_derived_cache_round_trip) {

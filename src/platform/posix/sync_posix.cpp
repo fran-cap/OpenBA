@@ -9,7 +9,8 @@
 // MemoryAllocator+0x640 still never allocates from the allocator it guards. The
 // spin count has no pthread equivalent and is ignored (a CRITICAL_SECTION's spin is
 // a contention tuning, not a semantic). macOS's pthread_mutex_t is 64 bytes and
-// does not fit: the static_assert below stops that build (plans/THREADS.md B, Q10).
+// does not fit: src/platform/darwin/sync_darwin.cpp replaces this file there
+// (plans/THREADS.md B, Q10).
 //
 // ONCE: a three-state word in the OnceFlag's pointer slot (null = not run), the
 // losers yielding until the winner has returned: InitOnceExecuteOnce's contract.

@@ -18,16 +18,9 @@
 // is not covered; `PersistObject`'s read-arm bounds are driven by
 // review_object_index_bounds_test.cpp.
 //
-// What only a live boot can prove, called out in the step's report:
-//   * that the registered `RtObject_Internal_Ctor`/`_Dtor` shims, which still
-//     stamp `VtblInternal()`/`VtblBase()` rather than the compiler's table,
-//     drive the same handle table these members now compute —
-//     `[RtInternalTable] ctorRuns=/dtorRuns=` in standalone_debug.log is the
-//     counter that says so, and `[RtInternalVtbl]` is the line that says which
-//     table got stamped;
+// What only a live boot can prove:
 //   * that `ClearPersistState`/`ResetPersistState` still write the same bytes
-//     in the same order (`[RtPort] FIRST LIVE CALL into our ?ClearPersistState@`
-//     plus the resave gate's byte-for-byte compare);
+//     in the same order (the resave gate's byte-for-byte compare);
 //   * post-`Factory::Startup` type ids. `Internal::TypeId()` is the 0xFFFFFFFF
 //     ctor sentinel until Startup runs (B33_RULES §2.5), and Startup needs the
 //     whole registered chain — including a record named "Base", whose absence
@@ -138,9 +131,6 @@ UNIT_TEST(internal_layout_matches_the_alias_pod) {
     static_assert(sizeof(::Object::Internal) == 0x10, "Object::Internal is 16 bytes");
     static_assert(offsetof(::Object::Internal, _factoryIndex) == 0x08, "+0x08");
     static_assert(offsetof(::Object::Internal, _generation)   == 0x0c, "+0x0c");
-
-    // The POD must stay trivially destructible — it is destroyed BY HAND out of
-    // a vtable slot, so a destructor on it is a double free (B31_RULES).
 
     // B3X W1: a virtual destructor on every level of the chain. GCC spends two
     // slots on it and shifts Type/TypeName/Persist by one — RetailSlot<T>

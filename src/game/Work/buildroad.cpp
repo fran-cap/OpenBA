@@ -47,10 +47,8 @@
 // the dtor — i.e. from both the loader and the main thread). Every one is gone:
 //   Object::Internal ctor/dtor (IAT 0x140152768/70) -> the compiler's base chain
 //   Work::Serialize 0x1400f7400                     -> Work::Persist (qualified)
-//   Work::ValidateTask 0x1400f7100                  -> WorkBase_ValidateTask_f7100
-//   task-list cleanup 0x1400c5400                   -> WorkBase_TaskListCleanup_c5400
-//     (both ported in work_base_reimpl.cpp and registered at those addresses by
-//      standalone/reg_work_base.cpp — the function ResolveAddr answered)
+//   Work::ValidateTask 0x1400f7100                  -> Work::ValidateTask (work_base_reimpl.cpp)
+//   task-list cleanup 0x1400c5400                   -> ActionStack::Clear (Action/Action.h)
 //   type-id cell 0x1401c7158 (CitizenComponent)     -> read where it is used
 
 // ============================================================
@@ -71,8 +69,8 @@ BuildRoad::BuildRoad()
 //
 // Retail copies *ownerIbp into a LOCAL and passes that local to Work_Ctor25 — the
 // caller's IBP is not handed over directly, and 9c960 goes on to reuse its copy for the
-// pending-road BST insert. Work(void*) reads the value once and never writes through
-// the pointer, so the caller's copy is untouched either way.
+// pending-road BST insert. Work(ComponentEntity* const*) reads the value once and never
+// writes through the pointer, so the caller's copy is untouched either way.
 // ============================================================
 BuildRoad::BuildRoad(ComponentEntity* const* ownerIbp, uint32_t cellIdx, uint32_t mapDescVal,
                      ComponentDescription* roadDescExtra, uint32_t roadTypeExisting,
@@ -164,7 +162,7 @@ int BuildRoad::OnCancel(CitizenComponent**, ComponentEntity**, int) {
 // ============================================================
 // Cleanup (0x1400e4910) — slot 8
 // If target entity exists, clean up its pending task list.
-// Walks entity -> +0x278 (StateMachineComponent) -> +0x48 (task list)
+// Walks entity -> +0x278 (CharacterComponent) -> +0x48 (task list)
 // ============================================================
 int BuildRoad::Cleanup() {
     if (_citizen.Get() == nullptr) return 0;
@@ -197,9 +195,8 @@ int BuildRoad::Validate() {
 
 // ============================================================
 // GetTarget (0x1400e4960) — slot 10
-// Returns the game world's road build target entity.
+// Returns the profession list's builder profession (GameUpdateLoop::m_professionList).
 // Uses hidden return pointer (member function ABI: RCX=this, RDX=retbuf).
-// NOT HOOKED — RIP-relative prologue (bug class 2).
 // ============================================================
 Profession** BuildRoad::GetTarget(Profession** retbuf) {
     // The profession list's +0x38 profession (GameUpdateLoop::m_professionList)
@@ -210,7 +207,6 @@ Profession** BuildRoad::GetTarget(Profession** retbuf) {
 // ============================================================
 // GetPriority (0x1400295a0) — slot 11
 // Returns true (1) if _citizen is non-null, false (0) otherwise.
-// NOT HOOKED — only 10 bytes total, too small.
 // ============================================================
 int BuildRoad::GetPriority() {
     return (_citizen.Get() != nullptr) ? 1 : 0;

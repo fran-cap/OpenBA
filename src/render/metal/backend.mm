@@ -43,7 +43,7 @@
 #include <memory>
 #include <atomic>
 #include <dispatch/dispatch.h>
-// Serial single-sample baseline: translated DXBC and native Metal draw encoding.
+// Translated DXBC and native Metal draw encoding.
 namespace VideoMetal {
 static id<MTLDevice> gpu;
 static id<MTLCommandQueue> queue;

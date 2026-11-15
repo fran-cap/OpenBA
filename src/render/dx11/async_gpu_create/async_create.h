@@ -21,7 +21,7 @@
 //   - Slot4(false) waits for every job of the load (End), so a finished load has created everything
 //     it would have created synchronously. Shutdown and the device-lost path drain first.
 // Off (the row, a driver without concurrent creates, any thread outside the bracket): retail's path,
-// unchanged, plus one relaxed atomic load per use (Await's fast path).
+// unchanged, plus one acquire atomic load per use (Await's fast path).
 // ============================================================================
 
 #include <windows.h>

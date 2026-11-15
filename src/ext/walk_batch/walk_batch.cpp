@@ -115,7 +115,7 @@ inline uint32_t Bits(float v) { uint32_t b; std::memcpy(&b, &v, sizeof b); retur
 // The decision. Returns the MoveTo whose walking branch this tick is, or null (the real tick
 // runs). Every test reads what the executor / Execute would read first, in their order, and
 // nothing a declined tick would not read.
-// kWhy (the COMPPROF >= 2 census only, CensusTick below): *why = the Census reason of the
+// kWhy (the COMPPROF=2 census only, CensusTick below): *why = the Census reason of the
 // exit taken. Eligible<false> is the batched tick's decision, with no store.
 template <bool kWhy = false>
 MoveTo* Eligible(CharacterComponent* self, int* curCellOut, int* destCellOut, int* why = nullptr) {
@@ -181,7 +181,7 @@ static_assert(kCensusFollow - kCensusPathWait == kFollow - kPathWait &&
               kCensusCount - kCensusPathWait == kDeclineCount - kPathWait,
               "Census's last rows are Decline's, in its order");
 
-// The census (COMPPROF >= 2): the reason of this intermediate tick, read before the tick as
+// The census (COMPPROF=2): the reason of this intermediate tick, read before the tick as
 // the batched decision reads it, and for a declined top that is not one lone MoveTo the type
 // of the node that declined it (the top, or a chained MoveTo's next node).
 void CensusType(uint32_t typeId, int why, bool walkChain) {
@@ -239,7 +239,7 @@ void Step(CharacterComponent* self, MoveTo* mv, int curCell) {
         mv->pathIndex = pathIndex + 1;
         mv->UpdateFacing();                                // 0x1400c8d20, the real body
     }
-    // ---- the tail, rootOnly set (citizenai_executor.cpp:314-375, 436-493) -------------
+    // ---- the tail, rootOnly set (citizenai_executor.cpp:340-409, 470-577) -------------
     ModelComponent* model = self->modelComponent.Get();
     const float fx = model->transform.translation.x;
     const float fy = model->transform.translation.y;

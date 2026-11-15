@@ -3,7 +3,7 @@
 // src/game/Component/QuarryComponent.h — ENDGAME B.3.8 block VIS
 //
 // `QuarryComponent` as a real C++ class with a compiler-generated vtable
-// (B38_RULES.md D1-D4). The engine/types POD is a forwarder to this file.
+// (B38_RULES.md D1-D4).
 //
 // RETAIL (Application-x64.exe, B38_SLOTS.md §6):
 //   reflected "QuarryComponent", parent "Component", ti 0x1401c4800
@@ -16,9 +16,8 @@
 //     [7]  0x140055210 own `RET`             [12] 0x1400550f0 message sink (carve)
 //     [15] 0x140054b80 message sink (progressive carve)
 //     every other slot = Component's
-// The [12]/[15] bodies (quarrycomponent_deform.cpp) are ALSO registered by
-// address (standalone/reg_quarry_live.cpp), so they stay free functions and
-// the members delegate (B38 D5).
+// The [12]/[15] bodies are QuarryComponent::OnEvent / OnMessage in
+// quarrycomponent_deform.cpp.
 // ============================================================================
 
 #include <cstdint>

@@ -35,8 +35,8 @@
 //
 // Sub-workers reimplemented here (recursively):
 //   * sub_eee0 (radial powf-falloff brush)  @0x1400ceee0  — the stamp primitive,
-//     shared by BOTH e910 and ec50 (the finalize twin). static here; ec50's slice
-//     should reuse this one (dedupe note in report).
+//     shared by BOTH e910 and ec50 (the finalize twin). static here; ec50 has its
+//     own copy, wg_eee0_radial_brush (worldgen_f390_erosion.cpp).
 //   * FUN_1400245d0 (0xC-stride {x,y,w} vector append) @0x1400245d0 — shared by
 //     cd150/ccf60/cd460. static here.
 //   * sub_7640 + helper_f9e0 (vector<vector<int>> resize) @0x140007640 — cd460's
@@ -46,12 +46,10 @@
 //     component labeling.
 //
 // All field offsets verified against Ghidra disassembly (blueprint §1.1).
-// DO NOT build standalone yet — Vector2/Random-Float engine pointers below are
-// declared extern and must be wired in engine_funcs before this links.
 
 #include "Game/TerrainHeightfield.h"   // TerrainHeightfield, the stage declarations
 #include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
-#include "Game/exe_bodies.h"   // fn_Random_RandFloatTol
+#include "Game/exe_bodies.h"
 #include "math/Math.h"
 #include "collection/Collection.h"
 #include <cstdint>
@@ -81,16 +79,15 @@ static constexpr float kRadiusThr  = 0.99f;      // 0x140172144 = 0x3f7d70a4  ee
 static constexpr float kOne        = 1.0f;       // 0x14017214c = 0x3f800000  g_fUVScale (brush numerator)
 static constexpr uint32_t kSignBit = 0x80000000u;// 0x1401722c0               float-negate XOR mask
 
-// (void)kInf / kJoinThresh used in cd460 labeling/connect below.
+// kJoinThresh is used in the cd460 labeling below; kInf belongs to the connect pass,
+// which this body does not run.
 
 // ============================================================
-// Engine helpers used by these stages. Some are already wired (fn_MemAlloc,
-// fn_MemFreeStatic, System::MemoryAllocator::_singleton); the Vector2 + RandFloatTol shims are
-// declared extern here and must be added to engine_funcs.{h,cpp} before this TU
-// links (NEW in blueprint §3).
+// Engine helpers used by these stages, called by name: System::MemoryAllocator::MemAlloc /
+// MemFree, Math::Vector2::Dot and System::Random::RandFloat / RandFloatTol.
 // ============================================================
 // System::Random::RandFloatTol()  ?RandFloatTol@Random@System@@QEAAMXZ:
-// fn_Random_RandFloatTol (worldgen_f390_shims.cpp), declared in Game/exe_bodies.h.
+// called as rng->RandFloatTol().
 
 // CRT libm leaves (verified: sub_1460 = powf, FUN_140132010 = sqrtf). powf is the exe's own MSVC CRT
 // body, ported bit-exact in MsvcLibm (crt/msvc_libm.h): MinGW's powf differs in the last bit, and differs
@@ -119,7 +116,7 @@ extern "C" void TradeComponent_helper_f9e0(RawArray<int32_t>* dst, const RawArra
 // NEW count (count+1); rec points to the 0xC source record.
 // HEIGHT EFFECT: none (pure data). Shared by cd150/ccf60/cd460.
 //
-// ENDGAME B.3.2 step 2: now the 3-argument `Collection::Array<WgVec3Rec>::SetSize`
+// ENDGAME B.3.2 step 2: now the 3-argument `Collection::Array<TerrainStamp>::SetSize`
 // (rec is the fill) — the same trait-derived instantiation worldgen_f390_ranges.cpp
 // uses for its AppendVec3 twin of this retail body. Trait-equivalent: three
 // floats, 12-byte `assign` (byteCopy == is_trivially_copyable), no destroy, and
@@ -184,11 +181,11 @@ static void wg_VecOfVecResize(RawArray<RawArray<int32_t>>* h, int newCount) {
 //
 //   1. Grow the stamp radius: r starts at 1.0; while  1/(curve+1) < 0.99  where
 //      curve = powf(falloffPow, -(r - radiusParam)), increment r by 1.0. So the
-//      effective integer radius extends until the edge falloff weight drops below
+//      effective integer radius extends until the edge falloff weight reaches
 //      0.99 (kRadiusThr).
 //   2. For each cell (dx,dy) in the [-ri..ri] square around the center:
 //        dist   = sqrt(dx^2 + dy^2)
-//        weight = 1/(powf(falloffPow, -(dist - radiusParam)) + 1)   (in (0,1], 1 at center)
+//        weight = 1/(powf(falloffPow, -(dist - radiusParam)) + 1)   (in (0,1], lowest at center)
 //        MIN mode (param_6==0):  v = weight*strength;     mask = min(mask, v)
 //        MAX mode (param_6==1):  v = (1-weight)*strength; mask = max(mask, v)  (strict >)
 //
@@ -398,8 +395,8 @@ void wg_f390_rivers(TerrainHeightfield* hfp) {
 //
 // STAMPS (verified from decomp):
 //   * patchList (hf+0x18, param_1[6]=data,[8]=count): each patch is a list of
-//     0x1c-byte records {x,y, innerRadius(+8), innerPow(+c), outerRadius(+10),
-//     outerPow(+14), outerStr(+18)}. For each record:
+//     0x1c-byte records {x,y, outerStr(+8), innerRadius(+c), innerPow(+10),
+//     outerRadius(+14), outerPow(+18)}. For each record:
 //       eee0(center, innerRadius, innerPow, strength=1.0, MIN, maskB)
 //       eee0(center, outerRadius, outerPow, strength=outerStr, MAX, maskC)
 //   * listC (hf+0x38, mountain satellites, [0xe]=data,[0x10]=count): each {x,y,

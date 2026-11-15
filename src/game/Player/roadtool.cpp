@@ -6,15 +6,12 @@
 //
 // Vtable at 0x140161e70 (15 slots).
 //
-// Hookable slots reimplemented:
-//   Slot0  Dtor    (0x14002e8c0) — scalar deleting destructor
-//   Slot4  Startup (0x1401056e0) — find CreateRoadDescription component
-//   Slot8  Draw    (0x140105190) — road path preview rendering
-//
-// Unhookable slots (clean code for standalone exe, NOT hooked):
+// Slots reimplemented here:
+//   Slot4  Startup  (0x1401056e0) — find CreateRoadDescription component
 //   Slot6  OnKey    (0x140105690) — road-specific drag logic
-//   Slot13 CalcPath (0x140104d30) — road path calculation
+//   Slot8  Draw     (0x140105190) — road path preview rendering
 //   Slot14 CalcCost (0x140104fe0) — road cost calculation
+// Slot13 CalcPath (0x140104d30), the road path calculation, is in roadtool_calcpath.cpp.
 //
 // Decompiled from Application-x64.exe.
 
@@ -23,7 +20,7 @@
 #include "Player/dragtool.h"   // Tool + DragTool (ENDGAME B.3.8 TOOL)
 #include "object/Internal.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
-#include "Action/exe_bodies.h"   // RoadTool_sub_ce00 (0x14009ce00), called by name
+#include "Action/exe_bodies.h"
 #include "Player/exe_bodies.h"
 #include "object/TypeInfo.h"
 #include "Object/factory_registration.h"
@@ -157,7 +154,7 @@ int RoadTool::CalcCost(int startCell, int endCell, uint32_t* outValid,
     uint32_t flagB = Bits(PathBitOf(cells[ec].terrainType));
     uint32_t combinedFlags = flagA | flagB;
 
-    // Check if terrain allows road placement (mask 0x5e0 = bits 5-10 must be clear)
+    // Check if terrain allows road placement (mask 0x5e0 = bits 5-8 and 10 must be clear)
     if ((combinedFlags & Bits(PathBits::NoRoad)) != 0) {
         return 3;
     }

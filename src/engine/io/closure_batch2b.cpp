@@ -2,19 +2,15 @@
 // src/engine/io/closure_batch2b.cpp — cutover closure batch 2b
 // ============================================================================
 //
-// The last two of IO::Persistence's embedded save/load worker jobs that our
-// tree still reached by address:
+// Two of IO::Persistence's embedded save/load worker jobs:
 //
 //   0x1800b6aa0  IO_Persistence_Worker_Load     852 B   command 1
 //   0x1800b69c0  IO_Persistence_Worker_Delete   214 B   command 2
 //
-// `src/engine/io/persistence_worker.cpp` ported the dispatcher
-// (`RtIo_PersistenceWorker_Run`, 0x1800b7260) and the three enqueue bodies and
-// left all five job bodies as address doors; its own comment names these two as
-// "the LOAD job" / "the DELETE job". They land here rather than in that file so
-// the two commits stay separable, and the dispatcher needs no edit: it reaches
-// them through `ResolveAddr(Module::Runtime, …)`, which consults the port
-// registry first.
+// `src/engine/io/persistence_worker.cpp` holds the dispatcher
+// (`IO::PersistenceWorker::Run`, 0x1800b7260), the three enqueue bodies and the
+// SAVE job; its own comment names these two as "the LOAD job" / "the DELETE job".
+// `Run` calls both by name.
 //
 // THE OS CALLS: both call the OS directly — DeleteFileW in one, SetFilePointer
 // in the other — exactly as persistence_worker.cpp's SaveJob writes. Since Phase
@@ -24,7 +20,7 @@
 // THE RECEIVER IS THE WORKER, `Persistence + 0x10`. Same subobject convention
 // the sibling file documents at length. B.4 R-IO: both jobs are
 // `IO::PersistenceWorker` members and read the worker's own fields by name
-// (PersistenceWorker.h cross-asserts them against Persistence.h).
+// (Persistence.h static_asserts their offsets).
 //
 // ORACLE: none, and the reason is the sibling file's, unchanged. Neither body
 // is pure; the LOAD job opens a file and fills caller-owned buffers, the DELETE
@@ -133,8 +129,7 @@ void IO::PersistenceWorker::DeleteJob() {
 //     job still reports success. Faithful.
 //
 // THE FileStream IS CONSTRUCTED AND DESTROYED THROUGH ITS EXPORTED ctor/dtor
-// rather than by transcribing retail's inlined copies. That is the same
-// deliberate departure src/engine/object/deleting_dtor.cpp makes and states:
+// rather than by transcribing retail's inlined copies, a deliberate departure:
 // what is computed is identical (the inlined ctor IS ??0FileStream's body, and
 // the epilogue IS ??1FileStream's), and the cost is two calls retail folds in.
 // Reproducing the inlined destructor by hand would mean a second, competing

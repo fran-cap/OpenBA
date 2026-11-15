@@ -63,7 +63,8 @@ static const float kFrostDamage     = BitsF(kRdata_140172288);   // -10.0f
 //   +0x130: pointer to the weather/environment data (+0x18 = current temperature)
 
 // FUN_1400052c0 -- find the sibling NaturalResourceComponent IBP on the owner
-// entity (the slot-4 OnCreate accessor): WorkBase_FindComponent_52c0, called directly.
+// entity (the slot-4 OnCreate accessor): ComponentEntity::FindComponent<NaturalResourceComponent>,
+// called directly.
 
 // fabsf via the double-abs bitmask the original uses (DAT_1401722b0, matches bitwise pattern).
 static inline float AbsViaMask(float v) {
@@ -98,14 +99,14 @@ FruitComponent::FruitComponent()
 // ============================================================
 // FruitComponent::Startup / OnCreate (vtable slot [4], +0x20, original 0x14004a030)
 // ============================================================
-// Body-init: populate self->field28 (+0x28) with the sibling
+// Body-init: populate resource (+0x28) with the sibling
 // NaturalResourceComponent's InternalBasePtr from the owning entity (+0x10).
 //
 //   CheckPtr(self+0x10);
 //   ibp = FUN_1400052c0(*(self+0x10), &local);   // first sibling NatResComp
 //   self+0x28 = *(void**)ibp;                     // the wrapped component ptr
 //
-// Called at spawn by ComponentEntity_StartupComponents (vtable+0x20). _unk18
+// Called at spawn by ComponentEntity_StartupComponents (vtable+0x20). _description
 // (+0x18, the FruitDescription) is set earlier by the base Component copy-ctor
 // (ComponentEntity_CtorFromDescription).
 void FruitComponent::Startup() {
@@ -122,8 +123,8 @@ void FruitComponent::Update(const System::Time* time) {
     const System::Time* pDeltaTime = time;
 
     // [LIVE-COMPONENT BRING-UP GUARD] On an inert-spawned standalone component the
-    // body is zeroed unless Startup ran. _unk18(+0x18) is the FruitDescription set
-    // by the copy-ctor; field28(+0x28) is the sibling NaturalResourceComponent IBP
+    // body is zeroed unless Startup ran. _description(+0x18) is the FruitDescription set
+    // by the copy-ctor; resource(+0x28) is the sibling NaturalResourceComponent IBP
     // populated by FruitComponent_Startup (slot 4), which the spawn pipeline
     // invokes via vtable+0x20 in ComponentEntity_StartupComponents. Belt-and-
     // suspenders: if +0x28 is still null but the description(+0x18) is present, run
@@ -148,7 +149,7 @@ void FruitComponent::Update(const System::Time* time) {
     }
     // [STANDALONE TRUST] The factory/type tree can be incomplete in standalone, so
     // IsDerivedFrom on a description is unreliable (see growthcomponent.cpp / the
-    // SpawnComponent precedent). _unk18 is the FruitDescription the copy-ctor stored
+    // SpawnComponent precedent). _description is the FruitDescription the copy-ctor stored
     // at +0x18 — trust it as a fallback so a present fruit entity still simulates.
     if (!resData && baseObj) resData = static_cast<FruitDescription*>(baseObj);
     if (!resData) return;  // original derefs resData->+0x20/+0x24/+0x28 below

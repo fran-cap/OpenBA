@@ -4,16 +4,16 @@
 //   retail 0x1800b65b0, UNEXPORTED, 1034 bytes / 258 instructions.
 // ============================================================================
 //
-// The fourth of the five address doors `persistence_worker.cpp` opened when
-// it ported the worker's `Run` dispatcher (0x1800b7260). BATCH 5 paid
-// GET-SAVE-LIST (0x1800b6290, persistence_savelist_job.cpp); this pays
-// GET-SAVE-INFO. LOAD (0x1800b6aa0) and DELETE (0x1800b69c0) remain.
+// One of the five job bodies `IO::PersistenceWorker::Run` (0x1800b7260,
+// persistence_worker.cpp) dispatches to. GET-SAVE-LIST (0x1800b6290) is in
+// persistence_savelist_job.cpp, LOAD (0x1800b6aa0) and DELETE (0x1800b69c0) in
+// closure_batch2b.cpp.
 //
 // "Unexported" is MEASURED, not read off a mangling: the retail export
 // directory was walked with pefile for this address before the file was
 // written and returned nothing (reference_aeaa_is_private_not_unexported.md).
-// So this is an ADDRESS row, registered with `RegisterRuntimeAddr` only, and
-// renamed in retail Ghidra to `IO_Persistence_Worker_GetSaveInfoJob`.
+// So it has no retail name; it is renamed in retail Ghidra to
+// `IO_Persistence_Worker_GetSaveInfoJob`.
 //
 // ---------------------------------------------------------------------------
 // WHY BATCH 8 DECLINED IT, AND WHAT WAS ACTUALLY MISSING
@@ -23,8 +23,7 @@
 // All three were already in the tree and none of them needed new work:
 //
 //   * `?Open@FileStream@IO@@UEAA_NAEBVFilename@System@@@Z` is EXPORTED
-//     (ordinal 3304) and file_stream.cpp:1270 has ported it since lane FILE;
-//     it is registered at both its name and 0x1800aac70.
+//     (ordinal 3304, 0x1800aac70); its body is in file_stream.cpp.
 //   * the Array is `kSpec_Blk12` — array.cpp:1191 has owned 0x18002a810 since
 //     WAVE 25 lane INTERNAL42, under the name "the Persistence block
 //     directory", which is exactly this array.
@@ -34,10 +33,9 @@
 //     the early "could not open" one) — a scoped override, not a semantic
 //     question.
 //
-// Nothing is ported here that another file already owned. The one door this
-// body opens, `?Compute@CRC@System@@SAIPEBXHI@Z` (0x1800c5490, ordinal 1752),
-// was closed the same day by src/engine/system/crc.cpp; the by-name resolve
-// below now lands on our body through the registry.
+// Nothing is ported here that another file already owned. The CRC callee,
+// `?Compute@CRC@System@@SAIPEBXHI@Z` (0x1800c5490, ordinal 1752), is
+// System::CRC::Compute (src/engine/system/crc.cpp), called by name below.
 //
 // ---------------------------------------------------------------------------
 // WHAT IT DOES — verify a save file's header and checksum without loading it
@@ -129,9 +127,9 @@ namespace {
 
 // ---- CRC-32, reflected table (polynomial 0xEDB88320) ------------------------
 // System::CRC::_crcTable, retail 0x1801f9080, which 0x1800b689f loads by RIP.
-// Generated rather than read out of the DLL so this body survives cutover
-// (PLAN.md §4.1 decision 1); persistence_worker.cpp and type_system.cpp
-// each carry their own generator for the same reason.
+// Generated rather than read out of the DLL (docs/runtime_port/PLAN.md §4.1
+// decision 1); persistence_worker.cpp, src/engine/object/type_reflection.cpp and
+// src/engine/system/crc.cpp each carry their own generator.
 const uint32_t* CrcTable() {
     static uint32_t table[256];
     static bool built = false;
@@ -152,7 +150,7 @@ const uint32_t* CrcTable() {
 // The worker's command-3 body.                              retail 0x1800b65b0
 //
 // `this` is the worker, `Persistence + 0x10`; every offset in the shipped
-// listing is worker-relative, and PersistenceWorker.h pins each field.
+// listing is worker-relative, and Persistence.h pins each field.
 // ============================================================================
 void IO::PersistenceWorker::GetSaveInfoJob() {
     ::IO::FileSystem* const fs = ::IO::FileSystem::_singleton;   // the class static

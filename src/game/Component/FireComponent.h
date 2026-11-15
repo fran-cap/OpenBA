@@ -3,8 +3,7 @@
 // src/game/Component/FireComponent.h — ENDGAME B.3.8 block CIT
 //
 // `FireComponent` (a building's fire: ignition roll, burn, spread, buckets) as a
-// real C++ class with a compiler-generated vtable (B38_RULES.md D1-D4). The
-// engine/types POD is a forwarder to this file.
+// real C++ class with a compiler-generated vtable (B38_RULES.md D1-D4).
 //
 // RETAIL (Application-x64.exe, B38_SLOTS.md §6):
 //   reflected "FireComponent", parent "Component", ti 0x1401c41e0

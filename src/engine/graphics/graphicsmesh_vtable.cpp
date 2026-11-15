@@ -9,8 +9,8 @@
 //   slot 2  ?Type@             0x180012370    slot 7  ?Destruct@     0x180012540
 //   slot 3  ?GetFileVersion@   0x1800ff3a0    slot 8  ?Construct@    0x180012530
 //   slot 5  ?Serialize@        0x1800ff3b0
-//   slot 0  the vector deleting destructor 0x180012bd0 — a ROW in
-//           src/engine/object/deleting_dtor.cpp, not a body here.
+//   slot 0  the vector deleting destructor 0x180012bd0 — the compiler's, for
+//           the virtual `~GraphicsMesh()` defined below.
 //
 //   ??0GraphicsMesh@Graphics@@QEAA@XZ   0x1800ff170
 //   ??1GraphicsMesh@Graphics@@UEAA@XZ   0x1800ff270
@@ -78,12 +78,11 @@ using Graphics::GraphicsMesh;
 
 // ---------------------------------------------------------------------------
 // `?_typeInfo@GraphicsMesh@Graphics@@0VBaseTypeInfo@Object@@A` — 0x1801fa708,
-// MINTED and PROMOTED (standalone/reg_mint_promoted.cpp:936). Read through the
-// name for the reason graphics_typeinfo_accessors.cpp gives.
+// the class's own record, DEFINE_TYPE'd in graphics_type_records.cpp.
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// Named dependencies — RT_EXPORT_ONCE, so a ported one is reached as ours.
+// Named dependencies, called by name.
 // ---------------------------------------------------------------------------
 // `?Serialize@String@System@@QEAAXAEAVSerializer@IO@@@Z` — retail 0x1800c9930,
 // the member System::String::Serialize, called by name on the typed members
@@ -98,15 +97,8 @@ using Graphics::GraphicsMesh;
 // cutover still needs": the body is two device-interface arms of the shape
 // src/engine/video/shaderprogram.cpp already spelled out, and every helper it
 // drives (0x1800136f0, 0x180014850) was already ported.
-// RENAMED `PlatformSerializeDoor` by ENDGAME B.3.5 block G: the real class now
-// DECLARES `Graphics::GraphicsMesh::PlatformSerialize`, so a helper of the same
-// bare name inside `namespace Graphics`'s member bodies would bind the MEMBER
-// silently — exactly the name-lookup trap B34_BRIEFS A.2 records. The door it
-// opens is unchanged.
-// ENDGAME B.3.5 caller batch: `Graphics::GraphicsMesh::PlatformSerialize` is a
-// DEFINED member (batchc_gfx_leaves.cpp:789), so the by-name door is a member
-// call. The name stays `PlatformSerializeDoor` for the lookup reason above.
-// B.4: the door is gone; `Serialize` calls `PlatformSerialize(ser)` directly
+// `Graphics::GraphicsMesh::PlatformSerialize` is a defined member
+// (batchc_gfx_leaves.cpp); `Serialize` calls `PlatformSerialize(ser)` directly
 // (a member calling a member of its own class binds the member, which is what
 // is wanted).
 
@@ -139,13 +131,10 @@ using Graphics::GraphicsMesh;
 //                        by the same two functions and by nothing else
 //                        (get_xrefs_to, both addresses, retail).
 //
-// ENDGAME B.3.9 block GFX (B39_RULES D7, rows A6 / A7): FILE STATICS. Both
-// were UNEXPORTED DATA reached by address through the mint's by-address
-// storage rows; this file holds every site (`PlatformVersion`, the third
-// retail writer, is unported and has no caller), so the two words live here
-// and the two mint rows are retired (rt_mint_retired/gfx.txt). Zero-initialised
-// by the language, as retail's .data words are. The lazy function-local
-// ResolveAddr caches are gone with them.
+// ENDGAME B.3.9 block GFX (B39_RULES D7, rows A6 / A7): FILE STATICS. This file
+// holds every site (`PlatformVersion`, the third retail writer, is unported and
+// has no caller), so the two words live here. Zero-initialised by the language,
+// as retail's .data words are.
 // ---------------------------------------------------------------------------
 int32_t g_serializeCounter     = 0;         // retail 0x1801fc69c
 void*   g_serializeCurrentMesh = nullptr;   // retail 0x1801fc6a0
@@ -275,7 +264,7 @@ GraphicsMesh::~GraphicsMesh() {
 }
 
 // ?TypeId@GraphicsMesh@Graphics@@SAIXZ 0x180012380 -- the static twin of slot
-// 2: the minted record's +0x00 until the W3 fold (B39_RULES D6 step 1).
+// 2: DECLARE_TYPE's TypeId over the class's own record.
 
 // ?CreateNewObject@GraphicsMesh@Graphics@@SAPEAVBase@Object@@XZ 0x180012480 --
 // the FACTREST row it replaces called ??0GraphicsMesh after the locked
@@ -301,18 +290,15 @@ Object::Base* GraphicsMesh::CreateInPlaceObject(void* place) {
 // ============================================================================
 // §T  the DETAIL LEVEL's inline-geometry pass        retail 0x1800a4670
 // ============================================================================
-// *** THE DOOR IS NAMED `RtGraphics_GraphicsMeshTriangleList_Serialize` AND
-// THAT NAME IS WRONG. IT IS KEPT ANYWAY. *** This body is NOT
+// *** THE FUNCTION IS NAMED `RtGraphics_GraphicsMeshTriangleList_Serialize` AND
+// THAT NAME IS WRONG. *** This body is NOT
 // `?Serialize@TriangleList@GraphicsMesh@Graphics@@` — that export exists, at
 // 0x1800ff300, and is a different function: six DWORD scalars at +0x00..+0x14 of
 // a 0x18-byte record, looped over by the array helper at 0x180014850 which THIS
 // body calls. What 0x1800a4670 serializes is the WHOLE 0xb0-byte DETAIL LEVEL's
 // inline geometry — its `Array<TriangleList>` at +0x98, its four video buffers
-// and its max-instance count at +0xa8 — which is why its argument is now spelled
-// `GraphicsMesh::DetailLevel*`. The door keeps its name and its single ADDRESS
-// registration (0x1800a4670) because renaming a registered door is a change to
-// the cutover surface and B35_RULES section 11 keeps that surface still in step
-// 5; the correction is recorded here and in `GraphicsMesh.h`'s banner instead.
+// and its max-instance count at +0xa8 — which is why its argument is spelled
+// `GraphicsMesh::DetailLevel*`.
 //
 // UNEXPORTED, and a NON-SLOT helper: `GraphicsMesh::Serialize` below calls it
 // per detail level, so the class cannot round-trip without it.
@@ -422,7 +408,7 @@ static void RtGraphics_GraphicsMeshTriangleList_Serialize(GraphicsMesh::DetailLe
 // each emission is the whole port. Transcribed call by call from 0x1800ff3d5 ..
 // 0x1800ff647:
 //
-//   codec = factory(stream, &ser, 1)     ; VERSION 1 — see MakeCodec's note
+//   codec = factory(stream, &ser, 1)     ; VERSION 1 — see the Serializer note above
 //   *0x1801fc69c = 0                     ; the TriangleList counter
 //   *0x1801fc6a0 = this                  ; the "current mesh" static
 //   String::Serialize(this+0x20, &ser)

@@ -62,8 +62,8 @@ namespace {
 // SetThumbnail does NOT call this symbol — it OPEN-CODES the triple
 // `EnterCriticalSection(*0x1801fc718 + 0x640); Allocate(*0x1801fc718, 0x68, 8);
 // LeaveCriticalSection(...)`. Lane Q disassembled 0x1800c7a50 and proved that
-// triple IS its body, instruction for instruction; array.cpp:155 and
-// message_callbacks.cpp:91 already reach the allocator this way for exactly
+// triple IS its body, instruction for instruction; array.cpp:200 and
+// message_callbacks.cpp:82 already reach the allocator this way for exactly
 // the same open-coded shape. Calling the composed symbol keeps this file free
 // of <windows.h> (PLAN §4.1) at the cost of nothing observable.
 //
@@ -84,9 +84,7 @@ Video::Device** DeviceSingletonSlot() {
 }
 
 // ---------------------------------------------------------------------------
-// 0x1800c3db0 as a plain function, so the sweep and the registered entry point
-// drive the SAME code. A probe that re-derived the body would be testing a
-// copy of the port.
+// 0x1800c3db0 as a plain function; `SaveInfo::Compare` below forwards to it.
 //
 // The bytes, read out of the image (Ghidra has no function object here):
 //
@@ -147,7 +145,7 @@ int SaveInfoCompareImpl(const void* a, const void* b) {
 // 0x1800c3db0 — the qsort comparator. PURE.
 // ============================================================================
 // It is passed to qsort as DATA, so retail never "calls" it from a site we can
-// wrap; the sweep below is the verification, not a call-site oracle.
+// wrap.
 int Save::SaveLoad::SaveInfo::Compare(const void* a, const void* b) {
     return SaveInfoCompareImpl(a, b);
 }
@@ -171,16 +169,11 @@ int Save::SaveLoad::SaveInfo::Compare(const void* a, const void* b) {
 //      independent confirmation of this header's thumbPixels/Width/Height
 //      names, since OnVideoRestart reads the same three back as upload args.
 //
-// *** THE CTOR'S RETURN VALUE IS NOT USED HERE, DELIBERATELY. *** Retail does
+// THE CTOR'S RETURN VALUE. Retail does
 // `RDI = alloc; if (RDI) { CALL ctor; RDI = RAX; }` — an MSVC constructor
-// returns `this` in RAX, so RAX == RDI and the move is a no-op. Our port of
-// that ctor is a plain `void (ImageBuffer*)`, and GCC does NOT guarantee `this`
-// in RAX on return from it. Reading RAX through a `void*(*)(void*)` typedef
-// here would be reading a register the callee does not set — the same class of
-// defect as an fn_* typedef that omits a hidden return slot
-// (reference_hidden_retslot_wild_write.md), and it would silently work while
-// the DLL body is in use and break at cutover. So the allocation pointer is
-// carried in a local. The two are provably the same value.
+// returns `this` in RAX, so RAX == RDI and the move is a no-op. Here the
+// placement-new expression yields `mem` itself, so the two are provably the
+// same value.
 //
 // Retail does NOT null-check `row`, `row->imageBuffer` after Create, or the
 // ImageBufferData at +0x60, and neither does this. The one `if` it does have —
@@ -206,13 +199,9 @@ void Save::SaveLoad::SaveInfo::SetThumbnail(void* pixels, int32_t w, int32_t h) 
     // not interpreted: type=0, usage=2, format=5, 0, w, h, filter=0,
     // addressU=addressV=addressW=1, no initial data.
     // ENDGAME B.3.5: `img` is a PROVED `Video::ImageBuffer` — it is the 0x68-byte
-    // allocation `ImageBufferCtor` (0x1800f2580) just constructed two lines up,
+    // allocation the ImageBuffer constructor (0x1800f2580) just built above,
     // so the receiver is known from the code that produced the pointer and not
     // from the variable's name. Slot 9 is therefore the virtual, called as one.
-    // The live object wears the MINTED `??_7ImageBuffer@Video@@6B@`, whose slot 9
-    // holds the registered `Video_ImageBuffer_Create` body; `Create` is `= 0` on
-    // the class for the reason ImageBuffer.h's slot-9 banner gives, and that
-    // changes nothing at a call site.
     img->Create(0, 2, 5, 0u, w, h, 0, 1, 1, 1, nullptr);
 
     // ---- the VIDEO DEVICE lock, open-coded in retail ----------------------
@@ -228,7 +217,7 @@ void Save::SaveLoad::SaveInfo::SetThumbnail(void* pixels, int32_t w, int32_t h) 
 
     // ImageBufferData vtable slot 5 (+0x28) — the pixel upload. PURECALL in
     // the base Video table; the live body is the DX11 override.
-    // `img->platformData` is the companion object the ctor/`Create` pair built
+    // `img->_data` is the companion object the ctor/`Create` pair built
     // for THIS ImageBuffer, so the receiver is proved. Slot 5 of the abstract
     // `Video::ImageBufferData` is `bool Update(void*, int, int)`
     // (CompanionData.h); retail ignores the result and so does this. The
@@ -246,47 +235,5 @@ void Save::SaveLoad::SaveInfo::SetThumbnail(void* pixels, int32_t w, int32_t h) 
     // immediates in the listing.
 }
 
-// ============================================================================
-// THE INPUT SWEEP — a REAL two-sided oracle for 0x1800c3db0
-// ============================================================================
-//
-// Probe shape (kickoff §1c): an INPUT SWEEP against the shipped body. It is
-// available here and nowhere else in this lane because the comparator is the
-// only PURE row: no state, no allocation, two const pointers in and an int out.
-//
-// WHY A SWEEP AND NOT A CALL-SITE ORACLE. The comparator is passed to qsort as
-// DATA. There is no call site of ours to wrap, and a port with zero callers
-// reports `calls=0` and reads CLEAN (reference_uncalled_port_is_not_verified.md).
-// Waiting for a caller would have produced exactly that
-// (project_pure_functions_verify_by_sweep.md — GetAlignedPosition reported
-// calls=0 in a 16.9M-call in-game run and was verified by sweep instead).
-//
-// THEIRS is reached through ResolveRuntimeRaw, NOT ResolveAddr. ResolveAddr
-// consults the port registry FIRST, and this file REGISTERS 0x1800c3db0 — so
-// using it would compare our body with itself and pass unconditionally. That
-// exact defect kept a Wave 5 probe dark for five waves.
-//
-// CONTROLS, and what each is for:
-//   * EFFECTIVENESS — `g_decisive` counts the cases that reached the sortKey
-//     comparison at all. Every case with a negative saveIndex returns 1 from
-//     the first two instructions; a sweep made only of those would be 100%
-//     green while testing two CMPs. If g_decisive is 0 the sweep proves
-//     nothing and says so in those words.
-//   * NEGATIVE / mutation — a deliberately WRONG comparator (SIGNED compare,
-//     which is the single most likely way to get this body wrong) is pushed
-//     through the SAME comparison path. It must be CAUGHT. The mutation
-//     changes a value the probe actually compares (the return code), which is
-//     the requirement a corrupted-but-uncompared control fails
-//     (reference_control_must_pick_a_compared_subject.md).
-//   * A second negative confirms the sweep is not merely "returns nonzero on
-//     any change": the wrong comparator agrees with retail on every pair whose
-//     keys are both below 2^63, so the sweep also reports HOW MANY of the
-//     mutant's answers differed. If that count is 0 the negative control is
-//     inconclusive rather than passing, and it is reported that way.
-//
-// It runs under the old DLL-era switch. Lane INTERNAL8 has no
-// game-directory lock; the intended driver is lane DIFF's armed sweep, which
-// sets nothing else this file needs.
-// ============================================================================
 // (B.4 R-IO: `SweepRow` / `MakeRow`, the retired sweep's row builder, had no
 // caller and are deleted.)

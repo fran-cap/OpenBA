@@ -41,8 +41,8 @@
 #include <cstdio>
 #include <new>
 
-// Array resize helpers — the bodies registered at the four exe addresses
-// (address_registry.cpp), called directly. The old lazily-resolved pointers
+// Array resize helpers — each array's Collection::Array::SetSize at the four exe
+// addresses, called directly. The old lazily-resolved pointers
 // (a non-atomic first-call cache, B6-5) resolved to exactly these.
 
 // ============================================================

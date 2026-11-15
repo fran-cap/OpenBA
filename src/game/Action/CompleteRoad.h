@@ -26,7 +26,7 @@ public:
     void Persist(IO::Stream& stream) override;                       // [3] 0x1400c5880
     int  AbstractImpl(ActionStack* actionStack) override;             // [4] 0x1400c5850
 
-    // ---- fields, retail order (PUBLIC: the slot bodies are C functions) ----
+    // ---- fields, retail order (PUBLIC) ----
     int32_t   roadTileIndex;     // +0x20 terrain tile index
     int32_t   roadType;          // +0x24 road type id
     uint8_t   roadDirection;     // +0x28 direction

@@ -6,7 +6,7 @@
 // on the ground (docs/extensions/handins/BETTERCLOUDS.md section 2.6)
 // ============================================================================
 // NOT RETAIL. No graphics-API types: src/ext/better_clouds/better_clouds.cpp includes it (the
-// ao/ao_backend.h, better_water/scene_depth_backend.h precedent). Every backend implements both calls
+// ao/ao_backend.h, better_water/scene_depth_backend.h precedent). Every backend implements all three calls
 // (src/render/<name>/better_clouds/); one that cannot answers Supported() == false and Draw is a no-op, so
 // Fancy draws the sky's clouds and no shadows there.
 //

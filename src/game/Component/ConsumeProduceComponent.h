@@ -4,7 +4,7 @@
 //
 // `ConsumeProduceComponent` (every consume -> produce workshop: tavern,
 // blacksmith, tailor, ...) as a real C++ class with a compiler-generated vtable
-// (B38_RULES.md D1-D6). The engine/types POD is a forwarder.
+// (B38_RULES.md D1-D6).
 //
 // RETAIL (B38_SLOTS.md §6, bytes read 2026-09-26):
 //   reflected "ConsumeProduceComponent", parent "ResourceProduceComponent",

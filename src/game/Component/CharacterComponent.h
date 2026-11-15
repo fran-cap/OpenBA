@@ -3,8 +3,7 @@
 // src/game/Component/CharacterComponent.h — ENDGAME B.3.8 block CIT
 //
 // `CharacterComponent` (movement + the action stack of citizens and animals) as
-// a real C++ class with a compiler-generated vtable (B38_RULES.md D1-D4). The
-// engine/types POD is a forwarder to this file.
+// a real C++ class with a compiler-generated vtable (B38_RULES.md D1-D4).
 //
 // RETAIL (Application-x64.exe, B38_SLOTS.md §6):
 //   reflected "CharacterComponent", parent "Component", ti 0x1401c7078

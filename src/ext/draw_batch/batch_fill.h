@@ -56,8 +56,9 @@ int64_t FillRun(const Span* spans, int32_t count, int32_t stride, uint8_t* vb, u
 // Issue #253: wide instancing batches (src/render/common/draw_batch/instance_bank.h).
 // ---------------------------------------------------------------------------
 // Retail's batch loop (DrawItemList, 0x180105240) joins the items after a head while they have the head's
-// _instance, _node, _userData and _arg10, at most the head's _maxInstances (52 in the game's data), not past the
-// list's end. The head alone decides the draw's state: Setup of its material instance, its geometry's
+// _instance, _node, _userData and _animationInstanceId, at most the head's _maxInstances (52 in the
+// game's data), not past the list's end. The head alone decides the draw's state: Setup of its material
+// instance, its geometry's
 // Draw (MeshInstance::Draw: its opacity pair for the colour, its mesh's buffers and image for _node's
 // list) and SetSharedInstanceData; each joined item adds only its instance transform. A wide batch
 // continues past a retail cut only where the retail batch starting there would be drawn the same way:

@@ -11,7 +11,7 @@
 
 // graphics/Camera.h FIRST: it pulls src/engine/volume/Volume.h, whose
 // global-scope `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()` once
-// <windows.h> has been seen through resolve.h.  ENDGAME B.3.5 caller batch I2.
+// <windows.h> has been seen.  ENDGAME B.3.5 caller batch I2.
 #include "graphics/Camera.h"
 #include <new>
 #include "video/Context.h"        // ENDGAME B.3.6 UI callers (K4): Video::Viewport by value
@@ -41,8 +41,8 @@
 // Camera-frustum ground-projection — port of FrustumOutlineElement_helper_c5b0
 // (exe 0x14006c5b0). Projects the camera view-frustum's 4 FAR corners onto the
 // z=0 ground plane, writing 4 world-space Vector3 points to out[0..3] (12 bytes
-// each). Registered at 0x14006c5b0 (see frustumoutlinedescription.cpp) so
-// fn_MapUI_ProjectCornersToGround (minimap click-to-move-camera) resolves too.
+// each). Also called by name from MapUI_HandleClick (Dialog/mapui.cpp, the minimap
+// click-to-move-camera).
 // ===========================================================================
 // Volume::Frustum::GetCorners is the Runtime body RtVolume_Frustum_GetCorners,
 // called directly. (The exe reaches it through .rdata dispatch slots

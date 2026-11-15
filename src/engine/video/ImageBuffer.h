@@ -1,7 +1,6 @@
 #pragma once
 // ============================================================================
-// src/engine/video/ImageBuffer.h — `Video::ImageBuffer` as a real C++ class,
-// plus the `RtVideo::ImageBuffer` POD its unconverted callers still use.
+// src/engine/video/ImageBuffer.h — `Video::ImageBuffer` as a real C++ class.
 //
 // ENDGAME B.3.5 block C. RULES B5-2.1 (this header is what `src/render/dx11/`'s deleted
 // `ImageBufferOwner` view now points at), B5-15 (the two type-name literals are
@@ -63,17 +62,11 @@
 #include "../object/External.h"
 #include "../object/Internal.h"   // ENDGAME B.3.8 RB: InternalMemFree (the concrete slot 0)
 
-// `src/engine/video/`'s door helper over `Video::ImageBuffer`'s protected
-// surface. Four of its members are PRIVATE in retail (`AEAA` — the three
-// platform halves and `PlatformSerialize`) and `~ImageBuffer` is non-virtual and
-// protected, yet all five are exported by name and keep registered `extern "C"`
-// doors, which cannot name a protected member; `Serialize` also has to call
-// `PlatformSerialize`. B34_BRIEFS A.4's answer is to FRIEND the holder rather
-// than widen the access, so the header keeps saying what retail says. A DERIVED
-// helper class would not work: deriving forces GCC to reference
-// `vtable for Video::ImageBuffer`, whose slot 0 (`DeletingDtor`) is a table row
-// in `src/engine/object/deleting_dtor.cpp` and is defined in no translation
-// unit, so the link fails (seen on `Video::RenderState`, not predicted).
+// `src/engine/video/`'s friend holder over `Video::ImageBuffer`'s protected
+// surface: `PlatformSerialize` is PRIVATE in retail (`AEAA`) and protected
+// here, and `Serialize` has to call it. B34_BRIEFS A.4's answer is to FRIEND
+// the holder rather than widen the access, so the header keeps saying what
+// retail says.
 struct ImageBufferDoorAccess;
 
 // `Collection::Array<T>` (three template parameters, two defaulted) and
@@ -81,40 +74,6 @@ struct ImageBufferDoorAccess;
 // includes them; they are NOT forward-declared here, because a hand-written
 // `template <class T> class Array;` would be a different template.
 namespace IO { class Serializer; }
-
-// ############################################################################
-// THE POD, MOVED INTO `RtVideo` BY B4b-1.
-// ############################################################################
-//
-// The retail name now belongs to the real class `Video::ImageBuffer` below, so
-// the POD moves into the `Rt*` namespace — and it STAYS, because it still has
-// five unconverted users, none of them this block's:
-//
-//   src/engine/video/buffers.cpp          (13 members; block D2)
-//   src/engine/video/dynamic_resources.cpp (2;          block D2)
-//   src/engine/video/video_resources.cpp   (1;          block D2)
-//   src/engine/save/saveload_draw.cpp / saveload_saveinfo.cpp (the owner's)
-//   src/engine/graphics/wave23_lane_gfxbody.cpp, through the two
-//     `RtGraphics::*ImageBuffer` PODs that embed it (block H1)
-//
-// A global-scope `using` is left behind so not one of those files has to move
-// in this block; they all spell it `ImageBuffer` with no namespace, which is
-// the fourth namespace spelling B35_FILEMAP (d) records for this header.
-// ############################################################################
-
-
-// ============================================================
-// RtVideo::ImageBuffer (0x68 bytes) — the POD view
-// ============================================================
-
-
-
-// The global spelling the five unconverted consumers use. See the banner above.
-// And `Video::ImageBufferData`'s POD, whose global alias ENDGAME B.3.5 block A
-// left here when it moved the declaration into `CompanionData.h`:
-// `src/engine/video/buffers.cpp` writes `pd->vtable` by hand in three
-// trampolines and in the ported `??1ImageBufferData` door. Block D2's when
-// `buffers.cpp` converts.
 
 // ############################################################################
 // THE REAL CLASS.
@@ -227,19 +186,6 @@ public:
     // Slot 4 is `Object::External::Compile`, INHERITED (retail's slot 4 is
     // 0x1800066e0, External's own body), so it is not redeclared here.
     //
-    // SLOT 0 IS CONCRETE IN RETAIL (0x18001ed20) AND IS DECLARED `= 0` HERE,
-    // which is B.3.4's settled shape (B34_BRIEFS A.4) and the same call
-    // `CompanionData.h` makes for the twelve `*Data` bases: our slot 0 is a table
-    // ROW in `src/engine/object/deleting_dtor.cpp`, registered by address, and
-    // is defined in no translation unit. Leaving it non-pure makes GCC demand
-    // `vtable for Video::ImageBuffer` from whichever translation unit defines a
-    // constructor or destructor of the class, which then fails to link. Pure
-    // makes every entry known (`__cxa_pure_virtual`) and the vtable emittable —
-    // and no live object ever wears it, because the ctor door stamps the minted
-    // address. The class is therefore ABSTRACT in C++ while being "concrete" in
-    // B35_RULES 2.2's sense (retail instantiates it); the two statements are
-    // about different things.
-    //
     // ENDGAME B.3.8 block RB (B38_RULES D1/D2): the exe instantiates the class
     // ITSELF (its table copy 0x14015c8c0; ModDialog, NoiseUI, TradeWork); its
     // slot 0 is the exe copy's 0x1400129d0, the scalar deleting dtor
@@ -275,12 +221,6 @@ public:
     // an undefined symbol in this class's emitted vtable and the exe did not
     // link. `buffers.cpp` has now moved the body onto this member, so the symbol
     // exists and the `= 0` comes off exactly as that banner said it would.
-    //
-    // SLOT 0 STAYS PURE and so the class stays ABSTRACT in C++: its body is a
-    // table row in `src/engine/object/deleting_dtor.cpp`, which B35_RULES 11
-    // keeps for the whole of step 5. Nothing is therefore instantiable by
-    // accident, and no live object wears GCC's table — the ctor door stamps the
-    // minted `??_7ImageBuffer@Video@@6B@`.
     virtual bool Create(ImageType type, Usage usage, Format format, uint32_t flags,
                         int32_t width, int32_t height, FilterMode filter,
                         AddressMode addressU, AddressMode addressV,
@@ -294,8 +234,8 @@ public:
     // ENDGAME B.3.5 block VC (the fragment pass) MOVED THE PORTED BODIES ONTO
     // THESE MEMBERS. Block C had to leave them declared-undefined because the
     // bodies lived in `src/engine/video/buffers.cpp`, `dynamic_resources.cpp`
-    // and `video_resources.cpp` — block D2's file set. Those three files are
-    // converted now and the doors are one-line QUALIFIED delegations. The
+    // and `video_resources.cpp` — block D2's file set. Those three files define
+    // them as members now. The
     // members marked `not ported` below still have no body anywhere in the tree
     // and nothing calls them; that is unchanged.
     int32_t Width() const;                 // 0x1800f2530 — buffers.cpp; live device size for bits 8/9
@@ -386,7 +326,7 @@ public:
     static ExtLevelSourceFn _extLevelSource;
 
     // `??0ImageBuffer@Video@@QEAA@AEBV01@@Z` (0x18001eb80) and
-    // `??4ImageBuffer@Video@@QEAAAEAV01@AEBV01@@Z` (0x18001ec50) are REAL,
+    // `??4ImageBuffer@Video@@QEAAAEAV01@AEBV01@@Z` (0x18001ec30) are REAL,
     // EXPORTED bodies, not compiler defaults — the situation RULE B5-10 records
     // for `Graphics::Geometry`. Declared, and deliberately left UNDEFINED: a
     // `= default` here would silently substitute a bitwise copy (which would
@@ -399,9 +339,8 @@ public:
 
     // The static reflection companions retail emits are DECLARE_TYPE's (the
     // factory pair 0x18001e9f0 / 0x18001ea70 is in buffers.cpp).
-    // ??2ImageBuffer@Video@@SAPEAX_K@Z 0x18001e910 — the body moved onto this
-    // member by block VC; the door is `src/engine/video/context_ctor.cpp`'s
-    // `RtVideo_ImageBuffer_OperatorNew`, which keeps its name and both rows.
+    // ??2ImageBuffer@Video@@SAPEAX_K@Z 0x18001e910 — this member, defined in
+    // `src/engine/video/context_ctor.cpp`.
     static void*         operator new(size_t size);
     // ??2ImageBuffer@Video@@SAPEAX_KPEAX@Z 0x18001e980 — not ported.
     static void*         operator new(size_t size, void* storage);
@@ -409,18 +348,13 @@ public:
     // `if (p) { Enter(lock); MemoryAllocator::Free(p); Leave(lock); }`, i.e.
     // MemFree verbatim. Defined inline since the normal-virtual cutover: the
     // deleting destructor of every ImageBuffer class calls it. (0x180006a10 —
-    // the address `context_lifecycle.cpp` registers — is NOT this: it is the
-    // shared unexported guarded free that IO, Save, Input, Object and Engine
-    // all reach by address.)
+    // `Rt_GuardedObjectFree` in `context_lifecycle.cpp` — is NOT this: it is the
+    // shared unexported guarded free, called by name.)
     static void          operator delete(void* p) { ::Object::detail::InternalMemFree(p); }
 
-    // ---- PUBLIC BY NECESSITY, ENDGAME B.3.5 block VC ----------------------
-    // `~ImageBuffer` is non-virtual and PROTECTED in retail, and the two platform
-    // halves are PRIVATE (`AEAA`) — yet all three are exported by name and keep
-    // registered `extern "C"`-style doors in `src/engine/video/buffers.cpp`, and
-    // a door is a free function that cannot name a protected member. They are
-    // therefore public, exactly as `Video::VertexLayout` made the same three
-    // public in b35-B and for the same reason. The CONSTRUCTOR stays protected.
+    // ---- PUBLIC, ENDGAME B.3.5 block VC -------------------------------------
+    // The two platform halves are PRIVATE (`AEAA`) in retail and public here,
+    // as `Video::VertexLayout`'s are. The constructor is public too (below).
     //
     void PlatformConstruct();                  // 0x1800f2f40 (was 0x1800f2ba0) — buffers.cpp
     void PlatformDestruct();                   // 0x1800f3020 (was 0x1800f2c40) — buffers.cpp
@@ -438,13 +372,13 @@ private:
     void ReleaseFields();   // 0x1800f2610 minus the stamps + ~External
 
 protected:
-    // The registered doors over the protected surface. See the banner on the
-    // forward declaration above `namespace RtVideo`.
+    // The friend holder over the protected surface. See the banner on the
+    // forward declaration of `ImageBufferDoorAccess` above.
     friend struct ::ImageBufferDoorAccess;
 
     // ?PlatformCreate@ (private in retail, `AEAA`) and ?PlatformSerialize@ stay
-    // behind the friend holder: `PlatformSerialize` has a registered door and one
-    // in-class caller, both of which reach it through `ImageBufferDoorAccess`
+    // behind the friend holder: `PlatformSerialize`'s one caller, `Serialize`,
+    // reaches it through `ImageBufferDoorAccess`
     // (B34_BRIEFS A.4 — friend the holder rather than widen the access, so the
     // header keeps saying what retail says).
     // Addresses corrected from the export table — see the banner above.
@@ -460,14 +394,13 @@ public:
     // ---- the 0x48 bytes ImageBuffer adds ---------------------------------
     // PUBLIC for the reason `Object::External`'s `_path`/`_refs` are: the ported
     // bodies, the three `Graphics::*ImageBuffer` subclasses and `src/render/dx11/` read
-    // these at exactly these offsets. Field for field the same bytes as
-    // `RtVideo::ImageBuffer` above, cross-asserted below.
+    // these at exactly these offsets, asserted below.
     int32_t     _width;        // +0x20  raw; `Width()` is NOT this field
     int32_t     _height;       // +0x24  raw; `Height()` is NOT this field
     ImageType   _dimension;    // +0x28  0 = 2D, 1 = cube
     Usage       _kind;         // +0x2C  bind-flag selector; init 2
     Format      _format;       // +0x30
-    uint32_t    _flags;        // +0x34  see the POD's comment for the bit map
+    uint32_t    _flags;        // +0x34  see `Flags` above for the bit map
     AddressMode _addressU;     // +0x38
     AddressMode _addressV;     // +0x3C
     AddressMode _addressW;     // +0x40
@@ -480,8 +413,7 @@ public:
     // on +0x48 (0x1800f2636..0x1800f2658), then ~External (0x1800f2672). The
     // member's ctor runs before InitFields and its dtor after ReleaseFields:
     // that order, with ONE release (the compiler's; buffers.cpp no longer
-    // releases it by hand). The POD calls the same eight bytes `pixelData`,
-    // which is the name Wave 18 proved wrong; the real class uses the proved one.
+    // releases it by hand).
     System::String _sourceName;   // +0x48  ctor 0x1800f2580, dtor 0x1800f2636
     // +0x50 / +0x58 are the links of the `_firstSurface` circular list that
     // PlatformConstruct (0x1800f2f40) splices `this` into and the device-lost
@@ -491,7 +423,7 @@ public:
     ImageBuffer* _nextSurface;     // +0x50  list link (next)
     ImageBuffer* _prevSurface;     // +0x58  list link (prev; the one the sweeps step)
     // The `Video::ImageBufferData*` the Device factory hands back (`DeviceData`
-    // slot 10, +0x50 — `Dx11_CreateImageBufferData`). THIS is the field
+    // slot 10, +0x50 — dx11's `DeviceData::CreateImageBufferData`). THIS is the field
     // `src/render/dx11/dx11_backend_access.h`'s deleted `ImageBufferOwner` view pinned
     // at +0x60 (RULE B5-2.1).
     ImageBufferData* _data;    // +0x60

@@ -2,7 +2,7 @@
 // this enforces and for the Ghidra evidence that it is retail's rule.
 
 #include "engine_loader_gate.h"
-#include "engine/UpdateLoop.h"   // -Iruntime/types: Engine::LoaderLoop::_loader
+#include "engine/UpdateLoop.h"   // src/engine/engine/UpdateLoop.h: Engine::LoaderLoop::_loader
 
 #include <atomic>
 #include <cstdio>

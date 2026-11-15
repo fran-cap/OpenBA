@@ -11,11 +11,11 @@
 #include "AnimateNaturalResource.h"
 // The runtime type header comes FIRST: graphics/Mesh.h reaches
 // src/engine/volume/Volume.h, whose global-scope `struct Rectangle` is hidden
-// by <wingdi.h>'s `Rectangle()` once <windows.h> has been seen through resolve.h.
+// by <wingdi.h>'s `Rectangle()` once <windows.h> has been seen.
 #include "graphics/Mesh.h"   // ENDGAME B.3.5 batch K1
 #include "object/TypeInfo.h"
 #include "graphics/Camera.h"
-#include "Action/exe_bodies.h"   // NaturalResourceSetAnimation 0x140126440, the B4 FORWARD ctor door
+#include "Action/exe_bodies.h"
 #include "Component/ModelComponent.h"
 #include "Component/NaturalResourceComponent.h"
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch C
@@ -27,9 +27,9 @@
 
 // ============================================================
 // Helpers, called by name (B3R)
-//   0x1400052c0 WorkBase_FindComponent_52c0 — get NaturalResourceComponent from entity
-//   0x140126440 ActCNR_SetAnimIndex_126440  — set animation index on NaturalResourceComponent
-//   0x140003f60 ActCNR_FindComponent_3f60   — get ModelComponent from entity
+//   0x1400052c0 FindComponent<NaturalResourceComponent> — get NaturalResourceComponent from entity
+//   0x140126440 NaturalResourceComponent::SetAnimation  — set animation index on NaturalResourceComponent
+//   0x140003f60 FindComponent<ModelComponent>           — get ModelComponent from entity
 // ============================================================
 // ============================================================
 // Serialize (0x1400c5660, vtable slot 3)
@@ -92,7 +92,6 @@ bool AnimateNaturalResource::GetTarget(ComponentEntity** param) {
 // ============================================================
 // CheckEntity (0x1400c55a0, vtable slot 8)
 // 3 bytes total (XOR EAX,EAX; RET) — returns 0 (no-op).
-// NOT HOOKED — too small. Standalone exe only.
 // ============================================================
 // int AnimateNaturalResource_CheckEntity_Impl(AnimateNaturalResource* self) {
 //     return 0;

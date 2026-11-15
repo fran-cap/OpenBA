@@ -13,7 +13,7 @@
 //            abstract (slot 4 `_purecall`), every leaf concrete.
 //
 // NOT PROVEN HERE: anything needing a constructed object, i.e. the member bodies,
-// which stand on the address registry and do not link into the host test.
+// which do not link into the host test.
 // ============================================================================
 #include "unit.h"
 #include "slot_check.h"

@@ -25,18 +25,19 @@
 // This file re-declares nothing, so it is the opposite of a mirror — a mirror
 // would restate the slots and then test its own copy of the order.
 //
-// TWO KINDS OF BODY BELOW, and the difference is deliberate:
+// THREE KINDS OF BODY BELOW, and the difference is deliberate:
 //
 //   * `Thread::OnCompleted` is OBSERVABLE (it bumps a counter). It has to be,
 //     because it is the key function AND it is slot 1, and slot 1 is half of
 //     what the test measures. Retail's real body is a bare RET (0x18000c590),
 //     so the counter is a test double for an empty function and cannot mask a
 //     behavioural difference — there is no behaviour to mask.
+//   * `InitFields` / `ReleaseFields` RECORD each call (see below).
 //   * everything else ABORTS. `Start`, `WaitForFinish` and `ThreadFunc` need
-//     live Win32 event HANDLEs and `CriticalSection::Lock`/`Unlock` need an
-//     initialised CRITICAL_SECTION; none can run on the host. Aborting means a
-//     test that accidentally reaches one fails loudly instead of quietly
-//     passing through a stub.
+//     live Platform:: thread and event handles and `CriticalSection::Lock`/
+//     `Unlock` need an initialised Platform::LockStorage; none can run on the
+//     host. Aborting means a test that accidentally reaches one fails loudly
+//     instead of quietly passing through a stub.
 // ============================================================================
 
 #include <cstdlib>

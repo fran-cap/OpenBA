@@ -47,18 +47,18 @@
 // ============================================================
 // Sub-functions, called by name (B3R; Work/exe_bodies.h)
 // ============================================================
-//   0x1400881d0 FireWork_helper_81d0 spiral fire search  FireWork_SpiralSearch_81d0
+//   0x1400881d0 FireWork_helper_81d0 spiral fire search  CitizenBehavior::FindWater
 //               (returns 0/1 in the low byte; the caller tests the byte)
-//   0x140122be0 walkable-position check                   WorkImpl_WalkablePos_122be0
-//   0x140122b00 recursive walkable-position check         WorkImpl_WalkablePosRecursive_122b00
-//   0x1400f6ef0 BuildStructure_impl_6ef0 validate         WorkImpl_BuildStructureStep_6ef0
+//   0x140122be0 walkable-position check                   InteractComponent::FindWalkablePos
+//   0x140122b00 recursive walkable-position check         InteractComponent::FindWalkablePosRecursive
+//   0x1400f6ef0 BuildStructure_impl_6ef0 validate         Work::StepProgress
 //               (a uint64 whose LOW BYTE is the bool; the upper bytes are garbage)
 //   0x1400ba9f0 PerformWork_Action_CopyCtor (fire queue)  WorkAct_PerformWorkCopyCtor_ba9f0
 //   0x140021a30 CitizenAI_impl_1a30 BST insert            WorkBST_RegisterWork_1a30
-//   0x1400f7100 validate the fire entitys CompleteTask   WorkBase_ValidateTask_f7100
+//   0x1400f7100 validate the fire entitys CompleteTask   Work::ValidateTask
 //   0x14001a6e0 CitizenAI_impl_a6e0 BST node remove       WorkBST_BSTRemove_a6e0
 //   0x140025520 CitizenAI_impl_5520 BST remove-by-key     WorkBST_BSTFindRemove_25520
-//   0x1400c5400 remove pending actions                    WorkBase_TaskListCleanup_c5400
+//   0x1400c5400 remove pending actions                    ActionStack::Clear
 
 // ============================================================
 // Helper: Convert world position to clamped grid cell index.
@@ -78,7 +78,7 @@ static uint32_t WorldToCell(int gridSize, float x, float z) {
 // Slot4 (0x1400e9620): Fire suppression work assignment.
 //
 // Algorithm:
-// 1. Check if at capacity (_maxFirefighters >= _citizens._count)
+// 1. Check if at capacity (_maxFirefighters <= _citizens._count)
 // 2. Get citizen position, compute grid cell
 // 3. Call FireWork_helper_81d0 to find a burning entity in spiral
 // 4. Check pathfinding accessibility (FUN_140122be0/FUN_140122b00)
@@ -207,7 +207,7 @@ int FireWork::Execute(CitizenComponent** citizenIBP, System::Time* time) {
         citizenVal->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
     }
 
-    // Register with citizen AI BST at +0x50 (the tree helpers take the root as uintptr_t*)
+    // Register with citizen AI BST at +0x50 (the tree helper takes the Set)
     WorkCitizenSetNode* inserted;   // the out-node slot (retail reuses targetIBP's)
     WorkBST_RegisterWork_1a30(&_citizens, &inserted, citizenIBP);
 
@@ -340,7 +340,7 @@ int FireWork::Validate() {
                     bstNode = bstNode->left; // left
                 } else {
                     if (removeArr[i] <= nodeKey) {
-                        // Found -- remove it (the tree helpers take the root as uintptr_t*)
+                        // Found -- remove it (the tree helper takes the Set)
                         WorkBST_BSTRemove_a6e0(&_citizens, bstNode);
                         break;
                     }
@@ -398,7 +398,7 @@ int FireWork::OnCancel(CitizenComponent** citizenIBP, ComponentEntity** /*arg2*/
 // Continues until the BST root is null.
 // ============================================================
 
-// FUN_1400c5400 = WorkBase_TaskListCleanup_c5400: remove pending action from state machine.
+// FUN_1400c5400 = ActionStack::Clear: remove pending action from state machine.
 
 int FireWork::Cleanup() {
     while (true) {
@@ -456,10 +456,8 @@ Profession** FireWork::GetTarget(Profession** retbuf) {
 //   CitizenAI_impl_96b0(this + 0x50, ser)               0x1400296b0  (the BST)
 //   Serializer::Serialize(ser, (int*)(this + 0x48))                  (the capacity)
 //   ~Serializer(ser)
-// Both sub-calls are already ported and registered (reg_work_base.cpp:49,
-// reg_work_bst.cpp:19), so this is a plain transcription. ENDGAME B.3.8: the two
-// function-local lazy pointer caches are gone — the base call is the qualified
-// Work::Persist, the BST body is called by name (B38 D7).
+// Both sub-calls are ported, so this is a plain transcription: the base call is the
+// qualified Work::Persist, the BST body is called by name (B38 D7).
 void FireWork::Persist(IO::Stream& stream) {
 
     // Work::Persist (0x1400f7400, a direct call in retail — QUALIFIED here)
@@ -476,9 +474,7 @@ void FireWork::Persist(IO::Stream& stream) {
 // Retail body, in full: `XOR EAX,EAX ; CMP [RCX+0x58],EAX ; SETG AL ; RET`
 // i.e. `return *(int*)(this + 0x58) > 0` — "does this fire currently have any
 // firefighters assigned". +0x58 is the assigned count Slot4 compares against the
-// +0x48 capacity, NOT the +0x50 field the five FishingWork-family siblings read,
-// which is why work_base_standalone.h's Work_Slot11_HasActiveTasks helper is
-// explicitly documented as unusable here.
+// +0x48 capacity, NOT the +0x50 field the five FishingWork-family siblings read.
 int FireWork::GetPriority() {
     return _citizens._count > 0 ? 1 : 0;
 }

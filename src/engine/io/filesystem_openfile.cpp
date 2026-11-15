@@ -14,7 +14,7 @@
 // which `GetFileInfo` is a three-line wrapper around.
 //
 // Names and ordinals printed out of Runtime-x64.dll's export directory with
-// `pefile`. `tools/export_name_audit.py` re-checks them.
+// `pefile`.
 //
 //
 // This file was `filesystem_openfile_win.cpp` until Phase D.4 THREADS E.5: the
@@ -22,8 +22,7 @@
 // through Platform::FileOpenRead / FileRead / FileSeek32 / FileSize
 // (platform_file.h, the same argument blocks). All four Win32 entry points were
 // resolved out of the RUNTIME DLL's own import table with `pefile`, not guessed
-// from the call shape — `tools/dispatch_slot_map.py` is for the EXE's imports
-// and reports these as "NOT AN IMPORT SLOT":
+// from the call shape:
 //
 //     0x18014b320 CreateFileW   0x18014b110 ReadFile
 //     0x18014b0f0 SetFilePointer 0x18014b0f8 GetFileSize
@@ -103,33 +102,15 @@
 // and would stop being equivalent the moment a pack lived inside a pack.
 //
 // ---------------------------------------------------------------------------
-// 4. THE UNINITIALISED FIELD, and what it does to the oracle
+// 4. THE UNINITIALISED FIELD
 // ---------------------------------------------------------------------------
 // OpenFile's local FileInfo initialises +0x00, +0x08, +0x0C, +0x10, +0x18, +0x20
 // and +0x28 — **not +0x04**. The emit block then copies it out anyway:
 // `MOV EAX,[RBP-0x2c] ; MOV [RDI+4],EAX` (0x1800acb8e). Retail returns a dword
 // of its own stack garbage in every FileInfo it produces.
 //
-// That is faithful and it is reproduced. It also means **the oracle must not
-// compare +0x04** — ours and theirs have different stacks, so it differs on
-// every call and would report a 100% divergence
-// (reference_oracle_must_not_compare_unwritten_bytes.md). The exclusion is
-// stated at the comparison site, not hidden in a memcmp length.
+// That is faithful and it is reproduced.
 //
-// ---------------------------------------------------------------------------
-// 5. WHAT IS NOT PORTED
-// ---------------------------------------------------------------------------
-//   ?CloseFile@FileSystem@IO@@   0x1800accc0, ord 1726 — reached through the
-//       proper door. It is the teardown half and lane PKG's ClosePackages
-//       already calls it; porting the OPEN half without it is deliberate, and it
-//       is named in the registration block rather than silently absent.
-//   FUN_18000c200 — FileInfo::operator=, used by PlatformOpenFile to reset the
-//       caller's FileInfo. Called by ADDRESS through ResolveAddr, which is the
-//       proper door for an unexported internal, and named below.
-//   FUN_18007eefc — the CRT `_stricmp` OpenFile's BST walk needs. Same address
-//       lane PKG reaches for `IndexFind`; it is one of the four doors the
-//       integrator's address-door census flagged, and this rung ADDS a second
-//       live caller of it rather than removing the first.
 // ============================================================================
 
 #include <cstdint>
@@ -147,7 +128,7 @@
 #include "system/string_internal.h"
 #include "io/packfile_fold_index.h"   // block PATHINDEX: the hash index beside _packfileIndex
 
-#include <new>        // placement new into a raw FileInfo Filename slot
+#include <new>
 #include <atomic>     // MAPREAD: the emulated file pointer
 #include <mutex>      // MAPREAD: the side table's lock
 
@@ -194,7 +175,7 @@ inline int32_t StrLenOf(const char* data) {
 // ============================================================================
 // ?GetFileInfo@PackageFile@IO@@QEBA?AUFileInfo@FileSystem@2@XZ  retail 0x180025400
 // ============================================================================
-// `return FileInfo(this->_fileInfo)`, where `_fileInfo` is the PackageFile's own
+// `return FileInfo(this->_file)`, where `_file` is the PackageFile's own
 // embedded FileInfo at +0xC0 — the same +0xC0 lane PKG's ClosePackages hands to
 // CloseFile, which is the independent confirmation of the offset.
 // The body is `IO::PackageFile::GetFileInfo()` (src/engine/io/PackageFile.h
@@ -206,13 +187,12 @@ inline int32_t StrLenOf(const char* data) {
 // ?PlatformOpenFile@FileSystem@IO@@AEAA_NAEAUFileInfo@12@AEBV…@Z  0x1800adce0
 // ============================================================================
 // ENDGAME B.3.4 PACKAGE+FS commit 5b: the three IO::FileSystem bodies in this
-// file move onto the class VERBATIM; the doors keep their names, their
-// `extern "C"` linkage, their signatures and every registration line, and
-// delegate in one line each. No qualified `IO::` call is needed: IO::FileSystem
-// has no vtable at all, so B34_BRIEFS section A.1's re-entry hazard cannot
-// arise. This file is bound by B34_BRIEFS section D — nothing was added,
-// removed or reordered, and in particular NO lock, NO retry, NO positioned read
-// and NO null check was introduced on the open/read path. The two-loader race
+// file moved onto the class VERBATIM. No qualified `IO::` call is needed:
+// IO::FileSystem has no vtable at all, so B34_BRIEFS section A.1's re-entry
+// hazard cannot arise. Commit 5b was bound by B34_BRIEFS section D: it added,
+// removed or reordered nothing, and in particular introduced NO lock, NO retry,
+// NO positioned read and NO null check on the open/read path (the MAPREAD lock
+// and mapped read below are NOT RETAIL and marked as such). The two-loader race
 // LOADER_READ_SPIN.md describes has its own pending fix and it is not this one.
 
 // B.4 R-IO: the `RtIo_FileSystem_ReadFile` / `RtIo_FileSystem_OpenFile` doors
@@ -233,7 +213,7 @@ inline int32_t StrLenOf(const char* data) {
 //
 // *** VERBATIM. *** Identical control flow, identical callees, identical
 // statement order, identical comments. The only changes are the receiver's
-// spelling (`self->field` to `_field`) and three call sites that were ALREADY
+// spelling (`self->field` to `_field`) and two call sites that were ALREADY
 // direct calls within this file and are now direct MEMBER calls of the same
 // bodies: ReadFile's recursion into itself (0x1800ace7e) and OpenFile's call to
 // PlatformOpenFile (0x1800acace). Neither ever went through a resolve door, so
@@ -251,8 +231,8 @@ bool FileSystem::PlatformOpenFile(RtIO::FileInfo& fiRef,
     // `*fi = FileInfo();` — FileInfo's default ctor (1800add08..1800add30: the
     // four fields, the two Filename() null stores, winHandle), operator=
     // (1800add3f), then ~FileInfo on the temporary (1800add45 +0x28, 1800add75
-    // +0x20). B.4 Z LAST IO: the temporary's +0x04 is no longer zeroed (retail
-    // leaves it whatever the stack held, §4; the oracle excludes it).
+    // +0x20). B.4 Z LAST IO: the temporary's +0x04 is not zeroed (retail
+    // leaves it whatever the stack held, §4).
     *fi = RtIO::FileInfo();
 
     // WideString ws(*name); CreateFileW(ws, ...). ??0WideString(const String&);
@@ -567,7 +547,7 @@ RtIO::FileInfo FileSystem::OpenFile(const System::Filename& name) {
     // object to release. ~lf runs at every return (1800acbc9 / 1800acbfa).
     RtIO::FileInfo lf;
     // +0x04 is DELIBERATELY left as-is: retail never writes it and copies it out
-    // anyway (§4). Reading it below reproduces that; the oracle excludes it.
+    // anyway (§4). Reading it below reproduces that.
 
     bool emitted = false;
 

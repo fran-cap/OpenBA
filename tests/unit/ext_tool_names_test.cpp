@@ -1,7 +1,7 @@
 // ============================================================================
 // tests/unit/ext_tool_names_test.cpp -- ext.tool_names (class C)
 // ============================================================================
-// src/ext/tool_names/tool_names.{h,cpp} without the game: the registry row (class C, OFF by default, held by
+// src/ext/tool_names/tool_names.{h,cpp} without the game: the registry row (class C, ON by default, held by
 // the game's lock, the profile keys), the note table the two seams use (a note is shown only for the citizen and
 // the use count it was made for), and the save-tail codec: a round trip, the claim of a record by the citizen it
 // belongs to, and every refusal. The seams themselves are CitizenAI_PerformWorkCtor5_bd070
@@ -69,7 +69,7 @@ UNIT_TEST(ext_tool_names_registry_row) {
     CHECK(e->defaultOn);                         // ruled 2026-11-08 for 1.0.3, DESIGN.md section 2
     CHECK(e->formatVersion == 1);
     CHECK(Ext::SettingsKey(*e) == "ext.tool_names");
-    CHECK(ResolveText("").ext.tool_names);   // ON by default (ruled 2026-11-08 for 1.0.3)                      // absent key = the default (off)
+    CHECK(ResolveText("").ext.tool_names);   // ON by default (ruled 2026-11-08 for 1.0.3)
     CHECK(!ResolveText("ext.tool_names=0\n").ext.tool_names);
     CHECK(ResolveText("ext.tool_names=1\n").ext.tool_names);
     CHECK(!ResolveText("profile=faithful\n").ext.tool_names);    // the faithful profile turns it off

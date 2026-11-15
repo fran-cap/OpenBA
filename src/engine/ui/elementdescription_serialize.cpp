@@ -8,12 +8,9 @@
 // UIW2 declined it twice, and `docs/history/runtime_port/WAVE10_EXTPTR_SERIALIZE.md`
 // answered the last blocker: its three unported callees at +0x48/+0x50/+0x58
 // are ONE body. That body is now
-// `src/engine/object/external_ptr_serialize.cpp`, registered at all three
-// addresses, and this file is what it unblocks.
+// `src/engine/object/external_ptr_serialize.cpp`, and this file is what it
+// unblocks.
 //
-// It lives in its own file rather than in `dialog.cpp` for the reason
-// `rt_object_port.cpp` states at the top: one lane, one file, so two lanes
-// never edit the same source. Four UI lanes are live in this wave.
 //
 // ---------------------------------------------------------------------------
 // SHAPE
@@ -75,46 +72,10 @@
 // NULL (`XOR R8D,R8D` before each one).
 //
 // ---------------------------------------------------------------------------
-// BLAST RADIUS, AND HOW IT IS CHECKED
+// BLAST RADIUS
 // ---------------------------------------------------------------------------
 // This is not a leaf in a save file. It is the `UIDescription` parse path of
-// EVERY `.rsc` in the game, and the neighbouring registration in
-// `standalone/address_registry.cpp` carries the scar: a previously closed
-// defect on the sibling slot 0x1401516b0 "silently SKIPPED the per-element Type
-// read -> stream drift -> bogus String length -> CompressedStream::Read
-// zero-progress spin on Dialog\StandardDialog.rsc". A related slot-8 defect
-// "doubled every loaded entity's roster and made FindComponent return the empty
-// duplicate — invisible in a screenshot."
-//
-// Registering the NAME here also re-points the exe's own `.rdata` import slot
-// `0x1401518c8` (`standalone/address_registry.cpp:1109` binds that slot BY NAME
-// through `ResolveExport`, and `RuntimePortInit()` runs before
-// `AddressRegistryInit()`), so the blast radius is not limited to our `fn_*`
-// pointers. `engine/funcs/engine_funcs.cpp:4063` reads the same slot.
-//
-// So the verification is not a screenshot. It is (a) the emission oracle below,
-// which compares our record sequence against retail's, and (b) a full boot,
-// which is what actually drives `.rsc` parsing.
-//
-// ---------------------------------------------------------------------------
-// ORACLE
-// ---------------------------------------------------------------------------
-// the emission oracle in the WRITING direction against two synthetic sinks,
-// in situ on the first 16 real calls — the same instrument
-// `src/engine/achievement/goal_serialize.cpp` uses, and this file follows its
-// shape deliberately.
-//
-// NO PREFIX STOP. The recipe warned to cap the prefix with `stopAfter` before
-// `GetReferenceId` in case it registers a new id. Re-measured rather than
-// inherited (0x1800bf100): that body is `QEBA`, builds a Filename, descends the
-// map at `this+0x10`, returns `[node+0x14]` and releases two Strings. No
-// insert, no counter, no store. Nothing on this write path mutates anything a
-// second call would see, so the whole body replays and the oracle covers all
-// fourteen records rather than a prefix of them.
-//
-// The one thing to read in its report is the `calls=` column, not just
-// `divergences=`: a body with no callers reports clean
-// ([[reference_uncalled_port_is_not_verified]]).
+// EVERY `.rsc` in the game, so a full boot is what actually drives it.
 // ============================================================================
 
 #include <cstdint>
@@ -135,8 +96,7 @@
 // bool UI::ElementDescription::Serialize(IO::Stream&) — the MEMBER
 // ============================================================================
 // ENDGAME B.3.6 block A: the body MOVED here from the door (`self->x` became
-// `x`). The slot's parameter is `void*` because `Object::External` declares
-// slot 5 that way (IO::Stream is still spelled as the rt::io POD in this tree).
+// `x`). Slot 5 takes the `IO::Stream&`, as `Object::External` declares it.
 namespace UI {
 
 bool ElementDescription::Serialize(IO::Stream& streamArg) {
@@ -167,8 +127,8 @@ bool ElementDescription::Serialize(IO::Stream& streamArg) {
     return true;                    // ~Serializer: the ReaderWriter's slot 0, flags 1
 }
 
-// (`~ElementDescription` is inline in ElementDescription.h; its body,
-// `ReleaseFields`, is in dialog.cpp beside the key function.)
+// (`~ElementDescription` is inline and empty in ElementDescription.h; its one
+// release, +0x60, is the member `_textName`'s ~String.)
 
 }  // namespace UI
 

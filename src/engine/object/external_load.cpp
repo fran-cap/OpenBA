@@ -39,10 +39,9 @@
 //
 // Steps 3-7 are the part the lane brief did not have: this is a full
 // deserialisation driver, and step 5 is a live use of the OBJECT CREATION PATH
-// (`BaseTypeInfo::factoryFn`) that Wave 11 is about. Nothing new is ported for
-// it — the factory pointer belongs to the DLL's own typeinfo and is called
-// through it — but the row is not the two-liner "construct, Open, Serialize"
-// that `SaveText` is.
+// (`BaseTypeInfo::factoryFn`) that Wave 11 is about. The factory pointer
+// belongs to the type's own typeinfo and is called through it — but the row is
+// not the two-liner "construct, Open, Serialize" that `SaveText` is.
 //
 // ---------------------------------------------------------------------------
 // `IO::Serializer` IS A 16-BYTE FACADE, NOT THE OBJECT WITH THE VTABLE
@@ -66,26 +65,23 @@
 // with only the stream filled in and returns the implementation.
 //
 // ---------------------------------------------------------------------------
-// NO ADDED NULL GUARDS, AND ONE OF THEM IS DELIBERATE
+// TWO ADDED NULL CHECKS (NOT RETAIL)
 // ---------------------------------------------------------------------------
 // When the type id is not in `Object::Factory`'s tree, retail loads a ZERO into
 // RCX (0x1800bc73b `MOV RCX,RBX`, RBX having been zeroed at 0x1800bc6a5) and
-// immediately dereferences it at 0x1800bc73e. That is the same load-bearing
-// fault `Factory::CreateObject` and `Base::IsDerivedFrom` take, for the same
-// reason type_system.cpp records: it is how a missing type registration
-// announces itself instead of silently producing a wrong object. Transcribed,
-// not guarded (the project rule: find the upstream null, do not paper over a
-// faithful crash).
+// immediately dereferences it at 0x1800bc73e. The port does not transcribe that
+// fault: a miss, and a factory that answers null, take the bad-type exit and
+// Load returns null (review F-122 / F-144 / F-145, in the body below).
 //
 // ---------------------------------------------------------------------------
 // ORACLE
 // ---------------------------------------------------------------------------
 // Unlike `SaveText`, this row IS reachable in play — it is the read side of
 // resource loading and the Encoding it uses is the BINARY one, whose Serializer
-// factories are real code in the shipped DLL (the TEXT ones are stubs; see
-// external_savetext_probe.cpp). Verification is therefore live: the counters
-// below name every branch, and `RT_DIFF` reports entry counts. See
-// WAVE11F_LANE_IOSTREAM.md for what was and was not exercised.
+// factories are real code in the shipped DLL (the TEXT ones are stubs).
+// Verification is therefore live: the counters below name every branch and
+// print as `[ExtLoad]` at exit. See
+// docs/history/runtime_port/WAVE11F_LANE_IOSTREAM.md for what was and was not exercised.
 //
 // PORTABILITY: no <windows.h>, per PLAN.md §4.1 decision 1.
 // ============================================================================
@@ -122,35 +118,13 @@ constexpr int32_t kCompiledMagic = 0x5412a91f;
 // CreateReader / CreateWriter by IO::Serializer's constructor.
 
 // `Collection::Array<ExternalArrayElement>::SetSize`, 0x18002c6a0. NOT exported
-// in either build, so this is a genuine ADDRESS door and the only one this file
-// adds to the cutover surface (reference_porting_can_grow_the_cutover_surface.md).
-//
-// *** THIS PREDICTION CAME TRUE AND IS NOW CLOSED. *** The sentence that stood
-// here - "nothing in the tree registers it today; at cutover it needs a body or
-// this call site needs to be revisited" - named its SYMBOL, its CONDITION and
-// its CONSEQUENCE, and cutover ATTEMPT 29 died exactly here, EXEC-of-0 at
-// ArraySetSize+0x4d.
-//
-// WAVE 27 LANE FRONTIER supplied the body. 0x18002c6a0 is registered by
-// src/engine/collection/array.cpp (`kSpec_ExtArrayElem`, two-argument form),
-// and its two per-element helpers - 0x1800067d0 (Filename copy ctor, already
-// reached by kSpec_PkgEntry) and 0x180006ac0 (the range destroy, ported as
-// `RtColl_DestroyStrings_180006ac0` under kD_Str_10) - are registered too. So
-// ResolveAddr below is registry-first and lands on our body with the DLL
-// present or absent.
-//
-// THE DOOR IS STILL A DOOR. It resolves through the port registry, which means
-// it is only as good as those three registrations: they are all inside
-// `RtCollectionPortInit` / `RtCollectionDestroyPortInit`, gated on
-// the old DLL-era switch (and the old DLL-era switch for the second). With
-// either gate off at cutover this call site is an EXEC-of-0 again, at the same
-// instruction, and the crash will look identical to attempt 29's.
-// ENDGAME B.3.2 step 2 — `External::_refs` (src/engine/object/External.h)
-// is already `Collection::Array<ExternalArrayElement>`, and `kSpec_ExtArrayElem`
-// is NON-TRIVIAL (a Filename-copy-ctor assign and a two-argument range destroy,
-// not a byte trait), so the one call site below is a hand-derived
-// `rtcoll::AsArray<&kSpec_ExtArrayElem>` bridge rather than a plain
-// `.SetSize(n)`. The 0x18002c6a0 row stays registered in array.cpp.
+// in either build. Its spec is `kSpec_ExtArrayElem` in src/engine/collection/array.cpp.
+// `External::_refs` (src/engine/object/External.h) is
+// `Collection::Array<ExternalArrayElement>`, and `kSpec_ExtArrayElem`
+// is NON-TRIVIAL (a Filename-copy-ctor assign, 0x1800067d0, and a two-argument
+// range destroy, 0x180006ac0, not a byte trait), so the one call site below is a
+// hand-derived `rtcoll::AsArray<&kSpec_ExtArrayElem>` bridge rather than a plain
+// `.SetSize(n)`.
 void ArraySetSize(void* arr, int32_t n) {
     rtcoll::AsArray<&rtcoll::kSpec_ExtArrayElem>(arr)->SetSize(n);
 }
@@ -193,7 +167,7 @@ struct LoadCounters {
     uint64_t badMagic;
     uint64_t created;         // existing == null -> factoryFn ran
     uint64_t reusedExisting;
-    uint64_t notAnExternal;   // IsDerivedFrom said no
+    uint64_t notAnExternal;   // bad-type exit: unknown type id, null factory result, or IsDerivedFrom said no
     uint64_t badVersion;
     uint64_t sizedArray;      // the read-side SetSize ran
     uint64_t deps;            // dependency elements replayed
@@ -203,14 +177,6 @@ struct LoadCounters {
 };
 LoadCounters g_lc{};
 
-// ---------------------------------------------------------------------------
-// NEGATIVE-CONTROL PERTURBATIONS, read by the body below and set only by
-// external_load_probe.cpp. Each is consumed at exactly one site in the single
-// implementation under test, each increments `g_lcAtt` there, and neither
-// changes a pointer, a size or a stride -- so neither can write out of bounds.
-//   1  the two per-element int32s read in the OPPOSITE ORDER
-//   2  the dependency COUNT through the int32 overload instead of the uint32 one
-// ---------------------------------------------------------------------------
 // ============================================================================
 // Object::External::Load — the body.                     retail 0x1800bc620
 // ============================================================================
@@ -287,8 +253,7 @@ extern "C" ::Object::External* RtObject_External_Load(const System::Filename* pa
 
         // ---- 1800bc6cf..1800bc6ed -----------------------------------------
         // Retail does NOT initialise this slot before the call: on a read the
-        // serializer fills it, on a write it emits whatever is there. Left
-        // uninitialised for the same reason the stream is.
+        // serializer fills it, on a write it emits whatever is there.
         // NOT RETAIL (review S-031): initialised. A resource whose payload ends before the
         // four bytes leaves the read unwritten (CompressedStream::Read returns false), and the
         // compare below would read an indeterminate int (undefined behaviour). 0 is never
@@ -309,7 +274,7 @@ extern "C" ::Object::External* RtObject_External_Load(const System::Filename* pa
                 // ---- 1800bc710..1800bc761 -------------------------------
                 // Look the type up and BUILD one. `Factory::_singleton`'s tree,
                 // then `BaseTypeInfo::factoryFn` at +0x20 -- the object-creation
-                // path, reached here through the DLL's own typeinfo.
+                // path, reached here through the type's own typeinfo.
                 const ::Object::Factory* f =
                     ::Object::Factory::_singleton;   // class static (B.3.9 OBJ, D7)
                 const ::Object::Factory::TypeSet::Node* n = f->_types._root;
@@ -392,7 +357,7 @@ extern "C" ::Object::External* RtObject_External_Load(const System::Filename* pa
                 // object's CURRENT size and then serializes it, so the same
                 // instruction reads on a load and writes on a save.
                 int32_t depCount = obj->_refs._size;              // 1800bc790
-                SerInt(rw, &depCount);  // LEFT: R-IO the file-local SerU32/SerI32 keep retail\'s slot (SerializeInt +0xa0 / SerializeUInt +0x98) over the other-signed local: a signedness pun, H8
+                SerInt(rw, &depCount);  // LEFT: R-IO the file-local SerInt/SerUInt keep retail\'s slot (SerializeInt +0xa0 / SerializeUInt +0x98) over the other-signed local: a signedness pun, H8
 
                 if (ser._stream->_direction == 0) {               // 1800bc7b0
                     ++g_lc.sizedArray;

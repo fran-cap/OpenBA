@@ -4,9 +4,8 @@
 // CropFieldComponent (0x68 bytes) extends ControllerComponent with crop flags
 // and entity reference arrays for field tiles.
 //
-// Vtable at 0x140162ec0. One non-trivial hookable override:
-//   Shutdown (0x14011ae70) — Component_Serialize + empty serializer + versioned block
-//                            with entity ref validation, crop flags, IBP array, entity list
+// Vtable at 0x140162ec0. Persist (slot 3, 0x14011ae70) — Component::Persist + empty serializer +
+//   versioned block with entity ref validation, crop flags, the +0x50 ExternalPtr, entity list
 //
 // Decompiled from Application-x64.exe using Ghidra.
 
@@ -40,9 +39,9 @@
 // ============================================================
 // Helpers, called directly (B.3R)
 // ============================================================
-//   FUN_14011aa20 CropFieldComponent_ValidateEntityRefs — validate entity references
-//   FUN_140002340 Reimpl_ExternalPtr_Serialize_StringTable — serialize the IBP at +0x50
-//   0x1400335b0   CropFieldComponent_ResizeEntityList (CropFieldComponent_helper_35b0)
+//   FUN_14011aa20 CropFieldComponent::ValidateEntityRefs — validate entity references
+//   FUN_140002340 Object::SerializeExternal<ComponentDescription> — serialize the IBP at +0x50
+//   0x1400335b0   Collection::Array<CropSlot>::SetSize (CropFieldComponent_helper_35b0)
 //   0x1400336c0   IO::Serializer::Serialize<CropSlot> (element step CropSlot::Serialize, B9 RT2)
 
 // ============================================================
@@ -51,8 +50,8 @@
 
 // Extra sub-helpers needed by the reimpl bodies below.
 
-// FUN_1400052c0 — FindComponent (BuildStateComponent variant) on a ComponentEntity:
-//   WorkBase_FindComponent_52c0, called directly.
+// FUN_1400052c0 — FindComponent<NaturalResourceComponent> on a ComponentEntity:
+//   ComponentEntity::FindComponent, called directly.
 // Object::Base::IsA — the import slot 0x140151410 — is the member (Object::Base::IsA).
 
 // Retail CropFieldComponent_helper_36c0 (0x1400336c0) disassembles to the
@@ -67,7 +66,7 @@
 // Reimpl of FUN_14011aa20 (validate field-tile entity refs: drop stale/dead refs)
 // Iterates the +0x58 array (stride 0x20, count at +0x60). For each "assigned"
 // entry (state Growing at +0x4) it looks up the world entity by id; if it is gone, not
-// a ComponentEntity, or its build-state component link no longer matches, the
+// a ComponentEntity, without a NaturalResourceComponent, or not the slot's entity, the
 // entry is reset to Done with null IBPs.
 void CropFieldComponent::ValidateEntityRefs() {
     if (GameUpdateLoop::_singleton == nullptr) return;
@@ -145,7 +144,7 @@ void CropSlot::Serialize(IO::Serializer& s) {
 }
 
 // ============================================================
-// CropFieldComponent::Shutdown (vtable slot [3], 0x14011ae70)
+// CropFieldComponent::Persist (vtable slot [3], 0x14011ae70)
 // ============================================================
 // Complex entity reference serialization:
 //   1. Component_Serialize (base)
@@ -153,7 +152,7 @@ void CropSlot::Serialize(IO::Serializer& s) {
 //   3. Main serializer (v0):
 //      a. FUN_14011aa20 — validate entity refs
 //      b. Serialize cropFlags as 2 bools (+0x48, +0x49)
-//      c. FUN_140002340 — serialize IBP array at +0x50
+//      c. FUN_140002340 — serialize the ExternalPtr<ComponentDescription> at +0x50
 //      d. Serialize entity count from +0x60
 //      e. On load: resize entity list at +0x58
 //      f. CropFieldComponent_helper_36c0 — serialize entity list entries
@@ -238,7 +237,7 @@ void CropFieldComponent::Persist(IO::Stream& stream) {
 }
 // [4] 0x14011ae60: `MOV qword [RCX+0x50],0` — one store, nothing else.
 void CropFieldComponent::Startup() { cropDescription = nullptr; }
-// [13] 0x14011ada0 / [14] 0x14011acc0 / [15] 0x14011ab50 — the bodies above. The
+// [13] 0x14011ada0 / [14] 0x14011acc0 / [15] 0x14011ab50 — the bodies below. The
 // OnMessage body takes the slot index from the base's third register (R9 = arg0).
 // ── slot 13 — CanCommand — retail 0x14011ada0 ─────────────────────────────────────
 // Decides which of the crop-field panel's three buttons are enabled. Unlike the
@@ -252,8 +251,8 @@ void CropFieldComponent::Startup() { cropDescription = nullptr; }
 //                   panel reads bit 1 to draw the toggle's state and bit 0 to enable
 //                   it. Returning a plain bool here would collapse "on" and
 //                   "available" into one and mis-draw the button.
-// "Has slots" is self+0x50 != 0 — the slot array state 9 builds. An unplanted field
-// therefore greys everything, which is retail behaviour, not a defect.
+// "Has slots" is self+0x50 != 0 — cropDescription, the crop set on the field (the slot grid is
+// +0x58). A field with no crop set therefore greys everything: retail behaviour, not a defect.
 uint32_t CropFieldComponent::CommandMask(int command) {
     // The StateMachine's pending state (+0x52), else its current input (+0x50).
     StateMachineComponent* smc =

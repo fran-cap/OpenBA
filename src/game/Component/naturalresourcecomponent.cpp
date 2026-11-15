@@ -6,20 +6,20 @@
 //   +0x2C: bool   mature, +0x2D bool harvestable (initialized by one word store 0x100)
 //
 // Vtable at 0x140163e10. Two non-trivial overrides:
-//   Shutdown (0x140125cf0) — Serialize resourceScale + 2 bool fields
-//   OnRemove (0x140125c40) — Complex animation/path logic
+//   Persist (0x140125cf0) — Serialize resourceScale + 2 bool fields
+//   Tick    (0x140125c40) — Waits for the removal animation, then removes the resource
 //
 
 // graphics/Mesh.h comes FIRST: it pulls src/engine/volume/Volume.h, whose
 // global-scope `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()`
-// function once <windows.h> has been seen (via resolve.h), which turns
+// function once <windows.h> has been seen, which turns
 // Volume.h's own `sizeof(Rectangle)` assert into a hard error.
 #include "graphics/Mesh.h"   // ENDGAME B.3.5 caller batch I2
 #include "Component/NaturalResourceComponent.h"
 #include "Component/ModelComponent.h"   // OnRemove: FindComponent<ModelComponent>, meshInstance
 #include "object/TypeInfo.h"
 #include "graphics/Camera.h"
-#include "Action/exe_bodies.h"   // ActCNR_RemoveNatRes_1260f0
+#include "Action/exe_bodies.h"
 #include "Entity/ComponentEntity.h"
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch A
 #include <cstdint>
@@ -63,7 +63,7 @@ void NaturalResourceComponent::Tick(const System::Time*) {
         _entity->RefreshEntityFlags();   // 0x1400c3470
     }
 
-    // If bit 21 of flags is set, reassign resource
+    // If bit 21 of flags is set, remove the resource
     if ((_flags >> 0x15) & 1) {
         ComponentEntity* nullRef = nullptr;   // InternalPtr (the ctor is a plain store)
         RemoveResource(&nullRef, 0);   // 0x1401260f0 (was its ActCNR_RemoveNatRes_1260f0 forwarder)

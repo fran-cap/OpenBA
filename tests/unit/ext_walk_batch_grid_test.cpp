@@ -1,7 +1,7 @@
 // ============================================================================
 // tests/unit/ext_walk_batch_grid_test.cpp -- ext.walk_batch_grid (class B): the registry row
 // ============================================================================
-// Class B, formatVersion 1, default off, locked for the game, the pseudo-mod
+// Class B, formatVersion 1, default on, locked for the game, the pseudo-mod
 // ext:walk_batch_grid, a manifest naming it accepted, refused on load when the player has it
 // off. The batched walk itself (both rows, one body) is tests/unit/ext_walk_batch_test.cpp.
 // docs/extensions/handins/WALKGRID.md
@@ -49,7 +49,7 @@ UNIT_TEST(ext_walk_batch_grid_registry_row) {
     CHECK(!Ext::SetRequested(e, false));     // locked: the game keeps it
     CHECK(Ext::Ext().walk_batch_grid);
     CHECK(!Ext::Requested(e));
-    // The save carries it as the pseudo-mod ext:walk_batch_grid (formatVersion 1, +0x14),
+    // The save carries it as the pseudo-mod ext:walk_batch_grid (formatVersion 1, +0x18),
     // never the class A row.
     std::vector<Ext::PseudoMod> mods((size_t)Ext::EntryCount());
     const int n = Ext::PseudoModsForSave(mods.data(), (int)mods.size());

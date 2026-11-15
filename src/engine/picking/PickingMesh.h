@@ -32,7 +32,7 @@
 //                           because that lane never needed the capacity.
 //
 // `??_7PickingMesh@Picking@@6B@` @ 0x180158fb0, NINE slots (B37_SLOTS.md):
-//   [0] +0x00 0x180072050  (unexported) vector deleting dtor — RT_DELDTOR row
+//   [0] +0x00 0x180072050  (unexported) vector deleting dtor
 //   [1] +0x08 0x180071ab0  ?TypeName@PickingMesh@Picking@@UEBAPEBDXZ
 //   [2] +0x10 0x180071a90  ?Type@PickingMesh@Picking@@UEBAIXZ
 //   [3] +0x18 0x180122940  ?GetFileVersion@PickingMesh@Picking@@UEBAHXZ  (MOV EAX,9)
@@ -46,11 +46,11 @@
 // ENDGAME B.3 step 9 PILOT (B39_RULES.md D1/D2): CONCRETE. The class has a
 // real public constructor and its own slot 0, so every live PickingMesh wears
 // the COMPILER's table: `CreateNewObject` / `CreateInPlaceObject` (retail's
-// factory pair, registered by name and address from pickingmesh.cpp) are
+// factory pair, defined in pickingmesh.cpp) are
 // MemAlloc + `::new (p) PickingMesh()`, replacing the FACTREST step table
 // that stamped the minted `??_7PickingMesh@Picking@@6B@`. The minted row, its
 // `RT_DELDTOR` row 0x180072050, the `??1` door and the eight slot doors are
-// retired (tools/rt_mint_retired/pilot.txt). The exe reaches this class only
+// retired. The exe reaches this class only
 // through `?_typeInfo@` and the `Vertices` import (quarry / terraform
 // deformation).
 //
@@ -136,7 +136,7 @@ public:
     // `_name` is a System::String (B.4 wave Y, RT-GFX). Array<SubMesh> is grown
     // by the transcribed 0x18007aa40 body (element copy ctor 0x1800734a0 adopts
     // the String with a refcount bump) and destroyed by 0x180073ee0 -- the row
-    // kSpecD2_SubMesh80 that `_nodes` names. ~PickingMesh calls the registered
+    // kSpecD2_SubMesh80 that `_nodes` names. ~PickingMesh calls the
     // ~Array 0x180073720, which zeroes the header, so the member's implicit
     // ~Array releases nothing; no SubMesh is built, copied or destroyed through
     // C++ outside the row.
@@ -165,8 +165,8 @@ public:
 
     // ---- the nine slots, in measured order ----
     // [0] 0x180072050 — MSVC's VECTOR deleting destructor, both arms exactly as
-    // the retired RT_DELDTOR row ran them (deleting_dtor.cpp DeletingDtorCore,
-    // `MOV EDX,0x48` = the element size): `flags & 2` reads the SIGNED int32
+    // the retired RT_DELDTOR row ran them (`MOV EDX,0x48` = the element size):
+    // `flags & 2` reads the SIGNED int32
     // count at `this - 8`, destroys the elements DOWNWARD, frees `this - 8` on
     // `flags & 1` and returns it; otherwise ~PickingMesh, free on `flags & 1`.
     // Nothing `new[]`s a PickingMesh, so the array arm is the faithful
@@ -202,7 +202,7 @@ public:
     int32_t TriangleCount(int32_t i) const { return _nodes._data[i]._triangles._size; }              // 0x180071e70
     const SubMesh& GetNode(int32_t i) const { return _nodes._data[i]; }                              // 0x180071e90
 
-    // ---- exported, NOT PORTED, no caller: declared, deliberately undefined --
+    // ---- exported, NOT PORTED, no caller: declared, deliberately undefined (operator delete aside) --
     // 0x180071dd0 — RETSLOT in retail (`?AVBox@Volume@@`); no caller anywhere.
     ::Box AABB(int32_t i) const;
     PickingMesh(const PickingMesh& src);                      // 0x180071ea0
@@ -217,8 +217,8 @@ public:
     // (Declared by DECLARE_TYPE above.)
 
 public:
-    // ---- the 0x28 bytes PickingMesh adds (public: the doors and the Scene
-    // bodies reach them) ----
+    // ---- the 0x28 bytes PickingMesh adds (public: the Scene bodies reach
+    // them) ----
     // B4 X-RH: System::String members. Retail's ~PickingMesh 0x1801228a0
     // destroys +0x38 (0x1801228c4), then +0x28 (0x1801228ca..), then +0x20
     // (0x1801228f4..), then ~External (0x180122926): the body does +0x38, the

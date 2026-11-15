@@ -5,7 +5,7 @@
 //   0x140114000  CitizenComponent_OnAdd          — townMgr+0xa0 citizen-list ADD
 //   0x1400896a0  FUN_1400896a0                   — Fisher-Yates shuffle of the house list
 //   0x14008cbf0  CitizenComponent_impl_sub_cbf0  — strategy 1 (distance-optimized relocate)
-//   0x14008ca20  CitizenComponent_impl_sub_ca20  — strategy 2 (nearest employed laborer)
+//   0x14008ca20  CitizenComponent_impl_sub_ca20  — strategy 2 (nearest housed laborer)
 //   0x14008c5f0  CitizenComponent_impl_c5f0      — strategy 3 (most-laborer house)
 //   0x14008c4b0  CitizenComponent_impl_c4b0      — strategy 4 (first idle laborer)
 // plus a headless driver CitizenEmploy_SeatWorkers that mirrors the per-worker inner
@@ -18,10 +18,10 @@
 // (0x140111ee0), which sets citizen+0x248 (the WorkPlaceComponent-roster / workplace
 // link) — NOT +0x238 (that is the c7cf0 residence/household link, set by AssignWorkplace).
 //
-// Deps already ported+registered elsewhere:
+// Deps ported elsewhere:
 //   FindAvailableBuilding 0x14008d100  (town_workplace_registry.cpp)
-//   CitizenComp_AssignHousing 0x140111ee0  (citizencomponent.cpp) -> +0x248
-//   CitizenComp_Entity_FindComponent_Storage 0x140008090  (citizenaicomponent.cpp) -> c7cf0
+//   CitizenComponent::SetWorkplace 0x140111ee0  (citizencomponent.cpp) -> +0x248
+//   FindComponent<ResidenceComponent> 0x140008090 -> c7cf0
 //   Entity_impl_7fb0 0x140087fb0, CalcDistance 0x140008830, arrayAdd 0x140003110
 
 #include "Component/ResidenceComponent.h"   // B.3.8 CB1a (TypeId)
@@ -40,17 +40,17 @@
 #include "Entity/ComponentEntity.h"         // _components / FindComponent<T>
 #include "Game/ProfessionList.h"            // laborerProfession (the laborer profession)
 #include "Component/exe_bodies.h"
-#include "Action/exe_bodies.h"   // Pf_EntityAnchorCell_7fb0 (0x140087fb0)
-#include "Work/exe_bodies.h"     // WorkBase_CalcDistance_8830 (0x140008830)
-#include "Game/exe_bodies.h"     // FindAvailableBuilding (0x14008d100)
+#include "Action/exe_bodies.h"   // EntityAnchorCell (0x140087fb0)
+#include "Work/exe_bodies.h"
+#include "Game/exe_bodies.h"
 #include "Game/Map.h"           // Map::CalcDistance (0x140008830)
 
 // Deps ported elsewhere, called by name through their headers:
-//   0x140087fb0 Pf_EntityAnchorCell_7fb0 — an entity IBP's anchor cell (used for distance).
-//   0x140008830 WorkBase_CalcDistance_8830 — distance between two cells (game = *(gw+0xf8)).
-//   0x1401163d0 CitizenComponent_AssignWorkplace(self, workplaceIBP, slotIndex).
-//     Passing &nullIBP,-1 detaches the citizen from any workplace worker list and clears
-//     citizen+0x238 (workplace) / +0x240 (slot) — the "become an unassigned laborer" clear.
+//   0x140087fb0 EntityAnchorCell — an entity IBP's anchor cell (used for distance).
+//   0x140008830 Map::CalcDistance — distance between two cells (game = *(gw+0xf8)).
+//   0x1401163d0 CitizenComponent::SetHome(home, slot).
+//     Passing nullptr,-1 removes the citizen from its residence's household roster and clears
+//     citizen+0x238 (home) / +0x240 (household slot).
 //   0x140003110 was Collection::Array<void*>::SetSize(n, fill) monomorphised
 //   into the exe (ENDGAME B.3.2 step 2) — converted at its call sites below.
 
@@ -343,15 +343,11 @@ CitizenComponent** Strat_c5f0(CitizenBehavior* townMgr, CitizenComponent** out,
 } // namespace
 
 // ============================================================================
-// 0x140114000 — CitizenComponent_OnAdd: append the citizen to townMgr+0xa0.
-// ============================================================================
-
-// ============================================================================
 // Headless driver — mirrors CitizenComponent_impl_dd10's per-worker inner loop.
 // Seats up to `count` workers of profession `profKey`; returns the number actually
 // seated. (dd10 derives profKey from a UI profession index via *(*(gw+0xb0)+0x20 +
-// idx*8); here the caller already holds the key — e.g. g_foresterProfKey from the
-// lodge's WorkPlaceDescription — so we take it directly.) Faithful fallback order:
+// idx*8); here the caller already holds the key, so we take it directly.) Faithful
+// fallback order:
 // FindAvailableBuilding then cbf0 -> (if avail!=0) ca20 -> c5f0 -> c4b0.
 // ============================================================================
 extern "C" int CitizenEmploy_SeatWorkers(CitizenBehavior* town, Profession* profKey, int count) {
@@ -399,14 +395,12 @@ extern "C" int CitizenEmploy_SeatWorkers(CitizenBehavior* town, Profession* prof
 }
 
 // ============================================================================
-// Registerable exports of the four seat strategies. The exe's ONLY dispatcher of
+// The four seat strategies as CitizenBehavior members. The exe's ONLY dispatcher of
 // these addresses is TownHallUI's profession spinner (CitizenComponent_impl_dd10,
-// 0x14007dd10 -> fn_CitizenList_FindIdle/FindWorking/FindStudent/FindAny). Now that
-// the town-hall panel is promoted in standalone, that path is live, so expose the
-// file-static strategies for RegisterExeAddr (standalone/reg_townhallui.cpp).
+// 0x14007dd10).
 // ============================================================================
-// The C signatures stay for their outside callers (professionui.cpp, townhallui.cpp,
-// workplaceui.cpp); each argument is typed once here.
+// Their outside callers: professionui.cpp, townhallui.cpp, workplaceui.cpp and
+// src/ext/dynamic_professions/professions_window.cpp.
 CitizenComponent** CitizenBehavior::FindWorkerToRelocate(CitizenComponent** out,
                                                        ComponentEntity** availPtr, Profession* profKey) {
     EnsureFns();
@@ -429,13 +423,13 @@ CitizenComponent** CitizenBehavior::FindIdleLaborer(CitizenComponent** out,
 }
 
 // CitizenList::AssignWorker (0x14008c3d0) — the top-level seat cascade the exe's
-// worker-add UI calls (fn_CitizenList_AssignWorker, workplaceui.cpp id 0x1450).
+// worker-add UI calls (workerCountUp, element id 0x1450).
 // Tries the four strategies in order on a FRESH copy of *availPtr each time:
-// cbf0 (distance-optimized relocate) -> ca20 (nearest employed laborer, skipped if
+// cbf0 (distance-optimized relocate) -> ca20 (nearest housed laborer, skipped if
 // *availPtr is 0) -> c5f0 (most-laborer house) -> c4b0 (first idle laborer, writes
 // `out` itself). First nonzero winner's 8-byte result is copied into out+0x0 only,
 // exactly like the original (out+0x8 is left untouched on those paths).
-// Defined below (declared in Component/exe_bodies.h); AddWorker (0x140091130) calls it.
+// Defined below (declared in Entity/CitizenBehavior.h); AddWorker (0x140091130) calls it.
 
 // ============================================================================
 // CitizenList::AddWorker (0x140091130) — the public one-call seat: find a building

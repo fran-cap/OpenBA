@@ -105,7 +105,7 @@ struct Species {
 // The species of a canopy from its draw's names (lower case): the material's path and the diffuse texture's
 // path and the material instance's own path, joined. False when the draw is not a deciduous canopy (not a
 // billboard material, or the evergreen one): its code is 0 / 0. A canopy no table row names (a mod's tree)
-// gets a species from the FNV-1a hash of `key`: blossom from a pale palette, flowering in mid spring.
+// gets a species from the FNV-1a hash of `names`: blossom from a pale palette, flowering in mid spring.
 // `known` (may be null) is set when a table row matched.
 bool SpeciesFor(const std::string& materialPath, const std::string& names, Species* out, bool* known);
 

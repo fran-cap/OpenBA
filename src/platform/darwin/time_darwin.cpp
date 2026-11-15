@@ -74,8 +74,8 @@ void LocalTimeNow(LocalTime* out) {
     out->milliseconds = static_cast<uint16_t>(ts.tv_nsec / 1000000);
 }
 
-// The waitable timer's POSIX form needs no kernel object: clock_nanosleep on
-// CLOCK_MONOTONIC is already sub-millisecond. The handle only has to be non-null.
+// The waitable timer's POSIX form needs no kernel object: nanosleep is already
+// sub-millisecond. The handle only has to be non-null.
 struct WaitTimerObject {
     int unused;
 };

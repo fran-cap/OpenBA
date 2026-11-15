@@ -12,9 +12,6 @@
 //   FUN_1400bb7b0 (WorkAct_GatherWorkCtor_bb7b0)
 //   FUN_1400beae0 (WorkAct_FishWorkCtor_beae0)
 //
-// LEFT: the callers (GatherRawMaterials, FishingWork in WORK-a / WORK-b) hand the
-// citizen reference as void* and the work entity as int64_t*; the action ctors (ACT's
-// C bodies) take their references as uint64_t*.
 //
 // Do NOT "improve" — every offset/constant cites its disasm address.
 
@@ -45,17 +42,17 @@
 // ============================================================
 // Sub-callees, called by name (B3R)
 // ============================================================
-// Every exe sub-callee is one of our own bodies (Action/, Work/ exe_bodies.h):
-//   0x1400c5400 TaskListCleanup                     WorkBase_TaskListCleanup_c5400
-//   0x1400c54e0 TaskListAppend                      Pf_ActStackPush_54e0
-//   0x1400012d0 Entity_FindComponent_Family         ActMv_FindComponentFamily_12d0
+// Every exe sub-callee is one of our own bodies (Action/, Entity/ headers):
+//   0x1400c5400 TaskListCleanup                     ActionStack::Clear
+//   0x1400c54e0 TaskListAppend                      ActionStackPush
+//   0x1400012d0 Entity_FindComponent_Family         ComponentEntity::FindComponent<CharacterComponent>
 //   0x140006270 FindComponent<StorageComponent>
-//   0x1400cb1d0 SendComponentMessage copy-ctor      Pf_SendComponentMessageCopyCtor_b1d0
-//   0x1400c5da0 CompleteTask copy-ctor              Pf_CompleteTaskCopyCtor_5da0
-//   0x140042890 ShowTool ctor (R8D=toolType)        ActChild_ShowToolCtor_42890
-//   0x1400c71a0 CreateRawMaterial copy-ctor         Pf_CreateRawMaterialCopyCtor_71a0
-//   0x1400c9720 PerformWork_Action_Ctor7            Pf_PerformWorkCtor7_9720
-//   0x1400c9170 MoveTo ctor                         Pf_MoveToCtor_9170
+//   0x1400cb1d0 SendComponentMessage copy-ctor      SendComponentMessage::SendComponentMessage
+//   0x1400c5da0 CompleteTask copy-ctor              CompleteTask::CompleteTask
+//   0x140042890 ShowTool ctor (R8D=toolType)        ShowTool::ShowTool
+//   0x1400c71a0 CreateRawMaterial copy-ctor         CreateRawMaterial::CreateRawMaterial
+//   0x1400c9720 PerformWork_Action_Ctor7            PerformWork::PerformWork
+//   0x1400c9170 MoveTo ctor                         MoveTo::MoveTo
 // Dispatch slots:
 //   0x140152b60 MemAlloc             -> System::MemoryAllocator::MemAlloc
 //   0x140152a90 InternalBasePtr ctor -> placement-new Object::InternalBasePtr
@@ -204,7 +201,7 @@ void WorkAct_GatherWorkCtor_bb7b0(CitizenComponent* const* citizenRef, uint32_t 
 //   param_2 = workId (u32)               -> CompleteTask param_2
 //   param_3 = InternalPtr<ComponentEntity>* (workRef) -> *param_3 gates + feeds SendComponentMessage #2
 //   param_4 = float* position            -> MoveTo destination
-//   param_5 = (unused in body; param-area only)
+//   param_5 = float heading              -> PerformWork XMM2 ([RBP+0x60])
 //   param_6 = u64 (raw-material p2)      -> CreateRawMaterial param_2 (RDX, [RBP+0x68])
 //   param_7 = float (raw-material p3)    -> CreateRawMaterial XMM2 ([RBP+0x70])
 //   param_8 = u32                        -> SendComponentMessage #2 p6 / CreateRawMaterial p8 ([RBP+0x78])

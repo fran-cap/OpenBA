@@ -8,10 +8,10 @@
 //   - a class whose retail slot 0 is a deleting destructor and which declares
 //     `virtual ~T()` spends TWO Itanium slots on it (D1 complete, D0 deleting),
 //     so its retail slot n >= 1 sits at compiler slot n + 1;
-//   - a class still on `virtual T* DeletingDtor(unsigned)` in slot 0, and every
+//   - a class on `virtual T* DeletingDtor(unsigned)` in slot 0, and every
 //     class with no destructor slot at all (the Thread family, the Controller
-//     interface, IO::Encoding, PlatformChannel, IPathInfo, the Video::*Data
-//     seam), has no virtual destructor and is not shifted.
+//     interface, IO::Encoding, PlatformChannel, IPathInfo), has no virtual
+//     destructor and is not shifted.
 //
 // There is no exempt list here: `std::has_virtual_destructor` says which a
 // class is. The shift is keyed on the class that DECLARES the member (the

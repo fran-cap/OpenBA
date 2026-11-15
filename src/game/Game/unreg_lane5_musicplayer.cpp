@@ -1,24 +1,21 @@
 // src/game/Game/unreg_lane5_musicplayer.cpp
 // Code-fn wave LANE 5 — MusicPlayer::Update (exe 0x1400a40e0).
 //
-// WHAT WAS BROKEN WITH IT UNREGISTERED
-// ------------------------------------
+// THE CALLER
+// ----------
 // GameUpdateLoop::Update step 7 (src/game/Game/gameupdateloop.cpp, the
 // `post_simulation:` block) does
 //
-//     if (fn_MusicPlayer_Update) fn_MusicPlayer_Update(self->m_musicPlayer);
+//     m_musicPlayer->Update();   // 0x1400a40e0
 //
-// with `fn_MusicPlayer_Update = ResolveAddr(Module::Exe, 0x1400a40e0)`. That
-// address is unregistered, so the pointer is null and the call is SKIPPED
-// every frame — a null-guard-and-SKIP consumer. The observable effect is that
-// **background music never plays at all**: this function is the one and only
-// writer of the music-player state and the one and only caller of
-// Audio::Scene::PlayEffect for the music channel. Retail's sole caller is
-// GameUpdateLoop::Update itself (Ghidra xrefs to 0x1400a40e0: one
+// every frame. Without it **background music never plays at all**: this
+// function is the one and only writer of the music-player state and the one
+// and only caller of Audio::Scene::PlayEffect for the music channel. Retail's
+// sole caller is GameUpdateLoop::Update itself (Ghidra xrefs to 0x1400a40e0: one
 // UNCONDITIONAL_CALL from FUN_140096380 plus its own .pdata unwind record).
 //
-// The Ghidra/our-tree name "AmbientSound::Update" (gameupdateloop.cpp:131) is a
-// MISNOMER, already flagged in engine/types/GameUpdateLoop.h +0x80. The body is
+// The Ghidra/our-tree name "AmbientSound::Update" (gameupdateloop.cpp) is a
+// MISNOMER; src/game/Game/GameUpdateLoop.h types +0x80 as MusicPlayer*. The body is
 // a music-track selector: pick a track whose [monthLo..monthHi] and
 // [moodLo..moodHi] windows both contain the current month and the town mood.
 //

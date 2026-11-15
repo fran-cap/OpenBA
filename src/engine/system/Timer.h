@@ -83,14 +83,12 @@ public:
     static void     Shutdown();
     // ?CurrentTime@Timer@System@@SAMXZ        0x1800ca760
     // ?CurrentTimeTicks@Timer@System@@SA_JXZ  0x1800ca8f0
-    //   ⚠ BOTH RETURN AN OFFSET FROM AN EPOCH, and ours is a different
-    //   `QueryPerformanceCounter` sample from retail's. `timer.cpp` records
-    //   them as calls=0 and UNVERIFIED for exactly that reason
-    //   (reference_uncalled_port_is_not_verified.md). `CurrentTimeTicks` has
-    //   since grown one caller — `src/engine/engine/loops.cpp:1453-1456`,
-    //   `MainLoop::Draw`'s frame timestamp — which makes `timer.cpp`'s own
-    //   banner ("no file names CurrentTimeTicks") stale; corrected here rather
-    //   than there, because that banner is about the Wave-9 sweep it was true of.
+    //   ⚠ BOTH RETURN AN OFFSET FROM AN EPOCH: the `QueryPerformanceCounter`
+    //   sample `PlatformStartup` stores in `_systemInitialTick`. `CurrentTimeTicks`
+    //   is called by `MainLoop::Draw`'s frame timestamp
+    //   (`src/engine/engine/loops.cpp`) and twice by
+    //   `src/ext/render_pipe/render_pipe.cpp`, which makes `timer.cpp`'s own
+    //   banner (calls=0, "no file names CurrentTimeTicks") stale.
     static float    CurrentTime();
     static int64_t  CurrentTimeTicks();
     // ?SecondsToTicks@Timer@System@@SA_JM@Z   0x1800ca800  — float widened to
@@ -101,10 +99,9 @@ public:
     static float    TicksToSeconds(int64_t ticks);
 
     // ---- the three PRIVATE statics (`CA`) ----------------------------------
-    // PUBLIC here rather than private because their registered doors call them
-    // and access control is not ABI — the same call `System::Thread::ThreadFunc`
-    // makes one file over. Retail's spelling is recorded above so the fact is
-    // not lost.
+    // PUBLIC here rather than private because `RtSystem::TimerEnsurePlatformStarted`
+    // (timer.cpp) calls `PlatformStartup`, and access control is not ABI.
+    // Retail's spelling is recorded above so the fact is not lost.
     // ?PlatformStartup@Timer@System@@CA_NXZ   0x1800ca860
     static bool     PlatformStartup();
     // ?PlatformShutdown@Timer@System@@CAXXZ   0x1800ca8e0 — a bare RET.
@@ -116,8 +113,7 @@ public:
     // ??4Timer@System@@QEAAAEAV01@AEBV01@@Z   0x180007890
     // The compiler-generated copy assignment: `MOV RAX,RCX; RET`. There is no
     // instance state, so it copies nothing and returns `*this`. Declared
-    // because it is a real export with a registered door, not because anything
-    // calls it.
+    // because it is a real export, not because anything calls it.
     Timer& operator=(const Timer& other);
 
     // ---- the five statics (`0…A`: PRIVATE STATIC DATA in retail) ----------

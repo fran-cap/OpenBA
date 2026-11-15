@@ -16,20 +16,17 @@
 //
 // TRANSITIVE CLOSURE, COUNTED BEFORE ANY BODY WAS WRITTEN
 // -------------------------------------------------------
-//   ?BeginConstants@ 0x1800eed10 -> MemFree (registered), 0x18001cab0 (tail JMP)
+//   ?BeginConstants@ 0x1800eed10 -> MemFree, 0x18001cab0 (tail JMP)
 //   ?AddConstant@    0x1800eec40 -> 0x180053510, MemFree
 //   ?EndConstants@   0x1800eebf0 -> companion vtable +0x08 (ours, src/render/dx11/)
 //   ?PlatformCreate@ 0x1800ef010 -> companion vtable +0x08 (ours, src/render/dx11/)
 //   0x180053510      Array<ConstantInfo>::SetSizeFill
-//                                -> MemAlloc/Free (registered), 0x18001cfc0
+//                                -> MemAlloc/Free, 0x18001cfc0
 //   0x18001cab0 / 0x18001cfc0    -> ALREADY PORTED by this lane's phase 1
-//                                   (context_lifecycle.cpp); phase 1 left them
-//                                   file-local and UNREGISTERED because nothing
-//                                   outside that file reached them. That is no
-//                                   longer true, and they are registered here.
+//                                   (context_lifecycle.cpp), declared in
+//                                   ConstantBuffer.h.
 //
-// **Closure: 5 new bodies, 2 existing ones promoted. It CLOSES.** No new
-// unregistered address door.
+// **Closure: 5 new bodies, 2 existing ones promoted. It CLOSES.**
 //
 // THE ENTRY LAYOUT, pinned by three independent bodies
 // -----------------------------------------------------
@@ -71,8 +68,7 @@
 #include "video/CompanionData.h"
 
 // ENDGAME B.3.5 block D1. `Video::ConstantBuffer` and `Video::Context` are real
-// classes now; all five bodies below MOVED onto their members and every
-// registered door kept its name, its mangled-name row and its address row.
+// classes now; all five bodies below MOVED onto their members.
 //
 // THE TEN `constexpr size_t k*` OFFSETS THIS FILE USED TO DECLARE ARE GONE.
 // They were one of FOUR partial views of the same 0x48 bytes (B35_RULES section
@@ -201,8 +197,8 @@ void StringRelease(void*& field) {
 //  1. **`newSize == oldSize` returns immediately** (0x18005353f), before the
 //     capacity check — so a same-size "resize" does not reallocate and does not
 //     re-run the fill. `AddConstant` always grows by one, so this early-out is
-//     unreachable from here; it is transcribed because the address is
-//     registered and other callers exist inside the DLL.
+//     unreachable from here; it is transcribed because other callers exist
+//     inside the DLL.
 //  2. **The copy loop's START depends on whether the block MOVED.**
 //     `CMP R14,[RBX] / CMOVZ ECX,ESI`: if the data pointer is unchanged
 //     (no reallocation) the loop starts at `oldSize` and only constructs the
@@ -275,8 +271,7 @@ void RtVideo_ConstEntryArraySetSize(ConstantInfo*& data, int32_t& size, int32_t&
 // Note +0x19 is written BEFORE +0x18 (0x1800eedba then 0x1800eedc9) — the
 // stack slots are read out of order. Harmless, and kept.
 // ============================================================================
-// The two `const void*` parameters are retail's `const System::String&`. They
-// stay untyped for the reason ConstantBuffer.h's banner gives: the DESTINATIONS
+// The two parameters are retail's `const System::String&`. The DESTINATIONS
 // (+0x00 and +0x08) are bare data pointers rather than `System::String` members,
 // because a `System::String` member would give `Video::ConstantBuffer` a
 // destructor and take `Video::Context`'s trivial copyability with it (RULE
@@ -357,7 +352,7 @@ void Video::ConstantBuffer::AddConstant(const System::String& name,
 // **`EndConstants` takes an int argument that it never reads.** `0x1800eebf0`'s
 // first instruction is `MOV RDX,[RCX+0x40]` and EDX/RDX is overwritten
 // immediately; the parameter is dead. Declared and ignored, not removed, so the
-// registered signature matches the mangled one.
+// signature matches the mangled one.
 //
 // **The entry data pointer is RE-READ every iteration** (0x1800ef035 /
 // 0x1800eec15). Nothing can move it — the loop does not allocate — but it is
@@ -433,15 +428,11 @@ int32_t Video::ConstantBuffer::GetNextUploadIndex() const {
 //
 // THE BODY MOVED HERE FROM `src/engine/video/companion_data.cpp`, which is
 // ENDGAME B.3.5 block A's file: the class is this block's, so the member belongs
-// with the rest of it, and A's registered door is now a one-line delegation. The
-// REGISTRATION did not move — `?Bind@ConstantBuffer@Video@@…` and 0x1800eef70
-// are still registered by `companion_data.cpp`, exactly where B35_FILEMAP says
-// they are.
+// with the rest of it.
 //
 // ENDGAME B.3.5 block J: this IS block J, and it converts. `+0x10` is slot 2 of
 // `Video::ConstantBufferData`, which CompanionData.h names `Bind`; the virtual call
-// reads the same live vptr at the same offset. The receiver keeps its bridge cast
-// because `_platformData` is a pinned `void*`.
+// reads the same live vptr at the same offset.
 //
 // AND THE SLOT'S DECLARED SIGNATURE WAS WRONG, which this conversion is what
 // found. CompanionData.h had the fourth parameter as `void* unused2`; retail's own
@@ -476,12 +467,7 @@ void Video::ConstantBuffer::Bind(Context& context, void* data,
 // same 76/45. The tool's `--verify` mode re-extracts and diffs the committed
 // file (0 mismatches).
 //
-// **AND THE PORT CHECKS ITSELF AT RUNTIME.** Every row carries the RVA it came
-// from, so with the DLL present `RtVideoShaderConstantsVerify()` compares our
-// compiled-in bytes against the bytes at that RVA in the loaded image. A typo
-// introduced by a later hand-edit fails LOUDLY at startup instead of silently
-// unbinding a parameter. With the DLL absent the check skips — which is exactly
-// when our copy is the only copy, and exactly why the check has to run now.
+// Every row carries the RVA it came from in the shipped DLL.
 // ============================================================================
 struct RtShaderConstantLiteral {
     uint32_t    rva;
@@ -542,9 +528,7 @@ const char* RtVideoShaderConstantLiteral(int index) {
 //
 // So the table is machine-extracted, twice over, from the shipped bytes:
 //   * tools/extract_shader_constants.py lifts the 45 LITERALS with their RVAs
-//     (76 references, cross-checked against an independent count), and
-//     RtVideoShaderConstantsVerify() re-checks every one of them against the
-//     loaded DLL at startup.
+//     (76 references, cross-checked against an independent count).
 //   * tools/extract_assign_constants.py --events walks the same bytes for the
 //     STRUCTURE: every call to the six functions this table is built from, every
 //     `MOV R9D,imm` (an out-of-line size), every `MOV qword [RBP-0x79],imm` (an

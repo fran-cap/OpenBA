@@ -17,8 +17,8 @@
 // (src/platform/win/input_dinput_win.cpp; deleted by SDL-5 with its layout asserts).
 //
 // Device handles are opaque (`void*`), kept by Input::Device at retail's offsets (+0x11D8
-// / +0x11E0 / +0x11E8): DirectInput's interfaces under the I1 backend, null under SDL,
-// which owns its devices. Results are DirectInput's HRESULT values (kOk, kInputLost,
+// / +0x11E0 / +0x11E8): null under SDL, which owns its devices. Results are DirectInput's
+// HRESULT values (kOk, kInputLost,
 // kNotAcquired): the pollers' re-acquire loop tests them, as retail's does.
 // ============================================================================
 

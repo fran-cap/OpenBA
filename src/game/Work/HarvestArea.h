@@ -16,8 +16,8 @@
 //   [9] 0x1400ec930 Validate  [10] 0x1400ed2f0 GetTarget
 //   [11] 0x140029860 GetPriority (`+0x50 > 0`, shared by 13 tables)  [12] = Work
 //   CropFieldComponent's state machine (cropfieldcomponent_states.cpp, block MI-B)
-//   builds the work BY HAND and stamps 0x1401614a0; that registration serves
-//   HarvestArea::Vtable() (B38 D5). The default ctor here builds what the tree's
+//   builds the work with the default ctor here and Work::InitFromEntity
+//   (CF_MakeHarvestArea). The default ctor here builds what the tree's
 //   factory built (Work_GenericCtor: base init, leaf fields zeroed).
 // ============================================================================
 
@@ -62,9 +62,9 @@ public:
     // 0x14001ca60 / 0x140029de0). A real member: the ctor 0x1400ed4c0 zeroes root (qword) and
     // count (dword) under an EH state; the dtor 0x1400ed410 frees the +0x58 array, THEN runs the
     // set's inlined Clear (0x14000e320 on the root's +0x18 / +0x20, MemFree, zero root /
-    // count): the dtor body, then this member's ~Set. `_cells._count` (+0x50) is the
-    // claim count (0x140029860 `CMP [RCX+0x50]; SETG`: signed). The Set ctor also zeroes
-    // its +0x0c pad (+0x54), which retail leaves (known_port_issues row 640).
+    // count): the +0x58 member's ~Array, then this member's ~Set. `_cells._count` (+0x50) is the
+    // claim count (0x140029860 `CMP [RCX+0x50]; SETG`: signed). The Set ctor leaves
+    // its +0x0c pad (+0x54) as found, as retail does (known_port_issues row 640).
     using CellSet = Collection::Set<Claim>;
     CellSet _cells;
     // +0x58: Collection::Array<bool> {data, count +0x60, capacity +0x64}, one flag per

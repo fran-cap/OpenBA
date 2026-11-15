@@ -24,10 +24,7 @@
 // ENDGAME B.3.5 block H2: the REAL `Graphics::Particle` and
 // `Graphics::ParticleSystem` are at the BOTTOM of this file, and the two
 // includes below are what they need. Neither reaches `Volume.h`, so the
-// `Rectangle` collision block E measured is not reintroduced: this header stays
-// usable from `vtbatch7_animgroup_particlesystem.cpp`, which includes
-// `<windows.h>` through `standalone/resolve.h`. (`AnimationGroup.h` already
-// proves the pairing — `vtbatch7` includes it after `resolve.h` and builds.)
+// `Rectangle` collision block E measured is not reintroduced.
 #include "../object/External.h"       // Object::External, the proved parent
 #include "../object/Internal.h"       // B.3.9: InternalMemFree (the concrete slot 0s)
 #include "../collection/Collection.h" // Collection::Array<T>, the +0x38 header
@@ -58,7 +55,8 @@ namespace RtGraphics {
 // (`?_typeInfo@Particle@Graphics@@0VBaseTypeInfo@Object@@A`, retail
 // 0x1801fa7b0) are PROTECTED STATIC class members (mangling code `1` and `0`
 // respectively), not instance fields -- they do not appear in this struct.
-// See animation.cpp for why they cannot be registered by this lane.
+// `_rng` is defined in animation.cpp; the type record is `DEFINE_TYPE`d in
+// graphics_type_records.cpp.
 // ============================================================================
 // *** [0x21,0x24) AND [0x2c,0x30) ARE TWO GAPS THE CTOR NEVER WRITES --
 // MEASURED, not merely inferred from C++'s natural alignment padding. ***
@@ -74,9 +72,7 @@ namespace RtGraphics {
 // untouched range -- not because either implementation actually wrote
 // different values there. The cheap way to find every such gap in one pass
 // is to walk the store list once (as above) and exclude every address it
-// skips, rather than re-deriving one gap per run. animation.cpp's oracle now
-// explicitly excludes both ranges from the comparison instead of masking
-// them with initialized fields.
+// skips, rather than re-deriving one gap per run.
 
 // ============================================================================
 // The per-index record inside a ParticleResource's bounds array (see
@@ -180,27 +176,12 @@ static_assert(offsetof(ParticleResource, _boxes) == 0x38, "ParticleResource::_bo
 // ParticleInstance/ParticleSystemInstance add sits AFTER a 0xc0-byte Geometry
 // base, pinned by both ctors calling `Geometry::Geometry(this)` (retail
 // 0x1800a4270, exported as `??0Geometry@Graphics@@QEAA@XZ`) and then writing
-// their OWN first field at exactly +0xc0 with no gap. This lane calls that
-// ctor at its own export rather than re-deriving Geometry's internals, the
-// same "what stays in the DLL" shape scene.cpp uses for Picking::Scene's
-// unexported grid helpers.
+// their OWN first field at exactly +0xc0 with no gap.
 //
 // *** +0x14..+0x17 IS A GAP `Geometry::Geometry` NEVER WRITES -- MEASURED. ***
 // Disassembly of 0x1800a4270 shows a DWORD store to +0x10 (`*(undefined4*)
 // (this+0x10) = 0xffffffff`) followed directly by a QWORD store to +0x18
 // (`*(undefined8*)(this+0x18) = 0`), with +0x14..+0x17 untouched in between.
-// A diff run confirmed this in practice: this port's ParticleInstance and
-// ParticleSystemInstance ctor oracles originally raw-memcmp'd their whole
-// struct (including this opaque base, on the theory that BOTH implementations
-// call the identical retail Geometry::Geometry so it can never diverge --
-// true, but irrelevant to a byte NEITHER call writes). The real object's
-// pre-existing heap bytes there happened to be zero while the scratch
-// oracle's own 0xCD poison filled the same gap with 0xCD, so every call
-// reported a false divergence. animation.cpp's ctor oracles now compare only
-// the fields ParticleInstance/ParticleSystemInstance themselves add
-// ([0xc0,0xd4) and, for the latter, [0xd8,0xe0)) and do not compare this
-// base at all -- it is written by the exact same export in both cases, so
-// there is nothing this lane's oracle could add by re-checking it.
 // ============================================================================
 struct GeometryBase {
     uint8_t opaque[0xc0];
@@ -220,9 +201,6 @@ struct GeometryBase {
 // +0xd0 `_index`     -- the instance's index into `_resource->_boxes`,
 //                       initialised to -1 ("no instance assigned yet").
 //
-// The ctor's diff oracle compares only [0xc0,0xd4) (see GeometryBase's
-// banner above for why the base is excluded, and why +0xd4's alignment pad
-// is too).
 // ============================================================================
 
 // ============================================================================
@@ -237,8 +215,6 @@ struct GeometryBase {
 // vtable with its own (0x180155040, ParticleSystemInstance::_vftable_) and
 // zeroes one more field at +0xd8.
 //
-// The ctor's diff oracle compares [0xc0,0xd4) (inherited) and [0xd8,0xe0)
-// (own) -- not the Geometry base, for the same measured reason given above.
 // ============================================================================
 
 }  // namespace RtGraphics
@@ -252,7 +228,7 @@ struct GeometryBase {
 // and live in `ParticleInstance.h` (block E), for the `Volume.h` /
 // `<windows.h>` reason that file's banner records. These two derive from
 // `Object::External` and need no geometry at all, which is why they can sit in
-// this header beside the PODs they are cross-asserted against.
+// this header.
 //
 // GREP HAZARD (B4b-5 / B34_BRIEFS A.7), AND IT CHANGED IN THIS BLOCK: before
 // H2, a bare `Particle` inside a `namespace Graphics { }` block bound NOTHING
@@ -265,11 +241,8 @@ struct GeometryBase {
 //     ?_ParentTypeName@Particle@Graphics@@       -> "Object::External"
 //     ?_ParentTypeName@ParticleSystem@Graphics@@ -> "Particle"       <- NO NAMESPACE
 //
-// RULE B5-15 — THE FOUR NAME LITERALS, RECORDED AND NOT USED. Nothing here
-// re-mints or retires a reflection row (B35_RULES section 11): the two
-// `?_typeInfo@` rows and the two `??_7` mint rows stay, and slots 1/2 keep
-// reading the `_typeInfo` nodes. The literals are written down so that a later
-// `DEFINE_TYPE` is COPIED, not derived from a C++ base name — deriving
+// RULE B5-15 — THE FOUR NAME LITERALS. The `DEFINE_TYPE` rows in
+// `graphics_type_records.cpp` COPY them, not derive them from a C++ base name — deriving
 // `Graphics::Particle` for `ParticleSystem`'s parent would change the CRC and
 // stop every save that names a ParticleSystem from loading:
 //     ?_TypeName@Particle@Graphics@@             -> "Particle"
@@ -317,8 +290,8 @@ class MaterialInstance;   // B.4: Particle::_material (Material.h)
 // a time (B35_SLOTS.md:170-179):
 //
 //   [0] +0x00  0x180020160  (unexported) the vector deleting destructor
-//   [1] +0x08  0x18001ff30  ?TypeName@         graphics_typeinfo_accessors.cpp
-//   [2] +0x10  0x18001ff10  ?Type@             graphics_typeinfo_accessors.cpp
+//   [1] +0x08  0x18001ff30  ?TypeName@         DECLARE_TYPE
+//   [2] +0x10  0x18001ff10  ?Type@             DECLARE_TYPE
 //   [3] +0x18  0x180104080  ?GetFileVersion@   (`MOV EAX,0x1000; RET`)
 //   [4] +0x20  0x1800066e0  Object::External::Compile        INHERITED
 //   [5] +0x28  0x180103f00  ?Serialize@        wave27_lane_gfxpart.cpp
@@ -348,10 +321,7 @@ class MaterialInstance;   // B.4: Particle::_material (Material.h)
 //
 // ABSTRACT for the ordinary reason (B34_BRIEFS A.4 as amended): nothing holds a
 // `Particle` by value anywhere in the tree, and three of its nine slots are
-// `_purecall` in retail itself. Slot 0 is left `= 0` as well — its body is the
-// minted `RT_DELDTOR` row at 0x180020160, which B35_RULES section 11 forbids
-// retiring, and declaring it pure re-declares the slot at the right index
-// without creating a second, divergent one.
+// `_purecall` in retail itself.
 //
 // THE LAYOUT IS THE POD'S, FIELD FOR FIELD, with the two MEASURED GAPS kept as
 // named pads rather than left to C++'s natural alignment (see the POD's banner
@@ -362,7 +332,7 @@ class MaterialInstance;   // B.4: Particle::_material (Material.h)
 // OWN vector deleting dtor; the class stays ABSTRACT through Reconstruct /
 // Destruct / CreateSystem. The ??0 / ??1 doors, the four slot doors, the
 // FACTREST row, the RT_DELDTOR row 0x180020160 and the minted
-// `??_7Particle@Graphics@@6B@` are retired (tools/rt_mint_retired/gfx.txt).
+// `??_7Particle@Graphics@@6B@` are retired.
 class Particle : public Object::External {
 public:
     // [0] 0x180020160 -- MSVC's VECTOR deleting destructor, both arms exactly as
@@ -378,11 +348,7 @@ public:
     ~Particle() override { ReleaseFields(); }
 
     // [1] 0x18001ff30 / [2] 0x18001ff10 / [3] 0x180104080.
-    //   MEMBERS THAT FORWARD, not doors that delegate: all three bodies live in
-    //   `src/engine/graphics/graphics_typeinfo_accessors.cpp`, which is NOT block
-    //   H2's file set, so the direction is reversed and the member calls the
-    //   registered door. The same split `external_class_doors.cpp` documents and
-    //   `Graphics::AnimationEvent` (block H1) already uses.
+    //   [3]'s body is in `src/engine/graphics/graphics_typeinfo_accessors.cpp`.
     // [1] TypeName / [2] Type, TypeId 0x18001ff20, `_TypeName` / `_ParentTypeName`
     // and the factory pair: retail's macro (ENDGAME B.3.9 TI-REST, B39_RULES
     // D6); the record is `DEFINE_TYPE`d in
@@ -560,7 +526,7 @@ static_assert(offsetof(Particle, _active) == sizeof(Object::External),
 // own vector slot 0, a virtual ~ParticleSystem holding the
 // retired ??1 door's body, the factory pair as the class's own statics. The
 // minted table, its RT_DELDTOR row 0x180020a70, the FACTREST row and the ctor /
-// dtor / slot doors are retired (tools/rt_mint_retired/gfx.txt).
+// dtor / slot doors are retired.
 class ParticleSystem : public Particle {
 public:
     // ??0ParticleSystem@Graphics@@QEAA@XZ 0x1800a5320 -- the REAL ctor (also
@@ -597,10 +563,10 @@ public:
     // ---- the non-slot exported members -------------------------------------
     // ??2ParticleSystem@Graphics@@SAPEAX_K@Z                 0x1800203f0 — NOT PORTED
     // ??2ParticleSystem@Graphics@@SAPEAX_KPEAX@Z             0x180020460 — NOT PORTED
-    // ??3ParticleSystem@Graphics@@SAXPEAX@Z                  0x180020470 — NOT PORTED
+    // ??3ParticleSystem@Graphics@@SAXPEAX@Z                  0x180020470 — inline below
     // ?CreateNewObject@…SAPEAVBase@Object@@XZ                0x1800204d0 — (D2) the class's own
     // ?CreateInPlaceObject@…SAPEAVBase@Object@@PEAX@Z        0x180020550 — (D2) the class's own
-    //   The three operators stay declared and undefined: placement is `::new`.
+    //   The two operator news stay declared and undefined: placement is `::new`.
     static void* operator new(std::size_t bytes);
     static void* operator new(std::size_t bytes, void* place);
     static void  operator delete(void* p) { ::Object::detail::InternalMemFree(p); }
@@ -612,9 +578,7 @@ public:
     // 0x1800a5320's store list, `Update` is wave28's measured read.
     float    _emissionRate;            // +0x48  ctor 5.0f. Serialize emits it FIRST, and
                               //        Serialize's read-side tail RAW-BIT-COPIES
-                              //        it into each pool record's +0x10. No
-                              //        reader identified it, so it keeps a
-                              //        position name.
+                              //        it into each pool record's +0x10.
     float    _emissionAcceleration;     // +0x4c  MULSS 0x4c(%rdi) @ 0x1800a5758; ctor 0.0f
     float    _emissionDrag;     // +0x50  MULSS 0x50(%rdi) @ 0x1800a5764; ctor 1.0f
     uint32_t _pad54;          // +0x54  MEASURED GAP — ctor and Serialize skip it
@@ -728,11 +692,10 @@ static_assert(offsetof(ParticleSystem, _gravScale) - offsetof(ParticleSystem, _a
 
 }  // namespace Graphics
 
-// ==== B3R W0-P0c: Runtime bodies reached by retail address ====
-// ENDGAME B.3R (B3R_RULES R5): each body below is registered at the retail
-// address in its trailing comment and read through the registry today. It is
-// declared here, copied from its definition (linkage, namespace, types), so the
-// reader can call it by name. Nothing calls it through this declaration yet.
+// ==== B3R W0-P0c: Runtime bodies called by name ====
+// ENDGAME B.3R (B3R_RULES R5): each body below is declared here, copied from its
+// definition (linkage, namespace, types), so its callers call it by name. The
+// trailing comment is its retail address.
 
 // ---- graphics/wave27_lane_gfxpart.cpp
 extern "C" void* RtGraphics_Emitter_OperatorNew(void);  // 0x1800205a0

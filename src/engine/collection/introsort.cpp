@@ -10,8 +10,8 @@
 //
 // WHY IT IS HERE, GIVEN LANE PKG DELIBERATELY DECLINED IT
 // -------------------------------------------------------
-// src/engine/io/filesystem_packages.cpp:753 says, and it was right at the
-// time:
+// src/engine/io/filesystem_packages.cpp, above the SortByKey70 call, quotes the
+// paragraph that declined it, and it was right at the time:
 //
 //     "DELIBERATELY NOT PORTED ... every PackageFile arrives here with the
 //      SAME +0x70 ... A tie-heavy population is exactly where an unstable
@@ -31,11 +31,11 @@
 //     retail's, and each is annotated with the instruction it came from.
 //   * A sort IS replayable, which makes it one of the easiest things in this
 //     wave to verify: it is a pure permutation of a buffer the caller owns.
-//     The probe hands the SAME array to both implementations — ours on one
-//     copy, the shipped body on another — and compares the resulting
-//     PERMUTATION, not the sortedness. On a tie-heavy population that is
-//     exactly the "which package wins" question lane PKG could not answer, and
-//     the probe's corpus is deliberately mostly ties (see introsort_probe).
+//     The unit test SortByKey70TieReplay (tests/unit/list_test.cpp) compares
+//     the resulting PERMUTATION, not the sortedness, against permutations
+//     recorded from this body. On a tie-heavy population that is exactly the
+//     "which package wins" question lane PKG could not answer, and the test's
+//     corpus is mostly ties.
 //
 // THE ORDER IS DESCENDING, and that is the first thing to get wrong.
 // `CMOVG RDX,R8` at 0x1800264fc moves the tracked position to R8 when the
@@ -50,8 +50,8 @@
 // pointer comparison. Every ordering decision below is that one compare.
 //
 // THE THIRD ARGUMENT IS DEAD. The call site passes `LEA R8,[RBP+0x48]`; the
-// callee never reads R8. The signature keeps two parameters, which is what the
-// existing call site at filesystem_packages.cpp:767 already declares.
+// callee never reads R8. The signature keeps two parameters, as Collection.h
+// declares it and filesystem_packages.cpp calls it.
 //
 // THE PENDING-RANGE STACK IS 62 ENTRIES AND HAS NO BOUNDS CHECK
 // (`SUB RSP,0x3e0` gives 0x1f0 bytes of lo and 0x1f0 of hi). That is safe only
@@ -63,8 +63,8 @@
 // PART 2 — 0x180051650 (and 0x180050d30, now Collection::Array<T>::operator=)
 // ============================================================================
 //
-// src/engine/collection/array.cpp:386 records these as the last two rows of
-// its non-trivial tier that are "still the DLL's". 0x180051650 closes here;
+// src/engine/collection/array.cpp, in the banner above Assign38Call, records
+// both rows. 0x180051650 closes here;
 // 0x180050d30 is the header's Array<EmitterInstance>::operator= (B9 RT, D4).
 // ============================================================================
 
@@ -88,8 +88,7 @@ namespace rtsort {
 // boot actually runs it is true of doing NOTHING AT ALL. So these count the
 // structural branches whose absence would make a green permutation comparison
 // vacuous — the big-range path, the pivot fixup, the two equal-run walks and
-// the pending stack. The probe FAILS LOUDLY if any of them is zero across its
-// whole corpus, because that means the corpus, not the code, was the problem.
+// the pending stack. Nothing in the tree reads them.
 // ---------------------------------------------------------------------------
 struct SortCounters {
     uint64_t calls, smallPasses, smallSwaps, medianSwaps;
@@ -100,7 +99,7 @@ SortCounters g_sc = {};
 
 // The one field the comparator reads: PackageFile::_priority at +0x70, a
 // SIGNED dword the PackageFile constructor seeds with 0x2710 and only
-// ReadPackfile changes (filesystem_packages.cpp §"the comparator").
+// ReadPackfile changes (filesystem_packages.cpp, above the SortByKey70 call).
 static inline int32_t Key(const IO::PackageFile* elem) {
     return elem->_priority;
 }
@@ -120,10 +119,6 @@ static inline int32_t Key(const IO::PackageFile* elem) {
 // ---------------------------------------------------------------------------
 void SortByKey70(IO::PackageFile**first, int32_t count) {
     ++g_sc.calls;
-    // Self-scheduled probe, same contract as the tree entry points: it
-    // allocates, so it cannot run from a *PortInit. In practice THIS is the
-    // first of the lane's entry points the boot reaches, because LoadPackages
-    // runs before Object::Factory::Startup.
     IO::PackageFile**stackLo[62];
     IO::PackageFile**stackHi[62];
     int64_t depth = 0;
@@ -341,8 +336,8 @@ void SortByKey70(IO::PackageFile**first, int32_t count) {
 // ---------------------------------------------------------------------------
 // 0x180051650 — the 0x40-byte `Audio::EffectSlot` element copy-assign.
 //
-// array.cpp:427's `Assign40Call` reaches this address; it is the last of lane
-// Q's five "new rows" still on the DLL together with 0x180004220.
+// array.cpp's `Assign40Call` calls this through rtsort::EffectSlotAssign; its
+// sibling 0x180004220 is RtColl_SpriteEntryAssign_180004220 (array_destroy.cpp).
 //
 //   dst[+0x00..+0x0f] = src, as FOUR dword MOVs
 //   dst[+0x10] = src[+0x10]   (QWORD)
@@ -353,7 +348,7 @@ void SortByKey70(IO::PackageFile**first, int32_t count) {
 //   return dst
 //
 // *** BYTES +0x2c .. +0x2f ARE NEVER WRITTEN. *** The scalar block stops at
-// +0x2b and the nested Array starts at +0x30. array.cpp:437 records the same
+// +0x2b and the nested Array starts at +0x30. array.cpp, above EffectSlotInit, records the same
 // hole from the `else` arm's side ("BYTES +0x2c .. +0x2f ARE NEVER WRITTEN"),
 // which is an independent second reading of it. Any oracle over this element
 // must exclude that window or it fails 100% of calls

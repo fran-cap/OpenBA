@@ -1,16 +1,16 @@
 // ============================================================================
 // src/engine/ui/dialogcontrollerconfig.cpp — VTABLE BATCH 9
-//   UI::DialogControllerConfig, 3 of 8 vtable slots (0, 1, 2 -- the rest are
-//   purecall traps or the shared External::Compile, neither this batch's job).
+//   UI::DialogControllerConfig: the factory pair, the destructor and the type
+//   record (slots 1/2 are DECLARE_TYPE's; 3/5/6/7 stay pure; 4 is External::Compile).
 // ============================================================================
 //
 // ??_7DialogControllerConfig@UI@@6B@ (retail 0x180156650), 8 slots:
 //   0  deleting dtor  0x18003b600  DialogControllerConfig.h (the class's own, B.3.9)
-//   1  TypeName       0x18003b470  here
-//   2  Type           0x18003b450  here
-//   3  purecall trap  0x18007ec28  minted, not this batch's job
+//   1  TypeName       0x18003b470  DECLARE_TYPE (DialogControllerConfig.h)
+//   2  Type           0x18003b450  DECLARE_TYPE (DialogControllerConfig.h)
+//   3  purecall       0x18007ec28  pure, inherited from Object::External
 //   4  External::Compile 0x1800066e0  already ported
-//   5,6,7 purecall traps 0x18007ec28  minted, not this batch's job
+//   5,6,7 purecall    0x18007ec28  pure, inherited from Object::External
 // plus ??1DialogControllerConfig@UI@@UEAA@XZ (0x18003b4f0) and the factory pair.
 //
 // ENDGAME B.3.9 block UI-D: the dtor door and the two slot doors, whose only
@@ -21,15 +21,14 @@
 // LAYOUT: this class adds NOTHING over `Object::External` -- sizeof 0x20 is
 // exactly `External`'s own size (src/engine/object/External.h), which is
 // also what the deleting destructor's `MOV EDX,0x20` at 0x18003b632 says.
-// `DialogController::_config` (src/engine/ui/DialogInstance.h) holds an
+// `DialogController::_config` (src/engine/ui/DialogController.h) holds an
 // `ExternalPtr<DialogControllerConfig>`, so this class exists purely to be
 // pointed at -- it carries no fields of its own for AddController to fill.
 //
 // ??1DialogControllerConfig@UI@@UEAA@XZ   0x18003b4f0, two instructions:
-//     *(void**)this = &??_7DialogControllerConfig@UI@@6B@;   (dead store,
-//         transcribed for the same reason ext_compilers.cpp gives)
-//     Object::External::~External(this);   -- already ported, ordinary call
-//         here where retail tail-jumps.
+//     *(void**)this = &??_7DialogControllerConfig@UI@@6B@;   (dead store)
+//     Object::External::~External(this);   -- a tail jump in retail.
+// In the port both are the compiler's (the empty destructor below).
 // ============================================================================
 
 #include <cstdint>
@@ -47,7 +46,7 @@ namespace {
 // ============================================================================
 // ENDGAME B.3.6 block B — UI::DialogControllerConfig's two own slots are
 // members now (src/engine/ui/DialogControllerConfig.h). Neither reads
-// `this`: both read one exported BaseTypeInfo (+0x08 name, +0x00 type id).
+// `this`: both read the class's own BaseTypeInfo `_typeInfo` (+0x08 name, +0x00 type id).
 // ============================================================================
 namespace UI {
 

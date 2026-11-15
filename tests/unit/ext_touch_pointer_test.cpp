@@ -284,7 +284,7 @@ UNIT_TEST(ext_touch_pointer_gesture_lock_pan_with_spread_jitter) {
     CHECK(Near(total.dragX, 0.18f, 1e-4f));   // engaged at 30 px (step 3), then follows to 200 px
 
     // The S25 case: thumbs 400 px apart whose spread has jittered 22 px by the time the centroid has travelled
-    // 22 px (pan ratio 1.1, pinch ratio 0.86). Both fingers moved (11 and 33 px): pan.
+    // 22 px (pan ratio 1.1, pinch ratio 0.88). Both fingers moved (11 and 33 px): pan.
     TwoFingers w;
     w.Begin(300, 500, 700, 500, 1000.0f);
     const GestureStep s = w.Step(311, 500, 733, 500);

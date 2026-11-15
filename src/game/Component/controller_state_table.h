@@ -14,8 +14,7 @@
 //
 // In standalone the exe .data table is not mapped, so we allocate our own table
 // (one StateTable per controller-type, via the Dispatcher<Tag> template) and a set
-// of ported generic dispatchers that read it. This replaces the crash-safe stub
-// node vtable (controller_live_base.cpp) with the REAL mechanism: Step performs the
+// of ported generic dispatchers that read it: Step performs the
 // real state-id->index search, and Enter/Update/OnState/Transition dispatch through
 // the table to per-state handlers.
 //
@@ -29,6 +28,8 @@
 //   +0x20 void*  updateHandler   (node vtable slot +0x20 dispatcher)
 //   +0x28 Trans  transitions[8]  (per-state transition list, {targetId, handler})
 //   +0xa8 int    transitionCount
+//   +0xb0 Event  events[4]       (per-state event list, {eventId, handler})
+//   +0xf0 int    eventCount
 //   …pad to 0xf8
 //
 // ── Node-interface ABI (recovered from StateMachine::Tick 0x1400a9660 disasm; the
@@ -41,12 +42,6 @@
 //   slot 7 (+0x38) Transition(node, sm, const Time* time, int idx) -> char
 // Each handler is tail-called as `handler(*(node+0x18))` (the dispatcher does
 // `MOV RCX,[RCX+0x18]; JMP handler`); a null handler is a graceful no-op (return 0).
-//
-// Handlers are null in standalone until the per-state behaviour functions are
-// ported (the deep next layer — e.g. BuildDescription_helper_8290 is a large
-// GameWorld/ResourceGather routine). With null handlers the SM still runs the REAL
-// table-driven structure (Step returns real indices, transitions are validated
-// against the real graph), it just performs no per-state work yet.
 
 #include <cstdint>
 #include <cstddef>
@@ -361,8 +356,8 @@ template <class Tag> StateTable<typename Dispatcher<Tag>::Owner> Dispatcher<Tag>
 // then re-reads BOTH the node pointer and +0x09 before requesting — the tick can change
 // the active node. Verified at two retail call sites: 0x14012ae60 (the RP pause path)
 // and 0x14012b310 (ConsumeProduceAction_helper_b310). We do the same. With both flag
-// args 0 the nested Tick skips its action phase — the only consumer of the time arg —
-// so a plain 0 stands in for retail's Time(0.0) byte-for-byte. If the SM has nothing
+// args 0 the nested Tick skips its action phase — the only consumer of the time arg;
+// the time passed is a stack Time(0.0f), as retail's. If the SM has nothing
 // pending either, the nested Tick is a no-op, +0x09 stays negative, and the slot-8
 // dispatcher bounds-rejects the request exactly as before.
 //
@@ -397,12 +392,9 @@ inline void RequestStateTransition(::StateMachine* m, E desiredState) {
 
 // ============================================================================
 // ENDGAME B.3.8 (B38_RULES.md D6) — the table-driven controller as a REAL
-// member class. A converted ControllerComponent leaf embeds one of these BY
-// VALUE at its retail offset instead of stamping `Dispatcher<Tag>::Vtable()`
-// into raw bytes; its compiler vtable has retail's 9 slots (the hand-built
-// `Dispatcher<Tag>::vtbl` has 16, slots 9-15 `Stub`, which retail does not
-// have). Every override forwards to the SAME Dispatcher<Tag> static the old
-// table held, so the behaviour is byte-for-byte the old table's.
+// member class. A table-driven ControllerComponent leaf embeds one of these BY
+// VALUE at its retail offset; its compiler vtable has retail's 9 slots. Every
+// override forwards to the matching Dispatcher<Tag> static.
 // ============================================================================
 namespace ControllerLive {
 

@@ -10,10 +10,8 @@
 // WHAT IS *NOT* HERE, deliberately. `Video::ImageBuffer`'s own ten slots are
 // src/engine/video/imagebuffer_vtable.cpp's (Wave 18 lane VDATA), and
 // `FrameCopyImageBuffer`'s ctor / dtor / Create / Generate are
-// src/engine/graphics/wave23_lane_gfxbody.cpp's. Both are REUSED through the
-// registry door, never restated: every base-class arm below goes out through
-// `RT_EXPORT_ONCE` on the mangled name, which is registry-first, so it lands on
-// our port where one exists and on the DLL where one does not.
+// src/engine/graphics/wave23_lane_gfxbody.cpp's. Both are REUSED, never
+// restated: every base-class arm below is a qualified call to the base member.
 //
 // THE FAMILY'S SHAPE, and why three classes share one file. Slots 6/7/8
 // (Reconstruct / Destruct / Construct) are the `Object::External` device-lost
@@ -33,11 +31,10 @@
 // GeneratedImageBuffer does NOT have slots 6/7/8 of its own — it inherits
 // Video::ImageBuffer's, which is why its row in the batch is five slots and not
 // eight. Its `??_7` slots 6/7/8 hold 0x18001ea80 / 0x18001eab0 / 0x18001eaa0,
-// i.e. the base class's bodies, already ported and already registered.
+// i.e. the base class's bodies, already ported.
 //
-// This file also carries ONE non-slot helper, `Math::Transform3::operator*`
-// (0x180022680), because `ReflectionImageBuffer::Render` cannot run without it
-// and nothing in the tree ported it. See its own banner.
+// `ReflectionImageBuffer::Render` also uses one non-slot helper,
+// `Math::Transform3::operator*` (0x180022680), defined in src/engine/math/transform.cpp.
 // ============================================================================
 
 #include <cstdint>
@@ -53,7 +50,7 @@
 #include "video/Device.h"       // ENDGAME B.3.5: Video::RenderBuffer
 #include "video/ImageBuffer.h"   // ENDGAME B.3.5: Video::ImageBuffer
 #include "../collection/array_internal.h"
-#include "graphics/Camera.h"   // rtgfxd::RtGraphics_Camera_CopyCtor
+#include "graphics/Camera.h"   // Graphics::Camera (its copy ctor 0x180017a70)
 #include "graphics/Scene.h"    // rtgfxd::RtGfxd_SceneArraySetSizeFill
 #include "graphics/SunLight.h"      // ext.staggered_passes: SunLight::_extShadowFitView (eye camera)
 #include "graphics/stagger_hold.h"  // ext.staggered_passes: the reflection hold
@@ -74,10 +71,8 @@ namespace {
 // Same two fields, same reasoning, as graphics_typeinfo_accessors.cpp:
 //     +0x00 uint32_t typeId   (MOV EAX,[node])
 //     +0x08 const char* name  (MOV RAX,[node+8])
-// Reached through RT_DATA_SLOT and NOT by address, because all four of these
-// `?_typeInfo@` rows are MINTED and PROMOTED (standalone/reg_mint_promoted.cpp
-// :936-992). By address we would read the DLL's copy while the rest of the tree
-// reads the minted one — the split-brain shape mainloop_video.cpp:303 warns of.
+// The nodes are the classes' own records, `DEFINE_TYPE`d in
+// graphics_type_records.cpp.
 
 // ---------------------------------------------------------------------------
 // The named dependencies, called by name (B3R).
@@ -98,12 +93,7 @@ void ImageBufferCtor(void* p) {
 // BASE-CLASS arm, which a real class expresses as the qualified non-virtual call
 // `this->Video::ImageBuffer::Serialize(stream)`; the member is defined in
 // `src/engine/video/imagebuffer_vtable.cpp`, also this block's, so the call
-// cannot land anywhere else. The door itself stays registered there for the raw
-// callers outside this block.
-//
-// `??0ImageBuffer@Video@@` and `??1ImageBuffer@Video@@` KEEP their doors below:
-// their bodies are in `src/engine/video/buffers.cpp`, which is block D2's file,
-// so the door is still what decides which body runs.
+// cannot land anywhere else.
 void* ImageBufferOperatorNew(uint64_t n) {
     return Video::ImageBuffer::operator new(n);    // 0x18001e910
 }
@@ -464,7 +454,7 @@ bool ReflectionImageBuffer::Serialize(IO::Stream& stream) {
 
             // `CALL qword ptr [R10+0x48]` = slot 9, Video::ImageBuffer::Create.
             // With the real class that is `_depth->Create(...)`, a virtual call at
-            // index 9 through the object's own (minted) vptr — the same
+            // index 9 through the object's own vptr — the same
             // instruction, with the index checked by the compiler. The deref is
             // UNGUARDED in retail and stays unguarded here: if `??2ImageBuffer`
             // returned null, retail walks into `MOV R10,[RCX]` at 0x1800a6fc2 and
@@ -583,7 +573,7 @@ bool ReflectionImageBuffer::Serialize(IO::Stream& stream) {
 namespace {
 
 // `??0Camera@Graphics@@QEAA@AEBV01@@Z` 0x180017a70 — its ported body,
-// rtgfxd::RtGraphics_Camera_CopyCtor (wave9_lane_gfxd.cpp), called by name below.
+// `Graphics::Camera`'s copy constructor (wave9_lane_gfxd.cpp), called below.
 
 // `Collection::Array<T>::SetSize(n, const T&)` 0x1800637b0 and
 // `Collection::Array<T>::~Array` 0x18001c750 — both UNEXPORTED template

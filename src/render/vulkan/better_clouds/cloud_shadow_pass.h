@@ -9,8 +9,8 @@
 namespace VideoVulkan {
 namespace CloudShadow {
 
-// DeviceData::Shutdown, the device idle: the depth copy (an engine ImageBuffer) is released and the
-// pass's pipelines, layouts, pools, ring and shader modules are destroyed; the next device makes them
+// DeviceData::Shutdown, the device idle: the pass's pipelines, layouts, pools, ring and shader modules
+// are destroyed (the depth copy goes in DepthCopy::Shutdown); the next device makes them
 // again (CloudShadowBackend::Supported, then the next Draw).
 void Shutdown();
 

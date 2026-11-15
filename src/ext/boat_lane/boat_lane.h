@@ -20,9 +20,9 @@
 // boat keeps, not a staircase.
 //
 // Two users, one answer: ext.boat_lane (class B) sails the boats along it, and ext.winter_ice keeps it
-// open in the ice. Both call Legs() with kLanePull / kLaneSmoothing, so with ext.boat_lane on the boats
-// and the open channel are the same line. Deterministic: integer costs, a fixed neighbour order, ties
-// broken by cell index.
+// open in the ice. Both call Legs(); ext.boat_lane always with kLanePull / kLaneSmoothing, ext.winter_ice
+// with them while ext.boat_lane is on, so then the boats and the open channel are the same line.
+// Deterministic: integer costs, a fixed neighbour order, ties broken by cell index.
 // ============================================================================
 #pragma once
 

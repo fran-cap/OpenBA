@@ -6,7 +6,7 @@
 // underneath. Derives straight from UI::ElementDescription.
 //
 // ??_7LayoutDescription@UI@@6B@ (retail 0x180156cc0), ten slots:
-//   0  deleting dtor      0x1800431d0  deleting_dtor.cpp row (sizeof 0x78)
+//   0  deleting dtor      0x1800431d0  LayoutDescription.h (the class's own; sizeof 0x78)
 //   1  TypeName           0x180042d40  here
 //   2  Type               0x180042d20  here
 //   3  GetFileVersion     0x1800d3a00  here  (returns 0x304)
@@ -17,11 +17,11 @@
 //   8  CreateInstance     0x1800d33a0  here
 //   9  Construct          0x180043060  here
 // plus ??1LayoutDescription@UI@@UEAA@XZ 0x1800d3a10 and the entry-array
-// serializer 0x180043f50 (unexported; registered BY ADDRESS ONLY).
+// serializer 0x180043f50 (unexported).
 //
 // THE CONSTRUCTOR IS INLINED, twice (Construct 0x180043076.. and Reconstruct
-// 0x180042fde..), so there is no ??0 export to register. Both copies were
-// compared instruction by instruction for this port and agree.
+// 0x180042fde..). Both copies were compared instruction by instruction for this
+// port and agree.
 //
 // LAYOUT, sizeof 0x78 (`MOV EDX,0x78` at 0x1800431ef). ElementDescription
 // (0x68) plus ONE array:
@@ -57,9 +57,7 @@
 //
 // ENDGAME B.3.6 block C4: the layout moved to src/engine/ui/
 // LayoutDescription.h / LayoutElement.h (the real classes). Every slot body
-// below is a MEMBER; each registered door is a one-line QUALIFIED delegation;
-// the dtor stays a DOOR (B4b-2). RULE B6-5: every export the members reach is
-// cached in a namespace-scope std::atomic slot, never in a function-local static.
+// below is a MEMBER, and so is the dtor.
 // ============================================================================
 #include <new>
 #include <cstddef>

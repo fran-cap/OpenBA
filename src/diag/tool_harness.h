@@ -12,7 +12,7 @@ class PlayerToolManager;   // src/game/Game/PlayerToolManager.h
 
 extern "C" {
 
-// Called once per in-game frame from GameUpdateLoop_Update (after the world is
+// Called once per in-game frame from GameUpdateLoop::Update (after the world is
 // built). entityUI = GameUpdateLoop::m_toolManager; frameNum = the loop's frame
 // counter (used to settle before firing). No-op unless BANISHED_TOOL_HARNESS
 // is set. Fires its tool sequence exactly once.

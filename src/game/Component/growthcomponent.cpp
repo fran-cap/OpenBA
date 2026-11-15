@@ -8,7 +8,7 @@
 // Struct size: 0x50, vtable at 0x140163590
 //
 // Key logic:
-//   1. Compute base growth rate from config (1.0 / (config+0x28 * 60.0))
+//   1. Compute base growth rate from config (1.0 / (config+0x28 * 300.0))
 //   2. Apply seasonal temperature modulation if config+0x2C flag set
 //   3. Accumulate growth: resource+0x28 += dt * growthRate * tempModifier
 //   4. If growth < 0 and not flagged: reset and harvest
@@ -22,13 +22,13 @@
 #include "object/TypeInfo.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
-#include "Action/exe_bodies.h"            // ActHunt_*, ActCNR_* helpers
-#include "Work/exe_bodies.h"              // WorkBase_FindComponent_52c0, WorkLeaf_FootprintOwnerCheck_120c30
+#include "Action/exe_bodies.h"
+#include "Work/exe_bodies.h"
 #include "Entity/ComponentEntity.h"   // ComponentEntity(ComponentDescription*) (0x1400c3720)
 #include "Entity/EntityList.h"        // EntityList::RegisterEntity (0x1400c48a0)
 #include "Game/exe_constants.h"           // kRdata_*
 #include "math/Math.h"                    // Math::Vector4, Math::Scalar
-#include "Object/factory_registration.h"   // ::Object::GetTypeIdByName (standalone sibling-id fallback)
+#include "Object/factory_registration.h"
 #include <cstdint>
 #include <cstdio>
 #include <cmath>
@@ -37,17 +37,16 @@
 #include "object/Internal.h"   // ENDGAME B.3.3 step 6B
 #include "system/Value.h"   // ENDGAME B.3.4b System caller batch
 #include "Component/exe_bodies.h"
-#include "Player/exe_bodies.h"   // PlayerPath_CharComp_f5d0 (0x14009f5d0), the spawn placement test
+#include "Player/exe_bodies.h"
 
 // ============================================================
 // Helpers, called by name (B3R)
 // ============================================================
-//   0x1400c3470 ActHunt_NotifyEntityChanged_c3470 -- flag notification
-//   0x14011fba0 GrowthComponent_SpawnSubResource   0x140120470 GrowthComponent_SetResourceAmount
-//   0x140120410 GrowthComponent_GetResourceIndex   0x140126780 GrowthComponent_ResetGrowthState
-//   0x140118950 GrowthComponent_ModifyFlags        (all below)
-// DAT_1401c3dd8 (the game world) is read through g_pGameWorldSingleton, the engine_funcs
-// global bound to the same cell.
+//   0x1400c3470 ComponentEntity::RefreshEntityFlags -- flag notification
+//   0x14011fba0 GrowthComponent::SpawnSubResource   0x140120470 GrowthComponent::SetResourceAmount
+//   0x140120410 GrowthComponent::GetResourceIndex   0x140126780 NaturalResourceComponent::ResetGrowthState
+//   0x140118950 Component::ModifyFlags              (these five below)
+// DAT_1401c3dd8 (the game world) is GameUpdateLoop::_singleton.
 
 namespace {
 // The .rdata float constants (Game/exe_constants.h) that are stored as bit patterns.
@@ -113,9 +112,6 @@ static void DoHarvestReset(GrowthComponent* comp, const Map* resourceMgr, float 
 // GrowthComponent::Update (vtable slot [9], 0x140120050)
 // ============================================================
 
-// Step-2 body-init (vtable slot [4], +0x20, original 0x1401206f0). Forward-declared
-// here so the Update guard can lazily invoke it if StartupComponents did not run.
-
 // ============================================================
 // Reimplemented exe helpers (callee bodies for the guarded call sites above)
 // ============================================================
@@ -126,22 +122,22 @@ static void DoHarvestReset(GrowthComponent* comp, const Map* resourceMgr, float 
 
 // Sub-helpers used by the bodies below, called by name (B3R):
 //   0x140004680 FindComponent<MapComponent> -- the footprint (tile x / y)
-//   0x140120c30 WorkLeaf_FootprintOwnerCheck_120c30 -- spawn-site validity check
+//   0x140120c30 GrowthDescription::CheckFootprint -- spawn-site validity check
 //               (growthComp/config, x, y) -> bool(low byte)
 //   0x140003f60 FindComponent<ModelComponent> -- the parent's meshGroup, the child's mesh pick
-//   0x1400c3720 ComponentEntity_CtorFromDescription -- ComponentEntity copy-ctor
+//   0x1400c3720 ComponentEntity(ComponentDescription*) -- ComponentEntity copy-ctor
 //   0x1400052c0 FindComponent<NaturalResourceComponent> / 0x14000c460
 //               FindComponent<GrowthComponent>
-//   0x140126540 ActCNR_SetupModelAtCell_126540 (Entity_impl_6540) -- place a freshly-spawned
+//   0x140126540 NaturalResourceComponent::PlaceAtCell (Entity_impl_6540) -- place a freshly-spawned
 //               sub-resource entity: records its tile (+0x28/+0x2a), builds a yaw transform
 //               via FromYawPitchOffset and writes it to the entity transform
 //               (+0x148..+0x168), then Geometry::SetTransform. (The literal was once the
 //               dropped-digit typo 0x140006540, mid-HealerDescription_Factory.)
-//   0x140120db0 ActCNR_SetGrowthProgress_120db0 -- set growth value (float) on entity
-//   0x140125320 / 0x1401253d0 ActCNR_NR_GetSubVariantCount_125320 / ActCNR_NR_SetVariant_1253d0
-//   0x1400c48a0 EntityList_RegisterEntity_Impl -- register new entity into world entity list
+//   0x140120db0 GrowthComponent::SetProgress -- set growth value (float) on entity
+//   0x140125320 / 0x1401253d0 ModelComponent::MeshCount / ModelComponent::SelectMesh
+//   0x1400c48a0 EntityList::RegisterEntity -- register new entity into world entity list
 //   0x140003f60 FindComponent<ModelComponent> (the GrowthComponent::Startup +0x30 accessor)
-//   0x140126440 ActCNR_SetAnimIndex_126440 (AnimateNaturalResource_helper_6440) -- anim kick
+//   0x140126440 NaturalResourceComponent::SetAnimation (AnimateNaturalResource_helper_6440) -- anim kick
 // Random on world singleton (+0xd8); world resource manager (+0xf8); world flags (+0xd0).
 
 // Reimpl of FUN_140118950 — Component::ModifyFlags: +0x20 = (f|or)&~andNot; notify the
@@ -314,13 +310,10 @@ void GrowthComponent::Startup() {
     resource = owner->FindComponent<NaturalResourceComponent>();   // 0x1400052c0
 
     // +0x30 — sibling ModelComponent (type DAT_1401c7a50), used by FUN_140120db0 to
-    // write the growth-staged mesh scale. The shared FUN_140003f60 reimpl finds it via
-    // the raw .rdata ModelComponent type-id (0x1401c7a50), which resolves NULL in
-    // standalone → it returned null, so +0x30 never linked and tree growth-staging was a
-    // no-op (BANISHED_MATURE_TREES stood in). Prefer the shared finder; if it yields
-    // null, fall back to a
-    // SELF-CONTAINED ModelComponent scan via GetTypeIdByName. Scoped here so it cannot
-    // change the shared produce/animation callers of 3f60 (verified paths).
+    // write the growth-staged mesh scale. Prefer the shared finder; if it yields
+    // null, fall back to a SELF-CONTAINED scan of the entity's components for
+    // ModelComponent::TypeId(). Scoped here so it cannot change the shared
+    // produce/animation callers of 3f60.
     ModelComponent* res30 = owner->FindComponent<ModelComponent>();   // 0x140003f60
     if (res30 == nullptr) {
         const uint32_t s_tidModel = ModelComponent::TypeId();   // B.3.8: was a lazy by-name cache (B6-5)
@@ -392,7 +385,7 @@ void GrowthComponent::Update(const System::Time* time) {
 
     // [LIVE-COMPONENT BRING-UP GUARD] On an inert-spawned standalone component the
     // body is zeroed unless Startup ran. config(+0x38) and the resource
-    // sub-component(+0x28) are populated by GrowthComponent_Startup (step 2 of the
+    // sub-component(+0x28) are populated by GrowthComponent::Startup (step 2 of the
     // recipe), which the entity-spawn pipeline invokes via vtable+0x20 in
     // ComponentEntity_StartupComponents. As a belt-and-suspenders, if the body is
     // still zero but the description(+0x18) is present, run the body-init now
@@ -406,7 +399,7 @@ void GrowthComponent::Update(const System::Time* time) {
     // — everything Startup computes EXCEPT +0x38, which is just a copy of the
     // description already sitting at +0x18. So after a load the one genuinely missing
     // field is +0x38, and running the whole body-init to get it RE-ROLLS +0x4c from the
-    // RNG (see GrowthComponent_Startup), throwing away the per-instance harvest
+    // RNG (see GrowthComponent::Startup), throwing away the per-instance harvest
     // threshold the save restored. That is a silent load-fidelity bug: the plant keeps
     // its growth but changes when it becomes harvestable, differently on every load.
     //

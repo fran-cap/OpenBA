@@ -3,9 +3,7 @@
 // ============================================================================
 //
 // The System-namespace half of one batch off docs/history/runtime_port/closure/
-// WORKLIST.md (2026-09-12), plus the aggregator that calls the other six
-// namespaces' register functions, so standalone/resolve_standalone.cpp gains
-// exactly ONE line for the whole batch.
+// WORKLIST.md (2026-09-12).
 //
 //   0x1800028a0  ??3MaterialInstance@Graphics@@SAXPEAX@Z   93 B  operator delete
 //   0x18001e990  ??3ImageBuffer@Video@@SAXPEAX@Z           93 B  operator delete
@@ -18,39 +16,25 @@
 // ---------------------------------------------------------------------------
 // THE FOUR `operator delete` ROWS ARE NOT DELETING DESTRUCTORS
 // ---------------------------------------------------------------------------
-// The batch brief filed them as "deleting-dtor rows: see
-// src/engine/object/deleting_dtor.cpp". They are not, and the distinction is
-// the one that file's own banner spends a page on. A deleting destructor is
+// The batch brief filed them as deleting-dtor rows, and they are not. A
+// deleting destructor is
 // `??_E<Class>@@UEAAPEAXI@Z` — two arguments, a vector branch, an array cookie
 // eight bytes behind the pointer. These four are `??3<Class>@<Ns>@@SAXPEAX@Z`,
 // MSVC's per-class `operator delete`: ONE argument, no dtor, no cookie.
 //
 // All four were decompiled individually and all four are, instruction for
-// instruction, the body deleting_dtor.cpp's banner already names as the
-// family's single constant:
+// instruction, the same body:
 //
 //     if (p) { EnterCriticalSection(_singleton+0x640);
 //              MemoryAllocator::Free(_singleton, p);
 //              LeaveCriticalSection(_singleton+0x640); }
 //
 // which is byte-identical to the EXPORTED ?MemFree@MemoryAllocator@System@@
-// (0x1800c7ad0). That banner lists ten such addresses across the 37 deleting
-// destructors, including 0x1800028a0 and 0x18001e990 — so two of these four
-// were already IDENTIFIED as `operator delete` copies by Wave 9 lane K and
-// simply never registered. This file registers them.
+// (0x1800c7ad0).
 //
-// ONE BODY, FOUR REGISTRATIONS + the exported names. They are registered under
-// the mangled names too (checked against the export directory via Ghidra's
-// list_exports, not inferred from the `SAXPEAX` shape —
-// reference_resolveexport_phantom_names.md), because a caller that reaches
-// `??3PackageFile@IO@@` by NAME must land here as well as one that reaches
-// 0x1800251e0 by address.
-//
-// PORTABILITY: this file calls the allocator by ADDRESS (0x1800c7a50 /
-// 0x1800c7ad0), the door src/engine/collection/array.cpp opened and for the
-// same two reasons — it keeps <windows.h> out of runtime/src (PLAN.md §4.1),
-// and it keeps the heap whole (a heap cannot be half ours). The LANE E DEPENDENCY stated in array.cpp's banner
-// covers this file too.
+// The allocator is reached through its two statics, called by name:
+// System::MemoryAllocator::MemAlloc / MemFree (retail 0x1800c7a50 / 0x1800c7ad0),
+// which keeps <windows.h> out of this file (docs/runtime_port/PLAN.md §4.1).
 // ============================================================================
 
 #include <cstdint>
@@ -73,8 +57,8 @@ void MemFreeAt(void* p) {
 }  // namespace rtclosure2b
 
 // ---------------------------------------------------------------------------
-// The four `operator delete` COMDAT copies. ONE body; four entry points so a
-// crash log or a census names the address that was actually reached.
+// Two of the `operator delete` COMDAT copies. ONE body; an entry point per copy
+// so a crash log names the address that was actually reached.
 //
 // The `if (p)` here is RETAIL'S OWN test, not a port's guard: every one of the
 // four opens `TEST RCX,RCX / JZ ret`. MemFree tests again inside; both tests
@@ -95,8 +79,8 @@ extern "C" void RtGraphics_Material_OperatorDelete(void* p) {
 // with the Enter/Allocate/Leave triple inlined and NO null test (there is
 // nothing to test; the size is the argument). ALIGNMENT IS 4, read from its own
 // `MOV R8D,0x4` — not 8, and not inherited from the exported MemAlloc's
-// callers. engine_lifecycle.cpp:1111 already records this address as
-// "MemAlloc(n,4) verbatim"; this is that observation registered.
+// callers. engine_lifecycle.cpp records this address as `MemAlloc(size, 4)` and
+// nothing else.
 // ---------------------------------------------------------------------------
 extern "C" void* RtSystem_OperatorNew_180011640(uint64_t size) {
     return rtclosure2b::MemAllocAt(size, 4);
@@ -133,9 +117,8 @@ extern "C" void* RtSystem_OperatorNew_180011640(uint64_t size) {
 //   180034db2  MOV RAX,-0xe0000000001     ; == ~0xe0000000000
 //   180034dbf  MOV [RCX],R8 & that mask   ; clear bits 41..43
 //
-// Registered, not armed: nothing in our tree resolves this address today, and
-// with the DLL present retail's own Allocate keeps calling its own copy. It is
-// here because the closure reaches it, and at cutover Allocate is ours.
+// Nothing in the tree calls it: the ported Allocate in allocator.cpp uses its
+// own SetPrevTagInfo (FUN_180034d60).
 // ---------------------------------------------------------------------------
 extern "C" void RtSystem_MemoryAllocator_LinkPrevBlock(uint64_t* header,
                                                        const uint64_t* prev) {
@@ -154,7 +137,3 @@ extern "C" void RtSystem_MemoryAllocator_LinkPrevBlock(uint64_t* header,
     const uint64_t packed = static_cast<uint64_t>(delta >> 2) << rt::system::kTagPrevSizeShift;  // SAR then SHL
     *header = ((packed ^ hdr) & rt::system::kTagPrevSizeMask) ^ hdr;
 }
-
-// ============================================================================
-// The hook standalone/resolve_standalone.cpp calls.
-// ============================================================================

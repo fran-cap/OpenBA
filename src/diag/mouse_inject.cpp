@@ -9,7 +9,7 @@
 // -------------------------------
 // `UI::UserInterface::Update` does not take the mouse as an argument. It reads
 // it out of the `Input::Device` singleton, at the offsets
-// src/engine/ui/userinterface_frame.cpp:442-461 decode:
+// src/engine/ui/userinterface_frame.cpp:378-394 decode:
 //
 //     in + kMouseOffset + 0*0x18 + 4   int16   MouseX raw
 //     in + kMouseOffset + 1*0x18 + 4   int16   MouseY raw
@@ -24,30 +24,28 @@
 // the shipped `DialogInstance::Update` / `Element::Update` decide whether that
 // is a hover. Three consequences, all of them the point:
 //
-//   * It drives the DLL's `UserInterface::Update` and our port identically —
-//     both read the same bytes. Nothing here depends on what is registered
-//     (cf. WAVE10C_LANE_UIF6.md §3, where a driver that resolved a callback
-//     through the port registry silently stopped matching the DLL's).
+//   * It drives `UserInterface::Update` through the `Input::Device` bytes it
+//     reads every frame; nothing here replaces a UI callback.
 //   * Everything downstream is retail: the clip test, the strict rect test,
 //     `_hovering`, the tooltip flag bits, the event queue.
 //   * It cannot manufacture a pass. If the game disagrees that the cursor is
 //     on the element, the hover bit stays clear and the counters say so.
 //
 // The write has to land after the frame's input poll and before the UI reads
-// it, so the seam is the two lines around the `fn_UI_Update` call in
+// it, so the seam is the two lines around the `m_userInterface->Update` call in
 // `GameUpdateLoop::Update` (src/game/Game/gameupdateloop.cpp) and around the
-// `fn_DialogLoopT_Update` tail call in `MenuDLT::Stub_Update`
+// `Engine::DialogLoopT::Update` call in `MenuDialogLoopT::Update`
 // (src/game/Game/menudialogloopt_stubs.cpp). PostUpdate reads the element flags
 // back once retail has had its say.
 //
 // THE SCALE ROUND TRIP — the one piece of arithmetic that can be wrong
 // -------------------------------------------------------------------
-// The UI coordinate is not the raw value: `userinterface_frame.cpp:446` is
+// The UI coordinate is not the raw value: `userinterface_frame.cpp:378` is
 //
 //     mx = (int32)((float)rawX * ui->_uiScale)
 //
 // so placing the cursor at UI x requires solving for rawX. We do not invert it
-// analytically and hope; we search the three candidates around x/scale and
+// analytically and hope; we search the five candidates around x/scale and
 // keep the one whose forward evaluation — the exact expression above — equals
 // the request. When none does (a scale that skips the requested coordinate) we
 // keep the nearest and REPORT THE MISS on its own screen, rather than
@@ -121,11 +119,6 @@
 
 #include "options.h"
 #include "clamped_atoi.h"     // review F-087: checked parse of BANISHED_* text
-// FULL PATHS ON PURPOSE. `engine/types/` also has a `ui/DialogInstance.h`,
-// and `-Iengine/types` precedes `-Iruntime/types` on the standalone command
-// line, so the short spelling silently picks up the WRONG header -- which
-// compiles far enough to be confusing (it has no RtUI namespace) and would
-// have been a wrong field layout if it had.
 #include "system/String.h"
 #include "ui/UserInterface.h"
 #include "ui/Element.h"
@@ -143,12 +136,12 @@ constexpr uint32_t kFlagHidden       = UI::kElementFlagHidden;       // bit 0
 constexpr uint32_t kFlagNoHitTest    = UI::kElementFlagNoHitTest;    // bit 1
 constexpr uint32_t kFlagRaisesEvents = UI::kElementFlagRaisesEvents; // bit 16
 constexpr uint32_t kFlagHovering     = UI::kElementFlagHovered;      // bit 17,
-    // written by Element::Update itself (element_vtable.cpp:786/791, BTS/BTR
+    // written by Element::Update itself (element_vtable.cpp:375/381, BTS/BTR
     // 0x11). There is no accessor for it; the writer is the evidence.
 constexpr uint32_t kFlagToolTipOk    = UI::kElementFlagToolTipValid; // bit 19
 constexpr uint32_t kFlagTipShown     = UI::kElementFlagToolTipShown; // bit 20,
     // set beside the BeginToolTip call and cleared beside EndHover
-    // (element_vtable.cpp:833/862, BTS/BTR 0x14).
+    // (element_vtable.cpp:420/444, BTS/BTR 0x14).
 constexpr uint32_t kFlagDisabled     = UI::kElementFlagDisabled;     // bit 23
 
 // Mouse input indices inside the Input::Device state array.
@@ -157,9 +150,8 @@ constexpr int kMouseY      = static_cast<int>(Input::Device::MouseInput::Y);
 constexpr int kMouseButton = static_cast<int>(Input::Device::MouseInput::Left);   // the one
     // Element::Update's drop arm reads as `b04` (in[0x10ff] == input 4 released)
 
-// The linked-list node UserInterface::_dialogs is built from. Spelled raw, as
-// userinterface_frame.cpp:281 spells it, rather than instantiating the
-// template over an InternalPtr we would only strip again.
+// The linked-list node UserInterface::_dialogs is built from, spelled raw. Unused:
+// FindTarget and TargetStillLive walk Collection::LinkedList<UI::DialogInstancePtr>::Node.
 struct ListNode { void* value; ListNode* prev; ListNode* next; };
 
 // ---------------------------------------------------------------------------
@@ -172,7 +164,7 @@ struct ListNode { void* value; ListNode* prev; ListNode* next; };
 // UpdateState+0x07 back as 0, so `UserInterface::Update`'s own end-drag block
 // (`!leftDown && _dragDropDialog`) tears the drag down INLINE -- and that block
 // does the teardown itself and NEVER calls EndDragDrop
-// (src/engine/ui/userinterface_frame.cpp:527-539).
+// (src/engine/ui/userinterface_frame.cpp:460-491).
 //
 // `DropNow` therefore builds the drop frame's state in the order retail has it
 // AT THAT FRAME: `_dragDropDialog` set (through the real exported
@@ -342,9 +334,9 @@ Report g_report;
 // Input::Device singleton.
 // ---------------------------------------------------------------------------
 // RENAMED (ENDGAME B.3.3 step 6B): was `InputDevice()`. This file now reaches
-// `engine/types/common.h` (through DialogInstance.h -> object/Internal.h ->
+// `engine/global_types.h` (through DialogInstance.h -> object/Internal.h ->
 // system/Value.h, which stopped duplicating the global `struct Time`), and
-// common.h:57 forward-declares `struct InputDevice` at global scope — which
+// global_types.h:62 forward-declares `struct InputDevice` at global scope — which
 // made the unqualified call at MouseInject::PreUpdate ambiguous. The helper is
 // file-local; only its two call sites move.
 ::Input::Device* InputDeviceSingleton() {
@@ -396,7 +388,7 @@ struct Target {
     bool                tipCapable = false;
 };
 
-// The four guards BeginToolTip itself applies (userinterface_hover.cpp:386-390)
+// The four guards BeginToolTip itself applies (userinterface_hover.cpp:321-324)
 // plus the two flag bits Element::Update tests before it ever calls
 // BeginToolTip. Asking the same questions the subject asks is what makes a
 // found target actually reach the body rather than merely look plausible.
@@ -632,7 +624,7 @@ void ApplyToolTipString(UI::Element* elem) {
 // we are not writing +0x60 by hand.
 void StartDrag(UI::UserInterface* ui, const Target& t) {
     // Both InternalPtr<> parameters go by hidden reference, the same way
-    // element_vtable.cpp:747 and userinterface_hover.cpp pass them.
+    // element_vtable.cpp:406 and userinterface_hover.cpp pass them.
     //
     // THE ELEMENT ARGUMENT IS READ-ONLY, AND THAT WAS MEASURED, NOT ASSUMED.
     // BeginDragDrop (0x18011f5f0) is fifteen instructions and it is entirely

@@ -3,42 +3,6 @@
 //   the SpriteSheet virtual table's slot bodies
 // ============================================================================
 //
-// WHY THIS FILE EXISTS, and what the census row it answers actually meant
-// ---------------------------------------------------------------------------
-// The wave-10 census lists `??_7SpriteSheet@UI@@6B@` as an UNPORTED UI export
-// referenced from src/engine/ui/sprite.cpp. That row is REAL but it is not
-// what it looks like, and the difference is the whole of this lane's scoping:
-//
-//   * The vtable DATA is already minted. Wave 9 lane C2's generator emitted it
-//     as `kVSlots45` in standalone/rt_data_mint_tables.inc (9 slots, size proof
-//     "tail-not-a-pointer"), and standalone/rt_data_mint.cpp registers it under
-//     BOTH doors — `RegisterRuntimeExport("??_7SpriteSheet@UI@@6B@", …)` and
-//     `RegisterRuntimeAddr(0x180154590, …)`. The census cannot see either,
-//     because both spell the symbol through a STRUCT FIELD rather than a
-//     literal (reference_census_cannot_see_nonliteral_registrations.md), and
-//     So the row is a census artefact, not unwritten data.
-//
-//   * What IS unwritten is the table's CONTENTS. A minted slot is filled from
-//     the port registry at RtDataMintInit() time and is a NAMED TRAP until the
-//     body behind it is ported. Before this file, 8 of SpriteSheet's 9 slots
-//     were traps — only slot 0 (the deleting destructor, wave 9 lane K) was
-//     filled. That is exactly the "8 predicted vtable walls" that
-//     docs/history/runtime_port/WAVE10_PARTITION.md assigns to lane UI4, and it is the
-//     lane's real work.
-//
-// This file closes 7 of those 8. `?Serialize@` is held back, and its blocker
-// is named at the bottom of this banner rather than left implicit.
-//
-// ---------------------------------------------------------------------------
-// THE ORACLE
-// ---------------------------------------------------------------------------
-// Every body here is a pure read or an in-place construct on storage the
-// caller owns, so the REPLAY oracle applies without qualification: call ours,
-// call the shipped export on the same inputs (a private scratch object for the
-// two that write), compare. Nothing on these paths allocates, takes a lock, or
-// touches state outside the object — which is what makes replaying safe and is
-// why sprite.cpp's argument for scratch replicas does not need to be repeated.
-//
 // ---------------------------------------------------------------------------
 // SLOT 5 IS NOW PORTED — and the recorded blocker was WRONG IN TWO WAYS
 // ---------------------------------------------------------------------------
@@ -159,7 +123,6 @@ Object::Base* SpriteSheet::CreateInPlaceObject(void* place) {
 
 }  // namespace UI
 
-// ---- the doors that stay ----------------------------------------------------
 // ============================================================================
 // slot 5  ?Serialize@SpriteSheet@UI@@UEAA_NAEAVStream@IO@@@Z   0x18011d730
 // ============================================================================
@@ -174,12 +137,9 @@ Object::Base* SpriteSheet::CreateInPlaceObject(void* place) {
 //   18011d76a  CALL [RAX+0x18]  / +0x20     CreateReader / CreateWriter (enc, &ser, 0)
 //   18011d772  MOV [RSP+0x30],RAX           ser.readerWriter = rw
 //     ^ this is the IO::Serializer CONSTRUCTOR, inlined, with version = 0.
-//       It is NOT a call to ??0Serializer@IO@@ — MSVC inlined it here, and the
-//       shape is identical to the one elementdescription_serialize.cpp calls
-//       MakeCodec(). Constructing it MOVES THE STREAM CURSOR by 12 bytes
-//       (src/engine/io/Serializer.h), which is why this body is not
-//       replayable against the real stream and why the oracle below uses
-//       synthetic sinks instead.
+//       It is NOT a call to ??0Serializer@IO@@ — MSVC inlined it here.
+//       Constructing it MOVES THE STREAM CURSOR by 12 bytes
+//       (src/engine/io/Serializer.h).
 //
 //   18011d780  CALL 0x1800c9930  (RBX+0x40) String::Serialize  m_groupName    <- FIRST
 //   18011d78e  CALL 0x1800c9930  (RBX+0x38) String::Serialize  m_textureName  <- SECOND
@@ -216,68 +176,30 @@ Object::Base* SpriteSheet::CreateInPlaceObject(void* place) {
 //   18011d839  MOV AL,1                                 unconditional `true`
 //
 // ---------------------------------------------------------------------------
-// THREE ADDRESS DOORS, AND WHAT EACH ONE COSTS
+// THE FOUR CALLEES
 // ---------------------------------------------------------------------------
-// Four callees; one is exported and ported, three are unexported internals
-// reached BY ADDRESS through ResolveAddr(Module::Runtime, …). That door
-// consults the port registry FIRST
-// (reference_resolveaddr_consults_port_registry_first.md), so each becomes our
-// body the moment somebody registers it, and is the DLL's until then. It also
-// GROWS the cutover surface by three
-// (reference_porting_can_grow_the_cutover_surface.md), which is stated in the
-// lane doc rather than left for a later census to discover:
+//   0x1800c9930  ?Serialize@String@System@@QEAAXAEAVSerializer@IO@@@Z — the member
+//                System::String::Serialize (src/engine/system/string.cpp).
 //
-//   0x1800c9930  ?Serialize@String@System@@QEAAXAEAVSerializer@IO@@@Z
-//                EXPORTED and already ported — src/engine/system/string.cpp
-//                registers both doors. Reached by address here because that is
-//                what the shipped instruction is, and it lands on our port.
-//
-//   0x180078950  Array<UI::SpriteSheet::SpriteInfo>::SetSize, stride 0x38.
-//                UNPORTED. It calls System::MemoryAllocator::MemAlloc/Free, so
-//                it is squarely inside the class-B allocator family and is NOT
-//                this lane's row. Same shape as the fourteen kSpec_* rows in
-//                src/engine/collection/array.cpp and as lane UI4's recorded
-//                0x18004bde0 (stride 0x28) — a one-row follow-on for the
-//                collection family.
+//   0x180078950  Array<UI::SpriteSheet::SpriteInfo>::SetSize, stride 0x38 — the
+//                kSpec_Sprite38Z row in src/engine/collection/array.cpp.
 //
 //   0x180078ad0  the per-SpriteInfo record walker (name, group, x, y, width,
-//                height, reserved, u0, v0, u1, v1). UNPORTED, pure, no
-//                allocation of its own beyond String::Serialize's. Cheap to
-//                port later; deliberately not taken here because it is a
-//                second body and this lane's promotion gate needs one.
+//                height, reserved, u0, v0, u1, v1) — RtUi_SpriteSheet_SerializeEntries
+//                below.
 //
-//   0x180014520  ExternalPtr<Graphics::MaterialInstance>::Serialize — one of
-//                the twenty-five instantiations lane EXTPTR measured and
-//                tabulated (WAVE10_LANE_EXTPTR.md:79). Lane EXTPTR registered
-//                four of the twenty-five and deliberately left the Graphics
-//                ones alone; registering it here would be exactly the
-//                duplicate-registration trap that lane refused, so it stays
-//                the DLL's. THIS ALSO NAMES SpriteSheet+0x30: it is not an
-//                anonymous qword, it is the sheet's MaterialInstance handle.
+//   0x180014520  ExternalPtr<Graphics::MaterialInstance>::Serialize (tabulated in
+//                docs/history/runtime_port/WAVE10_LANE_EXTPTR.md) —
+//                Object::SerializeExternal<Graphics::MaterialInstance>, through
+//                MaterialPtrSerialize below. THIS ALSO NAMES SpriteSheet+0x30: it is
+//                not an anonymous qword, it is the sheet's MaterialInstance handle.
 //
-// ---------------------------------------------------------------------------
-// ORACLE
-// ---------------------------------------------------------------------------
-// the emission oracle in the WRITING direction against two synthetic sinks,
-// the same instrument elementdescription_serialize.cpp uses and for the same
-// reason: on the write path a Serialize is a pure read of the object, so ours
-// and theirs can both run provided they emit into DIFFERENT sinks
-// (reference_write_path_serialize_is_replayable.md). No `stopAfter`: nothing on
-// this body's write path stores into the object — SetSize is guarded to the
-// reading side by retail's own branch, and the ExternalPtr write arm touches
-// only its own locals.
-//
-// Read the report's `calls=` column and not only `divergences=`: a body with no
-// caller reports clean (reference_uncalled_port_is_not_verified.md), and until
-// `??_7SpriteSheet@UI@@6B@` is promoted this port genuinely has no caller —
-// which is the whole point of the promotion this lane exists to make.
 // ============================================================================
 
 namespace {
 
 // ExternalPtr<MaterialInstance>::Serialize (0x180014520), by name. `m_materialInstance`
-// is spelt uint64_t (saveload_draw.cpp stores it as an integer), and the body
-// takes the rt::io POD view of the Serializer (cursor.cpp does the same).
+// is the sheet's Graphics::MaterialInstance*, and the body takes the IO::Serializer.
 void MaterialPtrSerialize(Graphics::MaterialInstance** field, IO::Serializer* ser) {
     Object::SerializeExternal<Graphics::MaterialInstance>(*ser, *field);
 }
@@ -287,20 +209,6 @@ void MaterialPtrSerialize(Graphics::MaterialInstance** field, IO::Serializer* se
 // ============================================================================
 // WAVE 29 LANE WALL — `0x180078ad0`, the per-SpriteInfo record walker.
 //
-// THIS IS THE FUNCTION CUTOVER ATTEMPT 31 DIED ON, and it died here for a
-// reason that had nothing to do with SpriteSheet. `EntriesSerialize()` above
-// is an ADDRESS DOOR onto an unported, unexported DLL internal. With the DLL
-// PRESENT `ResolveAddr(Module::Runtime, 0x180078ad0)` hands back retail's body
-// and everything works; with the DLL ABSENT it hands back nothing and the
-// `CALL RAX` that follows is an EXEC of 0
-// ([[reference_by_address_door_dies_at_cutover]]).
-//
-// THE OFFSET IN THE CRASH LOG NAMES THE DOOR, AND NOTHING ELSE DOES. The
-// attempt-31 return address was `RtUi_SpriteSheet_Serialize+0x1b7`, i.e. the
-// instruction after `CALL *%RAX` at 0x1403d7ca8, whose RAX came from
-// `EntriesSerialize()` at +0x198 — with RAX=0 in the register dump. There are
-// FOUR address doors in this body and reading them in source order would have
-// fingered `StringSerialize()` instead, which is registered and fine.
 //
 // ---------------------------------------------------------------------------
 // EXTENT, DERIVED FROM THE INSTRUCTION STREAM (not `.pdata` — warning 16)
@@ -316,9 +224,8 @@ void MaterialPtrSerialize(Graphics::MaterialInstance** field, IO::Serializer* se
 //   (RCX = Serializer*, EDX = count, R8 = SpriteInfo* entries)
 //
 //   TEST EDX,EDX ; JLE  -> a count of zero or less does NOTHING, including no
-//                          virtual call. `count` is read SIGNED even though
-//                          the caller's typedef spells it `uint32_t`; the bits
-//                          in EDX are the same either way.
+//                          virtual call. `count` is read SIGNED; the parameter
+//                          is `int32_t`.
 //   RBX = entries + 0x10, and the loop is a DO-WHILE on `DEC RSI`, stride 0x38.
 //
 //   per entry:

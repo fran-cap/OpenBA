@@ -8,8 +8,8 @@
 //
 // PARENT `UI::Element` — READ (B36_SLOTS.md section 3):
 //     ?_ParentTypeName@BorderElement@UI@@CAPEBDXZ  @0x180041080 -> "Element"
-// RULE B5-15 / B6-7 — RECORDED, NOT USED (`?_typeInfo@BorderElement@UI@@…`
-// 0x1801fa8c8 stays the minted record):
+// RULE B5-15 / B6-7 — the two literals, which the class's DEFINE_TYPE
+// (borderelement.cpp) returns:
 //     ?_TypeName@BorderElement@UI@@CAPEBDXZ        @0x180041070 -> "BorderElement"
 //     ?_ParentTypeName@BorderElement@UI@@CAPEBDXZ  @0x180041080 -> "Element"
 //
@@ -41,9 +41,9 @@
 // LAYOUT — 0x150 bytes = UI::Element's 0xC0 + NINE UI::Sprite values
 // ---------------------------------------------------------------------------
 // `??0BorderElement@UI@@QEAA@XZ` (0x18010fd40) writes each of the nine as
-// {sheet = qword 0, index = dword -1} (the eighteen rows of kBorderElement in
-// src/engine/ui/factory_ui1_tables.inc, srcVa 0x18010fd68..0x18010fdf7), so
-// the count is enumerated, not inferred from the size. Each Sprite's pad dword
+// {sheet = qword 0, index = dword -1} (eighteen stores, srcVa
+// 0x18010fd68..0x18010fdf7), so the count is enumerated, not inferred from the
+// size. Each Sprite's pad dword
 // (+0x0c) is written by NOTHING in the ctor; the copy ctor (0x180041250)
 // copies all eighteen qwords.
 //

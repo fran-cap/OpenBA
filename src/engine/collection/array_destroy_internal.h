@@ -3,18 +3,13 @@
 // src/engine/collection/array_destroy_internal.h — Wave 9 lane D2
 // ============================================================================
 //
-// It exists so the probe drives the SAME bodies and the SAME DestroySpec rows
-// the registered entry points drive. A probe that re-derived either would be
-// testing a copy of the port rather than the port — the same reason lane Q's
-// array_internal.h exists, and the reason both files are one header thick.
+// It exists so every file that includes it drives the SAME bodies and the SAME
+// DestroySpec rows as array_destroy.cpp, not a copy of them — the same reason
+// array_internal.h exists.
 //
-// THREE files include it, not the two this comment used to claim
-// (WAVE 9 LANE SAVE2, corrected in place per PLAN §6 step 8):
-// array_destroy.cpp, array_destroy_probe.cpp, and set_clear.cpp — the last for
-// `ReleaseStringsCore` alone, because retail's `~Pair<String,String>` at
-// 0x18000fa90 IS Body B with one element and the offsets {0x08, 0x00}. That is
-// the reuse this header was written to make possible, so the third includer is
-// the rule working, not an exception to it.
+// Seven files include it: array_destroy.cpp, array_graphics_anim.cpp,
+// array_graphics_mesh.cpp, engine/mainloop_video.cpp, graphics/wave9_lane_gfxd.cpp,
+// video/imagebuffer_platform_serialize.cpp and video/save_image_to_file.cpp.
 //
 // The commentary — which address each row was read out of, why Body B's two
 // arms leave the slot holding different things, and why 0x18001c8c0 is Body A
@@ -47,8 +42,7 @@ void FreeInnerArraysCore(uint8_t* base, int count, const DestroySpec* s);
 // part of either body a comparator can see; see array_destroy.cpp.
 void ReleaseStringsCore(uint8_t* base, int count, const DestroySpec* s);
 
-// Collection::Array<T*>::operator=, retail 0x180003970. Exposed because the
-// probe replays it (unlike the destructors, it has a comparable post-state).
+// Collection::Array<T*>::operator=, retail 0x180003970.
 void* RtColl_ArrayAssign_180003970(void* self, const void* src);
 
 // ---- BODY A rows ----

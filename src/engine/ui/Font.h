@@ -13,9 +13,7 @@
 //
 //   sizeof 0x90   `MOV EDX,0x90` at 0x18003214f — the eh_vector_destructor
 //                 stride in the deleting destructor 0x180032130. Corroborated
-//                 by the already-ported factory row (`"Font", 0x90ull, 8` in
-//                 src/engine/ui/factory_ui1_tables.inc) whose last store is
-//                 +0x88, and by the constructor 0x180031ce0, which zeroes
+//                 by the constructor 0x180031ce0, which zeroes
 //                 +0x08 .. +0x88 and nothing past it.
 //
 //   +0x30 _charToGlyph   `MOV RAX,[RBP+0x30]` then `[RAX + cp*4]` at
@@ -36,8 +34,8 @@
 //                        reserves exactly it before deciding to elide
 //                        (0x180116d6e).
 //   +0x5c _spaceWidth    the same loop over the literal " " (0x1801567e0),
-//                        stored at 0x180117b28. No body in this class READS
-//                        it; the name comes from what is measured.
+//                        stored at 0x180117b28. GetSpaceWidth (0x180031e00)
+//                        reads it; the name comes from what is measured.
 //   +0x60 _spriteSheet   serialized by 0x180004590, which our tree already
 //                        names `ExternalPtr<UI::SpriteSheet>::Serialize`
 //                        (src/engine/object/external_ptr_serialize.cpp). The
@@ -47,13 +45,12 @@
 //                        `ExternalPtr<Graphics::MaterialInstance>::Serialize`,
 //                        same file.
 //
-// FIELDS DELIBERATELY LEFT UNNAMED. +0x20, +0x78, +0x80 and +0x88 are four
+// THE OTHER FIELDS. +0x20, +0x78, +0x80 and +0x88 are four
 // `System::String`s (the destructor 0x1801175a0 releases all four through the
 // refcount-at-data[-4] sequence, and Serialize hands all four to
 // `String::Serialize` 0x1800c9930). Serialize fixes their ORDER but says
-// nothing about their meaning, and one class is not enough to name a field.
-// +0x28 is whatever 0x180076e90 serializes and +0x54/+0x70/+0x74 are three
-// plain int32s; same rule.
+// nothing about their meaning. +0x28 is whatever 0x180076e90 serializes and
+// +0x54/+0x70/+0x74 are three plain int32s; their names are on the fields below.
 //
 // PORTABILITY: no <windows.h>, per PLAN.md §4.1 decision 1.
 // ============================================================================
@@ -267,7 +264,7 @@ public:
     // ---- exported, NOT PORTED, no caller: declared, deliberately undefined --
     Font(const Font& src);                              // 0x180031e10
     Font& operator=(const Font& src);                   // 0x180031f60
-    // 0x1800319b0 — the minted record's type id (font.cpp).
+    // 0x1800319b0 — the record's type id (DEFINE_TYPE in font.cpp).
     // Placement is spelt `::new (p) Font()` (B9-5): these stay undefined.
     static void* operator new(std::size_t bytes);              // 0x1800319d0
     static void* operator new(std::size_t bytes, void* place); // 0x180031a40
@@ -275,7 +272,7 @@ public:
     // Retail's factory pair (B39_RULES D2), defined and registered in font.cpp.
 
 public:
-    // ---- the 0x70 bytes Font adds (public: the doors and AddFont read them) --
+    // ---- the 0x70 bytes Font adds (public: AddFont and the UI elements read them)
     System::String                     _fontName;      // +0x20  ctor 180031d2a, dtor 180117664
     CharacterSet*                      _characterSet;       // +0x28  ExternalPtr<CharacterSet>, serialized by 0x180076e90 (B4 H4: typed)
     Collection::Array<int32_t>         _charToGlyph;   // +0x30  codepoint -> glyph index

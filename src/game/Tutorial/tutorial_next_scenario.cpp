@@ -11,7 +11,7 @@
 // Three of them are one-liners and the fourth is a flat field-init:
 //   0x140013A60  Scenario::GetDisplayName -> String(scenario + 0x58)
 //   0x140013AA0  Scenario::GetSaveName    -> String(scenario + 0x88)
-//   0x140099130  GetLoadingSoundString    -> already inline in engine_funcs.h
+//   0x140099130  GetLoadingSoundString    -> already inline in Game/exe_bodies.h
 //   0x140098060  GameUpdateLoop ctor      -> the real class (Game/GameUpdateLoop.h)
 // (See reference_stub_comment_outlived_the_port_that_replaced_it: grep the
 // retail ADDRESS, not the stub's prose.)
@@ -36,7 +36,7 @@
 //
 // NOTE on the publish target: retail 0x1400E0D70 always uses
 // g_pGameWorldSingleton, with no controller and no +0xC0/+0xB8 test. That is why
-// this cannot simply call WorldSetup_LoadFromSave (0x1400b49f0), whose publish
+// this cannot simply call MainMenuDialog::LoadFromSave (0x1400b49f0), whose publish
 // step branches on a controller's +0xC0. SetEngineNextLoop() is byte-for-byte
 // 0D70's tail.
 

@@ -2,7 +2,7 @@
 // src/platform/sdl/process_sdl.cpp -- Platform::Process over SDL3
 // ============================================================================
 // Phase D.4 SDL step W7 (plan §A.6): the OS half of Application::LaunchProcess
-// (retail 0x18009f5e0, src/platform/win/application_win.cpp).
+// (retail 0x18009f5e0, src/engine/application/application_cursor_launch.cpp).
 //
 // RETAIL
 //   wait:  CreateProcessW(NULL, cmdLine, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)
@@ -27,10 +27,9 @@
 //    url, NULL, NULL, SW_SHOWNORMAL) between its own CoInitialize / CoUninitialize
 //    (SDL_sysurl.c): SW_SHOWNORMAL where retail passed SW_SHOWDEFAULT (STARTUPINFO's
 //    show state is not honoured), and success is SDL's bool where retail tested
-//    the result > 32 (SDL tests the same threshold). The main thread is an MTA (main.cpp,
-//    Engine::Startup): SDL's STA request fails with RPC_E_CHANGED_MODE, and
-//    WIN_CoInitialize then retries with COINIT_MULTITHREADED (S_FALSE, success) and
-//    balances it with CoUninitialize (SDL_windows.c): read from the source, not run.
+//    the result > 32 (SDL tests the same threshold). The main thread is an STA (SDL's video
+//    init, src/app/main.cpp), so WIN_CoInitialize's APARTMENTTHREADED request matches it,
+//    and SDL balances it with CoUninitialize (SDL_windows.c): read from the source, not run.
 // ============================================================================
 
 #include "platform_os.h"

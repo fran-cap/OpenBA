@@ -1,8 +1,8 @@
 // src/diag/alloc_stats.cpp
 // [ALLOCSTATS] engine-heap accounting (BANISHED_ALLOC_STATS=1, BANISHED_ALLOC_BIG=<bytes>).
 // Fed by the ported allocator's locked Allocate/Free entry points
-// (src/diag/alloc_cutover_arm.cpp): the composed ?Allocate@ stub, and since
-// B3R W0-A0 the allocator's instrument seat, which routes every
+// (src/diag/alloc_cutover_arm.cpp): since B3R W0-A0 the allocator's
+// instrument seat, which routes every
 // MemoryAllocator::MemAlloc AND MemFree through the composed pair — so frees
 // are counted too (before W0-A0 no free reached AllocStats_RecordFree and the
 // live-bytes figure only grew). Formerly the tail of allocator_lock.cpp,
@@ -45,8 +45,8 @@ namespace {
 //   BANISHED_ALLOC_BIG=<bytes>    also log each single allocation >= this
 //
 // Not thread-safe by design beyond the allocator CS we already hold: every
-// update below happens inside EnterCriticalSection(self+0x640), which both
-// Allocate and Free take, so the counters are consistent without extra locking.
+// update below happens inside the allocator lock (self+0x640), which the composed
+// Allocate and Free pair takes, so the counters are consistent without extra locking.
 int      g_statsOn  = -1;         // -1 unresolved, 0 off, 1 on
 uint64_t g_bigThreshold = 0;      // 0 = don't log individual big allocations
 
@@ -60,11 +60,11 @@ uint64_t g_lastReportMs = 0;
 // heap and the CRT heap.
 using AllocStatsTable::BlockRec;
 }  // namespace
-// Set by callers (GenericArrayResize) right before MemAlloc so the block table can
-// remember WHICH array header owns a buffer; cleared after the call.
+// The owner tag each block record stores (BlockRec::ctx, AllocStats_Lookup's outCtx).
+// Nothing in the tree sets it, so it stays null.
 extern "C" { thread_local void* g_allocStatsCtx = nullptr; }
 namespace {
-const size_t kBlkSlots = 1u << 21;           // 2M slots, ~48 MB
+const size_t kBlkSlots = 1u << 21;           // 2M slots, ~64 MB
 BlockRec* g_blocks = nullptr;
 uint64_t  g_blkInserts = 0, g_blkEvicted = 0;
 
@@ -178,9 +178,9 @@ extern "C" int AllocStats_Lookup(void* userPtr, uint64_t* outSize, void** outCal
 }
 
 // Record one allocation / one free in the ALLOCSTATS tables. Exported so the
-// ported allocator's composed swap stub (standalone/rt_alloc_swap.cpp) can keep
-// this accounting alive after the lock patches are retired, instead of
-// reimplementing it. No-ops unless BANISHED_ALLOC_STATS is set.
+// instrument seat's composed pair (src/diag/alloc_cutover_arm.cpp) can keep
+// this accounting instead of reimplementing it. No-ops unless
+// BANISHED_ALLOC_STATS is set.
 extern "C" void AllocStats_RecordAlloc(void* p, uint64_t size, void* caller);
 extern "C" void AllocStats_RecordFree(void* p);
 
@@ -211,7 +211,7 @@ bool StatsOn() {
 
 }  // namespace
 
-// See the declarations above AllocStats_Lookup.
+// See the declarations below AllocStats_Lookup.
 extern "C" void AllocStats_RecordAlloc(void* p, uint64_t size, void* caller) {
     if (!StatsOn()) return;
     StatsRecordAlloc(p, size, caller);

@@ -391,7 +391,7 @@ static const int kIntro_n64_ties4[64] = {0,41,48,53,30,5,29,22,42,9,10,20,12,13,
 }  // namespace
 
 UNIT_TEST(SortByKey70TieReplay) {
-    // Six tie-heavy corpora, the smallest of them entirely ties (which is what
+    // Seven tie-heavy corpora, the smallest of them entirely ties (which is what
     // the boot's four-element packfile population actually is). A green result
     // here means the exact swap sequence is unchanged, which is the "which
     // package owns a colliding path" question lane PKG could not answer.

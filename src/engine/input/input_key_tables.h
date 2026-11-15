@@ -50,8 +50,8 @@ inline constexpr uint8_t kIndexToVirtualKey[0x69] = {
 // ends up holding. Holding an unmapped key therefore lights up index 104. A
 // port that "fixed" this by routing unmapped codes to a scratch slot would
 // diverge on exactly the input the quirk fires on and on nothing else — so it
-// would pass any test that did not deliberately press an unmapped key. The
-// probe presses several.
+// would pass any test that did not deliberately press an unmapped key.
+// tests/unit/sdl_scancode_dik_test.cpp presses several.
 inline constexpr uint8_t kScanCodeToIndex[256] = {
     0x68, 0x00, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x0d,
     0x32, 0x33, 0x34, 0x35, 0x27, 0x2d, 0x1b, 0x28, 0x2a, 0x2f, 0x2b, 0x1f,

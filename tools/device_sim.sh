@@ -37,7 +37,7 @@
 # WHAT IT DOES, in order: builds the debug exe (tools/build.sh build debug), takes the FUNCTIONAL
 # game dir (tools/game_dirs.sh env <lane> functional), saves that dir's settings.cfg, writes the
 # profile's keys into it, deploys the exe there (tools/build.sh deploy with BANISHED_DIR set by the
-# lock), launches with BANISHED_AUTOSTART=1, waits with tools/boot_state.sh --wait, lets the harness
+# lock), launches with BANISHED_AUTOSTART=<frames>, waits with tools/boot_state.sh --wait, lets the harness
 # take the game's own with-interface screenshot (BANISHED_SCREENSHOT_AT=<frame>,ui: the back buffer,
 # so a window larger than the monitor is captured whole), quits through the pause menu, converts the
 # .bmp to PNG, puts settings.cfg back and releases the lane. Never the perf dir, never the user's

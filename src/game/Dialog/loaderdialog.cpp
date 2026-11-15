@@ -11,7 +11,7 @@
 #include <cstdio>
 #include "object/Internal.h"   // ENDGAME B.3.3 step 6B
 #include "system/Value.h"      // ENDGAME B.3.4b System callers: System::Time
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc
 #include "engine/UpdateLoop.h"   // Engine::DialogLoaderLoopT
 
 // ENDGAME B.3.8 block DLG: LoaderDialog is a real class (Dialog/LoaderDialog.h)
@@ -52,7 +52,7 @@ void LoaderDialog::OnUpdate(const System::Time& time) {
 //      rsc_at_loop+0x50, parentIBP, 0, 0, 0).
 //   4. The vtable store.
 //   5. Zero +0xB8 (loadingImage element ptr) and +0xC0 (rotation float).
-// Loop layout is DialogLoaderLoopT: m_dialogExternal at +0x50, embedded UI
+// Loop layout is DialogLoaderLoopT: _dialogExternal at +0x50, embedded UI
 // at +0x60. (Different from DialogLoopT's +0x30/+0x40.)
 
 #include "Object/factory_registration.h"
@@ -77,7 +77,7 @@ LoaderDialog::LoaderDialog(UI::UserInterface* ui, const UI::Dialog* dialog,
 }
 
 
-// Public entry called from SplashDLT::CreateDialog (standalone/splash_loop_stubs.cpp):
+// Public entry called from SplashDLT::CreateDialog (src/game/Game/splash_loop_stubs.cpp):
 // alloc, ctor, wrap the result in the caller's IBP. Retail 0x140099070: MemAlloc(0xc8, 8)
 // unconditionally (0x140099096); a null result skips the ctor (0x1400990aa) and the
 // return slot takes the null pointer (InternalBasePtr ctor, 0x140099109 / 0x140099113).

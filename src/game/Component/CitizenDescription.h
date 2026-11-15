@@ -73,7 +73,7 @@ public:
     float health;                                 // +0x6c
     float maxHealth;                            // +0x70 health / maxHealth (Update)
     float unhealthyLevel;                                 // +0x74
-    float foodInterval;                         // +0x78 ConsumeFood each Time(foodInterval * k) (Update)
+    float foodInterval;                         // +0x78 UpdateHealth each Time(foodInterval * k) (Update)
     float diseaseChanceHealthyYears;                                 // +0x7c
     float diseaseChanceHealthyPopulation;                                 // +0x80
     float diseaseChanceUnhealthyYears;                                 // +0x84

@@ -17,7 +17,7 @@
 // differs is spelled out.
 //
 // PART A — LAYOUT: sizeof / alignof / every offset the headers claim, the
-//   parent edges `_ParentTypeName` proves, abstract (B3X W1: a public virtual destructor).
+//   parent edges `_ParentTypeName` proves, concrete (B3X W1: a public virtual destructor).
 // PART B — SLOT ORDER: probe subclasses of the REAL classes; each OWN slot is
 //   raw-called by byte offset and the marker that runs names the member; each
 //   INHERITED slot is compared, pointer for pointer, with the parent probe's
@@ -223,7 +223,7 @@ GroupElement::~GroupElement() { B39NoteDtor(this); }
 // ---- PageElement ----
 PageElement::~PageElement() { B39NoteDtor(this); }
 
-// ---- RadioElement — Update calls its parent's (Element's) body QUALIFIED.
+// ---- RadioElement — the real Update calls Element's body QUALIFIED; this marker only notes slot 7.
 void RadioElement::Update(const System::Time&, UserInterface*,
                           Object::InternalPtr<DialogInstance>* dialog, const UpdateState& state) {
     Note(this, kRadioE, 7,
@@ -366,8 +366,8 @@ DEFINE_TYPE(UI::AnimatedImageElement, "ImageElement", nullptr)
 
 namespace {
 
-// Raw-call every Description slot a leaf owns (1,2,3,5,6,7,8,9) and check the
-// marker names the expected class and slot.
+// Raw-call every Description slot a leaf owns (1,2,3,5,6,7,9; slot 8 is
+// CheckSlot8Retslot) and check the marker names the expected class and slot.
 void CheckDescriptionOwnSlots(void* raw, int who) {
     CHECK(SlotAt<const char* (*)(const void*)>(raw, kD1_TypeName)(raw) == WhoRecord(who)->name);   // TI-UI: own record
     CHECK_EQ(SlotAt<uint32_t (*)(const void*)>(raw, kD2_Type)(raw), WhoRecord(who)->typeId);
@@ -443,7 +443,7 @@ UNIT_TEST(ui_leaf_c2_group_chain_sizes_match_retail) {
     CHECK(std::has_virtual_destructor<UI::PageElement>::value);
     CHECK(std::has_virtual_destructor<UI::RadioElement>::value);
 
-    // PageElementOffsets (widgets_layout.cpp's view) agrees with the class.
+    // PageElementOffsets agrees with the class.
     CHECK_EQ((size_t)UI::PageElementOffsets::kActivePage, offsetof(UI::PageElement, _activePage));
 }
 

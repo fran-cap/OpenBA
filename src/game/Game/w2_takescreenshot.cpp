@@ -2,9 +2,8 @@
 //
 // Game::GameUpdateLoop::TakeScreenshot  —  port of exe 0x140095da0.
 //
-// Registered at 0x140095da0 by standalone/reg_w2_screenshot.cpp, which is what
-// makes `fn_QuickSave` in src/game/Game/gameupdateloop.cpp non-null. That
-// pointer is misnamed: 0x140095da0 is NOT a quicksave handler, it is the
+// GameUpdateLoop::Draw (src/game/Game/gameupdateloop.cpp) calls it by name.
+// 0x140095da0 is NOT a quicksave handler, it is the
 // screenshot grab that GameUpdateLoop::Draw runs when either the quicksave
 // (key 0x21) or the quickload (0x22) flag is set. Retail's lifecycle is
 // Update sets +0xC0/+0xC1, Draw tests them, this function clears both.
@@ -33,8 +32,8 @@
 //   (*(vt+0x00))(this, 1);                          ; ~FrameCopyImageBuffer + MemFree
 //   *(uint16_t*)(self + 0xC0) = 0;                  ; clears BOTH flags
 //
-// Device+4 = screen width, Device+8 = screen height (same pair read by
-// toolbardialog.cpp:1822 for its centering math).
+// Device+4 = screen width, Device+8 = screen height (toolbardialog.cpp reads the
+// same +4 width for its centering math).
 //
 // ---------------------------------------------------------------------------
 // Two deliberate, documented departures from a literal transcription:
@@ -44,14 +43,13 @@
 //    verified: `~FrameCopyImageBuffer(this); if (flag&1) MemFree(this);`) and
 //    slots 1-11 are import thunks straight back to the Runtime's own virtuals
 //    — i.e. it is a copy of the Runtime's vtable with slot 0 relinked. So the
-//    ctor-installed Runtime vptr already dispatches every virtual identically,
-//    and leaving it alone is strictly safer: anything inside Create/Generate
-//    that dispatches on its own vptr keeps working, which a partially
-//    reconstructed exe table could not guarantee.
-//    Consequently Create/Generate are called through their exported names
-//    (they ARE the functions the exe's +0x48/+0x50 thunks point at — verified
-//    with tools/dispatch_slot_map.py on 0x1401520b0 / 0x1401520b8), and the
-//    teardown does exactly what slot 0 does: dtor, then MemFree.
+//    class's compiler table the ctor installs dispatches every virtual
+//    identically (its slot 0 is that copy's scalar deleting dtor,
+//    FrameCopyImageBuffer.h).
+//    Consequently Create/Generate are called as the class's virtuals
+//    (they ARE the functions the exe's +0x48/+0x50 thunks point at,
+//    0x1401520b0 / 0x1401520b8), and the teardown does exactly what slot 0
+//    does: dtor, then MemFree.
 //
 // 2. (Gone with B3R.) The body once resolved its Runtime methods by export name
 //    behind one up-front resolve gate; they are called by name now, so there is
@@ -59,11 +57,8 @@
 // ---------------------------------------------------------------------------
 
 // ENDGAME B.3.5 Video/Graphics caller batch: Video::ImageBuffer is a real class
-// and `SaveImageToFile` is its class static. ImageBuffer.h pulls no Volume.h, so
-// it is safe after resolve.h's <windows.h> here.
-// ENDGAME B.3.5 batch K1 adds FrameCopyImageBuffer.h for Create/Generate. Its chain
-// (GeneratedImageBuffer.h -> ImageBuffer.h) reaches no Volume.h either, so the
-// after-resolve.h placement this file already uses still holds.
+// and `SaveImageToFile` is its class static.
+// ENDGAME B.3.5 batch K1 adds FrameCopyImageBuffer.h for Create/Generate.
 #include "video/ImageBuffer.h"
 #include "graphics/FrameCopyImageBuffer.h"
 #include "system/String.h"
@@ -85,10 +80,8 @@ namespace {
 
 // --- Runtime primitives, all named PE imports of the retail exe -------------
 // Called by name (B3R): the STATIC System::MemoryAllocator::MemAlloc / MemFree pair
-// (0x140152b60 / 0x140152b68; ECX=size, EDX=alignment), and the System::String /
-// System::Filename members the ten export doors were registered to (the RtSystem_*
-// shims of src/engine/system/{string,filename}.cpp construct into the caller's raw
-// slot with placement new; the calls below do the same):
+// (0x140152b60 / 0x140152b68; ECX=size, EDX=alignment), and these System::String /
+// System::Filename members:
 //   ??HSystem@@YA?AVString@0@AEBV10@PEBD@Z   operator+(String, char const*)   0x140151a08
 //   ??HSystem@@YA?AVString@0@AEBV10@0@Z      operator+(String, String)        0x140151a10
 //   ?Format@String@System@@SA?AV12@PEBDZZ    String::Format (static varargs)  0x140151560
@@ -130,7 +123,7 @@ void GameUpdateLoop::TakeScreenshot() {
     // Retail's literal arg list: (imageType=0, usage=4, format=5, flags=0x100,
     // width, height, filterMode=1, addressMode 1,1,1, initialData=nullptr).
     // Both are VIRTUALS the class overrides ([9] 0x1800a3b70 and [10] 0x1800a3b20);
-    // the receiver wears the Runtime vptr the ctor installed (departure (1)).
+    // the receiver wears the class's compiler table the ctor installed (departure (1)).
     frameCopy->Create(0, 4, 5, Video::ImageBuffer::kViewportSize, width, height, 1, 1, 1, 1, nullptr);
     static_cast<const Graphics::FrameCopyImageBuffer*>(frameCopy)->Generate(videoCtx, 1);
 

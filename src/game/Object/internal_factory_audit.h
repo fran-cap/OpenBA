@@ -28,8 +28,6 @@
 //       4-byte store into memory the allocator has since handed to someone else.
 //   (B) unregister WITHOUT register — obj+0x08 is uninitialised heap garbage, so
 //       the swap-remove writes 8 bytes at table_base + garbage*8 (wild write).
-//       (Already fixed for the action stack by registering the ctor dispatch slot
-//        0x140152768 — see address_registry.cpp.)
 //
 // NB: Object::InternalBasePtr::CheckPtr (0x1800c0290) is an EMPTY function in the
 // shipping Runtime. It does NOT validate or null anything, so a stale InternalBasePtr

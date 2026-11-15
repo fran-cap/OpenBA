@@ -20,7 +20,6 @@
 
 class CitizenComponent;
 
-// ---- ambient_externalptr_serialize.cpp
 namespace Audio { class SoundEffect; }
 namespace IO { class Serializer; }
 
@@ -245,16 +244,12 @@ class WorkPlaceComponent;
 //   +0x28 _minWorkerCount, +0x2c _maxWorkerCount, +0x30 _maxArea, +0x34 _scaleWorkersWithSize.
 // If _scaleWorkersWithSize (+0x34) == 0: return _defaultWorkers (+0x24) flat.
 // Else: trunc(w*h / _maxArea * _defaultWorkers + 1) clamped to [1, _defaultWorkers].
-// (WorkComponent::CalcMaxWorkers; NOT the registered body, WorkComponent_CalcMaxWorkers in
-// tutorial_base.cpp: R5, two bodies.)
+// (WorkComponent::CalcMaxWorkers, defined in workcomponent.cpp.)
 
 // ---- componentdescription.cpp
 struct NamedExternalRef;
 
 // ---- keystone_a_map.cpp (B3R G-Game: read by src/game/Game/gamegrid_serialize.cpp)
 
-// ---- inline bodies (moved from engine/funcs/engine_funcs.h, its "TO MOVE: Component"
-// section; no .cpp. B3R Leftovers. Storage_AddItem, the third body there, had no caller
-// and was deleted.)
-#include "Entity/exe_bodies.h"   // fn_FindComponent_Work (read by citizencomponent.cpp's fn_CitizenComponent_HasVacancy)
+#include "Entity/exe_bodies.h"
 

@@ -23,8 +23,7 @@
 // flag (the tree read and wrote it past the old sizeof).
 // B.4 X4-COMP (H5, behaviour): the arrays are Collection::Array members and the
 // trees Collection::Set members; the class has retail's ctor and dtor (above),
-// and Load constructs it with a placement new. engine/types/EntityList.h
-// forwards here.
+// and Load constructs it with a placement new.
 // ============================================================================
 
 #include <cstdint>

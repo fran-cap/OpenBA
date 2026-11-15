@@ -11,10 +11,10 @@
 // the UI reads them, and must read the element flags back AFTER the UI has run:
 //
 //     MouseInject::PreUpdate(ui);     // place the cursor
-//     fn_UI_Update(ui, time);         // the game hovers, for real
+//     ui->Update(*time);              // the game hovers, for real
 //     MouseInject::PostUpdate(ui);    // did it agree?
 //
-// Both are no-ops — a single cached-getenv test — when the switch is unset.
+// Both are no-ops — a single cached Opt() test — when the switch is unset.
 namespace UI { class UserInterface; }
 
 namespace MouseInject {

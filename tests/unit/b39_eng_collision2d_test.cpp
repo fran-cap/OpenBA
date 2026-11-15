@@ -9,7 +9,7 @@
 // PMF, the real ctor's retail stores, both arms of retail's slot-0 deleting
 // destructor (B3X W1: a public `virtual ~T()`, D1 + D0; the vector arm is
 // retired, `delete[]` replaces it). The out-of-line members are MARKERS here
-// (src/engine/collision2d does not link into a host test); the ctors are
+// (surface.cpp / collisionmesh.cpp do not link into a host test); the ctors are
 // inline in the headers and are the code under test.
 // ============================================================================
 #include "unit.h"

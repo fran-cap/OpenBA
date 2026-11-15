@@ -31,7 +31,7 @@
 // ExternalPtr serializer for the imageRef field at +0x20 (exe 0x140027ad0).
 // ENDGAME B.3.8 (B6-5): resolved per call, not through a lazily filled static
 // (the loader thread serializes tutorial resources).
-// called by name: TutBase_SerializeImageRef (Tutorial/exe_bodies.h)
+// called by name: ::Object::SerializeExternal<UI::ElementDescription> (object/External.h)
 
 // ============================================================
 // Construction / destruction (ENDGAME B.3.8 block GOAL)

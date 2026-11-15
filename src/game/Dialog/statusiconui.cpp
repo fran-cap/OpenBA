@@ -1,4 +1,4 @@
-// engine/src/ui/statusiconui.cpp
+// src/game/Dialog/statusiconui.cpp
 // Clean reimplementation of StatusIconUI game logic.
 //
 // StatusIconUI (0x40 bytes) — status icon grid panel.

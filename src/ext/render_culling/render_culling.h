@@ -3,7 +3,7 @@
 // view of AnimBatchDecide and the per-frame flags below; the bodies of both rows stay here.
 // ============================================================================
 // NOT RETAIL. "PerfX": the machinery of two extensions (docs/extensions/handins/PERFXEXT.md),
-// both default OFF like every extension:
+// both default ON (their rows in src/ext/registry.cpp):
 //
 //   ext.render_culling  class A (live)   presentation work nobody can see is skipped:
 //       animCull        an off-screen model's last-iteration MeshInstance::Update stays

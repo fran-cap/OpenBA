@@ -7,7 +7,7 @@
 //
 // Vtable at 0x1401638b0:
 //   [3] Shutdown = 0x140123340 -- serialization with entity array + IsDerivedFrom
-//   [6] Draw     = 0x140123110 -- 140-instruction rebuild of interact list from scene
+//   [6] OnAdded  = 0x140123110 -- rebuild of the use-location list from the MultiObject children
 //
 // Decompiled from Application-x64.exe using Ghidra.
 
@@ -23,8 +23,8 @@
 #include "Component/exe_bodies.h"
 #include "Entity/ComponentEntity.h"   // ComponentEntity::FindComponent<T>
 
-// Helpers, called by name (B3R): Object::Base::IsDerivedFrom (import slot 0x140152a98),
-// InteractComponent_FindWorkplaceComponent (0x140004740, below). 0x1400032e0 was
+// Helpers, called by name (B3R): ::Object::IsDerivedFromNullSafe (import slot 0x140152a98),
+// ComponentEntity::FindComponent<MultiObjectComponent> (0x140004740, below). 0x1400032e0 was
 // Collection::Array<void*>::SetSize(n) monomorphised into the exe (ENDGAME B.3.2 step 2)
 // — converted at its call site below.
 
@@ -46,11 +46,11 @@
 //   ~Serializer()
 
 // ============================================================
-// InteractComponent::Draw (vtable slot [6], 0x140123110)
+// InteractComponent::OnAdded (vtable slot [6], 0x140123110)
 // ============================================================
 // Reimpl of FUN_140123110: rebuild the interact-use-location list from the
-// owner's MultiObject children. For each child's MapComponent (DAT_1401c7900),
-// scan its job hosts for an InteractComponent and append it to the +0x28 list.
+// owner's MultiObject children. For each child, find its InteractComponent
+// (DAT_1401c7900) and append it to the +0x28 list.
 // Faithful port of the Ghidra decompilation.
 
 // ============================================================================
@@ -64,7 +64,7 @@
 #include "Object/factory_registration.h"
 #include "Component/InteractComponent.h"
 
-// Slot 6 is the ON-ADDED broadcast: ComponentEntity_OnAddedPass (FUN_1400c2f60, the
+// Slot 6 is the ON-ADDED broadcast: ComponentEntity::OnAddedPass (FUN_1400c2f60, the
 // tail of EntityList::RegisterEntity 0x1400c48a0) calls it on every component whose
 // capability flags (+0x20) have bit 0 — InteractComponent's 0x81 qualifies. The body
 // rebuilds the owner's interact use-location list (+0x28 array / +0x30 count) from the

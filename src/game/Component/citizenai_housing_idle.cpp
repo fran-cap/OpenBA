@@ -17,8 +17,8 @@
 //   0x1400f7c90  CitizenAI_helper_sub_79b0_sub_7c90  (cost-keyed AVL insert, slope-aware cost)
 //   0x1400f8000  CitizenAI_helper_sub_79b0_sub_8000  (cost-keyed AVL insert, simple cost field)
 //   0x14003f010  FUN_14003f010                (memset-0xFF leaf; pure)
-//   0x14000e360  TradeDescription_impl_e360   (AVL rebalance walker; calls registered rotations
-//                                              e450/e580) — UNREGISTERED elsewhere, ported here.
+//   0x14000e360  TradeDescription_impl_e360   (AVL rebalance walker CitizenAI_Reg_helper_e360; calls
+//                                              the rotations e450/e580) — ported here.
 //
 // FindHousing/Idle are "non-pushing": they do NOT build/push an Action onto the citizen action
 // stack themselves. They invoke the helper (which may itself push via the payload-object virtual
@@ -61,18 +61,16 @@
 //   (7550 walks +0x18 to leftmost; 7830 BST: <key -> +0x20(node[4]), >key -> +0x28(node[5]),
 //    ==key -> value at +0x08(node[1]) then +0x18(node[3]) to leftmost.)
 //
-// REGISTERED exe sub-callees (resolved via ResolveAddr; bodies NOT duplicated):
-//   0x140115be0  CitizenComponent_CanFindHousing   (reg_component_gap_A.cpp)
-//   0x14000e320  WorkBase_TreeNodeFree_e320         (reg_work_base.cpp)  — frees node +0x18/+0x20
-//   0x14009f810  Pf_IsDstReachable_f810/BuildStructure_impl_f810 (reg_pf_roots_route.cpp)
-//   0x140132010  WorkImpl_Sqrtf_132010              (reg_work_impl2.cpp) — sqrtf
-//   0x14000e450  Pf_AvlRotateB_e450                 (reg_pf_avl.cpp)     — called by e360
-//   0x14000e580  Pf_AvlRotateB_e580                 (reg_pf_avl.cpp)     — called by e360
+// Exe sub-callees (called by name; bodies NOT duplicated):
+//   0x140115be0  CitizenComponent::CanFindHousing
+//   0x14000e320  WorkBase_TreeNodeFree              (Work/exe_bodies.h)  — frees node +0x18/+0x20
+//   0x14009f810  Map::PathDistance                  (Action/action_pf_roots_route.cpp)
+//   0x140132010  WorkImpl_Sqrtf_132010              (Work/exe_bodies.h)  — sqrtf
+//   0x14000e450  AvlRotateLeft                      (Action/PathAvl.h)   — called by e360
+//   0x14000e580  AvlRotateRight                     (Action/PathAvl.h)   — called by e360
 //
-// e320 REG VERDICT: REGISTERED (standalone/reg_work_base.cpp:42). Confirmed by grep. Not re-ported.
-//
-// Engine externals (engine_funcs.h): fn_InternalBasePtr_CheckPtr, fn_InternalBasePtr_Ctor,
-//   fn_MemAlloc(+g_pMemAllocSingleton), fn_MemFreeStatic, fn_Random_Rand, g_pGameWorldSingleton.
+// Engine calls: System::MemoryAllocator::MemAlloc / MemFree, System::Random::Rand,
+//   GameUpdateLoop::_singleton.
 //
 
 
@@ -92,7 +90,7 @@
 #include "Action/exe_bodies.h"
 #include "Action/PathAvl.h"   // AvlRotateLeft / AvlRotateRight (0x14000e450 / 0x14000e580)
 #include "Work/exe_bodies.h"
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
 #include "Game/WorkScheduler.h"        // WorkScheduler (GameUpdateLoop +0x118)
 #include "Game/WorkSchedulerNodes.h"   // WorkSchedulerIdNode / BucketNode, WorkCandidateNode / Tree
 #include "Game/LegacyKeyIntNode.h"     // LegacyKeyIntNode (a tree of the e360 walk)
@@ -119,15 +117,15 @@ extern "C" void* g_pCropPlantWork;
 
 namespace {
 
-// --- registered exe sub-callees: called by name (Component/Action/Work exe_bodies.h) ---
+// --- exe sub-callees: called by name (Component/Action/Work exe_bodies.h) ---
 
 
 static inline WorkCandidateNode* NodeAlloc() {
     return static_cast<WorkCandidateNode*>(System::MemoryAllocator::MemAlloc(0x30, 8));
 }
 
-// Idle work-search counters, read by standalone/road_probe.cpp. The road wave needs to
-// tell "no builder ever searched" from "a builder searched and its bucket had nothing it
+// Idle work-search counters, bumped by Helper_7830 below; nothing reads them. They tell
+// "no builder ever searched" from "a builder searched and its bucket had nothing it
 // would take" -- those look identical from the map.
 extern "C" {
 long long g_idleSearchCalls = 0;

@@ -1,4 +1,4 @@
-// src/game/Goal/tutorialgoalcount.cpp
+// src/game/Tutorial/tutorialgoalcount.cpp
 // Clean reimplementation of TutorialGoalCount vtable methods.
 //
 // TutorialGoalCount (0x50 bytes) — tutorial goal counting items/buildings/citizens.
@@ -44,7 +44,7 @@
 
 // ============================================================
 // Exe-internal helpers, called by name:
-//   0x1400265b0 NamedExternalRef::Resolve (Goal/goal_exe_helpers.h) -- resolve the
+//   0x1400265b0 NamedExternalRef::Resolve (Object/NamedExternalRef.h) -- resolve the
 //               External reference named by a String (lazy load)
 //   0x140092010 CitizenBehavior::CountByTemplate   -- the +0x160 tree's bucket count
 //   0x1400910a0 CitizenBehavior::CountByProfession -- the +0x100 tree's
@@ -60,7 +60,7 @@
 // ============================================================
 // BST lookup helpers — search a binary search tree keyed by pointer
 // ============================================================
-// The CitizenBehavior entity-bucket trees (Goal/goal_exe_helpers.h): key +0x00,
+// The CitizenBehavior entity-bucket trees (Entity/CitizenBehavior.h): key +0x00,
 // left +0x20, right +0x28.
 template <class Node, class Key>
 static Node* BSTFind(Node* node, const Key* key) {
@@ -183,7 +183,7 @@ void TutorialGoalCount::Destruct() { this->~TutorialGoalCount(); }
 
 
 // ============================================================
-// TutorialGoalCount::Check (vtable +0x40, 0x1400df290)
+// TutorialGoalCount::IsComplete (vtable +0x40, 0x1400df290)
 // ============================================================
 // 11-case switch on countMode (+0x20). Counts a game metric and
 // compares against targetCount (+0x24). If greaterOrEqual (+0x28),
@@ -364,7 +364,7 @@ bool TutorialGoalCount::IsComplete(const System::Time* param2, void* param3) {
         for (int i = 0; i < entityCount; i++) {
             ComponentEntity* entity = entityArray[i].Get();
 
-            // Find TradeComponent (FUN_140015140, the tree's fn_FindComponent_Building)
+            // Find TradeComponent (FUN_140015140, FindComponent<TradeComponent>)
             TradeComponent* building = entity->FindComponent<TradeComponent>();
 
             // Resolve the resource description type
@@ -483,7 +483,7 @@ bool TutorialGoalCount::IsComplete(const System::Time* param2, void* param3) {
     }
 
     default:
-        // Unknown mode — count stays 0, skip comparison
+        // Unknown mode — count stays 0 and is compared
         goto compare;
     }
 

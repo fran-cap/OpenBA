@@ -82,7 +82,7 @@ Math::Vector3 NormalFromSlopes(float sx, float sy);
 
 // The rotation taking world up (0, 0, 1) onto `n` about the axis up x n, in the
 // engine's convention (TiltTo(n).Rotate(up) == n), the angle capped at
-// `maxTiltDeg`. Identity for a normal at or past vertical-down, or within
+// `maxTiltDeg`. Identity for a normal at or below the horizontal (n.z <= 0), or within
 // 1e-6 of up.
 Math::Quaternion TiltTo(const Math::Vector3& n, float maxTiltDeg);
 

@@ -5,14 +5,15 @@
 // worker assignments to buildings.
 //
 // Vtable at 0x140164d30. Two non-trivial overrides:
-//   Shutdown  (0x14012f120) — Component_Serialize + versioned worker array serialization
-//   OnCreate  (0x14012f090) — BST lookup to register with profession list
+//   Persist   (0x14012f120) — Component_Serialize + versioned worker array serialization
+//   OnRemove  (0x14012f090) — BST lookup to unregister from the profession list, then
+//       release every seated worker
 //
 // Decompiled from Application-x64.exe using Ghidra.
 
 // graphics/*.h FIRST: they pull src/engine/volume/Volume.h, whose global-scope
 // `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()` once <windows.h> has
-// been seen through resolve.h.  ENDGAME B.3.5 caller batch I2.
+// been seen.  ENDGAME B.3.5 caller batch I2.
 #include "graphics/Scene.h"
 #include "graphics/Mesh.h"
 #include "Component/WorkPlaceComponent.h"
@@ -31,11 +32,12 @@
 #include "scene_watch.h"
 #include "object/Internal.h"   // ENDGAME B.3.3 step 6B
 #include "Component/exe_bodies.h"
-#include "Action/exe_bodies.h"     // ActHunt_NotifyEntityChanged_c3470 (0x1400c3470)
-#include "Game/exe_bodies.h"       // Reimpl_ExternalPtr_Serialize_StringTable (0x140018020)
+#include "Action/exe_bodies.h"
+#include "Game/exe_bodies.h"
+// ::Object::SerializeExternal<Profession> (below) is retail's ExternalPtr<Profession> serialize 0x140018020.
 #include "Player/exe_bodies.h"     // 0x140003ea0 / 0x140005780 / 0x14011e710
 #include "Tutorial/exe_bodies.h"   // (WorkComponent_CalcMaxWorkers went in B6: the member is called)
-#include "Work/exe_bodies.h"       // WorkBase_FindComponent_2f90 / _3050
+#include "Work/exe_bodies.h"
 #include "system/Value.h"          // RtSystem_Time_Ctor
 #include "Entity/ComponentEntity.h"            // ComponentEntity::FindComponent<T>
 #include "Entity/CitizenBehavior.h"
@@ -51,39 +53,40 @@
 // Helpers
 // ============================================================
 // Import slot 0x140152a98 — Object::Base::IsDerivedFrom.
-// FUN_140018020 Reimpl_ExternalPtr_Serialize_StringTable — serialize the +0x48 field
+// FUN_140018020 ::Object::SerializeExternal<Profession> — serialize the +0x48 field
 //   (version >= 1 path).
 // FUN_140002cc0 Array<T>::Remove — REMOVE an entity reference from a dynamic IBP
 //   array (Ghidra-verified: scans base[0] for a value equal to *entityRef, shifts the
 //   tail down, decrements the count at base+8). It is an UNregister, not an add.
-// FUN_14012ee60 WorkPlaceComponent_OnCreateInit (below) — release every seated worker.
+// FUN_14012ee60 WorkPlaceComponent::ReleaseWorkers (below) — release every seated worker.
 
 // ============================================================
-// Reimpl of FUN_14012ee60 (WorkPlaceComponent_OnCreate_sub_ee60:
-//   drain every worker, detaching its current job host and reattaching it here)
+// Reimpl of FUN_14012ee60 (WorkPlaceComponent::ReleaseWorkers:
+//   drain every worker, detaching it from its current job host and reattaching it to the
+//   empty replacement)
 // ============================================================
 // Worker InternalBasePtr array at +0x58 (count +0x60). For each worker (index 0,
 // repeatedly — the helpers below remove it, shrinking the count): find its current
 // job host (DWORD_1401c80e0 component on worker+0x248), detach via FUN_14012f7e0,
 // then if a replacement was produced, reattach via FUN_14012fa20.
-// 0x14012f7e0 WorkplaceComponent_Detach / 0x14012fa20 WorkplaceComponent_Attach (below).
+// 0x14012f7e0 WorkPlaceComponent::Detach / 0x14012fa20 WorkPlaceComponent::Attach (below).
 
 // ============================================================
-// Reimpl bodies for the detach/attach helpers (0x14012f7e0 / 0x14012fa20).
-// Their full exe FUN_ closure became registered in the gap wave, so they are now
-// closure-safe to port. Sub-helpers used:
+// Bodies for the detach/attach helpers (0x14012f7e0 / 0x14012fa20).
+// Sub-helpers used:
 //   FUN_140002cc0 Array<T>::Remove (worker-list remove)
-//   FUN_1400c2b70 ModelComponentNotify_Reimpl (mesh visibility/state kick)
+//   FUN_1400c2b70 ComponentEntity::SendEvent (mesh visibility/state kick)
 //   FUN_140002f90 FindComponent<StatusIconComponent>
-//   FUN_14012c3f0 CitizenComp_FUN_14012c3f0 (mesh-instance flag setter)
+//   FUN_14012c3f0 StatusIconComponent::SetFlag (mesh-instance flag setter)
 //   FUN_140005780 FindComponent<DestroyComponent>
-//     + FUN_14011e710 PlayerPath_Sub_11e710 (bool getter)
+//     + FUN_14011e710 DestroyComponent::InRemovalState (bool getter)
 //   FUN_140003110 (worker-list append)
-//     + FUN_1400c3470 ActHunt_NotifyEntityChanged_c3470 (entity flag notify)
+//     + FUN_1400c3470 ComponentEntity::RefreshEntityFlags (entity flag notify)
 // SetAccepting pause path (0x14012fc00): the owner's state machine finder
 // (0x140003ea0 FindComponent<StateMachineComponent>), the two citizen workplace finders
-// the eviction loop dispatches between (0x14010ffc0 CitizenComp_sub_ffc0 / 0x140110470
-// CitizenComp_sub_0470), and AssignHousing (0x140111ee0 CitizenComp_AssignHousing).
+// the eviction loop dispatches between (0x14010ffc0 CitizenComponent::FindWorkplace /
+// 0x140110470 CitizenComponent::FindRankedWorkplace), and AssignHousing (0x140111ee0
+// CitizenComponent::SetWorkplace).
 
 // NOT RETAIL. Roster-only mode, set today only by src/diag/builder_seat_harness.cpp around
 // its AddWorker loop (no game path sets it since review F-088). When true,
@@ -130,7 +133,7 @@ void WorkPlaceComponent::Detach(Object::InternalPtr<CitizenComponent>* worker) {
     if (!isAccepting) return;
 
     // Partial-world guard: on an inert standalone workplace, 0x140005780 yields a null
-    // DestroyComponent; passing it to Getter_e710 dereferences null+0x10 (READ of 0x10),
+    // DestroyComponent; passing it to InRemovalState dereferences null+0x10 (READ of 0x10),
     // which crashed when a citizen switched workplaces during the per-frame update. A null
     // accessor means "nothing renderable to toggle", so skip the visual tail — same as g != 0
     // (entity already culled).
@@ -158,13 +161,12 @@ void WorkPlaceComponent::Detach(Object::InternalPtr<CitizenComponent>* worker) {
     // reads *(uint*)(plVar2+4) at the assignment, NOT a value captured before the branch —
     // the add-branch's Tick (vtable +0x40) can mutate this flags word).
     uint32_t changed;
-    // NOTE this block is retail 0x14012c3f0 INLINED, and that function is ported in TWO
-    // other places as well -- CitizenComp_FUN_14012c3f0 (citizencomponent.cpp, the copy
-    // reg_component_people.cpp registers) and StatusIcon_Toggle (statusiconcomponent.cpp).
-    // Three copies, each historically unsafe in a DIFFERENT half; see
-    // [[reference_one_retail_fn_ported_twice_diverges]]. Touch one, check all three.
+    // NOTE this block is retail 0x14012c3f0 INLINED, and that function is also ported as
+    // StatusIconComponent::SetFlag (statusiconcomponent.cpp). Two copies, each historically
+    // unsafe in a DIFFERENT half; see
+    // [[reference_one_retail_fn_ported_twice_diverges]]. Touch one, check both.
     //
-    // Both hazards here are closed UPSTREAM by StatusIconComponent_CtorScalars
+    // Both hazards here are closed UPSTREAM by the StatusIconComponent ctor
     // (statusiconcomponent.cpp), which builds the embedded geometry and sets
     // sceneObjId(+0x100) = -1 at CONSTRUCTION, so they hold for stream-restored icons too:
     //   * the clear arm below tests `>= 0` with NO sentinel repair, so an uninitialised
@@ -255,8 +257,8 @@ void WorkPlaceComponent::Attach(Object::InternalPtr<CitizenComponent>* worker) {
 // HISTORY (2026-07-25): this loop faulted twice on live clicks — READ of 0x8, then READ of
 // 0xffffffffffffffff inside AssignHousing. Neither was a bug in this port. BuildUI_Slot9
 // was handing SetAccepting a StorageLocationComponent (c8070) instead of the
-// WorkPlaceComponent (c80e0), because engine_funcs.h's fn_FindComponent_Work is
-// MISNAMED — it is the c8070 finder. So +0x50/+0x58/+0x60 were read off the wrong object
+// WorkPlaceComponent (c80e0), because engine_funcs.h's fn_FindComponent_Work was
+// MISNAMED — it was the c8070 finder. So +0x50/+0x58/+0x60 were read off the wrong object
 // and "roster base == 8 with count > 0" was simply an unrelated field. Fixed at the source
 // in buildui.cpp; the plausibility/entity checks that were added here to survive the
 // garbage have been REMOVED rather than left as permanent scar tissue, since with the
@@ -290,8 +292,8 @@ void WorkPlaceComponent::EvictRoster() {
 // accepting flag (+0x50), clears the "closed"/"manually-disabled" status-icon bits (1,0),
 // then — when the workplace is UNSTAFFED on its designated job (roster +0x60 == 0 &&
 // profession +0x48 == desc.profession desc+0x20) — RAISES the "no workers" warning bit 4
-// (0x10) on the building's StatusIconComponent. This is the SOLE faithful raiser of that
-// warning; once a worker is attached, Attach clears the bit again (MeshFlag(mesh,4,0)).
+// (0x10) on the building's StatusIconComponent. Detach raises the same warning when the last
+// worker leaves; once a worker is attached, Attach clears the bit again (MeshFlag(mesh,4,0)).
 // The 2D panel (statusiconui.cpp) reads the resulting +0xF0 bitfield.
 //
 // The status-icon component is found through FindComponent<StatusIconComponent>
@@ -330,7 +332,6 @@ void WorkPlaceComponent::SetAccepting(bool accepting) {
     // Retail reads every find's result with no test (0x14012fc9e, 0x14012fdde, 0x14012fe11,
     // 0x14012fe51 / e84 / eb7, 0x14012ff1f): row 921, the tree's "partial-world" early
     // return and its `if (mesh)` are gone (B7 RES).
-    // LEFT: 0x14012c3f0 takes the icon as int64_t* (COMP-b's declaration).
     StatusIconComponent* mesh = _entity->FindComponent<StatusIconComponent>();   // 0x140002f90
 
     if (accepting) {
@@ -376,7 +377,7 @@ void WorkPlaceComponent::SetAccepting(bool accepting) {
 // pass — see StartTown_AssignFoundingHousing). This reproduces the visual the attach would
 // have driven for the FIRST occupant: ModelKick(mode 2) — notify the building's components
 // to switch to their occupied appearance (e.g. smoke/lit windows via ModelComponent
-// vtable +0x60) — plus the StatusIconComponent mesh-flag toggle. It is roster-INDEPENDENT
+// vtable +0x60); the StatusIconComponent mesh-flag toggle is not driven (below). It is roster-INDEPENDENT
 // (forces the kick once for the now-occupied house) because by call time the roster is
 // already full (+0x60 != 0), so the original's "first occupant" gate no longer holds.
 // MUST be called at GAMEPLAY time (live scene), never during world-build, or Scene::Remove
@@ -454,8 +455,8 @@ void WorkPlaceComponent::ReleaseWorkers() {
     }
 }
 
-// town_workplace_registry.cpp — 0x1400895a0 (Game/exe_bodies.h), add the owner entity to
-// the profession bucket for `key` in the town BST (townMgr+0x100), creating it if absent.
+// CitizenBehavior::RegisterWorkplace (0x1400895a0, town_workplace_registry.cpp): add the owner
+// entity to the profession bucket for `key` in the town BST (townMgr+0x100), creating it if absent.
 
 // 0x14012f670 — leave the Builder profession: drop the owner from the Builder bucket of
 // the town's profession tree, refresh the WorkComponent's capacity, hand the posted work
@@ -491,9 +492,7 @@ void WorkPlaceComponent::LeaveBuilderProfession() {
     }
 
     // Refresh the WorkComponent's worker capacity (+0x30 = CalcMaxWorkers).
-    // 0x140003050 FindComponent<WorkComponent>; 0x14012e5c0 WorkComponent_CalcMaxWorkers
-    // (the registered body — WorkComponent::CalcMaxWorkers is the other port of that
-    // address).
+    // 0x140003050 FindComponent<WorkComponent>; 0x14012e5c0 WorkComponent::CalcMaxWorkers.
     WorkComponent* workComp = _entity->FindComponent<WorkComponent>();
     if (workComp)
         workComp->workState = workComp->CalcMaxWorkers();
@@ -522,7 +521,7 @@ void WorkPlaceComponent::LeaveBuilderProfession() {
 
     // Hand any in-flight work item over from Builder to the natural profession, so it stops
     // being offered to builders the moment the building is finished. FUN_1400f8400 —
-    // citizenai_work_scheduler.cpp CitizenAI_WorkScheduler_Rekey.
+    // WorkScheduler::Rekey (citizenai_work_scheduler.cpp).
     if (workComp && workComp->workId >= 0) {
         WorkScheduler* sched = gw->m_tutorial;
         if (sched)
@@ -701,7 +700,7 @@ WorkPlaceComponent::~WorkPlaceComponent() {
 }
 
 // ============================================================
-// WorkPlaceComponent::Shutdown (vtable slot [3], 0x14012f120)
+// WorkPlaceComponent::Persist (vtable slot [3], 0x14012f120)
 // ============================================================
 // Component_Serialize + empty serializer(v0) + versioned serializer(v1) with:
 //   - worker count at +0x60, worker InternalBasePtr array at +0x58
@@ -771,7 +770,7 @@ void WorkPlaceComponent::Persist(IO::Stream& stream) {
     }
 }
 // ============================================================
-// WorkPlaceComponent::OnRemovedFromWorld (vtable slot [7], 0x14012f090)
+// WorkPlaceComponent::OnRemove (vtable slot [7], 0x14012f090)
 // ============================================================
 // Slot 7 (+0x38) is the REMOVAL broadcast slot — FUN_1400c2ea0 (MarkForRemoval)
 // dispatches it to every component whose +0x20 capability flags have bit 1 set
@@ -824,7 +823,7 @@ void WorkPlaceComponent::OnRemove() {
         }
     }
 
-    // Always call fallback init
+    // Always release every seated worker
     ReleaseWorkers();   // 0x14012ee60
 }
 

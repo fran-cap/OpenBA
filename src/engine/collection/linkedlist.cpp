@@ -5,8 +5,8 @@
 //
 //   ENDGAME B.3.2 step 1: the bodies themselves now live on the class template
 //   in src/engine/collection/Collection.h; what is left here is the
-//   allocator seam and the four one-line address doors. See "WHERE THE BODIES
-//   WENT" below the original write-up.
+//   allocator seam. See "WHERE THE BODIES WENT" below the original
+//   write-up.
 // ============================================================================
 //
 // The container layout is NOT recovered here — it was already recovered, twice,
@@ -18,17 +18,15 @@
 //       Pinned there by UI::UserInterface::CleanRemovedDialogs (0x18011f790).
 //   src/engine/ui/UserInterface.h       `_dialogs` at UserInterface+0x00
 //
-// The three bodies, all UNEXPORTED (checked against the shipped export
-// directory with tools/uic_probe.py, which reads the PE export table — none of
-// the three has a name, so all three are registered by ADDRESS only and there
-// is nothing here for tools/export_name_audit.py to check):
+// The three bodies, all UNEXPORTED (none of the three has a name in the
+// shipped export directory):
 //
 //   | retail      | what it is                              | reached from      |
 //   |-------------|-----------------------------------------|-------------------|
 //   | 0x180009c30 | the allocator-lock Free wrapper         | 0x18007a010 (tail |
-//   |             | `if(p){Enter;Free(_singleton,p);Leave;}`| jump), and THREE  |
-//   |             | first argument taken and NEVER READ     | existing tree     |
-//   |             |                                         | call sites (below)|
+//   |             | `if(p){Enter;Free(_singleton,p);Leave;}`| jump), and the    |
+//   |             | first argument taken and NEVER READ     | tree's callers    |
+//   |             |                                         | (below)           |
 //   | 0x18007a010 | LinkedList::Remove(list, &value) —      | BringDialogToFront|
 //   |             | find by VALUE, unlink, free the node    | 0x180120440       |
 //   | 0x180032750 | LinkedList node alloc + init            | BringDialogToFront|
@@ -42,7 +40,7 @@
 // eye:
 //
 //   0x1800c7ad0  ?MemFree@MemoryAllocator@System@@SAXPEAX@Z   (ported, lane E,
-//                registered at src/engine/system/allocator.cpp:1296/1399)
+//                src/engine/system/allocator.cpp)
 //     TEST RCX,RCX / JZ ret / PUSH RDI / SUB RSP,0x30 / MOV [RSP+0x20],-2 /
 //     MOV [RSP+0x48],RBX / MOV RDI,RCX / MOV RBX,[0x1801fc718] / ADD RBX,0x640 /
 //     MOV [RSP+0x40],RBX / MOV RCX,RBX / CALL [0x18014b390] / NOP /
@@ -70,24 +68,15 @@
 //
 // i.e. its allocation is `MemAlloc(0x18, 8)` spelled inline. Reproduced as that
 // call, so the node allocation goes through the ONE ported allocator entry
-// point instead of a private second copy of the lock protocol. This matters at
-// cutover: 0x1800c7a50/0x1800c7ad0/0x1800c6e60/0x1800c6c00 are the four
-// addresses `RegisterAllocatorAddresses()` arms (allocator.cpp, commit 309c015)
-// — reaching the heap any other way from here would re-open the wall attempt 13
-// closed.
+// point instead of a private second copy of the lock protocol.
 //
 // ---------------------------------------------------------------------------
-// THIS REGISTRATION CHANGES BEHAVIOUR AT THREE EXISTING CALL SITES
+// 0x180009c30 IS rtalloc::FreeLockedIgnoringSelf
 // ---------------------------------------------------------------------------
-// `ResolveAddr(Module::Runtime, …)` consults the port registry FIRST
-// (reference_resolveaddr_consults_port_registry_first.md), so registering
-// 0x180009c30 redirects these, which reach it by address today:
-//
-//   src/engine/graphics/scene.cpp:239   RtFreeLocked
-//   src/engine/input/input.cpp:139      RtInput_KeyMap_ClearAll's freeNode
-//
-// That redirection is the POINT, not a side effect: all three were an
-// unregistered address door, i.e. a null call after cutover.
+// The body lives in src/engine/system/allocator.cpp, declared in
+// src/engine/system/MemoryAllocator.h, and its callers call it by name (among
+// them src/engine/input/input.cpp, src/engine/object/factory_dtors.cpp and
+// src/engine/object/external_set.cpp).
 //
 // ---------------------------------------------------------------------------
 // ORACLE
@@ -115,15 +104,12 @@
 // compile to the same stores this file used to make by hand — the only change
 // is that `0x18`, `+0x8` and `+0x10` are now `sizeof(Node)` and field names.
 //
-// What is left in this file is the two things the header cannot hold:
+// What is left in this file is the one thing the header does not hold:
 //
-//   1. `Collection::detail::AllocateListNode/ListNodeFree` — the allocator seam,
-//      which needs `ResolveAddr` and therefore must stay out of a types header
-//      (PLAN.md §4.1 decision 1).
-//   2. The four `extern "C"` entry points, now ONE LINE EACH, and their
-//      `RegisterRuntimeAddr` rows. Every row that was here is still here:
-//      callers reach the class through them until B.3.2 step 2 converts the
-//      call sites.
+//   `Collection::detail::AllocateListNode/ListNodeFree` — the allocator seam,
+//   which calls System::MemoryAllocator::MemAlloc / MemFree by name, or a
+//   counting test allocator under BANISHED_UNIT_TEST, and like the rest of
+//   this file includes no <windows.h> (PLAN.md §4.1 decision 1).
 // ---------------------------------------------------------------------------
 
 #include <cstddef>
@@ -151,17 +137,7 @@ static_assert(offsetof(List8, _count) == 0x10, "LinkedList::_count @ +0x10");
 #ifndef BANISHED_UNIT_TEST
 namespace {
 
-// The allocator boundary. RETRIES A NULL rather than caching one, which is the
-// RtResolveCached contract and is load-bearing rather than defensive: at
-// cutover these addresses are supplied by RegisterAllocatorAddresses() inside
-// the allocator's own arming path, so a caller that ran before that point would
-// otherwise freeze a null in for the life of the process
-// (WAVE9.md, "Attempt 14", the second defect the crash was hiding).
-// ENDGAME B.3.2 closing pass: the resolution moved into `rtcoll::DoorAlloc` /
-// `DoorFree` (src/engine/collection/alloc_door.cpp), which asks the exe
-// dispatch slots 0x140152b60 / 0x140152b68 first and falls back to these two
-// addresses. Same allocator, same lock; the difference is that the door is the
-// one `BANISHED_REDZONE` rewrites, so a list node is no longer invisible to it.
+// The allocator boundary.
 // B3R RT-Core: the two statics, called by name.
 void* MemAllocLocked(uint64_t bytes, int align) {
     return System::MemoryAllocator::MemAlloc(bytes, align);   // 0x1800c7a50
@@ -181,14 +157,11 @@ void MemFreeLocked(void* p) {
 // In the SHIPPING build these are exactly the two calls the bodies above
 // argued for: `MemAlloc(sizeof(Node), 8)` and `MemFree(node)`, i.e. the ONE
 // ported allocator entry point rather than a private copy of the lock
-// protocol. Reaching the heap any other way from here would re-open the wall
-// attempt 13 closed (see this file's header block).
+// protocol.
 //
-// In the HOST UNIT TEST build (`tools/build.sh unit`, -DBANISHED_UNIT_TEST) there is no
-// address registry and no MemoryAllocator singleton to resolve, so
-// `ResolveAddr` answers 0 and the shipping path would allocate nothing at all —
-// every list would silently stay empty and every assertion in list_test.cpp
-// would be vacuous. B31_RULES class rule 6 allows a test-only allocator for
+// In the HOST UNIT TEST build (`tools/build.sh unit`, -DBANISHED_UNIT_TEST) the
+// two calls are replaced by a counting test allocator whose counters
+// tests/unit/list_test.cpp reads. B31_RULES class rule 6 allows a test-only allocator for
 // exactly this; this is it, and it is the ONLY behavioural difference between
 // the two builds in this file.
 //

@@ -82,7 +82,7 @@ Component* FindComp(ComponentEntity* ent, uint32_t tid) {
 }
 
 // Post a node event through the entity's StateMachineComponent, exactly as
-// OrchardComponent_Command does: smc+0x48 is the SM, sm+0x00 the node, node vtable
+// OrchardComponent::Command does: smc+0x48 is the SM, sm+0x00 the node, node vtable
 // slot 2 is PostEvent(node, sm, curIdx, eventId), and smc+0x51 carries the index.
 void PostNodeEvent(StateMachineComponent* smc, int eventId) {
     if (!smc) return;

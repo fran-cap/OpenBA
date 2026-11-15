@@ -15,13 +15,9 @@
 //   enum  @ +0x24  (encoding vtable +0x98)
 //   enum  @ +0x30  (encoding vtable +0x98)
 //   int   @ +0x34
-//   ExternalRefArray(count=5) @ +0x38  (FUN_1400049c0 / fn_ExternalRefArray_Serialize)
+//   ExternalRefArray(count=5) @ +0x38  (FUN_1400049c0 / Object::SerializeExternalArray)
 // GetVersion (vtable +0x18, 0x1401196a0): mov eax,2; ret -> version 2.
 // Dtor (vtable +0x00, 0x1400328f0): External::~External + free.
-//
-// NOTE: fn_ExternalRefArray_Serialize resolves to exe FUN_1400049c0 — null in
-// standalone until 0x1400049c0 is registered (REPORTED to orchestrator). The 4th
-// param (param4) is a dead init inside FUN_1400049c0, so nullptr is safe.
 //
 // Field knowledge harvested from engine/reimpl/createbridgedescription.cpp.
 // Decompiled from Application-x64.exe (READ-ONLY recon).

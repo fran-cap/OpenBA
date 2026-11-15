@@ -3,8 +3,8 @@
 // engine builds without the external converter source tree (LGPL, never linked, dlopened).
 // Layouts and enum values mirror the converter's public header at AIRCONV_VERSION 26; the
 // dylib is the only thing that has to match, not any header on this machine. If the
-// converter's header is also included in one translation unit (the shader check tool),
-// that one wins and this file adds nothing.
+// converter's header is also included in a translation unit, that one wins and this file
+// adds nothing.
 // Source: DXMT airconv_public.h (LGPL-2.1, commit 50102f994b406f58f56d5d09f2ad20f9b90390a2);
 // only the C ABI the dylib exports is declared here. See THIRD_PARTY_NOTICES.md.
 #ifndef __AIRCONV_H

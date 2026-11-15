@@ -16,12 +16,9 @@
 // for someone to "fix" it, and the two copies would then disagree about the
 // heap. One definition, included twice.
 //
-// Everything here is `inline`, and every accessor keeps the function-local
-// `static` that Wave 5 introduced deliberately: the raw DLL door/ResolveExport is
-// GetProcAddress, an export-table binary search under the loader lock, and two
-// uncached ones in a per-frame body cost Wave 2 five points of sim time while
-// being invisible to both profilers
-// (reference_rtoriginal_is_getprocaddress.md).
+// The helpers here are `inline` except the two Array destructors at the bottom,
+// which saveload.cpp defines. The singleton accessors read the class statics
+// fresh, with no function-local cache.
 // ============================================================================
 
 #include <atomic>
@@ -53,14 +50,11 @@ using SaveLoadVoidFn     = void     (*)(SaveLoad* self);
 
 // ?SetupLoad@SavedState@Save@@ — SELF FIRST, HIDDEN RETURN SLOT SECOND.
 //
-// It lives here, and not in whichever file happens to call it, because it now
-// has THREE consumers: Wave 13's UpdateList / UpdateLoad / UpdateLoadFromFile
-// call it as a dependency, and Wave 14's port of it in savedstate_setupload.cpp
-// calls the shipped body through it as an oracle. Wave 13 wrote it correctly in
-// an anonymous namespace inside saveload_update.cpp, where nothing else could
-// reach it; a second spelling elsewhere is how the two later drift, and this
-// particular shape is one where drift is a WILD WRITE rather than a compile
-// error (reference_hidden_retslot_wild_write.md).
+// It lives here so that saveload_update.cpp and savedstate_setupload.cpp, which
+// both import it with a `using` declaration, share one spelling of it: a second
+// spelling elsewhere is how the two drift, and this particular shape is one
+// where drift is a WILD WRITE rather than a compile error
+// (reference_hidden_retslot_wild_write.md).
 //
 // The order is the MSVC member-function convention — `this` in RCX, the hidden
 // return pointer in RDX — which is the OPPOSITE of the GCC/Itanium sret order
@@ -78,28 +72,13 @@ inline void MemFree(void* p) {
     ::System::MemoryAllocator::MemFree(p);
 }
 
-// WAVE 15 LANE ORDER. These four were `static T** p = RtDataExport<T*>(...)`,
-// a frozen static that keeps the FIRST answer including a non-null one. Three
-// of the four names are Wave 15 rows and the fourth, `SaveLoad`, is PROMOTED to
-// our own storage on every default run — so ResolveExport's answer for it
-// genuinely changes across RtDataMintInit() and a first call during startup
-// would have kept the DLL's `.data` slot forever while every other reader moved
-// to the minted one. Two copies of one live mutable pointer is a SPLIT BRAIN,
-// not a stale cache.
-//
-// `RT_DATA_SLOT` is the right door and it also keeps Wave 5's cost argument
-// intact (a hit is still cached, so steady state is one load, not a
-// GetProcAddress — reference_rtoriginal_is_getprocaddress.md). What made the
-// conversion worth doing is NOT the macro itself: RT_DATA_SLOT froze a hit
-// exactly as hard as these statics did until lane ORDER changed
-// RtResolveCached to refuse to freeze a pre-init answer
-// (rt_resolve_cache.cpp §6). Converting the shape is what puts these four
-// under that rule, and under the [RtSlotAudit] instrument that can see them.
+// The SaveLoad singleton's slot: the address of the class static
+// `Save::SaveLoad::_singleton`.
 inline SaveLoad** SaveLoadSingletonSlot() {
     return &::Save::SaveLoad::_singleton;
 }
-// ENDGAME B.3.9 SS1 (B39_RULES D7): the three below are class statics now
-// (redirect in their namespace's *PortInit) -- read fresh, no lazy cache.
+// ENDGAME B.3.9 SS1 (B39_RULES D7): the three below are class statics, read
+// fresh, no lazy cache.
 inline ::IO::FileSystem* FileSystemSingleton() {
     return ::IO::FileSystem::_singleton;
 }
@@ -151,9 +130,8 @@ inline void ReleaseStringSlot(char** slot) {
 
 // ---- the two unexported Array destructors saveload.cpp transcribes ----------
 // Retail CALLs both by address from other Save bodies (UpdateList state 0 and
-// ~SaveLoad call 0x1800329c0; ~SaveInfo calls 0x1800331f0). They stay
-// registered at those addresses (saveload.cpp); the callers inside this
-// directory call the transcriptions directly rather than through a door.
+// ~SaveLoad call 0x1800329c0; ~SaveInfo calls 0x1800331f0). saveload.cpp
+// defines both; the callers inside this directory call them directly.
 //   0x1800329c0  Collection::Array<SaveInfo>::~Array  (stride 0x58)
 //   0x1800331f0  Collection::Array<ModInfo>::~Array   (stride 0x20)
 void ArraySaveInfoDtor(Save::SaveLoad::SaveInfoArray* arr);

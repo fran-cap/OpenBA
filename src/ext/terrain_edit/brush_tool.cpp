@@ -573,8 +573,9 @@ void UploadWaterMesh(WorldGeometry* terrain) {
 // After a stroke: the water of the region it changed is made again from the ground's heights now. The
 // edit's own quads in the region are taken out (their shore weights were made from the heights of an
 // earlier stroke), as are the game's own where the ground no longer reaches the water (all four corners
-// above -0.75), and a new lake range, which every quad carries the one height (z) of the water it touches,
-// holds a quad for each cell of the region that is under water and not drawn by a game quad. The mesh is
+// above -0.75), and a new range (a river range when the patch touches a river, else a lake range), whose
+// quads all carry the one height (z) of the water they touch, holds a quad for each cell of the region
+// that is under water and not drawn by a game quad. The mesh is
 // saved with the world, so the water stays.
 void AddWaterForStroke(WorldGeometry* terrain) {
     using namespace Ext::TerrainEdit;
@@ -605,7 +606,7 @@ void AddWaterForStroke(WorldGeometry* terrain) {
 
     // 0. The height of the water the patch joins: that of the edit's own quads in or beside the region if
     // there are any, else of
-    // the game's nearest, else the first lake's. A step between two heights shows as a thin line where they
+    // the game's own there, else the first lake's. A step between two heights shows as a thin line where they
     // meet.
     int zPick = kDefaultWaterZ;
     {

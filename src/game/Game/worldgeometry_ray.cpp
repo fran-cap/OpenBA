@@ -71,7 +71,7 @@ static inline int WrapSub(int a, int b) {
 //   V0,V1,V2 (Vector3*), outT(float*), outNormal(Vector3* or null).
 // edge1=V1-V0, edge2=V2-V0, pvec=D x edge2, det=edge1.pvec; cull det<=0;
 // u=tvec.pvec (tvec=P-V0); cull u<-eps or u>det; qvec=tvec x edge1; v=D.qvec;
-// cull v<-eps or u+v>det; t=(1/det)*edge2.qvec; cull t<0 or t>*maxT; *outT=t;
+// cull v<-eps or u+v>det; t=(1/det)*edge2.qvec; *outT=t; cull t<0 or t>*maxT;
 // if outNormal: *outNormal = normalize(edge1 x edge2). Returns 1 on hit, 0 else.
 // Transcribed from disasm 0x1400aa810 (decompiler retbuf-aliasing is misleading).
 int Pf_RayTriIntersect_aa810(void* /*self*/, const float* P, const float* D,
@@ -122,7 +122,7 @@ int Pf_RayTriIntersect_aa810(void* /*self*/, const float* P, const float* D,
 // ============================================================
 // FUN_1400aaa20 — terrain-cell quad (2-tri) ray test.
 // ============================================================
-// Reads the heightmap (_heightRowStride width, _arrayD8) for the 4 corners of cell (x,y), builds
+// Reads the heightmap (_heightRowStride width, _heights) for the 4 corners of cell (x,y), builds
 // two triangles split by parity of (x+y), and ray-tests each via aa810. Writes the world
 // hit point (origin + t*dir) into outHit and t into outT. Returns whether any tri was hit.
 static int RayTestCell(WorldGeometry* geo, int x, int y, const float* dir, const float* origin,

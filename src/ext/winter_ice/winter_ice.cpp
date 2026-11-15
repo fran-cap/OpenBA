@@ -177,7 +177,6 @@ bool IsWater(PathType terrainType) {
     return terrainType == PathType::Water || terrainType == PathType::DeepWater;
 }
 
-// The blocked water cells of the map; a new mask when they changed (or the map's size did).
 // The in-map stretch of the trade boats' polyline (WorldGeometry::_contourOutlines record 0, world
 // coordinates; BoatComponent::SetDestination 0x1400456e0 sails it in, past the dock and out), as cell
 // coordinates; empty when the world has none.

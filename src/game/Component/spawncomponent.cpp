@@ -34,9 +34,9 @@
 #include "system/Value.h"   // ENDGAME B.3.4b System caller batch
 #include "system/Timer.h"   // ENDGAME B.3.9 SS2: System::Timer::_secondsPerTick
 #include "Component/exe_bodies.h"
-#include "Action/exe_bodies.h"          // ActCNR_SetupModelAtCell_126540, ActCNR_SetGrowthProgress_120db0
-#include "Work/exe_bodies.h"            // WorkLeaf_FootprintOwnerCheck_120c30
-#include "Player/exe_bodies.h"          // PlayerPath_CharComp_f5d0
+#include "Action/exe_bodies.h"
+#include "Work/exe_bodies.h"
+#include "Player/exe_bodies.h"
 #include "Entity/ComponentEntity.h"   // ComponentEntity(ComponentDescription*) (0x1400c3720)
 #include "Entity/EntityList.h"        // EntityList::RegisterEntity (0x1400c48a0)
 #include "Game/exe_constants.h"
@@ -86,8 +86,8 @@ bool g_worldgenDone = false;
 // (Onion / Blueberry / Mushroom / Root — see NaturalResourceTree.rsc's
 // SpawnDescription against GathererShelter.rsc's HerbalistDescription): they are
 // not a worldgen pool of their own. Deviation #4 in docs/history/notes/generation_deviations.md
-// deferred this pass "until GrowthComponent is live"; BANISHED_LIVE_GROWTH is now
-// default-on, so the precondition is met and the pass is restored here.
+// deferred this pass "until GrowthComponent is live"; GrowthComponent is live with no
+// flag, so the precondition is met and the pass is restored here.
 //
 // Standalone deviations, both bail-instead-of-crash on a shape retail guarantees:
 //   * the GrowthDescription lookup on the spawn template can miss in our partial
@@ -103,7 +103,7 @@ void SpawnComponent::InitialSpawn() {
     if (natRes == nullptr) return;
     const float growth = natRes->resourceScale;
 
-    // SpawnDescription at +0x18 (IsDerivedFromOrTrust — same policy as Update).
+    // SpawnDescription at +0x18 (trusted without IsDerivedFrom — same policy as Update).
     Description* baseObj = _description;
     if (!baseObj) return;
     SpawnDescription* spawnDesc = static_cast<SpawnDescription*>(baseObj);
@@ -136,7 +136,7 @@ void SpawnComponent::InitialSpawn() {
         if (!(perSpawn > 0.0f)) continue;
         const int repeats = (int)(growth / perSpawn) + 1;
         for (int r = 0; r < repeats; ++r) {
-            DoSpawn(spawnDesc, i, 1);   // flag=1 => random orientation
+            DoSpawn(spawnDesc, i, 1);   // flag=1 => random growth
         }
     }
 }
@@ -163,8 +163,8 @@ void SpawnComponent::InitialSpawn() {
 //   .rdata 0x14017214c = 1.0 (g_fUVScale), 0x140172140 = 0.98, 0x140172248 = 1000.0
 static float SC_RdataF32(uint32_t bits) { float f; std::memcpy(&f, &bits, sizeof f); return f; }
 
-// DoSpawn outcome census — `dispatched` above only counts CALLS, and DoSpawn
-// bails on six separate conditions before an entity exists. Counting the call is
+// DoSpawn outcome census — DoSpawn bails on eight separate conditions before an
+// entity exists. Counting the call is
 // not evidence of a spawn (project lesson: a counter that also counts the
 // non-events is not evidence), so track where each attempt actually ends.
 namespace {
@@ -200,11 +200,11 @@ extern "C" void SpawnComponent_ReportDoSpawnCensus(const char* tag) {
 }
 
 // NOTE for whoever debugs the seed-pass crash next: 0x140120db0 is NOT "set
-// orientation" (the typedef name here is inherited and wrong) — it is
+// orientation" — it is
 // SetGrowthProgress, which derives the MESH SCALE through the GrowthComponent's
 // sibling links. Guarding both call sites on those links being populated (the test
 // StartTown_GrowthInitResource uses) was tried on 2026-08-13 and is NOT the cause:
-// BANISHED_LIVE_GROWTH is default-on, so the links ARE populated, the guard never
+// the links ARE populated, the guard never
 // fired, and the crash reproduced byte-identically. Ruled out — don't re-spend it.
 void SpawnComponent::DoSpawn(SpawnDescription* desc, int entryIndex, char randomGrowth) {
     ++g_doSpawn.calls;

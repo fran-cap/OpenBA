@@ -39,20 +39,15 @@
 //     teardown matches the same way (0x1800DA295..0x1800DA329 against
 //     ??1Dialog@UI@@UEAA@XZ 0x180112E40).
 //
-//  2. THE SECOND ONE IS TRUE AND IS NOT A BLOCKER FOR THE *BODY*.
-//     `ElementDescription::CreateInstance` is genuinely unported. But AddTab
-//     does not call it by name — it makes an INDIRECT call through the
-//     ExternalPtr's own vtable slot +0x40 (0x1800DA1E5, 0x1800DA235), which is
-//     a pointer both this port and the DLL load from the same object. Porting
-//     the body needs the slot, not the callee. What the missing callee DOES
-//     block is the ORACLE's coverage of the two objects it creates — stated
-//     below, and declared with Exclude() so it is counted rather than implied.
+//  2. THE SECOND ONE IS NOT A BLOCKER FOR THE *BODY*.
+//     AddTab does not call `ElementDescription::CreateInstance` by name — it
+//     makes an INDIRECT call through the ExternalPtr's own vtable slot +0x40
+//     (0x1800DA1E5, 0x1800DA235), the description's virtual slot 8.
 //
 //  3. THE ALLOCATOR NO-GO IS NOT LOAD-BEARING HERE EITHER. Every allocation in
 //     this function happens inside a callee: the two CreateInstance calls, and
 //     `Collection::Array<InternalPtr<Element>>::SetSize(n, fill)` (0x180076900),
-//     which has been PORTED and registered since Wave 9 lane UIW
-//     (array.cpp, kSpec_Fill8Z). **This lane's conclusion does not depend on
+//     which is ported (array.cpp, kSpec_Fill8Z). **This lane's conclusion does not depend on
 //     lane ALLOC's re-test of that gate.**
 //
 //  4. NOT REPLAYABLE — STILL TRUE, AND MORE SO THAN THE ROW SAYS. A replay
@@ -67,9 +62,8 @@
 // scaffold it used to be written against had only its live arm in use). The
 // two ExternalPtr vtable +0x40 calls are now the virtual slot-8
 // `ElementDescription::CreateInstance` (RULE B6-2), the UpdateContainers
-// RT_EXPORT_ONCE is the member call, and the two Dialog doors moved to
-// namespace-scope atomics (RULE B6-5). The registered door keeps retail's
-// (this, ret, button, content) shape and places the member's result.
+// RT_EXPORT_ONCE is the member call, and the Dialog temporary is a real
+// `UI::Dialog`. The member returns the content handle by value.
 // The dirty walk is still run TWICE, UNCONDITIONALLY (0x1800DA211 and
 // 0x1800DA270) — contrast UpdateContainers', which is guarded on "did bit
 // 0 change".
@@ -78,12 +72,11 @@
 // -------------------------------
 // `get_xrefs_to 0x1800DA130` returns FOUR references and NOT ONE OF THEM IS A
 // CALL: three data references (the export table and two RTTI/relocation slots)
-// plus the external entry point. The DLL never calls its own AddTab. The only
-// caller in the process is ours — `UIDesc_AddControllers_Impl`
-// (src/game/Dialog/toolui.cpp:133), which runs while a dialog whose
-// UIDescription carries tab entries is being built. So, unlike
-// `TabElement::UpdateContainers`, THIS PORT NEEDS NO DETOUR: there is no split
-// brain to close, because there is no second caller.
+// plus the external entry point. The DLL never calls its own AddTab. The
+// callers are ours — `UIDescription::AddControllers` (src/game/Dialog/toolui.cpp),
+// which runs while a dialog whose UIDescription carries tab entries is being
+// built, and the ext rows in src/ext/enhanced_tab/, src/ext/storage_metrics/
+// and src/ext/toolbar/.
 // ============================================================================
 
 #include <cstdint>
@@ -130,9 +123,7 @@ namespace UI {
 //
 // Retail creates the CONTENT straight into the caller's hidden return slot
 // (0x1800DA232 loads RSI, the incoming RDX) and reads the cell back from it;
-// here the member returns the handle by value and the door places it in that
-// slot, which nothing can observe between the two (the slot is the caller's
-// and is read only after the return).
+// here the member creates it into the local `result` and returns it by value.
 // ---------------------------------------------------------------------------
 Object::InternalPtr<Element> TabElement::AddTab(Object::ExternalPtr<ElementDescription> button,
                                                 Object::ExternalPtr<ElementDescription> content) {

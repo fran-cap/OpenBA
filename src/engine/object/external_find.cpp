@@ -17,8 +17,7 @@
 // file.** That is the whole reason it was picked: WAVE9_LANE_RRES.md §6 named
 // it "the cheapest next rung by a wide margin" and this is that rung.
 //
-// PORTABLE: no <windows.h> (PLAN.md §4.1 decision 1). The detour seam lives in
-// `standalone/res_path_detour.cpp` with the one this lane already shipped.
+// PORTABLE: no <windows.h> (PLAN.md §4.1 decision 1).
 //
 // ---------------------------------------------------------------------------
 // THE TRAP THIS BODY EXISTS TO EXPLAIN — lane RES's finding, now with its cause
@@ -60,12 +59,9 @@
 // ---------------------------------------------------------------------------
 // `MOV RBP,RSP` sits after four pushes, so `[RBP+0x20]` is the return address
 // and `[RBP+0x28]` / `[RBP+0x30]` / `[RBP+0x38]` — the three `Filename` locals
-// — are the CALLER's 32-byte home space. That is legal in the MS x64 ABI and it
-// matters for one reason only: when the diff replays the original through the
-// detour trampoline, the original scribbles on THIS function's own home space,
-// which the compiler has already reserved for the call. Noted because a reader
-// checking offsets against the listing will otherwise read `[RBP+0x28]` as an
-// argument and it is not one.
+// — are the CALLER's 32-byte home space. That is legal in the MS x64 ABI. Noted
+// because a reader checking offsets against the listing will otherwise read
+// `[RBP+0x28]` as an argument and it is not one.
 // ============================================================================
 
 #include <cstdio>

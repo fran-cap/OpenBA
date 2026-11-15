@@ -18,8 +18,7 @@
 //     [6]  = DragTool::OnKey      [9] = DragTool::OnCancel
 //     [8]  0x140104050 Draw: the removal preview
 //     [10], [11] = Tool's   [12] = DragTool's (cursor 5)
-//     [13] 0x1401035e0 CalcPath (keystone_a_removalcalcpath.cpp, reached by
-//          address through reg_keystone_a_removal.cpp)
+//     [13] 0x1401035e0 CalcPath (keystone_a_removalcalcpath.cpp)
 //     [14] 0x140103ef0 CalcCost
 //   sizeof 0x40.
 //

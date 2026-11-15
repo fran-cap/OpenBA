@@ -3,10 +3,8 @@
 // src/engine/graphics/scene_grid.h — WAVE 9 LANE GFX3
 // ============================================================================
 //
-// Shared between scene_grid.cpp (the six ported bodies) and
-// scene_grid_probe.cpp (the synthetic-subject oracle), for exactly the reason
-// array_internal.h and picking/scene_grid.h exist: a probe that re-derives the
-// body it is probing is testing a COPY of the port, not the port.
+// Shared between scene_grid.cpp (the grid bodies) and their callers, scene.cpp
+// and src/ext/draw_gather/draw_gather.cpp.
 //
 // PORTABILITY: no <windows.h>, per PLAN.md §4.1 decision 1.
 // ============================================================================

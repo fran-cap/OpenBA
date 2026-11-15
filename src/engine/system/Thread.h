@@ -22,7 +22,7 @@
 
 
 // ----------------------------------------------------------------------------
-// RtSystem::CriticalSection — the POD
+// System::CriticalSection — the retail layout
 // ----------------------------------------------------------------------------
 // Retail (0x18000c5c0, ??0CriticalSection@System@@QEAA@XZ):
 //   InitializeCriticalSection(this);
@@ -35,7 +35,7 @@
 // class has no vtable, so there is no ABI concern beyond size and alignment.
 
 // ----------------------------------------------------------------------------
-// RtSystem::Thread — the POD
+// System::Thread — the retail layout
 // ----------------------------------------------------------------------------
 // Retail is ALWAYS subclassed: the base vtable's slot 0 is _purecall
 // (0x18007ec28) and only slot 1 (OnCompleted, 0x18000c590) has a real base
@@ -67,9 +67,7 @@
 // worker-queue Thread in keystone_a_gamedtor.cpp embeds a CriticalSection
 // there; the pathfinder's Thread subclass is 0x1f8 bytes total).
 //
-// THE POD KEEPS AN EXPLICIT `vtable` FIELD; THE CLASS DOES NOT. On the class
-// the compiler's own vptr occupies +0x00, which is why that one member is the
-// only field in this file with no cross-assert — see the class below.
+// The class spells no `vtable` field: the compiler's own vptr occupies +0x00.
 
 
 // ============================================================================
@@ -91,13 +89,12 @@
 //   src/engine/engine/singleton_ctors.cpp:448-450 builds IO::Persistence's
 //                                                  embedded Thread at +0x10 and
 //                                                  stamps 0x180155860 over it
-//   standalone/rt_data_mint.cpp:434-461            builds Engine::Loader's
-//                                                  static, stamps by NAME
+//   src/engine/engine/loops.cpp                    defines Engine::Loader's
+//                                                  static, LoaderLoop::_loader
 //   src/engine/audio/audio_stream.cpp:303-341 builds Audio::Stream
 //
-// The two readers of the base table 0x180155f20 stay exactly as they are:
-// `thread_win.cpp`'s `RtSystemThreadVftable()` (by NAME, through RT_DATA_SLOT)
-// and `src/engine/io/persistence_worker.cpp:585-589` (by ADDRESS).
+// Nothing in the tree reads the base table 0x180155f20 by name or address: a
+// `System::Thread` base wears the compiler's table (see the B.3.9 notes below).
 //
 // `System::CriticalSection` has no vtable at all, so §4.3 would PERMIT a real
 // ctor/dtor — and it still does not get one, for a different reason: two of its
@@ -111,13 +108,9 @@
 //
 // *** `System::Thread` IS ABSTRACT, AND THAT IS RULE B4b-3. ***
 // ----------------------------------------------------------------------------
-// `src/engine/engine/UpdateLoop.h` holds a Thread BY VALUE inside the POD
-// `RtEngine::Loader`. B34_BRIEFS §A.3/§A.4 make a by-value-held class CONCRETE
-// — but that rule is about a REAL CLASS holding a REAL CLASS, where the
-// enclosing class's implicit members must reach the enclosed one's. A POD
-// MIRROR HOLDING THE POD IS NOT THAT CASE. Retail's slot 0 here is `_purecall`,
-// there is no registered body to delegate to, and inventing one is forbidden —
-// so `RtEngine::Loader` holds `RtSystem::Thread` and this class stays abstract.
+// `src/engine/engine/UpdateLoop.h` derives `Engine::Loader` from this class.
+// Retail's slot 0 here is `_purecall`, there is no base body to port, and
+// inventing one is forbidden — so this class stays abstract.
 // Nothing constructs a `System::Thread` as a C++ object; `sizeof` works on an
 // abstract class, so every layout pin below holds.
 // ============================================================================
@@ -185,7 +178,7 @@ static_assert(sizeof(CriticalSection) == 0x28,
 static_assert(offsetof(CriticalSection, _storage) == 0x0, "CriticalSection::_storage");
 // Stated as assertions so a future `virtual` fails the build rather than the
 // boot: a vptr would make this 0x30 bytes and push the storage eight bytes
-// down, under doors that are registered BY NAME.
+// down.
 static_assert(!std::is_polymorphic<CriticalSection>::value,
               "System::CriticalSection must never acquire a vtable: retail has none");
 static_assert(std::is_standard_layout<CriticalSection>::value,
@@ -204,7 +197,7 @@ static_assert(!std::is_trivially_destructible<CriticalSection>::value,
 //
 // The two slots of retail's 0x180155f20:
 //   [0] +0x00  0x18007ec28 `_purecall`  -> pure here, see below
-//   [1] +0x08  0x18000c590  RT_MINT_NAMED ?OnCompleted@Thread@System@@UEAAXXZ
+//   [1] +0x08  0x18000c590  ?OnCompleted@Thread@System@@UEAAXXZ
 class Thread {
 public:
     // slot 0  +0x00 — PURE, because retail's own base table really is
@@ -212,27 +205,19 @@ public:
     // invented. THE NAME IS EVIDENCE, NOT A GUESS: the one derived table this
     // tree holds is `??_7Loader@Engine@@6B@`, whose slot-0 override is exported
     // as `?Run@Loader@Engine@@UEAAXXZ` @ 0x1800dbfc0
-    // (standalone/rt_export_addrs.inc:3695), and src/engine/engine/
+    // in retail's export table, and src/engine/engine/
     // UpdateLoop.h:40 records that table as [0] Run 0x1800dbfc0, [1] 0x18000c590.
     virtual void Run() = 0;
 
     // slot 1  +0x08  0x18000c590  ?OnCompleted@Thread@System@@UEAAXXZ
     // The shipped body is one instruction: `RET`. The base class's do-nothing
     // hook, called from ThreadFunc's slot 1 once the work function returns.
-    //
-    // ⚠ THE DOOR MUST CALL THIS QUALIFIED. A live Thread wears the MINTED table
-    // whose slot 1 resolves back to `RtSystem_Thread_OnCompleted`, so an
-    // UNqualified virtual call inside that door would dispatch through the
-    // minted table into itself — infinite recursion, not delegation
-    // (B34_BRIEFS §A.1). thread_win.cpp writes
-    // `self->System::Thread::OnCompleted()`.
     virtual void OnCompleted();
 
     // ?Start@Thread@System@@QEAAXXZ          retail 0x1800ca610
     // ?WaitForFinish@Thread@System@@QEAAXXZ  retail 0x1800ca5f0
     // NON-virtual (there are only two slots in the table above and neither is
-    // one of these), so their doors call them plainly — no qualification needed
-    // and none of §A.1's recursion hazard.
+    // one of these).
     void Start();
     void WaitForFinish();
 
@@ -248,26 +233,21 @@ public:
 
     // ?ThreadFunc@Thread@System@@CAIPEAX@Z   retail 0x1800ca440
     // The worker entry point handed to _beginthreadex. Retail's is `CA`, i.e.
-    // PRIVATE static; it is public here because the registered door calls it
-    // and access control is not ABI. It carries no `__stdcall`: that is what
+    // PRIVATE static; it is public here, and access control is not ABI. It
+    // carries no `__stdcall`: that is what
     // _beginthreadex's signature spells, a no-op on x64 (one calling convention)
     // and not a keyword off Windows (Phase D.4 POSIX; Platform::ThreadEntry).
     //
-    // ITS BODY KEEPS THE RAW SLOT CALLS, DELIBERATELY. It dispatches
-    // `vtable[0]` then re-loads the vtable and dispatches `vtable[1]`, on
-    // objects that wear a MINTED or a DERIVED table — `Engine::Loader`,
-    // `IO::Persistence`'s worker, `Audio::Stream`, the pathfinder. A C++
-    // virtual call there would be the §A.1 recursion for slot 1 and would not
-    // reach the derived slot 0 at all. Same call as B34_RULES §3.1's ruling for
-    // `IO::Serializer`: a faithful partial beats a complete-looking deletion.
+    // ITS BODY CALLS THE TWO SLOTS BY NAME: `Run()` (slot 0) then `OnCompleted()`
+    // (slot 1), on objects that are real subclasses wearing their compiler tables:
+    // `Engine::Loader`, `IO::PersistenceWorker`, `Audio::Stream`, the pathfinder
+    // (thread.cpp).
     static unsigned int ThreadFunc(void* param);
 
     // ---- the 0x30 bytes, at retail's offsets -------------------------------
-    // +0x00 is the COMPILER'S vptr — the one member the POD spells explicitly
-    // and this class does not, which is why `vtable` is the only field with no
-    // cross-assert below. PUBLIC for the same reason `IO::Stream`'s three are:
-    // the unconverted tree reads them through a cast to the POD, and `offsetof`
-    // on them has to be well formed.
+    // +0x00 is the COMPILER'S vptr. PUBLIC: `offsetof` on them has to be well
+    // formed, and code outside the class reads the event handles
+    // (src/app/engine_loader_gate.cpp, src/engine/save/saveload_update.cpp).
     uint32_t _runFlags;    // +0x08
     uint32_t _pad0c;       // +0x0c
     Platform::ThreadHandle _hThread;     // +0x10  HANDLE (_beginthreadex)
@@ -315,17 +295,5 @@ static_assert(offsetof(Thread, _hThread)   == 0x10, "Thread::hThread @ +0x10");
 static_assert(offsetof(Thread, _hStart)    == 0x18, "Thread::hStart @ +0x18");
 static_assert(offsetof(Thread, _hStop)     == 0x20, "Thread::hStop @ +0x20");
 static_assert(offsetof(Thread, _hFinished) == 0x28, "Thread::hFinished @ +0x28");
-// The cross-asserts. `vtable` has none on purpose: the POD spells +0x00 as a
-// field, the class lets the compiler own it.
 
 }  // namespace System
-
-// ==== B3R W0-P0c: Runtime bodies reached by retail address ====
-// ENDGAME B.3R (B3R_RULES R5): each body below is registered at the retail
-// address in its trailing comment and read through the registry today. It is
-// declared here, copied from its definition (linkage, namespace, types), so the
-// reader can call it by name. Nothing calls it through this declaration yet.
-
-// ---- system/thread.cpp
-
-// ==== end B3R W0-P0c ====

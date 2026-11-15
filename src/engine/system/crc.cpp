@@ -21,8 +21,8 @@
 //
 // The table is System::CRC::_crcTable (exported DATA, retail 0x1801f9080),
 // verified byte-for-byte against the textbook reflected CRC-32 table in
-// object/type_system.cpp, so it is generated here rather than read from the
-// DLL, for the same reason that file gives: the body has to survive cutover.
+// object/type_reflection.cpp, so it is generated here rather than read from
+// the DLL.
 // Generated locally rather than shared, on the census rule the persistence
 // files record (each file's own dependencies are what the census greps).
 //
@@ -32,8 +32,8 @@
 // ENDGAME B.3.4b SYSTEM (4): `System::CRC` is a real class with one static
 // member (src/engine/system/Crc.h — the mangling `?Compute@CRC@System@@SA…`
 // is the evidence, and Crc.h's banner has the argument). The body moved onto
-// `System::CRC::Compute`; the registered door keeps its address and its name
-// and delegates. Defined at GLOBAL scope with a qualified name rather than
+// `System::CRC::Compute`, which its callers call by name. Defined at GLOBAL
+// scope with a qualified name rather than
 // inside a `namespace System { ... }` block, for the reason B.3.4b SYSTEM (3)
 // gives: this file names no POD that the block could capture, and keeping the
 // two files consistent is worth more than two lines of nesting.

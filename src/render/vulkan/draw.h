@@ -125,9 +125,11 @@ bool DrawReadImage(ImageBufferData* image, void* dst, int width, int height);
 // ---- P4: ext.ambient_occlusion's pass (ao/assao_pass.cpp) -------------------------------------------
 // THE READABLE DEPTH (any thread): while any reader asks for it, the main targets are made with the
 // depth image sampleable too (SAMPLED usage and a depth-aspect view beside the attachment view), the
-// dx11 R24G8_TYPELESS + SRV choice; with none, retail's attachment-only depth. Three readers: the AO pass
-// (AoBackend::RequestReadableDepth), ext.better_water's scene depth copy (better_water/scene_depth.cpp)
-// and ext.better_clouds' shadow pass (better_clouds/cloud_shadow.cpp); each sets or clears its own bit. The request is taken when a frame begins: a change
+// dx11 R24G8_TYPELESS + SRV choice; with none, retail's attachment-only depth. Five readers, the
+// DepthReader bits below: the AO pass (AoBackend::RequestReadableDepth), ext.better_water's scene depth
+// copy (better_water/scene_depth.cpp), ext.better_clouds' shadow pass (better_clouds/cloud_shadow.cpp),
+// ext.fancy_terrain's terrain light and ext.depth_of_field's depth blur; each sets or clears its own bit.
+// The request is taken when a frame begins: a change
 // remakes the main targets at the next frame's first pass, as a sample-count change does (never between
 // two passes of one frame, which would drop the depth and colour drawn so far). Returns true when this
 // reader's request changed. DrawDepthReadable: what exists now.

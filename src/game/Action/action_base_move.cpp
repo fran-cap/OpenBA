@@ -2,9 +2,7 @@
 // Shared MoveTo / PerformWork / PlayAnimation base-class / ECS exe sub-helpers.
 //
 // The per-class Action .cpp files (moveto.cpp, performwork.cpp, playanimation.cpp,
-// huntanimal.cpp) call these by name through Action/exe_bodies.h (B3R); the
-// registration (RegisterActionMoveBatch in standalone/reg_action_move.cpp) stays for
-// readers other blocks still have.
+// huntanimal.cpp) call these by name: they are members declared in their classes' headers.
 //
 // Wave 3 (Action) — MoveTo / PerformWork / PlayAnimation sub-batch. Each function is
 // a 1:1 port of the decompiled exe helper; do not "improve" behavior.
@@ -17,7 +15,7 @@
 #include "Game/Map.h"
 #include "Game/PathfinderThread.h"
 #include "Action/PathSearch.h"
-#include "Game/exe_bodies.h"       // Reimpl_MapGetTerrainPos
+#include "Game/exe_bodies.h"
 #include "Game/exe_constants.h"   // kRdata_140172114
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch C
 #include "Action/saved_bounds.h"
@@ -82,7 +80,7 @@ void CharacterComponent::SetFacingDirection(const Math::Vector3& dir) {
 //   self+0x28 -> citizen IBP; that+0x68 -> movement sub-object; +0x158/+0x15c =
 //     current world x/y; +0x160 carried through.
 //   self+0x60 = current path index; self+0x68[idx] = target cell.
-//   CharacterComponent_impl_f3e0 (0x14009f3e0, Reimpl_MapGetTerrainPos) = grid->world
+//   CharacterComponent_impl_f3e0 (0x14009f3e0, Map::GetTerrainPos) = grid->world
 //   conversion. DAT_140172114 = 0.5f (kRdata_140172114).
 // Caller signature: void fn(void* self)
 void MoveTo::UpdateFacing() {
@@ -216,8 +214,6 @@ uint8_t CitizenComponent::BreakCheck() {
     float duePair[2];
     duePair[0] = outRec->skillMult1;
     duePair[1] = outRec->skillMult2;
-    // LEFT: CitizenComponent::professionRollTimer (block COMP-b's header) is declared int64_t, not
-    // System::Time.
     bool ok = BreakTimeCheck(&professionRollTimer, duePair, gw->m_random);   // 0x1400a9290
     if (ok) {
         pendingProfession = outRec;
@@ -235,7 +231,7 @@ uint8_t CitizenComponent::BreakCheck() {
 // RoadTool_sub_ce00_sub_68b0 to set a road-preference flag.
 //   param_1 = map grid (longlong); +0x68 -> some sub-object for the final call.
 //   param_2 = pathfinder (Thread*).
-// Caller signature: void fn(void* mapGrid, void* pathfinder, int profile, void* param4)
+// Caller signature: void fn(void* mapGrid, void* pathfinder, int profile)
 //
 // B.4 ACT-a: Map::SetMovementCosts. Retail reads RCX (the Map), RDX (the pathfinder) and
 // R8D (the profile) only (0x14009e55a / 0x14009e55d / 0x14009e560); the tree's fourth
@@ -419,12 +415,6 @@ bool MoveTo::PathSetup(const float* worldPos) {
 }
 
 // ============================================================
-// FUN_140092260 — Bridge/spatial entity query near a position (quadtree walk)
-//   *** NOW REIMPLEMENTED — src/game/Action/action_pf_roots_misc.cpp ***
+// FUN_140092260 — Bridge/spatial entity query near a position (quadtree walk):
+// CharacterGrid::QueryNearestCharacter, in src/game/Action/action_pf_roots_misc.cpp.
 // ============================================================
-// Formerly skipped because of its frame-exact ~9.5KB local quadtree-walker. The
-// pathfinding wave ported the walker's builder (18dd0) and subdivider (18880) as
-// proper registered functions operating on a passed walker pointer, so 92260 was
-// reimplemented (Pf_SpatialProximityQuery_92260) with a same-size local buffer
-// `alignas(16) uint8_t walker[0x2438]` and disasm-verified record offsets, calling
-// the registered 18dd0/18880. Registered via RegisterPfRootsMiscBatch.

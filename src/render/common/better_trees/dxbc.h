@@ -1,7 +1,7 @@
 #pragma once
 // ============================================================================
 // src/render/common/better_trees/dxbc.h -- a minimal DXBC container + SM4 token
-// reader / writer (ext.foliage_aa; FAA-SPIKE wrote it, FAA-CORE ships it).
+// reader / writer (ext.better_trees; FAA-SPIKE wrote it, FAA-CORE ships it).
 //
 // NOT RETAIL. No D3D dependency and no retail bytes: it parses whatever blob it
 // is handed (the user's installed shaders, at run time) and re-emits it. The

@@ -73,7 +73,7 @@
 namespace {
 
 // ---------------------------------------------------------------------------
-// ATTENDANCE. Same shape and the same reasoning as wave21_lane_gfxbody.cpp:125:
+// ATTENDANCE. Same shape and the same reasoning as wave21_lane_gfxbody.cpp:86:
 // a port with no attendance counter cannot be told apart from an absent one,
 // and `calls=0` with `worked>0` is a different finding from `never entered`
 // (reference_calls_zero_can_mean_always_took_the_uncovered_branch.md). Printed
@@ -101,21 +101,14 @@ unsigned long long g_animUpdStates  = 0;   // inner-loop iterations; 0 == "ran, 
 //
 // The ctor and Create do NOT call operator new; they INLINE it — the same five
 // instructions (`cs = *0x1801fc718 + 0x640; Enter; Allocate(singleton, n, 8);
-// Leave`) that wave21_lane_gfxbody.cpp:184 disassembled and showed to be
+// Leave`) that wave21_lane_gfxbody.cpp:152 disassembled and showed to be
 // instruction-for-instruction `MemAlloc(n, 8)`, with the alignment arriving in
 // EDX instead of an immediate. Routing through MemAlloc is therefore not an
-// approximation of the inlined sequence, it is that sequence; and it keeps the
-// arena identical whether or not lane ALLOC's port is armed. B3R: it is
+// approximation of the inlined sequence, it is that sequence. B3R: it is
 // System::MemoryAllocator::MemAlloc, called directly.
 
 // ---------------------------------------------------------------------------
-// The seven named dependencies. ALL SEVEN ARE ALREADY `called` AND `ported=1`
-// in today's census, so this file adds NOTHING to the cutover surface on the
-// FrameCopyImageBuffer side (reference_porting_can_grow_the_cutover_surface.md
-// is the hazard; here it is measured and it is zero). The one place this lane
-// DOES grow the surface is AnimationState::Update — see its own note below.
-//
-// Called by name (B3R).
+// The named dependencies, called by name (B3R).
 // ---------------------------------------------------------------------------
 
 // ENDGAME B.3.9 VS: `::new (p) Video::ImageBuffer()` -- the ??0 door and the minted row are retired.
@@ -184,12 +177,9 @@ void RenderBufferZeroHeader(Video::RenderBuffer* rb) {
 // so RAX is the ALLOCATION on both paths — `this` returned in RAX by MSVC
 // convention on one, and the null RBP on the other. We store `image`, never a
 // constructor's return, which is the rule
-// src/engine/save/saveload_draw.cpp:427 and
-// src/engine/graphics/sunlight.cpp:230 both paid for: this tree's ported
-// constructors are not uniform about returning `this`, and one of them
-// (`Video_ImageBuffer_Ctor`, buffers.cpp:387) is declared `void`. Using the
-// pointer we already hold is byte-faithful to what retail computes AND
-// independent of how any port spells its signature.
+// src/engine/save/saveload_draw.cpp:378 and
+// src/engine/graphics/sunlight.cpp:159 both record. Using the
+// pointer we already hold is byte-faithful to what retail computes.
 //
 // THE UNGUARDED DEREF IS DELIBERATE AND FAITHFUL. If MemAlloc returns null,
 // retail walks straight into `MOV RCX,[RAX+0x60]` and dies. Per CLAUDE.md
@@ -265,7 +255,7 @@ Graphics::FrameCopyImageBuffer::FrameCopyImageBuffer() {
         System::MemoryAllocator::MemAlloc(0x30, 8));                          // MOV EDX,0x30 / LEA R8D,[RDX-0x28]
     if (rb != nullptr) {
         // Three qword zero stores INSIDE the success arm, then PlatformConstruct
-        // — the same shape saveload_draw.cpp:497 transcribed for the standalone
+        // — the same shape saveload_draw.cpp:458 transcribed for the standalone
         // RenderBuffer it builds.
         RenderBufferZeroHeader(rb);
         RenderBufferPlatformConstruct(rb);
@@ -300,8 +290,8 @@ Graphics::FrameCopyImageBuffer::~FrameCopyImageBuffer() {
 // read from the export table's own mangled name, not guessed from the call
 // site — `_N Create(ImageType, Usage, Format, unsigned int, int, int,
 // FilterMode, AddressMode, AddressMode, AddressMode,
-// Collection::Array<Collection::Array<uchar>>*)`. saveload_draw.cpp:463 typed
-// its vtable call from the same reading, independently.
+// Collection::Array<Collection::Array<uchar>>*)`. saveload_draw.cpp:408 typed
+// its Create call from the same reading, independently.
 //
 // *** THE STORES ARE NOT IN PARAMETER ORDER. *** Retail writes
 // +0x28/+0x2c/+0x30 from the three register arguments, then +0x20 and +0x24
@@ -357,18 +347,12 @@ Graphics::FrameCopyImageBuffer::~FrameCopyImageBuffer() {
 // its contract. A manager with no groups makes this body a single compare and a
 // return — which is exactly why `g_animUpdStates` exists.
 //
-// THIS ROW GROWS THE CUTOVER SURFACE BY ONE, and it is the only place in this
-// file that does. `?Update@AnimationState@Graphics@@…` appears NOWHERE in the
-// census today — not in `called`, not in `ported`. Porting this body puts it
-// there, unported (reference_porting_can_grow_the_cutover_surface.md). Said out
-// loud because the census prints the new row without saying who added it.
-//
 // ---------------------------------------------------------------------------
 // §5.1  THE TWO RECORDS, AND A CORRECTION TO src/engine/graphics/Animation.h
 // ---------------------------------------------------------------------------
 // `AnimationManager` +0x00/+0x08/+0x0c are a `Collection::Array<Group>`
-// (_data / _size / _capacity), NOT the CRITICAL_SECTION-shaped triple that
-// header currently describes. Proof, from this body alone: 0x1800fc268 reads
+// (_data / _size / _capacity), NOT a CRITICAL_SECTION-shaped triple.
+// Proof, from this body alone: 0x1800fc268 reads
 // `*(int*)(this+8)` as a LOOP BOUND and 0x1800fc2a0 reads `*(void**)this` as
 // the base of an array of 0x30-byte records. A LockCount is not a loop bound.
 // The header's own dtor note gives the second half of the proof once read the
@@ -378,9 +362,7 @@ Graphics::FrameCopyImageBuffer::~FrameCopyImageBuffer() {
 // _data / _size / _capacity, and FUN_18005bf60 destroys each element, frees
 // _data, then zeroes all three — it is `Collection::Array<Group>::~Array`.
 // Ghidra typed its parameter LPCRITICAL_SECTION only because it frees under the
-// allocator's own critical section. The header is corrected in this branch; the
-// ported ctor and dtor in animation.cpp needed no behavioural change, because
-// they already delegate to the real helper at its retail address.
+// allocator's own critical section. Animation.h carries the correction.
 //
 //   Group, stride 0x30      +0x00  pointer, null => skip the whole group
 //                           +0x10  Collection::Array<GraphicsMesh::Node>, passed BY REFERENCE
@@ -408,15 +390,13 @@ Graphics::FrameCopyImageBuffer::~FrameCopyImageBuffer() {
 // reference_crt_coefficients_must_be_lifted_not_retyped.md got written.
 //
 // ---------------------------------------------------------------------------
-// §5.3  WHAT RETAIL DOES AFTER THE CALL, AND WHY IT IS AN INT COPY
+// §5.3  WHAT RETAIL DOES AFTER THE CALL
 // ---------------------------------------------------------------------------
-// It writes a Transform into `*state->_interp28`: identity quaternion, then the
+// It writes a Transform into `*state->_pose._data`: identity quaternion, then the
 // Vector3 the callee just left at `state+0x18`, moved as THREE DWORDS
 // (`MOV ECX,[RBX]` / `MOV EDX,[RBX+4]` / `MOV R8D,[RBX+8]` then three
-// `MOV dword`). Copied as uint32 here for the same reason
-// wave21_lane_gfxbody.cpp gives for its four constants: an integer move of a
-// float is bit-exact where a float assignment is only value-exact, and the two
-// differ on a signalling NaN or a negative zero.
+// `MOV dword`). Copied here as a struct assignment
+// (`dst->translation = state->_rootOffset`).
 //
 // ---------------------------------------------------------------------------
 // §5.4  THE BOUNDS ARE RE-READ EVERY ITERATION, AND THAT IS TRANSCRIBED
@@ -452,14 +432,12 @@ void RtGraphicsWave23GfxbodySummary() {
 }
 
 // ############################################################################
-// ENDGAME B.3.5 step 5, block GC -- `Graphics::AnimationManager::Update`'s body,
-// whose live door is the `extern "C"` function above.
+// ENDGAME B.3.5 step 5, block GC -- `Graphics::AnimationManager::Update`'s body.
 //
 // Its own `namespace Graphics { }` block, because a member definition has to
 // appear in a namespace ENCLOSING the class and `Graphics` / `RtGraphics` are
 // siblings (B34_BRIEFS A.2). This file's helpers are in the GLOBAL unnamed
-// namespace and are spelled `::` here, because inside `namespace Graphics` a
-// bare `AnimGroup` or `AnimTransform` would look inside `Graphics` first.
+// namespace and are spelled `::` here (`::g_animUpdStates`).
 // ############################################################################
 
 namespace Graphics {
@@ -473,16 +451,12 @@ namespace Graphics {
 // `_instances` is the `Array<Instance>` at +0x00, so retail's `[RCX]` and
 // `[RCX+8]` are `_instances._data` and `_instances._size` -- the same two loads,
 // now held by AnimationManager.h's own `static_assert`s. The GROUP record is
-// still this file's `AnimGroup` POD: it is field-for-field
-// `Graphics::AnimationManager::Instance` and its four asserts stay, because the
-// POD has live users outside this file and B4b-1 keeps it until the last one
-// converts.
+// `Graphics::AnimationManager::Instance` (AnimationManager.h).
 //
 // THE CALLEE EDGE IS NO LONGER A RESOLVER HIT (block GC item 6). The nine-argument
 // `RT_EXPORT_ONCE` onto `?Update@AnimationState@Graphics@@` is a QUALIFIED
 // non-virtual member call on `Graphics::AnimationState`, whose body block GC also
-// moved onto its member (`wave27_lane_gfxbig.cpp`). Its registered door is
-// untouched and still serves every caller outside this file. The nine-argument
+// moved onto its member (`wave27_lane_gfxbig.cpp`). The nine-argument
 // mangled name that settled the argument mapping is kept in the comment: that is
 // what the banner's "a stronger source than either" sentence was about.
 // ---------------------------------------------------------------------------
@@ -494,11 +468,6 @@ void AnimationManager::Update(const System::Time& time, bool rootOnly) {
         Instance* const g = &_instances._data[groupIndex];  // [RCX], reloaded each pass
 
         if (g->_group != nullptr && g->_states._size > 0) {
-            // Control 5 hoists this bound. It is the EFFECTIVENESS control and
-            // is EXPECTED TO REPORT NOT CAUGHT: nothing reachable here grows the
-            // array, so the hoist is genuinely unobservable and a control set in
-            // which every control fires proves only that the controls were
-            // picked to fire (reference_probe_needs_an_effectiveness_control.md).
             for (int32_t i = 0; i < g->_states._size; ++i) {
                 InstancedAnimationState* const state = &g->_states._data[i];   // stride 0x48
 
@@ -544,7 +513,7 @@ void AnimationManager::Update(const System::Time& time, bool rootOnly) {
 // ---------------------------------------------------------------------------
 // ?Create@FrameCopyImageBuffer@Graphics@@  0x1800a3b70 -- SLOT 9, ENDGAME B.3.5
 // block GC. The argument-to-offset map, the two-argument platform slot 3 call and
-// the "RDX is `this`, NOT `_backBufferImage`" note are in the door's banner.
+// the "RDX is `this`, NOT `_backBufferImage`" note are in the body below.
 //
 // Ten raw `base.*` POD writes became the real `Video::ImageBuffer` fields, which
 // is what the inheritance chain is for; `self + 0x60` is `_data`.
@@ -612,8 +581,8 @@ void FrameCopyImageBuffer::Generate(void* context, int32_t generation) const {
     Attend("FrameCopyImageBuffer::Generate BLIT", g_generateCopies);
 
     // rax = _destTarget (+0x80); rcx = rax->platformData (+0x28); r8 = _sourceTarget.
-    // `RenderBufferData::Resolve` (slot 3). LEFT: `RenderBuffer::platformData`
-    // is `void*` (Device.h), viewed once as the companion it is.
+    // `RenderBufferData::Resolve` (slot 3), on `RenderBuffer::platformData`, a
+    // `RenderBufferData*` (Device.h).
     _destTarget->platformData   // faithful: unguarded
         ->Resolve(context, _sourceTarget, true);
 

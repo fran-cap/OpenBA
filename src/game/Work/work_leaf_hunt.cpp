@@ -1,27 +1,17 @@
 // src/game/Work/work_leaf_hunt.cpp
 // Wave (Game-gap / Work-leaf) — faithful 1:1 ports of small exe helper functions
-// referenced via ResolveAddr(Module::Exe, 0xADDR) from the Hunt / HarvestOrchard /
-// Pasture / ConsumeProduce work classes. Each ResolveAddr returns 0 (silently
-// skipped) unless the address is registered. This file provides the clean reimplementations so the
+// called by name from the Pasture / ConsumeProduce work classes.
 #include "Work/exe_bodies.h"
-// standalone build fires real logic.
 //
 // Each function below is a byte-faithful port of the decompiled + disassembled exe
 // helper (offsets verified against Application-x64.exe in Ghidra). Do NOT "improve"
 // behaviour — these are 1:1 reproductions.
 //
-// SAFE subset only: every function here has its ENTIRE exe sub-callee closure already
-// registered (or is engine-resolved). The intricate action-chain builders
-// (0x1400bbbc0, 0x1400bb7b0, 0x1400bef70, 0x1400f2370) are DEFERRED — see the batch
-// report — because their sub-callee closures are incomplete and/or the 11-arg
-// XMM2/mixed-stack CreateRawMaterial call is too fidelity-risky to register blind on a
-// path autostart does not exercise.
-//
 // Bodies are unconditional so this compiles as-is in the standalone exe.
 
 #include <new>
 #include "object/TypeInfo.h"
-#include "Player/exe_bodies.h"                 // B3R: PlayerPath_FindComponent_3ea0
+#include "Player/exe_bodies.h"
 #include "Component/controller_state_table.h"   // B3R (StateMachine_TickReimpl went in B6 rows 392 / 510: Tick takes &Time(0))
 #include "system/Value.h"                      // B3R: RtSystem_Time_Ctor
 #include <cstdint>
@@ -142,7 +132,7 @@ int PastureComponent::FindOldestLivestock() const {
 // 0x14012b310  ConsumeProduceAction_helper_b310
 // ============================================================
 // RCX is a ResourceProduceComponent (+0x48 produceFlag; the address sits among its
-// bodies; its header is COMP-e's, so this stays free). Sets produceFlag = 1, finds the
+// bodies): a member of it. Sets produceFlag = 1, finds the
 // entity's StateMachineComponent (0x140003ea0), then if its state (the pending state,
 // or the input when none is pending) is not 0x0e (Paused): when the active state is negative,
 // tick the machine with a zero Time (StateMachine::Tick 0x1400a9660, useAlt 0, run 0),

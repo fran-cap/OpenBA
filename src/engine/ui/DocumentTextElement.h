@@ -130,7 +130,7 @@ constexpr int kCaptureHeight   = 0x54;
 //
 // `??_7DocumentTextElement@UI@@6B@` @ 0x1801566f0, TWELVE slots; sizeof 0x1c8
 // (`MOV EDX,0x1c8` in the slot-0 vector deleting dtor 0x18003c650):
-//   [0] 0x18003c650 deleting dtor (RT_DELDTOR row)  [1] 0x18003be50 TypeName
+//   [0] 0x18003c650 deleting dtor                   [1] 0x18003be50 TypeName
 //   [2] 0x18003be30 Type        [3] Element::Persist (inherited)
 //   [4] 0x1800cdb60 ComputeSize [5] 0x1800cda00 ComputeLayout
 //   [6] 0x1800cd7a0 Draw        [7] 0x1800cd360 Update — OVERRIDDEN
@@ -138,8 +138,7 @@ constexpr int kCaptureHeight   = 0x54;
 //
 // THE FIELDS are the offsets above (DocumentTextElementOffsets, every one read
 // out of a retail body) under names, cross-asserted below, plus what the ctor
-// (0x1800cf410, factory_ui1_tables.inc kDocumentTextElement), the copy ctor
-// (0x18003c140) and the dtor (0x1800cf320) — documenttextelement.cpp's doors —
+// (0x1800cf410), the copy ctor (0x18003c140) and the dtor (0x1800cf320)
 // store: the ctor writes +0xc0..+0x168 and +0x198..+0x1a8 and NOTHING in
 // +0x170..+0x197 or +0x1b0..+0x1c7 (GenerateItems resets those before use); the
 // copy ctor copies +0x170..+0x193 and +0x1b0..+0x1c7, so +0x10c, +0x194 and
@@ -253,7 +252,6 @@ public:
     DocumentTextElement& operator=(const DocumentTextElement& src); // 0x18003c3d0 not ported
 
     // ---- the private text pipeline (`AEAA` in retail) ----------------------
-    // Public here only because each keeps a registered door that reaches it.
     // Bodies in src/engine/ui/documenttext.cpp.
     void    GenerateItems();                                      // 0x1800cf060
     bool    GetNextItem(DocumentItem& item);                      // 0x1800cdf40

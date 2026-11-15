@@ -14,12 +14,8 @@
 //   0x18004cfc0  ?TypeName@ToolTipDialog@UI@@UEBAPEBDXZ     vtable slot 1
 //   0x18004cfa0  ?Type@ToolTipDialog@UI@@UEBAIXZ            vtable slot 2
 //
-// Vtable slot 0 (0x18004d270, the unexported VECTOR deleting destructor) is NOT
-// here: it is row 39 of the one-body family in
-// src/engine/object/deleting_dtor.cpp, exactly as
-// lane DLG8 put `??_7Dialog@UI@@6B@`'s slot 0 there. That file's table is
-// re-derived from the shipped DLL by tools/rt_deleting_dtor_verify.py, which is
-// the whole reason a 39th hand-written copy does not belong in this file.
+// Vtable slot 0 (0x18004d270, the unexported VECTOR deleting destructor) is the
+// compiler's, from the class's virtual destructor (ToolTipDialog.h).
 //
 // ---------------------------------------------------------------------------
 // ABSENCE ESTABLISHED BEFORE A LINE WAS WRITTEN
@@ -38,34 +34,19 @@
 // ---------------------------------------------------------------------------
 // `??_7ToolTipDialog@UI@@6B@` IS NOT IN THIS FILE, AND WHY
 // ---------------------------------------------------------------------------
-// It is exported DATA (0x180157880) and it is NOT a row in
-// standalone/rt_data_mint_tables.inc. It becomes one the moment
-// tools/rt_mint_gen.py is re-run — that generator's source-scan rule matches
-// the literal `"??_7ToolTipDialog@UI@@6B@"` which userinterface_hover.cpp:410
-// already spells, so the generated table is STALE (it predates Wave 10C), not
-// the rule wrong. Regenerating is a whole-file change that re-runs the census
-// and would capture three other live lanes mid-wave, so this lane did not do it
-// silently: the wave owner regenerates once at wave close.
+// It is exported DATA (0x180157880). A live ToolTipDialog wears the compiler's
+// table, from the class in src/engine/ui/ToolTipDialog.h (lane notes:
+// docs/history/runtime_port/WAVE10D_LANE_TIP.md). Retail's ten slots are
 //
-// **Minting is not porting.** Lane MINT established that by measurement in Wave
-// 10B: it minted `??_7Dialog@UI@@6B@` and the UI census set-diff came back
-// EMPTY. A `??_7` row leaves the census only when it is PROMOTED — registered
-// from standalone/reg_mint_promoted.cpp with the symbol spelled as a literal.
-// The promotion warrant this lane owes is written out in
-// docs/history/runtime_port/WAVE10D_LANE_TIP.md, ready to apply.
-//
-// What THIS file buys that regeneration alone does not: the minted row will
-// read `READY … TRAP=0` immediately, because the vtable's ten slots are
-//
-//   slot 0  0x18004d270  vector deleting dtor   -> deleting_dtor.cpp row 39
-//   slot 1  0x18004cfc0  TypeName               -> here
-//   slot 2  0x18004cfa0  Type                   -> here
+//   slot 0  0x18004d270  vector deleting dtor   -> the compiler's (~ToolTipDialog)
+//   slot 1  0x18004cfc0  TypeName               -> DECLARE_TYPE (ToolTipDialog.h)
+//   slot 2  0x18004cfa0  Type                   -> DECLARE_TYPE (ToolTipDialog.h)
 //   slot 3  0x180114fa0  Persist               |
 //   slot 4  0x180114fb0  OnOpened              |
 //   slot 5  0x180115330  OnClosed              |  DialogInstance's OWN slot
-//   slot 6  0x1801153a0  OnUpdateLayout        }  targets, byte-identical,
-//   slot 7  0x180115400  OnUpdate              |  and `??_7DialogInstance` is
-//   slot 8  0x180114ed0  OnElementEvent        |  already 10/10 and PROMOTED
+//   slot 6  0x1801153a0  OnUpdateLayout        }  targets, byte-identical
+//   slot 7  0x180115400  OnUpdate              |
+//   slot 8  0x180114ed0  OnElementEvent        |
 //   slot 9  0x180115470  OnSerializeSettings   |
 //
 // and slots 3..9 were COMPARED BY ADDRESS against
@@ -93,7 +74,7 @@
 #include "ui/TextElement.h"
 #include "ui/ToolTipDialog.h"
 #include "system/MemoryAllocator.h"
-#include "system/string_internal.h"   // RtSystem_String_Set / _Assign, RtString_*
+#include "system/string_internal.h"   // RtString_StrCompare
 
 namespace {
 
@@ -104,12 +85,6 @@ using UI::Element;
 // ---------------------------------------------------------------------------
 // These count ENTRIES, unconditionally, on every build, and print
 // unconditionally at exit.
-//
-// They exist because a green readiness screen is not a route. `READY / TRAP=0`
-// on the minted vtable says the table is safe to stamp, not that anything
-// dispatches it — two UI vtables are green-and-unpromoted right now for exactly
-// that reason. A zero here means the row is registered and DEAD whatever else
-// the board says.
 //
 // The EFFECTIVENESS CONTROL for each counter is named beside it: a quantity
 // that must VARY with the thing being counted, so the instrument cannot report
@@ -187,7 +162,7 @@ void* MemAlloc(uint64_t bytes, int align) {
 // sibling using align 4).
 //
 // The lock is NOT reproduced here for the same reason context_ctor.cpp does not
-// reproduce it: it is INSIDE MemAlloc, which is the door being called.
+// reproduce it: it is INSIDE MemAlloc, which this body calls.
 // ============================================================================
 extern "C" void* RtUi_ToolTipDialog_OperatorNew(uint64_t bytes) {
     ++g_newEntries;
@@ -208,10 +183,10 @@ extern "C" void* RtUi_ToolTipDialog_OperatorNew(uint64_t bytes) {
 //     INC dword ptr [RAX + -0x4]            ... and ADD A REFERENCE
 //     MOV RAX,RDX / RET
 //
-// That is `RtString_AdoptInline` exactly — the AddRef half of the copy ctor
+// That is the AddRef half of the copy ctor
 // (0x180006cb0) — and `data[-4]` is the REFCOUNT, `data[-8]` the length
 // (src/engine/system/String.h). Element +0x58 is `_toolTipString`, pinned by
-// `?SetToolTipString@` and asserted in src/engine/ui/Element.h:251.
+// `?SetToolTipString@` and asserted in src/engine/ui/Element.h:497.
 //
 // The `MOV dword ptr [RSP],0/1` pair at 0x1800356b4 / 0x1800356c9 is MSVC's
 // SEH state variable for the unwind funclet, not a program value; it is not
@@ -219,7 +194,7 @@ extern "C" void* RtUi_ToolTipDialog_OperatorNew(uint64_t bytes) {
 //
 // CALLER'S OBLIGATION, and it is retail's own: this hands back a reference the
 // caller must release. `BeginToolTip` calls it TWICE and releases both
-// (userinterface_hover.cpp:424 / :436).
+// (userinterface_hover.cpp:366 / :378).
 // ============================================================================
 
 // ============================================================================
@@ -233,7 +208,7 @@ extern "C" void* RtUi_ToolTipDialog_OperatorNew(uint64_t bytes) {
 // literal at 0x180157868, which reads `textToolTip\0` (verified from the DLL
 // image, and the vtable this file's banner tabulates begins in the very next
 // qword at 0x180157880). `System::String::Set` (0x1800c95d0) is PORTED, so this
-// goes through RtSystem_String_Set.
+// calls the member `Set`.
 //
 // STEP 2 (0x1800dab3d). `MOV RBX,[RBX+0x50]` — the DialogInstance root element,
 // read UNCONDITIONALLY and UNGUARDED. **Left unguarded deliberately.** This port
@@ -262,7 +237,7 @@ extern "C" void* RtUi_ToolTipDialog_OperatorNew(uint64_t bytes) {
 // inlined idiom, INCLUDING its asymmetry: on the freeing branch the object is
 // left holding `data - 8`, a dangling pointer, and only the sharing branch nulls
 // it. src/engine/system/String.h says in so many words "Reproduce it; do not
-// tidy it", and RtString_ReleaseInline is that transcription.
+// tidy it", and System::String::Release (String.h), run by ~String, is that transcription.
 //
 // STEP 6 (0x1800dabee..0x1800dac28) — the `SetParameter(0, text)` tail:
 //   * guard `CMP dword ptr [RBX+0xd0],0 / JLE` — SIGNED, on the parameter
@@ -305,7 +280,7 @@ Object::Base* ToolTipDialog::CreateInPlaceObject(void* place) {
 
 // ---- ?GetToolTipString@Element@UI@@QEBA?AVString@System@@XZ 0x1800356a0 ----
 // ENDGAME B.3.6 fragment pass F2: block A's class, its body in this file (the
-// disassembly is quoted at the door above). Returns a NEW reference the caller
+// disassembly is quoted in the banner above). Returns a NEW reference the caller
 // releases; the result starts null (0x1800356b7).
 System::String Element::GetToolTipString() const {
     System::String out;                                        // 0x1800356b7
@@ -332,7 +307,7 @@ ToolTipDialog::ToolTipDialog(UserInterface* ui, const Dialog* dialog,
     : DialogInstance(ui, dialog, parent, element.Get(), nullptr, 0) {}
 
 // ?SetText@ToolTipDialog@UI@@QEAAXAEBVString@System@@@Z   0x1800dab00 — the
-// six steps are the banner above the door.
+// six steps are the banner above.
 void ToolTipDialog::SetText(const System::String& text) {
     // ---- STEP 1 -------------------------------------------------------------
     System::String name;                                       // 0x1800dab22

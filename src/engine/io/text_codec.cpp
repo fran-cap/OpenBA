@@ -10,7 +10,7 @@
 //   IO::SerializeStringArray      retail 0x180029bb0   684 bytes
 //
 // All five UNEXPORTED — measured against the retail export directory with
-// pefile, not read off a mangling — so all five are ADDRESS rows.
+// pefile, not read off a mangling.
 //
 // ---------------------------------------------------------------------------
 // THE "SIX-ENTRY JUMP TABLE" IS SIX CASES OF ONE FUNCTION, NOT SIX FUNCTIONS
@@ -24,10 +24,11 @@
 //   decode 0x1800ca1b8 -> c9fe1 c9ff1 ca00a ca00a ca0e8 ca0e8
 //
 // Every target is INSIDE the dispatching function's own body — they are MSVC's
-// `switch` arms, four distinct ones per table because ids 2/3 share the UTF-8
-// arm and 4/5 share the UTF-16 arm. So this is two functions with a switch, not
-// twelve doors, and they are written below as switches (PLAN.md §6: port the
-// switch as a switch).
+// `switch` arms: four distinct ones in the decode table and five in the encode
+// table, because ids 2/3 share the UTF-8 arm in both and 4/5 share the UTF-16
+// arm in decode only. So this is two functions with a switch, not twelve doors,
+// and they are written below as switches (PLAN.md §6: port the switch as a
+// switch).
 //
 // THE SIX FORMAT IDS, now readable off the arms rather than guessed:
 //   0  single byte, codepoints 0x00..0xFF        (1 byte/char)
@@ -64,8 +65,7 @@
 // (0x1800ca2a1..0x1800ca2c6) is a fifth, and `DetectFormat`'s literals
 // (EF BB BF -> 3, FF FE -> 4, FE FF -> 5) are the source all five agree with.
 // `TfsBomSkip` in text_file_stream.cpp already encodes it; that function is
-// left alone rather than shared across the TU boundary, for the reason that
-// file's own banner gives about per-file doors.
+// left alone rather than shared across the TU boundary.
 //
 // ---------------------------------------------------------------------------
 // ORACLE — none. Three of the five are pure functions of their arguments and

@@ -28,30 +28,25 @@
 //       PlayAnimation), wrap in an InternalBasePtr, FUN_1400c54e0(stack, &ibp) — push.
 //   ... alloc a MoveTo action (0x480) via MoveTo_Action_Ctor, push.
 //
-// SELF-CONTAINED-BRICK NOTE: the SendComponentMessage message-id globals
-// DWORD_1401c70e8 / DWORD_1401c7158 and the HappinessComponent id DAT_1401c42c0 are NOT
-// registered in standalone (read 0). We null-guard them exactly like the existing
-// citizenai_handlers.cpp PlayAnimationActionCtor5 — the message actions then carry id 0.
-// The RawMaterialDescription id DAT_1401c7cb8 IS registered+filled, so the Ctor5/Ctor10
-// storage-limit component scan reads the real CRC.
+// The SendComponentMessage message ids DWORD_1401c70e8 (CitizenAIComponent) / DWORD_1401c7158
+// (CitizenComponent), the HappinessComponent id DAT_1401c42c0 and the RawMaterialDescription
+// id DAT_1401c7cb8 (the Ctor5/Ctor10 storage-limit component scan) are those classes' TypeId().
 //
-// ALL exe sub-callees are already registered (resolved via ResolveAddr) — bodies NOT
-// duplicated here:
-//   0x1400c5400  FUN_1400c5400  action-stack cleanup       (reg_pf_ctors / reg_work_base)
-//   0x1400c54e0  FUN_1400c54e0  action-stack push          (reg_pf_ctors)
-//   0x1400cb1d0  SendComponentMessage_Action_CopyCtor      (reg_pf_ctors)
-//   0x1400c9170  MoveTo_Action_Ctor                        (reg_pf_ctors)
-//   0x1400c5da0  CompleteTask_Action_CopyCtor              (reg_pf_ctors)
-//   0x1400012d0  Entity_FindComponent_Family               (reg_action_move / reg_pf_ctors)
-//   0x1400c29a0  Entity_impl_29a0 (returns float anim-idx) (reg_action_child_ctors)
-//   0x1400c7cd0  DropOffRawMaterial_Action_CopyCtor        (reg_action_child_ctors2)
-//   0x1400c63b0  ConsumeRawMaterial_Action_CopyCtor        (reg_action_child_ctors2)
-//   0x1400ca520  PickupStoredRawMaterial_Action_CopyCtor   (reg_action_child_ctors2)
-//   0x140042890  ShowTool_Action_Ctor                      (reg_action_child_ctors)
+// ALL exe sub-callees are ported elsewhere — bodies NOT duplicated here:
+//   0x1400c5400  FUN_1400c5400  action-stack cleanup
+//   0x1400c54e0  FUN_1400c54e0  action-stack push
+//   0x1400cb1d0  SendComponentMessage_Action_CopyCtor
+//   0x1400c9170  MoveTo_Action_Ctor
+//   0x1400c5da0  CompleteTask_Action_CopyCtor
+//   0x1400012d0  Entity_FindComponent_Family
+//   0x1400c29a0  Entity_impl_29a0 (returns float anim-idx)
+//   0x1400c7cd0  DropOffRawMaterial_Action_CopyCtor
+//   0x1400c63b0  ConsumeRawMaterial_Action_CopyCtor
+//   0x1400ca520  PickupStoredRawMaterial_Action_CopyCtor
+//   0x140042890  ShowTool_Action_Ctor
 //
-// Engine helpers (engine_funcs.h): fn_ObjectInternal_Ctor, fn_InternalBasePtr_Ctor,
-//   fn_InternalBasePtr_CheckPtr, fn_InternalBasePtr_DeletePtr, fn_Time_Ctor_Float,
-//   System::MemoryAllocator::MemAlloc(size, 8), g_pGameWorldSingleton.
+// Engine helpers: System::MemoryAllocator::MemAlloc(size, 8), RtSystem_Time_Ctor,
+//   GameUpdateLoop::_singleton.
 //
 // Action vtables (exe .rdata): vtable_Action 0x14015faa0, vtable_PerformWork 0x14015fea0,
 //   vtable_PlayAnimation 0x140158950 (all confirmed from the ctor disasm `LEA RAX,[...]`).
@@ -83,7 +78,7 @@
 #include "Component/CitizenAIComponent.h"   // CitizenAIComponent::TypeId() (the message target)
 #include "Component/CharacterComponent.h"
 #include "Component/ComponentDescription.h"
-#include "Object/factory_registration.h"   // Object::GetTypeIdByName (c7158 heal)
+#include "Object/factory_registration.h"   // Object::GetTypeIdByName
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -99,24 +94,22 @@
 #include "ext/tool_names/tool_names.h"
 #include "ext/registry.h"
 #include "system/Value.h"   // RtSystem_Time_Ctor
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc
 
 namespace {
 
 // Exe sub-callees, called by name (B4 P2 CAI-1: the action ctors are called directly in
-// place of their C forwarders): WorkBase_TaskListCleanup_c5400 0x1400c5400,
+// place of their C forwarders): ActionStack::Clear 0x1400c5400,
 // ActionStackPush 0x1400c54e0, SendComponentMessage 0x1400cb1d0, MoveTo 0x1400c9170,
-// CompleteTask 0x1400c5da0, FindCharacterComponent 0x1400012d0, HeadingToward 0x1400c29a0,
+// CompleteTask 0x1400c5da0, FindComponent<CharacterComponent> 0x1400012d0, HeadingToward 0x1400c29a0,
 // DropOffRawMaterial 0x1400c7cd0, ConsumeRawMaterial 0x1400c63b0, PickupStoredRawMaterial
 // 0x1400ca520, ShowTool 0x140042890. Message targets: 70e8 (CitizenAIComponent) /
 // 42c0 (HappinessComponent) are those classes' TypeId(). The .rdata floats are exe_constants.h's kRdata_140172124 (0.75),
 // _140172174 (2.0), _140172194 (4.0), _140172198 (5.0), _14017214c (1.0), _140172280 (-1.0).
 
-// ENDGAME B.3.9 (B39_RULES.md D5): 0x1401c7158 is CitizenComponent's registered
-// type-id cell (INVENTORY_C Table 1); it always holds CitizenComponent's id after
-// Fill*, so the previous "heal to the class static when the raw read is 0" fallback
-// (kept as history above) is now mechanically equivalent to calling the static
-// directly. Unambiguous here: every c7158 use in this file targets CitizenComponent.
+// ENDGAME B.3.9 (B39_RULES.md D5): 0x1401c7158 is CitizenComponent's type-id cell
+// (INVENTORY_C Table 1), so MsgId7158 returns CitizenComponent::TypeId().
+// Unambiguous here: every c7158 use in this file targets CitizenComponent.
 static inline uint32_t MsgId7158() {
     return CitizenComponent::TypeId();
 }
@@ -124,13 +117,11 @@ static inline void*    MemA(uint64_t sz) {
     return System::MemoryAllocator::MemAlloc(sz, 8);
 }
 
-// The inline PerformWork actions below are placed at `mem` (0x48 bytes). animIdx is the facing
+// The inline PerformWork actions below are placed at `mem` (0x48 bytes) by PerformWork's
+// parameterised ctor (0x1400c9720) with useTool = 0 and field44 = -1. animIdx is the facing
 // float stored at +0x28 (-1000.0f where the original used the literal 0xc47a0000).
-// time = the System::Time for +0x30, type = +0x2c work type.
-// ENDGAME B.3.9 EXA: the real class — PerformWork's parameterised ctor
-// (0x1400c9720) with useTool = 0 and field44 = -1 writes exactly the stores this
-// helper wrote by hand after the `??0Internal` door and the two stamps (the
-// citizen IBP is copied raw at +0x20, as retail's inlined ctor does).
+// time = the System::Time for +0x30, type = +0x2c work type (the citizen IBP is copied raw
+// at +0x20, as retail's inlined ctor does).
 
 // Resolve the citizen's character (+0x278) and its +0x48 action stack; return the stack
 // and store the character via `outChar`. `doCleanup` runs FUN_1400c5400 cleanup (all
@@ -211,8 +202,8 @@ static RawMaterialDescription* FindLimitComponent(ComponentDescription* material
 
 // ============================================================
 // 0x1400c1070 — PerformWork_Action_Ctor4  (called by State_LongTermPlan)
-// The full "fetch axe / chop / drop raw / build" sequence. Only runs when param_6 (the
-// build flag) is set. Pushes: SendComponentMessage(lead)+DropOffRaw(into +0x58); then
+// The full "fetch axe / chop / drop raw / build" sequence. param_6 (the build flag) gates
+// the stack cleanup and the lead block. Pushes: SendComponentMessage(lead)+DropOffRaw(into +0x58); then
 // PerformWork(type 7) + ShowTool(~Axe=-? see note) + DropOffRaw + PerformWork(type 6) +
 // MoveTo + ShowTool. animIdx = HeadingToward(dest). The work-mask bit comes from the
 // terrain cell flag byte at grid+0x80 + param_4*0x30 + 0x29.
@@ -220,7 +211,7 @@ static RawMaterialDescription* FindLimitComponent(ComponentDescription* material
 //   param_4 = cell index ; param_5 = drop-raw flag byte ; param_6 = build flag.
 // NOTE: ShowTool takes ~Axe (the original passes the bitwise-NOT of the Axe tool enum).
 // Axe's enum value isn't separately known here; the original literal is reproduced as the
-// disasm immediate. We pass the same immediate ShowTool received (see s_showToolAxeArg).
+// disasm immediate. We pass the same immediate ShowTool received (see kShowToolAxeArg).
 // ============================================================
 // ShowTool's 3rd arg is the immediate 0xfffffffe (-2), verified from the Ctor4 disasm
 // (`MOV R8D,0xfffffffe` before both CALL 0x140042890). The decompile rendered it as "~Axe".

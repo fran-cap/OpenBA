@@ -3,7 +3,7 @@
 // (src/ext/storage_metrics/storage_math.h)
 // ============================================================================
 // What the Town Hall's Storage tab shows: a building's kind from its components, the used and total space
-// per kind and per building type, which lines appear, and the two texts ("12,400 / 15,000", "82.6%").
+// per kind and per building type, which lines appear, and the two texts ("12,400 / 15,000", "82.7%").
 // ============================================================================
 #include "unit.h"
 #include "ext/storage_metrics/storage_math.h"
@@ -15,7 +15,7 @@ namespace {
 
 using namespace Ext::StorageMetrics;
 
-// stand-ins for three templates, compared by address only
+// stand-ins for four templates, compared by address only
 const int kYard = 0;
 const int kBarn = 0;
 const int kModBarn = 0;

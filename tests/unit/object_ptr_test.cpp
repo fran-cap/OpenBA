@@ -9,7 +9,7 @@
 // So the whole of their observable behaviour on the host is the trivial
 // semantics tested below — and those semantics are load-bearing, not trivia:
 // `Collection::Array` bulk-moves these eight bytes with a plain qword copy and
-// an explicit "NO refcount touch" (src/engine/collection/array.cpp:983), so a
+// an explicit "NO refcount touch" (src/engine/collection/array_destroy.cpp:1000), so a
 // user-provided copy ctor or destructor would be SILENTLY BYPASSED. The
 // `is_trivially_*` checks below are the regression test for that hazard.
 //
@@ -91,8 +91,8 @@ UNIT_TEST(external_ptr_survives_a_bulk_byte_copy) {
 }
 
 UNIT_TEST(internal_base_ptr_shim_copy_matches_assignment) {
-    // The registered C shim (RtObject_InternalBasePtr_Copy) goes through this
-    // forwarder because retail's `Copy` is protected (`IEAA`).
+    // `Shim_Copy` is a static forwarder because retail's `Copy` is protected
+    // (`IEAA`).
     BasePtr src(g_objB);
     BasePtr dst;
     BasePtr::Shim_Copy(&dst, &src);

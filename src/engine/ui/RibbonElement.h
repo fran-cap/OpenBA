@@ -22,12 +22,13 @@
 //   * sizeof 0xd8 — `MOV EDX,0xd8` in the slot-0 vector deleting dtor
 //     0x180044ac0 (B36_SLOTS.md section 1) and CreateInstance's Allocate(0xd8).
 //
-// PARENT, read (B36_SLOTS.md section 3), recorded not used (RULE B6-7):
+// PARENT, read (B36_SLOTS.md section 3); DEFINE_TYPE in ribbonelement.cpp builds
+// `_typeInfo` from both (RULE B6-7):
 //     ?_TypeName@RibbonElement@UI@@CAPEBDXZ       @0x1800446a0 -> "RibbonElement"
 //     ?_ParentTypeName@RibbonElement@UI@@CAPEBDXZ @0x1800446b0 -> "Element"
 //
 // `??_7RibbonElement@UI@@6B@` @ 0x180156e70, TWELVE slots:
-//   [0] 0x180044ac0 deleting dtor (RT_DELDTOR row)  [1] 0x1800446e0 TypeName
+//   [0] 0x180044ac0 deleting dtor                   [1] 0x1800446e0 TypeName
 //   [2] 0x1800446c0 Type        [3] Element::Persist (inherited)
 //   [4] 0x1800d6190 ComputeSize [5] 0x1800d6410 ComputeLayout
 //   [6] 0x1800d6740 Draw        [7..11] Element's (inherited — Update too)
@@ -37,8 +38,7 @@
 // own slot 0 (the vector deleting dtor), a virtual ~RibbonElement holding
 // the retired ??1 door's body, and the factory pair as the class's own statics;
 // every live one wears the COMPILER's table. The minted `??_7RibbonElement@UI@@6B@`,
-// its RT_DELDTOR row 0x180044ac0 and the ctor / dtor / slot doors are retired
-// (tools/rt_mint_retired/ui-b.txt).
+// its RT_DELDTOR row 0x180044ac0 and the ctor / dtor / slot doors are retired.
 // ABSTRACT (slot 0 `= 0`), NO real ctor (the `??0RibbonElement` door builds
 // every live one; it wears the MINTED table).
 // ============================================================================
@@ -81,8 +81,8 @@ public:
     void Draw(SpriteContext& context, uint8_t alpha) const override; // [6] 0x1800d6740
 
     // ---- non-virtual members ----------------------------------------------
-    // Body in element_bodies_b5.cpp (door RtUi_RibbonElement_AddItem, fragment
-    // pass). The handle arrives as the ADDRESS of the caller's temporary.
+    // Body in element_bodies_b5.cpp (fragment pass). The handle arrives as the
+    // ADDRESS of the caller's temporary.
     void AddItem(Object::InternalPtr<Element>* item);             // 0x1800448e0
     bool IsVertical() const;                                      // 0x180044970  not ported
     void GetCellLayout(int32_t index, int32_t& x, int32_t& y,

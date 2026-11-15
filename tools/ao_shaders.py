@@ -4,7 +4,7 @@
 The exe has no runtime shader compiler (docs/extensions/AO.md §2 "Shaders"), so every entry point
 ASSAODX11.cpp asks D3DCompile for is compiled here, once, with exactly the defines and flags
 ASSAODX11.cpp passes, and written as `src/render/common/ao/shaders/<entry>.h` (`/Fh`, one
-`const uint8_t g_<entry>[]` per header, fxc's BYTE rewritten so shared code needs no Win32 typedef).
+`const uint8_t g_ao_<entry>[]` per header, fxc's BYTE rewritten so shared code needs no Win32 typedef).
 
     python -I tools/ao_shaders.py [--fxc PATH] [--check]
 

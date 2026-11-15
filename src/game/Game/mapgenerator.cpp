@@ -129,7 +129,7 @@ void MapGenerator::Destruct() { this->~MapGenerator(); }
 //
 // RESOLVE DEFERRED: the original resolves each ExternalRef name to a template
 // during deserialize (FUN_14001b1d0). We SKIP that here — every start-town
-// spawn pass re-resolves each entry lazily via ResolveExternalByName before use
+// spawn pass re-resolves each entry lazily via NamedExternalRef::ResolveDescription before use
 // (e.g. ComponentEntity_impl_09e0/_1fc0/_02f0, FUN_1400a12b0). So the pools just
 // store the names; resolution happens at spawn time.
 //
@@ -166,8 +166,8 @@ bool MG_IsLoading(IO::Serializer& serializer) {
 // The structural arms (exact-equal early return, `_size` first, treble rule,
 // copy prefix only when the block moved, init the tail, free only the moved
 // block) matched arm for arm. The stride-0x18 row is the same row
-// goal_exe_helpers.cpp carries as kSpec_GoalRefEntry for the same retail body
-// (0x14001b340); it is repeated here because that one is file-local.
+// goal_exe_helpers.cpp carries as GoalRows::kSpec_GoalRefEntry for the same retail body
+// (0x14001b340); it is repeated here.
 // stride 8 — InitialFamily {bool _educated@0, int _maxChildCount@4}, exe 0x14001b270.
 // Retail's assign is one qword; its init writes byte 0 and dword 4, leaving
 // [1,4) untouched.
@@ -264,7 +264,7 @@ void AssignMGStructure(uint8_t* d, const uint8_t* s) {
 void MG_InitStructure(uint8_t* e) {
     rtcoll::InitAs<InitialStructure, &ZeroMGStructure>(e);
 }
-// stays explicit: same as kSpec_MGRef, plus a -1 seed for _width/_height at
+// stays explicit: same as kSpec_ExternalRef, plus a -1 seed for _width/_height at
 // +0x20 and a second unwritten extent at [0x2c,0x30).
 }  // namespace
 const rtcoll::ArraySpec MapGeneratorRows::kSpec_InitialStructure = {   // exe 0x14001b4e0 / 0x14001b0a0

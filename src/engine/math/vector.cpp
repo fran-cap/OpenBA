@@ -12,20 +12,16 @@
 // term order and every branch is the one Wave 1 transcribed. What changed is
 // only the plumbing: the hidden return slot the DLL boundary needed is gone
 // (there is no cross-compiler ABI any more, B31_RULES), so a function that
-// wrote `*ret` and returned it now returns by value. The `RtMath_*` free
-// functions at the bottom of this file are one-line shims onto the members,
-// kept so that no caller has to move in the same commit; they and their
-// registry rows die in step 2.
+// wrote `*ret` and returned it now returns by value.
 //
 // FUN_180128110 (sqrt) and FUN_180126680/FUN_180127d90/FUN_180126d10
 // (atan2/sinf/cosf) were decompiled and confirmed to be plain CRT math
 // wrapped in matherr-style domain-error handling; for every finite,
 // non-exceptional input actually reached by these callers they reduce to the
 // hardware sqrtss/plain libm call. Transcendentals go through the RtLibm seam
-// (src/engine/rt_libm.h) rather than calling std:: or the DLL directly:
-// our own libm by default (so the port survives Runtime-x64.dll's eventual
-// removal, PLAN.md §4.1 decision 1), with the DLL's own CRT available as a
-// diagnostic to tell a real bug from ordinary last-bit libm rounding.
+// (src/engine/rt_libm.h) rather than calling std:: directly; the ported MSVC
+// CRT bodies in src/engine/crt/msvc_libm.cpp are its only implementation
+// (docs/runtime_port/PLAN.md §4.1 decision 1: the port runs without Runtime-x64.dll).
 // ============================================================================
 
 #include <cmath>
@@ -130,7 +126,7 @@ Vector2 Vector2::Normalize(Scalar& mag) const {
 // (2/3/4 for Vector2/3/4) is arg 2. The old three-argument form left the
 // ignored `const char* name` register unset; passing nullptr is wire-identical.
 void Vector2::Serialize(::IO::Serializer& serializer) {
-    serializer.Serialize(2, &x, nullptr);   // +0x28, the float-array door
+    serializer.Serialize(2, &x, nullptr);   // +0x28, the float-array slot
 }
 
 // ============================================================
@@ -219,7 +215,7 @@ Vector3 Vector3::Normalize() const {
 // ?Serialize@Vector3@Math@@QEAAXAEAVSerializer@IO@@@Z  retail 0x1800150e0 — see the Vector2
 // Serialize comment above; NOT diffable, same vtable-slot pattern, count = 3.
 void Vector3::Serialize(::IO::Serializer& serializer) {
-    serializer.Serialize(3, &x, nullptr);   // +0x28, the float-array door
+    serializer.Serialize(3, &x, nullptr);   // +0x28, the float-array slot
 }
 
 // ============================================================
@@ -233,7 +229,7 @@ void Vector3::Serialize(::IO::Serializer& serializer) {
 // ?Serialize@Vector4@Math@@QEAAXAEAVSerializer@IO@@@Z  retail 0x18001d360 — see the Vector2
 // Serialize comment above; NOT diffable, same vtable-slot pattern, count = 4.
 void Vector4::Serialize(::IO::Serializer& serializer) {
-    serializer.Serialize(4, &x, nullptr);   // +0x28, the float-array door
+    serializer.Serialize(4, &x, nullptr);   // +0x28, the float-array slot
 }
 
 }  // namespace Math

@@ -26,10 +26,8 @@
 #include "Game/TerrainGenerator.h"   // B8 RT2: ::Object::SerializeExternal<TerrainGenerator> (the downcast needs it complete)
 
 // The three typed ExternalPtr serializers (exe 0x140019ec0 / 0x14001a0c0 /
-// 0x1400194a0), ported in serialize_externals_typed.cpp and registered at
-// those addresses by address_registry.cpp. ENDGAME B.3.8 (B6-5): called
-// directly instead of through a lazily filled ResolveAddr cache (the menu
-// loader thread builds Scenarios).
+// 0x1400194a0) are ::Object::SerializeExternal<T>, called directly from
+// Serialize (the menu loader thread builds Scenarios).
 
 // ============================================================
 // Construction / destruction

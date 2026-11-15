@@ -42,9 +42,6 @@
 
 namespace {
 
-// Pull the RawMaterialDescription out of a material description's child list and report
-// its category flags and sprite name. Guarded throughout -- this is a diagnostic, and a
-// malformed entry must print "?" rather than take the process down.
 // Read a RawMaterialDescription's category flags and sprite name.
 bool ReadRawMat(const RawMaterialDescription* rd, const char** outName, unsigned* outFlags) {
     if (!rd) return false;

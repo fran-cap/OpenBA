@@ -1,6 +1,6 @@
 // ============================================================================
 // tests/unit/xwma_tos16_test.cpp — Audio::FloatToS16 / PlanesToS16 against the
-// original conversion (LOADPLAN block AUDIODEC, handins/AUDIODEC.md)
+// original conversion (LOADPLAN block AUDIODEC, docs/extensions/handins/AUDIODEC.md)
 // ============================================================================
 // OldToS16 below is the decoder's per-sample body before AUDIODEC, verbatim; it
 // lives here only (feedback_no_off_switched_perf_bodies_in_main). Every check is
@@ -200,8 +200,8 @@ struct Sound {
 
 // Finds every run whose format window is mono / stereo WMA v2 and whose two counts
 // agree with it: table bytes == 4 * packets, packet bytes == packets * nBlockAlign,
-// the table strictly increasing. The resources store sounds uncompressed
-// (tests/unit/data/README.md), so this is the scan that cut the fixture.
+// the table strictly increasing. It finds only the sounds stored uncompressed
+// (tests/unit/data/README.md); this is the scan that cut the fixture.
 void Scan(const std::vector<uint8_t>& pkg, std::vector<Sound>& out) {
     const size_t n = pkg.size();
     const uint8_t* d = pkg.data();

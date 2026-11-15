@@ -2,7 +2,7 @@
 // ============================================================================
 // src/ext/resources/text_parser.h -- our .rsc text dialect, parsed into a tree
 // ============================================================================
-// NOT RETAIL (docs/extensions/KITFREE.md, block RSCTEXT). The three files under
+// NOT RETAIL (docs/extensions/KITFREE.md, block RSCTEXT). The files under
 // src/ext/ui/Dialog/ (embedded into the exe by tools/ext_rsc_embed.py) use
 // exactly this much of the kit's resource syntax, and nothing more:
 //

@@ -9,44 +9,25 @@
 //   | (unexported) KeyMap deleting dtor    | 0x180053440 |  --  |   26   |
 //
 // The mangled name was checked against Runtime-x64.dll's export directory with
-// pefile before a line was written — `QEAA` (public), not `AEAA`; lane PKG2
-// nearly shipped the private spelling of a helper and that resolves NULL
-// silently and forever. 0x180053440 has no name in EITHER build and is
-// registered by ADDRESS only.
-//
-// ---------------------------------------------------------------------------
-// WHY THESE TWO TOGETHER
-// ---------------------------------------------------------------------------
-// They are the last two by-address doors the Input cluster leaves open. Both
-// were listed by `tools/addr_door_audit.py --csv` as unregistered:
-//
-//   0x1800a7520  src/engine/input/input.cpp:615               (Configuration::Save)
-//   0x180053440  src/engine/engine/engine_lifecycle.cpp:858
-//                src/engine/input/input_config_startup.cpp:180
-//
-// `Configuration::Save` already CALLS 0x1800a7520 by address, so on the DLL-less
-// boot that call executes address 0 — the failure class attempts 13 and 17 both
-// died on. 0x180053440 sits on `Engine::Shutdown`'s input-configuration
-// teardown and on `Configuration::Startup`'s re-entry arm.
+// pefile before a line was written — `QEAA` (public), not `AEAA`. 0x180053440
+// has no name in EITHER build.
 //
 // ---------------------------------------------------------------------------
 // CLOSURE, COUNTED BEFORE WRITING (lane PICK's rule)
 // ---------------------------------------------------------------------------
 //   Save (0x1800a7520)
 //     0x1800c9730  ?Format@String@System@@SA?AV12@PEBDZZ   PORTED (string.cpp)
-//     0x1800b80c0  IO::Persistence::Set(int)               PORTED (persistence.cpp:188)
+//     0x1800b80c0  IO::Persistence::Set(int)               PORTED (persistence.cpp:175)
 //     0x1800c6c00  ?Free@MemoryAllocator@System@@…         PORTED (allocator.cpp)
 //     [0x18014b390]/[0x18014b388]  Enter/LeaveCriticalSection — KERNEL32
 //   deleting dtor (0x180053440)
 //     0x180023130  Set<E24> destroy subtree                PORTED THIS LANE
 //                                                          (set_avl_e24.cpp)
-//     0x180009c30  the allocator-lock Free wrapper         REGISTERED
-//     0x180006a10  the guarded object free                 REGISTERED
-//                                                          (video/context_lifecycle.cpp:697)
+//     0x180009c30  the allocator-lock Free wrapper         PORTED (set_avl_e24.cpp)
+//     0x180006a10  the guarded object free                 PORTED
+//                                                          (video/context_lifecycle.cpp:257)
 //
-// **Zero new unregistered doors.** Both are called DIRECTLY here rather than
-// through a resolver wherever the callee is ours, which is what keeps these
-// bodies off the DLL at cutover.
+// Every callee is called DIRECTLY here.
 //
 // ---------------------------------------------------------------------------
 // SAVE IS `LOAD` RUN BACKWARDS, AND THE ASYMMETRY IS REAL
@@ -76,48 +57,10 @@
 // which is exactly what Load decodes with `(v >> 8) & 0xFF` / `v & 0xFF`.
 //
 // ---------------------------------------------------------------------------
-// ORACLE
+// SAVE ONLY READS THE KEYMAP
 // ---------------------------------------------------------------------------
 // **Save is a PURE READ of the KeyMap** — it mutates only `IO::Persistence`'s
-// settings map, never a binding — and its writes are IDEMPOTENT and
-// value-identical, which is the property Wave 8.5 measured for
-// `SerializeReferenceTable` and used to license a full ours-then-theirs replay
-// rather than a prefix stop. So the oracle is **OUR WRITER, THEIR READER, THEN
-// THEIR WRITER, THEIR READER** — the same shape lane D built for
-// `KeyMap::RegisterInput`:
-//
-//   1. ours runs, writing for real, recording every (key, value) it emitted;
-//   2. every recorded key is read back with the SHIPPED
-//      `?Get@Persistence@IO@@QEBA_NPEBD0AEAH@Z` (via `the raw DLL door`, so the
-//      registry cannot hand back our own port) -> the value OUR writer left;
-//   3. the SHIPPED `?Save@KeyMap@Input@@QEAAXXZ` runs on the same KeyMap;
-//   4. every key is read back again -> the value THEIR writer left;
-//   5. all three must agree, per key.
-//
-// Nothing is corrupted by a failing comparison, because THEIRS RUNS LAST: the
-// map ends in exactly the state a retail Save would have left it in. A key ours
-// wrote WRONG is caught at step 5 (theirs overwrote it with a different value);
-// a key ours FAILED to write is caught too, because step 2 reads the stale
-// value or nothing at all and step 4 reads retail's.
-//
-// **What this oracle CANNOT see, said out loud:** an EXTRA key ours emits that
-// theirs does not. Both read-backs would agree on it, because both are reading
-// what our own writer put there. The compensating check is the count — we
-// record how many settings our body emitted and assert it equals two per
-// exclusive binding — but that is our own bookkeeping, not retail's, and it is
-// labelled as such below. A recorded-key-set comparison would need the shipped
-// `Persistence::Set` detoured, which is a NEAR call inside the DLL that our
-// registry cannot intercept.
-//
-// A NEGATIVE CONTROL runs alongside it: a scratch key is written and read back,
-// and the comparison is required to distinguish the value it wrote from that
-// value plus one. If it cannot, the per-key agreements above prove nothing and
-// the line says so.
-//
-// The dtor has NO oracle and gets a self-check plus a did-work counter: it
-// FREES the tree, so there is nothing left to compare, and the shipped body's
-// frees go through a near call our registry cannot see. Its correctness rests
-// on `set_avl_e24.cpp`'s `DestroySubtree`, which the lockstep probe covers.
+// settings map, never a binding.
 // ============================================================================
 
 #include <cstdint>
@@ -138,9 +81,8 @@ using Input::BindingNode;
 // is a static member of `System::String` now, so the local variadic declaration
 // this file carried for the shim is gone — as in keymap_load.cpp.
 
-// IO::Persistence::Set(section, key, int) — our Wave 4 port, registered at
-// 0x1800b80c0. Called DIRECTLY: a resolver call would be a door, and this one
-// has a body on our side already.
+// IO::Persistence::Set(section, key, int) — 0x1800b80c0, called DIRECTLY as a
+// member (persistence.cpp).
 
 namespace {
 
@@ -181,11 +123,11 @@ BindingNode* NextNode(BindingNode* n) {
 }
 
 // ---------------------------------------------------------------------------
-// The emission recorder — the sink both sides of the oracle write into.
+// The emission recorder. `EmitSetting` records into it only while `g_recording`
+// is set, and nothing in the tree sets it.
 //
-// A key is up to 64 bytes; the engine's longest binding description is well
-// under that, and an overrun is TRUNCATED and COUNTED rather than dropped, so a
-// truncation cannot masquerade as agreement.
+// A key is up to 64 bytes; a longer one is TRUNCATED by the snprintf, and an
+// emission past kMaxEmissions is COUNTED in g_emitOverflow rather than stored.
 // ---------------------------------------------------------------------------
 struct Emission { char key[64]; int value; };
 
@@ -202,9 +144,8 @@ void Record(const char* key, int value) {
     e.value = value;
 }
 
-// The body's one write point. It ALWAYS performs the real write — the oracle
-// observes through the read-back, it does not divert the write — and records
-// the pair when the diff arm asked it to.
+// The body's one write point. It ALWAYS performs the real write, and records
+// the pair while `g_recording` is set.
 void EmitSetting(::IO::Persistence* persistence, const char* key, int value) {
     if (g_recording) Record(key, value);
     persistence->Set(kSection, key, value);
@@ -262,10 +203,7 @@ void KeyMap::Save() {
 
     g_recording = false;
 
-    // The effectiveness control. A KeyMap with no exclusive bindings reaches
-    // every line of this function and emits nothing, while `calls=` still reads
-    // 1 — count what the body actually did, inside the body
-    // (reference_probe_needs_an_effectiveness_control.md).
+    // `written` counts the slots the body emitted; nothing reads it.
     (void)written;
 }
 
@@ -288,8 +226,8 @@ void KeyMap::Save() {
 // It returns `this` in RAX and takes NO deleting-flag argument, so it is the
 // scalar delete MSVC folded at the `delete keyMap` sites — not the exported
 // `??1KeyMap@Input@@QEAA@XZ` (0x180022970), which is a DIFFERENT function that
-// does not free the object. The two must not be confused: registering this body
-// under the `??1` name would free the object out from under a stack KeyMap.
+// does not free the object. The two must not be confused: running this body as
+// `??1` would free the object out from under a stack KeyMap.
 //
 // `s->root`/`s->count` are zeroed AFTER the tree is gone and BEFORE the object
 // is freed, i.e. into memory that is about to be released. Retail does it;
@@ -321,11 +259,8 @@ Input::KeyMap* RtInput_KeyMap_DeletingDtor(Input::KeyMap* self) {
     // argument (video/context_lifecycle.cpp).
     Rt_GuardedObjectFree(self);
 
-    // No comparison is possible: the tree is freed, so there is nothing left to
-    // compare against, and the shipped body reaches 0x180009c30 through a near
-    // call our registry cannot intercept. What IS checkable is that the destroy
-    // walk reached one node per counted binding, minus the root this body frees
-    // itself.
+    // The destroy walk should reach one node per counted binding, minus the root
+    // this body frees itself; `ok` and `a` compute that check and nothing reads them.
     const unsigned visited = rtsetavl24::g_destroyVisits - visitsBefore;
     const bool ok = (root == nullptr)
                   ? (visited == 0 && countBefore == 0)

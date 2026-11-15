@@ -1,10 +1,10 @@
 // ============================================================================
 // src/engine/ui/documenttext.cpp — UI::DocumentTextElement's private text
-// pipeline, plus UI::DocumentTextDescription::CreateInstance
+// pipeline, plus UI::DocumentTextElement::Link::operator=
 // ============================================================================
 //
 // Seven retail bodies, ported leaves-first so the two big ones call our own
-// registered helpers rather than the DLL's:
+// helpers:
 //
 //   0x1800cefd0  ?FindNextWhiteSpace@DocumentTextElement@UI@@AEAAHXZ
 //   0x1800cde00  ?EndLink@DocumentTextElement@UI@@AEAAXXZ
@@ -12,8 +12,10 @@
 //   0x1800cdbc0  ?LayoutRow@DocumentTextElement@UI@@AEAAHXZ
 //   0x1800cdf40  ?GetNextItem@DocumentTextElement@UI@@AEAA_NAEAUDocumentItem@12@@Z
 //   0x1800cf060  ?GenerateItems@DocumentTextElement@UI@@AEAAXXZ
-//   0x1800cf520  ?CreateInstance@DocumentTextDescription@UI@@QEBAXV?$InternalPtr@
-//                    VDocumentTextElement@UI@@@Object@@PEBVDialog@2@@Z
+//   0x18003c760  UI::DocumentTextElement::Link::operator=
+//
+// The CreateInstance applier the ABI-trap note below describes, 0x1800cf520, is
+// defined in src/engine/ui/documenttextdescription.cpp.
 //
 // Offsets live in src/engine/ui/DocumentTextElement.h, which this batch
 // extended (append only); every constant there was read out of one of these
@@ -46,18 +48,18 @@
 //   ^i<digit><name>   a sprite from sheet slot <digit> by name
 //
 // ----------------------------------------------------------------------------
-// ^lo IS A RECURSIVE CALL INTO GetNextItem, AND IT IS THE REASON THIS FILE
-// REGISTERS BY ADDRESS AS WELL AS BY NAME.
+// ^lo IS A RECURSIVE CALL INTO GetNextItem.
 // ----------------------------------------------------------------------------
 // 0x1800ce707 is `CALL 0x1800cdf40` — GetNextItem calling itself. Retail saves
 // eighteen fields of parse state (including an OWNING reference on the open
 // link string), runs one whole nested parse to find out how wide the next item
 // would be, restores all of it, and keeps only the width, which it turns into a
-// hanging indent. Our body recurses directly into itself rather than through
-// the seam, which is what retail does too.
+// hanging indent. Our body recurses directly into itself, which is what
+// retail does too.
 //
 // ----------------------------------------------------------------------------
-// THE ONE ABI TRAP IN THIS BATCH: DocumentTextDescription::CreateInstance.
+// THE ONE ABI TRAP IN THIS BATCH: DocumentTextDescription::CreateInstance
+// (the applier, in src/engine/ui/documenttextdescription.cpp).
 // ----------------------------------------------------------------------------
 // The name is `QEBAX...` — it returns VOID, so there is NO hidden return slot.
 // The `InternalPtr<DocumentTextElement>` is a BY-VALUE PARAMETER, and because
@@ -76,13 +78,12 @@
 // 0x1800cf62b / 0x1800cf631 and is read back with `MOV RAX,qword` at
 // 0x1800cf582 / 0x1800cf5fb / 0x1800cf643, whose full eight bytes are then
 // stored into the element. The upper half is whatever the previous occupant of
-// that slot left behind, and retail reuses ONE slot for all three sites, so
-// this file uses one uninitialised uint64_t for all three. The WIDTH of the
-// store is the faithful part.
+// that slot left behind, and retail reuses ONE slot for all three sites. The
+// WIDTH of the store is the faithful part.
 //
 // ----------------------------------------------------------------------------
-// NOT PORTED HERE, deliberately: ??1DocumentTextElement@UI@@ and
-// ??1DocumentTextDescription@UI@@ are owned elsewhere in this wave.
+// NOT PORTED HERE: ??1DocumentTextElement@UI@@ (documenttextelement.cpp) and
+// ??1DocumentTextDescription@UI@@ (documenttextdescription.cpp).
 // ============================================================================
 #include <cstddef>
 #include <cstdint>
@@ -935,16 +936,16 @@ void DocumentTextElement::GenerateItems() {
 // The compiler-generated copy assignment for the 0x18-byte Link record
 // {System::String* @+0x00, int32 @+0x08, int32 @+0x0c, bool @+0x10}.
 //
-//   180013c76a  RAX = self->text
-//   180013c773  if (RAX != src->text) {            <-- the self-assign test
-//   180013c77d      release RAX through the SAME asymmetric arms ReleaseString
+//   18003c76a   RAX = self->text
+//   18003c773   if (RAX != src->text) {            <-- the self-assign test
+//   18003c77d       release RAX through the SAME asymmetric arms ReleaseString
 //                   implements (slot keeps text-8 when the count hits zero,
 //                   slot is NULLED when it does not)
-//   180013c79b      self->text = src->text; if (it) ++refcount
+//   18003c79b       self->text = src->text; if (it) ++refcount
 //               }
-//   180013c7a9  the three trailing fields, ALWAYS — the early jump lands here,
+//   18003c7a9   the three trailing fields, ALWAYS — the early jump lands here,
 //               not at the return
-//   180013c7bc  return self
+//   18003c7bc   return self
 //
 // The String half is `AssignString` verbatim (test, release, adopt), which is
 // why it is called rather than re-inlined: the two must not drift.
@@ -958,9 +959,4 @@ DocumentTextElement::Link& DocumentTextElement::Link::operator=(const Link& src)
 
 }  // namespace UI
 
-// ============================================================================
-// The DOORS — registered names and addresses unchanged, each a one-line
-// delegation to the member (non-virtual, so no qualification is load-bearing;
-// spelled qualified for uniformity).
-// ============================================================================
 using UI::DocumentTextElement;

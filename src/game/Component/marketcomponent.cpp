@@ -2,8 +2,9 @@
 // Clean reimplementation of MarketComponent lifecycle methods from Application-x64.exe.
 //
 // MarketComponent is a ResourceProduceComponent subclass (0x50 bytes) with no
-// additional fields beyond the parent. Only one non-trivial vtable override:
-//   Shutdown (0x14004ead0) — calls ResourceProduceComponent_Shutdown + empty Serializer block
+// additional fields beyond the parent. Two non-trivial vtable overrides:
+//   Persist    (0x14004ead0) — calls ResourceProduceComponent::Persist + empty Serializer block
+//   CreateWork (0x14004ea40) — in resourceproduce_creatework.cpp
 //
 // Decompiled from Application-x64.exe using Ghidra.
 
@@ -44,7 +45,7 @@ MarketComponent::MarketComponent() : ResourceProduceComponent() {}
 }
 
 // ============================================================
-// MarketComponent::Shutdown (vtable slot [3], 0x14004ead0)
+// MarketComponent::Persist (vtable slot [3], 0x14004ead0)
 // ============================================================
 // Calls parent ResourceProduceComponent_Shutdown, then creates/destroys
 // an empty Serializer block (version 0). This empty block exists for
@@ -56,7 +57,7 @@ MarketComponent::MarketComponent() : ResourceProduceComponent() {}
 //   CALL Serializer_Dtor(local)
 
 void MarketComponent::Persist(IO::Stream& stream) {
-    // Base ResourceProduceComponent::Shutdown (0x14012b4a0), a direct call in retail.
+    // Base ResourceProduceComponent::Persist (0x14012b4a0), a direct call in retail.
     ResourceProduceComponent::Persist(stream);
 
     // Empty serializer block (version 0).

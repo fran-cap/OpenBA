@@ -15,8 +15,8 @@
 // Inheritance:  Object::Base -> Object::Internal -> UI::DialogInstance
 //   `??_7DialogInstance@UI@@6B@` is EXPORTED, at 0x180156d70 (ordinal 1420).
 //
-// `UI::DialogController` is in this header rather than one of its own because
-// it has no independent existence: it is created, owned, iterated and destroyed
+// The `UI::DialogController` field banner is in this header (the class itself
+// is DialogController.h) because it is created, owned, iterated and destroyed
 // by `DialogInstance`, and every field of it below was pinned from a
 // `DialogInstance` method.
 //
@@ -26,18 +26,13 @@
 // The "0xc0 upper bound" hedge that stood here is closed by two independent
 // witnesses: the `MOV EDX,0xb8` in the class's own slot-0 vector deleting
 // destructor (0x1800458c0, B36_SLOTS.md section 1), and the 20 exe
-// DialogInstance subclasses in engine/types/ui/Dialogs.h that all start their
+// DialogInstance subclasses in src/game/Dialog/Dialogs.h that all start their
 // own members at +0xb8. `UI::ToolTipDialog` is 0xc0 because it ADDS two dwords
 // at +0xb8/+0xbc (its copy ctor 0x18004d180 copies exactly those) — it is not
 // the base's size. `UI::UserInterface::BeginToolTip` (0x180120860) allocates
 // that 0xc0 and runs the BASE ctor on it, then stamps ToolTipDialog's table.
 //
-// What the replay oracle in dialog.cpp compares is
-// `kDialogInstanceCtorExtent` = 0xb4 — the ctor-initialised prefix — and the
-// reason that is safe is spelled out there: the scratch copy is a memcpy of the
-// LIVE object, so the padding holes below hold identical bytes on both sides
-// and are not "bytes neither side wrote"
-// (reference_oracle_must_not_compare_unwritten_bytes.md).
+// `kDialogInstanceCtorExtent` = 0xb4 is the ctor-initialised prefix.
 //
 // THE BASE CTOR LEAVES FOUR HOLES UNINITIALISED, listed here because a future
 // oracle that builds a DialogInstance from scratch MUST skip them:
@@ -70,7 +65,7 @@
 //                            also the value `?ShowDialog@UserInterface@UI@@`
 //                            RETURNS (0x1801202e5), and every MessageDialog
 //                            button writes it (src/game/Dialog/messagedialog.cpp
-//                            Slot10..13 -> 1/0/2/3).
+//                            slots 10..13 -> 1/0/2/3).
 //                            ctor zeroes it                             0x180114870
 //   0x28  _parent            ctor param 3, an InternalPtr<DialogInstance>
 //                            passed BY VALUE, so the ctor takes *param  0x180114870
@@ -109,7 +104,7 @@
 //                            (0x180113d10) clears the same byte and emits UI
 //                            event 0x11, and UI::Element::Update gates the
 //                            tooltip BEGIN/MOVE arm on it being non-zero
-//                            (src/engine/ui/element_vtable.cpp:735).
+//                            (src/engine/ui/element_vtable.cpp).
 //   0xa0  _hoverTime         ctor zeroes it; ?EndHover@ (0x180113d10) rewrites it
 //                            unconditionally with (int64)(0.0 / _secondsPerTick),
 //                            i.e. a System::Time tick count, NOT a pointer. Retyped
@@ -175,8 +170,8 @@ namespace RtUI {
 //   +0x38  OnUpdateLayout()            — ?OnUpdateLayout@  0x1801153cb
 //   +0x40  OnUpdate(const Time&)       — ?OnUpdate@        0x18011543e
 //   +0x48  OnElementEvent(...)         — ?OnElementEvent@  0x180114f5e
-// (+0x10 is `Object::Internal`'s Type slot — src/engine/object/Internal.h
-// calls the same offset kInternalVtblType, an independent confirmation.)
+// (+0x10 is `Object::Internal`'s Type slot — src/engine/object/Internal.h's
+// slot table lists slot 2 at +0x10, an independent confirmation.)
 // ============================================================
 
 enum : int {
@@ -218,7 +213,7 @@ static_assert(offsetof(DialogTimer, _id) == 0x10, "DialogTimer::_id @ +0x10 (Sto
 // ============================================================
 
 
-// The prefix the replay oracle compares: everything the base ctor initialises.
+// The prefix the base ctor initialises.
 constexpr size_t kDialogInstanceCtorExtent = 0xb4;
 
 // sizeof(UI::ToolTipDialog), the one DialogInstance-derived object the DLL
@@ -231,7 +226,7 @@ constexpr size_t kDialogInstanceAllocSize = 0xc0;
 //
 // Derives from DialogInstance and adds exactly three pointers. Appended by the
 // lane that ported `??0ComboDialog@UI@@QEAA@…` (0x180111d00); the body that
-// pins every line below is src/engine/ui/combodialog.cpp.
+// pins every line below is src/engine/ui/combodialog_ctor.cpp.
 //
 //   off   field           proven by
 //   ----  --------------  -------------------------------------------------
@@ -252,9 +247,8 @@ constexpr size_t kDialogInstanceAllocSize = 0xc0;
 //   0xc8  _combo          ctor param 4, InternalPtr<ComboElement>, also by
 //                         hidden reference (0x180111d7f-0x180111d8a).
 //
-// SIZE IS PROVEN, unlike the base's. `??2ComboDialog@UI@@SAPEAX_K@Z` is called
-// with `MOV ECX,0xd0` at 0x18011282b, and src/engine/ui/factory_ui1_tables.inc
-// line 540 independently records 0xd0 for this class.
+// SIZE 0xd0: `??2ComboDialog@UI@@SAPEAX_K@Z` is called with `MOV ECX,0xd0` at
+// 0x18011282b (ComboDialog.h asserts it).
 // ============================================================
 
 }  // namespace RtUI
@@ -262,15 +256,6 @@ constexpr size_t kDialogInstanceAllocSize = 0xc0;
 // ############################################################################
 // UI::DialogInstance — THE REAL CLASS (ENDGAME B.3 step 6, block B)
 // ############################################################################
-//
-// The `RtUI::DialogInstance` POD above STAYS, field-identical and
-// cross-asserted below: the ctor DOORS (dialog_create.cpp,
-// combodialog_ctor.cpp) build minted-table objects through it, files outside
-// this block (userinterface_hover.cpp, src/diag/mouse_inject.cpp) read it,
-// and engine/types/ui/DialogInstance.h aliases it so that the 20 exe dialog
-// structs in engine/types/ui/Dialogs.h can keep embedding `DialogInstance
-// base;` BY VALUE — a member of this class's ABSTRACT type would be
-// ill-formed (B34_BRIEFS A.4 as amended).
 //
 // PARENT: `Object::Internal`, proved by
 //   0x1800453d0  ?_ParentTypeName@DialogInstance@UI@@CAPEBDXZ -> "Object::Internal"
@@ -368,8 +353,7 @@ public:
     virtual void OnSerializeSettings(IO::Stream& stream);               // [9] 0x180115470  RET
 
     // ---- PORTED non-virtual members ---------------------------------------
-    // Each registered door delegates with a QUALIFIED call. The RETSLOT
-    // exports return by value here and the door placement-news (B5-12).
+    // The RETSLOT exports return by value here.
     Object::InternalPtr<Element> GetRoot();                                    // 0x180045580
     Object::InternalPtr<DialogController> GetController(uint32_t typeId) const; // 0x180113320
     Object::InternalPtr<Element> FindElement(const System::String& name);      // 0x180114c70
@@ -399,9 +383,8 @@ public:
     void SaveSettings();                                                       // 0x180114240
 
     // ---- exported, NOT PORTED here: declared, deliberately undefined -------
-    // Nothing calls these as members. `EndHover` IS ported — as a door in
-    // src/engine/ui/userinterface_hover.cpp, which is the fragment pass's
-    // file, not this block's.
+    // Nothing calls the others as members. `EndHover` IS ported, as a member
+    // defined in src/engine/ui/userinterface_hover.cpp.
     void EndHover(UserInterface* ui);                                          // 0x180113d10
     Object::InternalPtr<Element> GetRoot() const;                              // 0x180045590
     Object::InternalPtr<DialogInstance> GetParent();                           // 0x180045570
@@ -431,8 +414,8 @@ public:
     DialogInstance(const DialogInstance& other);                               // 0x180045630
     DialogInstance& operator=(const DialogInstance& other);                    // 0x180045790
 
-    // System::MemoryAllocator statics — B36_RULES 7 keeps them doors
-    // (`??3DialogInstance@UI@@SAXPEAX@Z` is one, in spritesheet_new.cpp).
+    // System::MemoryAllocator statics. `??3DialogInstance@UI@@SAXPEAX@Z` is the
+    // inline operator delete below.
     static void* operator new(std::size_t bytes);                 // 0x180045410
     // Declared, defined NOWHERE: construct in place with `::new (p) X(...)`.
     static void* operator new(std::size_t bytes, void* place);    // 0x180045480

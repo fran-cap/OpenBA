@@ -6,7 +6,8 @@
 // side, as the registry sees it (docs/retail_bugs.md section 10, known_port_issues rows 1332 / 1334)
 // ============================================================================
 // NOT RETAIL. No graphics types: src/ext/registry_boot.cpp includes it. The DX11 body is
-// src/render/dx11/boot_device_lost/, the Metal body src/render/metal/boot_device_lost/.
+// src/render/dx11/boot_device_lost/, the Vulkan body src/render/vulkan/boot_device_lost/, the Metal
+// body src/render/metal/boot_device_lost/.
 //
 // Retail enters its device-lost recovery only from Present. A swap-chain reset that fails because
 // the device has been REMOVED (a GPU driver reset) never reaches Present again: every retry fails

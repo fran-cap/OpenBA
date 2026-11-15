@@ -25,7 +25,7 @@
 // `src/engine/video/imagebuffer_platform_serialize.cpp` carried its own
 // `SerializeLevelBlobs`, with a banner saying 0x180054080 "is this function's own
 // helper, nothing else in the tree resolves it" and "is deliberately NOT
-// registered". Both halves were false: this file registers it, and
+// registered". Both halves were false: this file defines it too, and
 // `ImageBuffer::PlatformSerialize` is only one of its three callers. Two bodies of
 // one address that agreed by luck is the drift this tree keeps warning about, so
 // that copy is gone and that file CALLS this one — which is what retail's
@@ -87,8 +87,6 @@
 // — the counter IS sign-extended here (unlike 0x180014850's zero-extension),
 // but the JLE above has already excluded negatives.
 //
-// 0x180029630 is not on this batch's worklist and is reached by ADDRESS, so the
-// day it is ported this call follows it (ResolveAddr is registry-first).
 // ============================================================================
 // ENDGAME B.3.2 step 2 — `ArrayU8SetSize` (0x180029630) is GONE: each element
 // `e` walked below IS a `Collection::Array<uint8_t>` header (the stride-0x10
@@ -97,8 +95,9 @@
 // trait-derived, so a direct `.SetSize()` on the reinterpreted element is that
 // exact body.
 
-// B.4 (R-VIDEO): typed (ImageBuffer.h); its one caller in this tree is
-// imagebuffer_platform_serialize.cpp.
+// B.4 (R-VIDEO): typed (ImageBuffer.h); its callers in this tree are
+// imagebuffer_platform_serialize.cpp, src/ext/create_on_demand/level_source.cpp
+// and src/ext/texture_quality/texture_quality.cpp.
 void RtVideo_SerializeBlobArray(IO::Serializer& serRef, int count,
                                 Collection::Array<uint8_t>* e) {
     if (count <= 0) return;                                   // TEST EDX,EDX / JLE

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Lane SERIAL: dump the shipped bytes of the IO scalar-serialize dispatch family.
 
-Reads Runtime-x64.dll directly (no Ghidra) and prints, for each of the 78
+Reads Runtime-x64.dll directly (no Ghidra) and prints, for each of the 75
 BinaryReader / BinaryWriter / Visitor vtable slots, the raw bytes between its
 entry point and the next one.  A family of near-identical bodies is exactly
 where a uniform-looking pass hides a wrong one, so this prints the bytes rather

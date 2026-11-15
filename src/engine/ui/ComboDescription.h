@@ -3,13 +3,13 @@
 // src/engine/ui/ComboDescription.h — UI::ComboDescription, the REAL class
 // ============================================================================
 //
-// ENDGAME B.3 step 6, block C1. Layout POD: `RtUI::ComboDescription` in
-// DescriptionsBatch1.h (not edited, RULE B6-4.4); every offset cross-asserted.
+// ENDGAME B.3 step 6, block C1. `RtUI::ComboDescription` in DescriptionsBatch1.h
+// is an alias of this class; every offset is asserted below.
 //
 // PARENT `UI::ButtonDescription` — READ, an INTERMEDIATE leaf (RULE B6-9):
 //     ?_ParentTypeName@ComboDescription@UI@@CAPEBDXZ  @0x180074ab0 -> "ButtonDescription"
-// RULE B5-15 / B6-7 — RECORDED, NOT USED (`?_typeInfo@ComboDescription@UI@@…`
-// 0x1801faa18 stays minted):
+// RULE B5-15 / B6-7 — DEFINE_TYPE (combodescription.cpp) defines both, and the class's own
+// `_typeInfo` record (retail `?_typeInfo@ComboDescription@UI@@…` 0x1801faa18):
 //     ?_TypeName@ComboDescription@UI@@CAPEBDXZ        @0x180074aa0 -> "ComboDescription"
 //     ?_ParentTypeName@ComboDescription@UI@@CAPEBDXZ  @0x180074ab0 -> "ButtonDescription"
 //
@@ -45,7 +45,7 @@
 #include <type_traits>
 
 #include "ButtonDescription.h"
-#include "DescriptionsBatch1.h"   // kVtbl* names; RtUI::ComboDescription aliases this class
+#include "DescriptionsBatch1.h"   // RtUI::ComboDescription aliases this class
 #include "../object/Internal.h"   // Object::detail::InternalMemFree
 
 namespace UI {

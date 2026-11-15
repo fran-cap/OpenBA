@@ -25,21 +25,21 @@
 //   0x14002ccf0  InsertBucket                — bucket-tree insert-or-find.
 //   0x14002ceb0  CopyBucketNode              — bucket node copy-ctor.
 //   0x14002cfb0  CopyIdSubtree               — recursive id-subtree deep copy, used by ceb0.
-//   0x140018020  Reimpl_ExternalPtr_Serialize_StringTable (ExternalPtr<Profession>)
-//   0x14001a8c0 / 0x140013480 / 0x140014b40  the three rebalance drivers (C forwarders)
+//   0x140018020  ::Object::SerializeExternal<Profession>
+//   0x14001a8c0 / 0x140013480 / 0x140014b40  the three rebalance drivers (AvlRebalance / Avl38Retrace)
 //   0x14001ca60  WorkCellBST_Remove_ca60     — 0x30-node erase
 //   0x14001a6e0  WorkBST_BSTRemove_a6e0      — 0x28-node erase
-//   0x140014c30 / 0x14000e320  WorkBase_TreeNodeFree_14c30 / _e320 — post-order frees
+//   0x140014c30 / 0x14000e320  WorkBase_TreeNodeFree — post-order frees
 //
 // Byte-faithful port — every branch, walk, and rebuild step mirrors the decompile. In-order BST
 // walks (Ghidra's coalesced goto-successor idiom) are rewritten as clean iterator loops via the
 // Leftmost / Next templates below; this is a structural cleanup only (the classic parent-pointer
 // in-order successor algorithm), not a logic change.
 //
-// B.4 GAME-b: every node and the scheduler are read by NAME. The casts left are the arguments of
-// the C declarations other blocks own (the rebalance drivers, Action/exe_bodies.h and
-// Player/exe_bodies.h; the two erases, Work/exe_bodies.h): each takes the tree as an integer
-// pointer. They are funnelled through the four Rebalance / Erase wrappers below.
+// B.4 GAME-b: every node and the scheduler are read by NAME. The tree primitives other blocks
+// own (the rebalance drivers, Action/PathAvl.h and Player/exe_bodies.h; the two erases,
+// Work/CellBst.h and Work/KeyBst.h) are templates over the node type; they are funnelled
+// through the five Rebalance / Erase wrappers below.
 
 #include "object/TypeInfo.h"
 #include "Game/GameUpdateLoop.h"   // GameUpdateLoop::_singleton
@@ -62,18 +62,17 @@
 #include "Entity/EntityList.h"
 #include <new>
 #include "Game/exe_bodies.h"
-#include "Action/exe_bodies.h"   // Pf_AvlRebalanceA_a8c0
+#include "Action/exe_bodies.h"
 #include "Action/PathAvl.h"      // AvlRebalance (0x140013480)
 #include "Player/exe_bodies.h"   // Avl38Retrace (0x140014b40)
-#include "Work/exe_bodies.h"     // WorkBST / WorkCellBST removes, WorkBase_TreeNodeFree_*
+#include "Work/exe_bodies.h"     // WorkBST / WorkCellBST removes, WorkBase_TreeNodeFree
 
 
 namespace {
 
 // ============================================================
-// The C declarations of other blocks' tree primitives take the tree header and the cursor as
-// integers. LEFT: their headers (Action/exe_bodies.h ACT-a, Player/exe_bodies.h, Work/
-// exe_bodies.h WORK-a) are not this block's.
+// Wrappers over the other blocks' tree primitives (Action/PathAvl.h, Player/exe_bodies.h,
+// Work/CellBst.h, Work/KeyBst.h), one per tree and operation.
 // ============================================================
 void RebalanceIdTree(WorkSchedulerIdNode** root, WorkSchedulerIdNode* from) {        // 0x140013480
     AvlRebalance(root, &from);

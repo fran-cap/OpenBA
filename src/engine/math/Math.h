@@ -26,10 +26,6 @@
 // "the one fact that changes the rules since the port"). What still binds is
 // the OBJECT LAYOUT, which is why every assert below stays.
 //
-// The `RtMath_*` free functions still exist, in src/engine/math/*.cpp, as
-// one-line shims onto these members, and the `RegisterRuntimeExport` rows
-// register the shims. They die in step 2, when the last caller moves.
-//
 // TRIVIAL COPYABILITY IS LOAD-BEARING AND IS PRESERVED
 // ----------------------------------------------------
 // These are value types with no ownership. Retail's copy ctor / operator= are
@@ -38,8 +34,7 @@
 // user-provided bodies: that reproduces retail exactly AND keeps every type
 // trivially copyable, so the tree's memcpy / reinterpret_cast traffic over
 // these bytes stays well defined and by-value passing keeps the register shape
-// it has today. The retail address of each is a comment on the declaration;
-// the shim the registry points at keeps the memcpy body.
+// it has today. The retail address of each is a comment on the declaration.
 //
 // DEFAULT CONSTRUCTORS (B31_RULES rule 5)
 // ---------------------------------------
@@ -119,7 +114,7 @@ static_assert(offsetof(Scalar, v) == 0x0, "Scalar::v");
 
 // ============================================================
 // Math::Vector2 — {x, y}. The global `Vector2` that the exe-side tree spells
-// (engine/types/common.h) is an alias of this class.
+// (src/engine/global_types.h) is an alias of this class.
 // ============================================================
 class Vector2 {
 public:
@@ -272,7 +267,7 @@ public:
     constexpr Transform() : rotation(), translation() {}            // 0x180015080
     // Retail's copy ctor (0x180015020) and operator= (0x180014fd0) are plain
     // seven-dword field copies; `= default` is that, and keeps the type
-    // trivially copyable. The registered shims keep the memcpy body.
+    // trivially copyable.
     Transform(const Transform&) = default;                          // 0x180015020
     Transform& operator=(const Transform&) = default;               // 0x180014fd0
 
@@ -376,7 +371,7 @@ static_assert(offsetof(Transform3, translation) == 0x24, "Transform3::translatio
 // BODIES ARE THE ONES THAT WERE THERE, moved verbatim — same statements, same
 // operand order, same retail address on each — so this is a linkage change and
 // nothing else. Anything that calls out (RtLibm::Sqrt/Sin/Cos/Atan2, the
-// Serialize vtable hop, the Normalize/Inverse/AsMatrix/Lerp families) stays
+// Serialize vtable hop, the Normalize/Inverse/AsMatrix families) stays
 // out of line.
 
 inline Scalar Scalar::Abs() const {
@@ -557,16 +552,13 @@ inline Transform3 Transform3::Identity() {
 }  // namespace Math
 
 // ============================================================================
-// Transitional global aliases (ENDGAME B.3.1 step 1).
+// Global aliases (ENDGAME B.3.1 step 1).
 //
-// Wave 1 declared these types at GLOBAL scope, and ~800 sites across code/,
-// engine/, runtime/, standalone/ and src/render/dx11/ still spell them that way. The
-// aliases keep every one of them compiling while the classes move to retail's
-// namespace; step 2 converts the callers and deletes the aliases.
+// Wave 1 declared these types at GLOBAL scope, and sites across the tree still
+// spell them that way; the aliases keep those sites compiling.
 //
-// Vector2/Vector3/Vector4 are aliased in engine/types/common.h instead — that
-// is the header the exe-side tree includes for them, and it is where they were
-// defined before this batch.
+// Vector2/Vector3/Vector4 are aliased in src/engine/global_types.h instead,
+// which is included at the bottom of this header.
 // ============================================================================
 using Scalar     = Math::Scalar;
 using Quaternion = Math::Quaternion;

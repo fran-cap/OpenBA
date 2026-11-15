@@ -55,5 +55,3 @@ struct CompiledCounters {
 extern CompiledCounters g_cc;
 
 }  // namespace RtObject
-
-// src/engine/object/rt_object_port.cpp calls this.

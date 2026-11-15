@@ -10,8 +10,7 @@
 // `?TicksToSeconds@Timer@System@@SAM_J@Z` are two of lane V's REAL DEPENDENCY
 // rows (docs/history/runtime_port/WAVE9_LANE_V.md §1b) and they sit under
 // `System::Time`'s ctor and `AsSeconds` — the value type every
-// `Update(const Time&)` in the game constructs. They are the two most-executed
-// raw-door calls left in the tree.
+// `Update(const Time&)` in the game constructs.
 //
 // ---------------------------------------------------------------------------
 // THE FIVE STATICS, AND A CORRECTION TO LANE V
@@ -50,13 +49,9 @@
 // the same two constants to the same two globals itself and then makes a direct
 // `CALL 0x1800ca860` to `PlatformStartup`.
 //
-// The consequence for the port is decisive. `Engine::Startup` is lane E's
-// standing NO-GO (WAVE9.md §3, rows 12-15), so today it is the DLL's body, and
-// a direct internal call cannot reach the port registry. **Our statics would
-// therefore never be written by anything.** Initialising `_ticksPerSecond` and
-// `_secondsPerTick` at namespace scope, to the exact constants the store above
-// writes, produces a value identical to retail's under every ordering — this is
-// not a mint standing in for an unknown, it is the same two literals.
+// Initialising `_ticksPerSecond` and `_secondsPerTick` at namespace scope, to the
+// exact constants the store above writes, produces a value identical to retail's
+// under every ordering — it is the same two literals.
 //
 // `_systemInitialTick` and the two QPC values genuinely need `PlatformStartup`
 // to have run, so `CurrentTime`/`CurrentTimeTicks` call `EnsurePlatform()`
@@ -73,22 +68,9 @@
 // full argument and the contrast with B.3.4a's `IO::TextCodec`, which came out
 // the other way and landed nothing.
 //
-// TEN BODIES MOVED onto members; the ten registered doors keep their addresses
-// and their names and delegate, in the block above `RtSystemTimerRegister`.
-// Member bodies are defined at GLOBAL scope with qualified names rather than
-// inside a `namespace System { ... }` block — the shape SYSTEM (3) adopted.
-//
-// ⚠ THE FIVE STATICS DO NOT CONVERT, AND THAT IS RULE B4b-4, NOT AN OVERSIGHT.
-// `_ticksPerSecond`, `_secondsPerTick`, `_systemTicksPerSecond`,
-// `_systemInitialTick` and `_systemSecondsPerTick` are CUTOVER_REQUIRED rows
-// answered by minted storage cells; making one a real `static` member requires
-// a redirect at `standalone/rt_data_mint.cpp`'s `MintStorageCell()`, and
-// `standalone/` belongs to another agent this step. They stay file-scope
-// globals published through `PublishTimerStatics()` exactly as before, and the
-// redirect debt is tabled per row in B34B_RULES §4.1 — owed at the
-// class-static conversion, the end of B.3. See also the long banner at
-// :124-142: all five must be published at the same moment or the IDIV-by-zero
-// it was written about comes back.
+// TEN BODIES are members. Member bodies are defined at GLOBAL scope with
+// qualified names rather than inside a `namespace System { ... }` block — the
+// shape SYSTEM (3) adopted.
 #include <cstdint>
 #include "system/timer_internal.h"
 #include "system/Timer.h"
@@ -98,12 +80,9 @@
 // out-parameter and result; the raw dllimport declarations are gone.
 #include "platform_time.h"
 
-// ENDGAME B.3.9 SYS (B39_RULES D7): THE FIVE ARE CLASS STATICS NOW, and the
-// B.3.4b paragraph above is history. SYS first redirected the five minted rows
-// onto these definitions; the B.3.9 close converted the last by-address readers
-// and RETIRED the rows (tools/rt_mint_retired/close.txt), so `System::Timer::_x`
-// is the only cell. The two constants are the retired rows' `kInit` seeds byte
-// for byte (1000000 and 1.0/1000000.0: retail Timer::Startup's two stores).
+// ENDGAME B.3.9 SYS (B39_RULES D7): THE FIVE ARE CLASS STATICS, so
+// `System::Timer::_x` is the only cell. The two constants are 1000000 and
+// 1.0/1000000.0: retail Timer::Startup's two stores.
 
 // ?_ticksPerSecond@Timer@System@@0_JA   retail 0x1801fe720
 // ?_secondsPerTick@Timer@System@@0NA    retail 0x1801fe728
@@ -120,76 +99,12 @@ int64_t System::Timer::_systemInitialTick    = 0;
 double  System::Timer::_systemSecondsPerTick = 0.0;
 
 // ---------------------------------------------------------------------------
-// PUBLISH THE FIVE VALUES INTO THE EXPORTED DATA SLOTS
+// Retail's `Engine::MainLoop::Run` (0x1800dd3c0, src/engine/engine/mainloop_run.cpp) divides by
+// `_systemTicksPerSecond` (0x1800dd3f9, `IDIV qword ptr [0x1801fe730]`). The DLL-present crash on
+// that IDIV and the data-slot publication that answered it:
+// docs/history/runtime_port/WAVE22_LANE_TIMER.md; the MainLoop export table:
+// docs/history/runtime_port/WAVE8_LANE_B.md.
 // ---------------------------------------------------------------------------
-// Wave 9 lane ENG, iteration 2. Added after a DLL-PRESENT regression that this
-// file's own design created and that only became reachable once Engine::Startup
-// was ported:
-//
-//     Exception 0xC0000094 INT_DIVIDE_BY_ZERO at Runtime-x64.dll + 0xDD3F9
-//     1800dd3f7  CQO
-//     1800dd3f9  IDIV qword ptr [0x1801fe730]      ; _systemTicksPerSecond == 0
-//
-// 0x1800dd3f9 is inside `Engine::MainLoop::Run` (0x1800dd3c0 + 0x39), which is
-// HELD BACK (WAVE8_LANE_B.md: no oracle) and therefore still the DLL's body,
-// reading the DLL's own `.data`.
-//
-// THE MECHANISM IS THE PORT/STORAGE SPLIT, NOT A MISSING CALL. Retail's
-// `Engine::Startup` writes 0x1801fe720 and 0x1801fe728 itself and then calls
-// `PlatformStartup` (0x1800ca860), which writes 0x1801fe730/738/740. Lane ENG's
-// ported `Engine::Startup` DOES call `?Startup@Timer@System@@SA_NXZ` -- but that
-// name now resolves to the port below, which by lane B3's deliberate design owns
-// its OWN five statics. So all five of our copies were correct and all five of
-// the DLL's stayed zero, and the first thing to notice was an UNPORTED DLL
-// consumer dividing by one of them.
-//
-// Generalised, because it will happen again: **a ported function that OWNS
-// storage instead of PUBLISHING it is invisible until an unported consumer reads
-// the copy it did not write.** Lane X's fourteen constructors do not have this
-// problem because each publishes through `RT_DATA_SLOT`; the Timer is the only
-// ported dependency of `Engine::Startup` that owns storage instead, which is
-// exactly why it is the only one that broke.
-//
-// The fix restores retail's own effect: the same five addresses get the same
-// five values at the same moment. `RT_DATA_SLOT` is the port-aware door, so this
-// writes the DLL's `.data` today and lane C2's mint at cutover -- where the same
-// IDIV would divide by the same zero, so this is on the critical path either way.
-//
-// CORRECTION (Wave 22 lane TIMER, re-derived from the generated table rather
-// than inherited): all FIVE of this file's statics are present in
-// rt_data_mint_tables.inc's `kMintStorage` array today, including
-// `?_systemSecondsPerTick@Timer@System@@0NA` -- the claim above that it was
-// absent is stale (the table has grown since this comment was written; the
-// row is there, just not at the line numbers this comment used to cite).
-//
-// Presence in the table is NOT the gate, though: NONE of the five is in
-// `standalone/reg_mint_promoted.cpp`, so none is registered unconditionally.
-// `RT_DATA_SLOT` therefore resolves all five the SAME way right now,
-// regardless of which are "minted": through `ResolveExport`, which finds no
-// registration for these names and falls through to the DLL's real exported
-// address when the DLL is present, or returns null with nothing to fall back
-// to at cutover. See docs/history/runtime_port/WAVE22_LANE_TIMER.md for why
-// PROMOTING them (adding them to reg_mint_promoted.cpp) is NOT safe while the
-// DLL is the route: `Runtime-x64.dll`'s own `SleepThread`, `MainLoop::Draw`,
-// `MainLoop::Frame`, `Video::Finish`, and dozens of Graphics/UI/Save
-// functions still read these five addresses directly out of the DLL's
-// `.data`, by hard-coded RVA, and are not ported. Promoting would redirect
-// this file's own writes to a NEW address (our mint storage) that none of
-// those DLL-internal readers know about, freezing the DLL's real globals at
-// whatever they last held -- for `_systemTicksPerSecond`/`_systemInitialTick`
-// that reintroduces the exact IDIV-by-zero this section was written to fix,
-// now against a much wider reader set than the one `MainLoop::Run` alone
-// used to present (`Run` is ported today and reads through the registry, so
-// it would be unaffected; its former unported siblings would not be).
-// Promotion is safe and necessary once those DLL-internal readers no longer
-// exist, i.e. at cutover -- which was lane B3's and lane C2's original
-// intent and still holds.
-//
-// ENDGAME B.3.9 SYS: `PublishTimerStatics()` IS GONE. The copies it made were
-// between our file globals and the minted cells; the redirect makes those the
-// same five cells, so every store below lands in the exported storage
-// directly, at the same moment retail's does. (Its five RT_DATA_SLOT caches
-// went with it.)
 
 // ?PlatformStartup@Timer@System@@CA_NXZ  retail 0x1800ca860 (private static).
 //
@@ -229,26 +144,22 @@ bool System::Timer::Startup() {
 
 // ?Shutdown@Timer@System@@SAXXZ          retail 0x1800ca7b0 — `RET`, no body.
 // ?PlatformShutdown@Timer@System@@CAXXZ  retail 0x1800ca8e0 — `RET`, no body.
-// Both are a bare return in the shipped build. Ported as empty rather than
-// left unregistered so that neither is a missing symbol at cutover.
+// Both are a bare return in the shipped build, and both are empty here.
 void System::Timer::Shutdown() {}
 void System::Timer::PlatformShutdown() {}
 
-// PlatformStartup is reached from Engine::Startup by a DIRECT internal call in
-// the shipped DLL, which cannot pass through the port registry (file header).
-// Until lane E owns Engine::Startup, nothing initialises our QPC statics, so
-// the absolute-time readers ensure it themselves. This is not a guard bolted
-// over a faithful crash: retail's precondition ("Startup ran") is genuinely
-// broken by the seam, which is the one case CLAUDE.md's rule allows.
+// Engine::Startup (src/engine/engine/engine_lifecycle.cpp) calls Timer::Startup,
+// which runs PlatformStartup. TimerEnsurePlatformStarted runs PlatformStartup
+// itself while `_systemTicksPerSecond` is still zero, for an absolute-time reader
+// that runs before that.
 void RtSystem::TimerEnsurePlatformStarted() {
     if (System::Timer::_systemTicksPerSecond == 0) System::Timer::PlatformStartup();
 }
 
-// The five data-export accessors declared in timer.h. TicksPerSecond and
+// The five data accessors declared in timer_internal.h. TicksPerSecond and
 // SecondsPerTick are constants and need no init; the three QPC-derived ones
 // ensure PlatformStartup has run, so a consumer that reaches them before
-// Engine::Startup gets a live value instead of the zero the DLL's slot holds
-// at that moment.
+// Engine::Startup gets a live value instead of zero.
 int64_t RtSystem::TimerTicksPerSecond()       { return System::Timer::_ticksPerSecond; }
 double  RtSystem::TimerSecondsPerTick()       { return System::Timer::_secondsPerTick; }
 int64_t RtSystem::TimerSystemTicksPerSecond() { TimerEnsurePlatformStarted(); return System::Timer::_systemTicksPerSecond; }
@@ -270,22 +181,6 @@ uint64_t System::Timer::GetTicks() {
 //   (QPC() - _systemInitialTick) * _ticksPerSecond / _systemTicksPerSecond
 // with a signed IMUL/CQO/IDIV — engine ticks (microseconds) since startup.
 //
-// NOT DIFFED, and the reason is a property of the function rather than a gap in
-// the harness: this returns an offset from an EPOCH, and ours and the DLL's are
-// two different `QueryPerformanceCounter` samples taken at two different
-// moments. Ours-vs-theirs would differ by the interval between the two
-// `PlatformStartup` calls, forever, and that difference is correct.
-//
-// The epoch-mixing hazard that implies is bounded by measurement, not by
-// argument: **no file under code/, runtime/, engine/, standalone/ or src/render/dx11/
-// names `?CurrentTime@Timer` or `?CurrentTimeTicks@Timer` at all** (swept
-// 2026-09-07), so no ported caller can observe our epoch today, and the DLL's
-// own callers (MainLoop::Run/Frame/Draw, Application::SleepThread,
-// Video::Finish) read the globals directly and stay wholly on theirs. At
-// cutover, Engine::Startup is ours, calls our PlatformStartup, and there is one
-// epoch again. **These two therefore land with calls=0 and are unverified** —
-// stated here rather than reported as clean, per
-// reference_uncalled_port_is_not_verified.md.
 int64_t System::Timer::CurrentTimeTicks() {
     EnsurePlatform();
     int64_t now = 0;
@@ -296,7 +191,7 @@ int64_t System::Timer::CurrentTimeTicks() {
 // ?CurrentTime@Timer@System@@SAMXZ  retail 0x1800ca760
 // The same integer expression, then `(float)(ticks * _secondsPerTick)` —
 // CVTSI2SD, MULSD, CVTPD2PS, i.e. the multiply is done in double and rounded
-// to float exactly once. Same calls=0 / epoch caveat as above.
+// to float exactly once.
 float System::Timer::CurrentTime() {
     EnsurePlatform();
     int64_t now = 0;
@@ -325,7 +220,7 @@ float System::Timer::TicksToSeconds(int64_t ticks) {
 
 // ??4Timer@System@@QEAAAEAV01@AEBV01@@Z  retail 0x180007890
 // The compiler-generated copy assignment: `MOV RAX,RCX; RET`. System::Timer
-// has no instance state at all -- every one of its five statics is a file-scope
-// global -- so assignment copies nothing and returns `this`. Two instructions,
+// has no instance state at all -- its five data members are all class statics
+// -- so assignment copies nothing and returns `this`. Two instructions,
 // and it is the tenth and last export of the class.
 System::Timer& System::Timer::operator=(const System::Timer& /*other*/) { return *this; }

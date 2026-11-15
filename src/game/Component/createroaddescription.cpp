@@ -9,7 +9,7 @@
 // Factory  : MemAlloc 0x30 + External ctor + vtable + field defaults.
 // Serialize (vtable +0x28, 0x140119c80), stream order:
 //   bool        @ +0x20
-//   ExternalPtr @ +0x28   (fn_ExternalPtr_Serialize3)
+//   ExternalPtr @ +0x28   (Object::SerializeExternal<ComponentDescription>)
 // GetVersion (vtable +0x18, 0x140119ce0): mov eax,2; ret -> version 2.
 // Dtor (vtable +0x00, 0x140032e50): External::~External + free.
 //

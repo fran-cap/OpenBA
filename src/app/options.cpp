@@ -152,7 +152,7 @@ void OptionsInit() {
     o.saveTestRepeat  = Int("BANISHED_SAVE_TEST_REPEAT", 0);
     o.userProfile     = Raw("USERPROFILE");
 
-    // ── world setup (code/Game parses these itself) ──────────────────────────
+    // ── world setup (src/game parses these itself) ───────────────────────────
     o.seed            = Raw("BANISHED_SEED");
     o.mapSize         = Raw("BANISHED_MAP_SIZE");
     o.climate         = Raw("BANISHED_CLIMATE");
@@ -247,7 +247,7 @@ void OptionsInit() {
         o.noFolLock = v && v[0] != '0'; }
 
 
-    // ── code/Game readers migrated off getenv (ENDGAME C.2/C.4 close) ────────
+    // ── readers migrated off getenv (ENDGAME C.2/C.4 close) ──────────────────
     o.buildDemoForce         = Raw("BANISHED_BUILD_DEMO_FORCE");
     o.buildDemoFrames        = Raw("BANISHED_BUILD_DEMO_FRAMES");
     o.buildDemoIndex         = Raw("BANISHED_BUILD_DEMO_INDEX");
@@ -414,7 +414,7 @@ void OptionsInit() {
     o.cellTrace = On("BANISHED_CELL_TRACE");
     o.waterDump = Raw("BANISHED_WATER_DUMP");
 
-    // The stress town rewrites the run's world setup, so it goes LAST — and it
-    // is the only thing in the process that writes the environment.
+    // The stress town rewrites the run's world setup, so it goes LAST: it fills
+    // the Options fields the caller left unset.
     if (o.stress) ApplyStressDefaults(o);
 }

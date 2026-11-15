@@ -1,7 +1,7 @@
 // ============================================================================
 // tests/unit/ext_quick_screens_test.cpp -- ext.quick_screens (block SPLASH)
 // ============================================================================
-// The registry row (class A, default OFF, off under /profile:faithful, on
+// The registry row (class A, default ON, off under /profile:faithful, on
 // under profile=all, never a pseudo-mod) and the splash hold decision of
 // src/ext/quick_screens/quick_screens.h: OFF is retail's `elapsed >= delay`
 // whatever the work state; ON also ends the hold once the menu-scene build is

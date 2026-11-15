@@ -19,15 +19,15 @@
 //     removed here; the comments that explain WHY the hazard existed are kept,
 //     because they are the reason the term order below is what it is.
 //
-// The old ABI note, kept because it explains the shapes the shims still have:
+// The old ABI note, kept because it explains the register lists in the function banners below:
 //   member function, struct return : RCX=this,   RDX=hidden ret, R8=arg1, ...
 //   static function,  struct return : RCX=hidden ret, RDX=arg1, R8=arg2, ...
 //   ctor (no separate "return", `this` IS the target)  : RCX=this, RDX=arg1, ...
 //   function returning a reference (operator=)          : RCX=this, RDX=arg1, ... (no hidden slot)
 //
 // Every arithmetic port is a literal transliteration of the decompiled
-// expression, term order preserved, NOT a "cleaned up" reformulation — see
-// CLAUDE.md ("float addition is not associative") and PLAN.md §6 step 2.
+// expression, term order preserved, NOT a "cleaned up" reformulation — float
+// addition is not associative.
 // Variable names mirror the meaning of each retail fVarN once traced back to
 // a named field, but the operation ORDER is copied verbatim.
 //
@@ -37,9 +37,6 @@
 // calling the DLL directly would leave the port permanently dependent on a DLL
 // we are removing.
 //
-// The `RtMath_*` free functions at the bottom of this file are one-line shims
-// onto the members, kept so that no caller has to move in the same commit;
-// they and their registry rows die in step 2.
 // ============================================================================
 
 #include "math/Math.h"
@@ -79,7 +76,7 @@ namespace Math {
 // Math::Transform::Transform(const Transform&)  -- copy ctor, RCX=this,RDX=other
 // retail 0x180015020  ??0Transform@Math@@QEAA@AEBV01@@Z
 // A plain 7-dword field copy in retail; `= default` in Math.h is exactly that
-// and keeps the type trivially copyable. The shim below keeps the memcpy.
+// and keeps the type trivially copyable.
 // ============================================================================
 
 // ============================================================================
@@ -334,7 +331,7 @@ Transform3 Transform3::Inverse() const {
 // retail 0x18001e280  ??DQuaternion@Math@@QEBA?AV01@AEBV01@@Z
 // NOT in Wave 1's assigned function list, but required by Quaternion::Rotate
 // below (retail calls it internally) — ported since it is genuine
-// Math::Quaternion surface, and registered as its own export too.
+// Math::Quaternion surface.
 // ============================================================================
 Quaternion Quaternion::operator*(const Quaternion& other) const {
     Quaternion ret;
@@ -346,7 +343,7 @@ Quaternion Quaternion::operator*(const Quaternion& other) const {
     //   ((a.z*b.w + a.y*b.x) - b.y*a.x) + b.z*a.w
     // Using self->y here made every quaternion product wrong in z. It stayed
     // invisible through the whole of Wave 1 because NOTHING called it: this
-    // export and Quaternion::Rotate above it had zero calls in every diff run
+    // export and Quaternion::Rotate below it had zero calls in every diff run
     // until Transform::operator*(Vector3) was added, at which point they
     // diverged on 82% and 100% of calls respectively.
     float z_ = ((this->z * other.w + this->y * other.x) - other.y * this->x) + other.z * this->w;
@@ -377,7 +374,7 @@ Vector3 Quaternion::Rotate(const Vector3& v) const {
 // Math::Transform3::Rotate(const Vector3&) const
 // member, struct return: RCX=this, RDX=hidden ret, R8=v
 // retail 0x18001e470  ?Rotate@Transform3@Math@@QEBA?AVVector3@2@AEBV32@@Z
-// Same as MulVector3 but WITHOUT adding translation (a basis rotate only).
+// Same as operator*(const Vector3&) above but WITHOUT adding translation (a basis rotate only).
 // ============================================================================
 Vector3 Transform3::Rotate(const Vector3& v) const {
     Vector3 ret;
@@ -467,7 +464,7 @@ bool Matrix::operator!=(const Matrix& other) const {
 // ?Lerp@Transform@Math@@QEBA?AV12@AEBV12@AEBVScalar@2@@Z
 // ============================================================================
 // ENDGAME B.3.1 step 2: moved here from src/engine/graphics/wave9_lane_gfx.cpp
-// unchanged. The full instruction-level derivation stays at that file's shim.
+// unchanged.
 //
 // TRANSLATION, from 0x18001d696..0x18001d6fa, term for term:
 //   x:  XMM2 = to.x - this->x ; XMM1 = t ; XMM1 = XMM1 * XMM2 ;
@@ -636,8 +633,8 @@ Transform Transform::FromYawPitchOffset(const Scalar& yawDeg, const Scalar& pitc
 // ctor: RCX=this, RDX=right, R8=forward, R9=up
 // retail 0x180021b70  ??0Quaternion@Math@@QEAA@AEBVVector3@1@00@Z
 // NOT in Wave 1's assigned function list; ported as a dependency of
-// FromDirection (below), and genuinely Math::Quaternion surface, so registered
-// too. Mike Day / Shepperd's robust matrix->quaternion construction from an
+// FromDirection (below), and genuinely Math::Quaternion surface. Mike Day /
+// Shepperd's robust matrix->quaternion construction from an
 // orthonormal basis {right, forward, up} (right = local X axis of the
 // resulting rotation's matrix column 0, etc — see AsMatrix's column layout).
 // ============================================================================
@@ -670,8 +667,8 @@ Quaternion::Quaternion(const Vector3& right, const Vector3& forward, const Vecto
 // static, struct return: RCX=hidden ret, RDX=direction, R8=offset
 // retail 0x180021d70  ?FromDirection@Transform@Math@@SA?AV12@AEBVVector3@2@0@Z
 // NOT in Wave 1's assigned function list; ported as a dependency of FromLookAt
-// (below), and genuinely Math::Transform surface, so registered too.
-// Builds a right-handed look basis (right = dir x refUp, up = dir x right),
+// (below), and genuinely Math::Transform surface.
+// Builds a right-handed look basis (right = dir x refUp, up = right x dir),
 // picking refUp = world -Y or +Y instead of +Z when `direction` is nearly
 // parallel to world Z (else refUp = world +Z), to avoid a degenerate cross
 // product. `direction` MUST already be a unit vector — retail does not
@@ -747,12 +744,9 @@ Transform Transform::FromLookAt(const Vector3& from, const Vector3& to) {
 // Math::Transform::Serialize(IO::Serializer&)
 // member, void return: RCX=this, RDX=serializer
 // retail 0x180059b90  ?Serialize@Transform@Math@@QEAAXAEAVSerializer@IO@@@Z
-// Two calls through the encoding's vtable slot +0x28 — an undocumented
-// "Serialize(int count, float* data)" bulk-float-array forwarder (see
-// engine/types/io_serializer.h's enc_vtbl table, which only documents +0x48
-// and up; this slot is local to this port and not added to that shared
-// header). count=4 serializes the Quaternion (this+0x00), count=3 the
-// translation Vector3 (this+0x10).
+// Two calls through the encoding's vtable slot +0x28, the bulk float-array
+// slot (rw_vtbl::kArrayFloat in src/engine/io/Serializer.h). count=4 serializes
+// the Quaternion (this+0x00), count=3 the translation Vector3 (this+0x10).
 //
 // MUTATES the IO stream; correctness is exercised by save/load parity in
 // sa-run per PLAN.md §6 step 6.
@@ -760,7 +754,7 @@ Transform Transform::FromLookAt(const Vector3& from, const Vector3& to) {
 //
 // B3X W0: the "encoding" at Serializer+0x08 is the IO::ReaderWriter and +0x28
 // is its `SerializeFloatArray(int n, float* arr, const char* name)` slot
-// (src/engine/io/Serializer.h:488), called BY NAME. The old typedef passed
+// (src/engine/io/Serializer.h:509), called BY NAME. The old typedef passed
 // no `name` (R9 was whatever the caller left); every body in the family
 // ignores `name` (Serializer.h's banner), so passing nullptr changes nothing.
 void Transform::Serialize(::IO::Serializer& serializer) {
@@ -774,9 +768,8 @@ void Transform::Serialize(::IO::Serializer& serializer) {
 // retail 0x18001aff0
 // ?Lerp@?$InterpolatedState@VTransform@Math@@@Graphics@@QEBA?AVTransform@Math@@AEBVScalar@4@@Z
 //
-// PORTED 2026-09-08 by Wave 9 lane GFX, in
-// src/engine/graphics/wave9_lane_gfx.cpp — together with its callee
-// Math::Transform::Lerp (0x18001d690, exported as ordinal 3193).
+// Defined in src/engine/graphics/InterpolatedState.h, over its callee
+// Math::Transform::Lerp (0x18001d690, exported as ordinal 3193) above.
 //
 // THIS NOTE WAS WRONG AND IS KEPT ONLY TO SAY SO. Wave 1 read the call site as
 // "only ONE Transform operand (at +0x1c) plus a bare Scalar (at +0x00) … no

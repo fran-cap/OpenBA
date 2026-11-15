@@ -19,11 +19,6 @@
 //     ??0Random@System@@ on +0x168; ??0Scene@Audio@@ on +0xb30; zero
 //     +0xb68..+0xbf8.
 //
-// Slots the tree still overrides although retail inherits the base body are
-// marked `(base in retail)`: the old hand-built table's stubs, moved here
-// unchanged; the titled behaviour commit after this one makes them inherited.
-// The helper bodies in menudialogloopt.cpp still address the fields by raw
-// offset (MenuDLTOff); the named members below pin the same bytes.
 // ============================================================================
 
 #include <cstdint>
@@ -71,7 +66,7 @@ public:
     // +0xbe0, +0xbd0 (MemFree, then the data and size|capacity qwords zeroed)
     // and runs ??1Scene@Audio@@ on +0xb30: reverse declaration order.
     Audio::Scene   _audioScene;          // +0xb30  Audio::Scene (by value)
-    Engine::UpdateLoop* _pendingLoop;    // +0xb68  queued loader chain (SetDialogLoaderNextLoop)
+    Engine::UpdateLoop* _pendingLoop;    // +0xb68  queued loader chain (SetLoaderNextLoop)
     Save::SaveLoad* _saveLoad;           // +0xb70  the menu's own (B4 STANDALONE: H4)
     float          _animYaw;             // +0xb78  live yaw of the orbit
     float          _scrollX;             // +0xb7c  transform[+0x28] cached at load

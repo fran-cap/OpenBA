@@ -24,7 +24,7 @@
 #include "system/String.h"
 namespace UI { class SpriteSheet; class StringTable; }   // B4 H4 (DLG-e)
 
-// (Phase D.2: moved here from engine/types/RawMaterialDescription.h; no reader yet.)
+// (Phase D.2: moved here from engine/types/RawMaterialDescription.h.)
 // RawMaterialFlags bitfield — field +0x5C, tested via bitwise AND.
 //
 // [CORRECTED 2026-07-19 — binary-verified] The old table here naively followed the

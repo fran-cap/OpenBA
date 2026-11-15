@@ -43,7 +43,8 @@ namespace Ext {
 namespace EyeCamera {
 
 // True while the extension should own the camera (see the banner). Cheap: one
-// flag, one walk of the open dialogs, one weak-reference test. Call it only
+// flag, one walk of the open dialogs, an InternalFactory slot test (the table is
+// searched only for a new entity or when the slot hint misses). Call it only
 // when Ext::Ext().eye_camera is on.
 bool Active();
 

@@ -8,7 +8,7 @@
 // RETAIL (Application-x64.exe, B38_SLOTS.md section 6):
 //   reflected "MapParamsDialog", parent "UI::DialogInstance", ti 0x1401c50f8
 //   create 0x140012100 (MemAlloc(0xf8, 8)), createInPlace 0x140012140
-//   ctors 0x14006bd80 (the door the tree registers), 0x14006be20
+//   ctors 0x14006bd80 (the one the tree ports), 0x14006be20
 //   table 0x14015c180, 10 slots:
 //     [0] 0x140012150 scalar deleting dtor  [1] TypeName  [2] Type
 //     [3] DialogInstance::Persist (import)  [4] 0x14006b810 OnOpened

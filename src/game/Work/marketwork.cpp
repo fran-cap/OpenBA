@@ -99,7 +99,6 @@
 // i.e. ERASE the entry keyed by param_2, and return false. It is NOT an "add" —
 // the old comment here said "Add entity to BST" purely because sub_aaa0 was
 // mis-named "insert". Verified 2026-08-22 by decompiling 0x1400eff60.
-// (The slot's key parameter is void* in Work.h: LEFT.)
 //
 int MarketWork::OnComplete(CitizenComponent** param2, ComponentEntity** /*arg2*/, int /*arg3*/) {
     MarketBst_aaa0(&_claims, param2);
@@ -379,12 +378,12 @@ void MarketWork::Persist(IO::Stream& stream) {
 // ============================================================
 // MarketWork::Execute (slot 4) -- STAGE 1 dependencies
 // ============================================================
-// Retail 0x1400eff80 is ~1408 decompiled lines and is being landed in stages.
+// Retail 0x1400eff80 is ~1408 decompiled lines, ported in five stages.
 // STAGE 1 is the entry block, 0x1400eff80 .. 0x1400f021f: the guards, the two
 // cheap "return 1" rejections and the "citizen is already carrying, go deliver"
-// arm that returns 2. Everything past 0x1400f021f (the demand array, the two
-// qsorts, the candidate scoring and the FindPath/TransferToCarrier claim) is
-// NOT ported yet and is represented by a single "keep walking" return 0.
+// arm that returns 2. Stages 2..5 cover everything past 0x1400f021f (the demand
+// array, the two qsorts, the candidate scoring and the FindPath/TransferToCarrier
+// claim).
 //
 // Ghidra names this MarketWork_Serialize. It is not serialization.
 //
@@ -396,7 +395,7 @@ void MarketWork::Persist(IO::Stream& stream) {
 //   0x1400bf790 FindPath         0x140087fb0 EntityAnchorCell       0x14009c480 ZoneRefresh
 //   0x14009f810 IsDstReachable   0x140132010 sqrtf                  0x14012d5d0 FindBestAdjacentCell
 //   0x1400ca230 TransferToCarrier
-// DAT_1401c3dd8 is g_pGameWorldSingleton (engine_funcs.h).
+// DAT_1401c3dd8 is GameUpdateLoop::_singleton (Game/GameUpdateLoop.h).
 //
 // ENDGAME B.3.9 D5: every type-id cell Slot4 reads (DAT_1401c44f0 = MarketComponent,
 // DAT_1401c4528 = MarketDescription, and the rest below) is read BY CELL through the
@@ -487,7 +486,7 @@ static MW_SupplyNode* MW_TreeFind(MW_SupplyNode* root, ComponentDescription* key
 // WHICH storage entity holds WHICH material type that the town resource registry
 // (townMgr+0x110) never learned about. Retail's invariant is "every type in any storage
 // list was registered"; when it breaks here the culprit is whatever deposited the
-// material without RawMaterialComponent_RegisterRawMaterial, not this walk. First seen
+// material without CitizenBehavior::RegisterRawMaterial, not this walk. First seen
 // in the BANISHED_STRESS town (2026-09-03) at loop C, frame ~8400.
 static void MW_ReportTreeMiss(const char* site, int entityIdx, const void* entityIBP,
                               ComponentDescription* resType, RawMaterialDescription* rawMat,
@@ -542,9 +541,9 @@ static void MW_Stage2Teardown(MW_SupplyTree* tree, MarketWork::DemandList* recor
 // header still described the BST block as "BLOCKED", long after that stopped being
 // true). See reference_one_retail_fn_ported_twice_diverges.
 //
-// PORTING SPEC for whoever lands the 1408-line body, recovered from the ONLY call
+// The calling contract of the 1408-line body, recovered from the ONLY call
 // site — the citizen idle claim-walk, retail 0x1400f7b60 (ported as Helper_sub_7b60,
-// citizenai_housing_idle.cpp:506, vcall at :527):
+// citizenai_housing_idle.cpp:452, vcall at :463):
 //
 //     uVar2 = (**(code **)(*(longlong *)*plVar4 + 0x20))(work, local_res18, param_1 + 0x130);
 //     if (uVar2 == 2) return 1;                       // CLAIMED -> stop the walk
@@ -569,8 +568,7 @@ int MarketWork::Execute(CitizenComponent** citizenSlot, System::Time* ctx) {
     // EDI = MarketWork+0x50, the claim count = citizens already claimed by this
     // market. self+0x18 is the market's WorkComponent; its +0x30 is a lazily-filled
     // cache of "how many haulers may work here at once", computed by CalcMaxWorkers
-    // (0x14012e5c0). Full -> 1 = examined but declined. (The tree has two ports of 0x14012e5c0 that differ; the one
-    // called here takes the component as an integer: LEFT.)
+    // (0x14012e5c0). Full -> 1 = examined but declined.
     const int claimed = _claims.count;
     WorkComponent* workComp = _workComponent.Get();
     if (workComp->workState == 0) {
@@ -627,7 +625,6 @@ int MarketWork::Execute(CitizenComponent** citizenSlot, System::Time* ctx) {
     const int cellIdx = cellY * dim + cellX;
 
     // --- 0x1400f01c8..0x1400f01da: how much the citizen can still carry ---
-    // (0x140116540 takes the citizen as an integer: LEFT.)
     const int freeCarry = (*citizenSlot)->FreeStorageCapacity();
 
     // --- 0x1400f01dd..0x1400f0219: market already full enough -------------
@@ -959,8 +956,8 @@ int MarketWork::Execute(CitizenComponent** citizenSlot, System::Time* ctx) {
             interact->NodePosition(&marketPos, 0, static_cast<int>(roll), nullptr);   // 0x140122e20
 
             // 0x1400f0d57..0x1400f0ddc: build the citizen's action chain.
-            // Arg 8 is the resource TYPE ENTITY POINTER, full 64 bits -- see the
-            // engine_funcs.h note; it was truncated to 32 once before and crashed.
+            // Arg 8 is the resource TYPE ENTITY POINTER, full 64 bits; it was
+            // truncated to 32 once before and crashed.
             ComponentEntity* pathDest = found;                    // where to deliver
             ComponentEntity* pathSrc = _entity.Get();                  // this market
             CitizenComponent* pathWalker = *citizenSlot;
@@ -1350,9 +1347,8 @@ MarketWork::~MarketWork() {
 
 
 // ============================================================
-// MarketWork::Slot11 -- returns (this->_field50 > 0), retail 0x140029860
+// MarketWork::Slot11 -- returns (this->_claims.count > 0), retail 0x140029860
 // ============================================================
-// 9 bytes, too small to hook.
 int MarketWork::GetPriority() {
     return _claims.count > 0 ? 1 : 0;
 }

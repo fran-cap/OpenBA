@@ -1,7 +1,7 @@
 // src/diag/food_placement_harness.cpp
 // BANISHED_FOOD_PLACE=<class>|all — placement + SLOT-COVERAGE harness for the six
-// food-production classes. The counterpart to BANISHED_FOOD_PANEL (which covers the
-// dialog side); this one covers the building side.
+// food-production classes and four non-food classes. The counterpart to
+// BANISHED_FOOD_PANEL (which covers the dialog side); this one covers the building side.
 //
 // It answers two questions the demo spawners alone cannot:
 //
@@ -9,12 +9,11 @@
 //     StateMachineComponent and a WorkPlaceComponent, its live state index, staffing
 //     and accepting flag.
 //
-//  2. WHICH VTABLE SLOTS ARE ACTUALLY LIVE? Every one of these components is created
-//     through MakeInertTyped, which fills all 48 slots with one shared stub and then
-//     lets InstallLive overwrite the handful we have ported. So a slot still holding
-//     the stub address is a slot that is NOT reimplemented, no matter what the source
-//     tree suggests. Comparing each slot against g_InertComponentVtable turns "every
-//     slot decompiled and reimplemented" from a claim into a measurement, per class,
+//  2. WHICH VTABLE SLOTS ARE ACTUALLY LIVE? Every component vtable is the compiler's,
+//     so each retail slot is read at its compiler slot and a null slot is a slot that
+//     is NOT reimplemented, no matter what the source tree suggests; a slot whose
+//     retail body is an empty RET counts as equivalent. That turns "every slot
+//     decompiled and reimplemented" from a claim into a measurement, per class,
 //     printed as a map.
 //
 // Retail's component vtables for this family are 22 slots wide (0..21) with a real body
@@ -218,7 +217,7 @@ void ProbeClass(const FoodClass& fc) {
         haveWpc   = true;
         staffed   = w->workers._size;     // +0x60
         accepting = w->isAccepting;     // +0x50
-        // +0x48 = profession key. WorkplaceUI_Startup hides the ENTIRE workPlace
+        // +0x48 = profession key. WorkPlaceUI::OnUpdateLayout hides the ENTIRE workPlace
         // ribbon (worker up/down spinner + stop-sign icon) when this is 0 -
         // faithful to retail 0x140087080. profKey=0 therefore means no worker
         // arrows regardless of what the .rsc declares; read this field first for

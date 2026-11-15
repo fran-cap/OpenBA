@@ -34,7 +34,7 @@
 #include "Entity/ComponentEntity.h"   // X::TypeId() (B.3.9 CG2)
 #include "Component/RawMaterialDescription.h"   // X::TypeId() (B.3.9 CG2)
 #include "Component/TrackerComponent.h"   // X::TypeId() (B.3.9 CG2)
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemFree
 #include "Dialog/ProductionUI.h"
 #include "Component/ComponentDescription.h"
 #include "Game/Calendar.h"
@@ -47,8 +47,7 @@
 // ---- element type ids for retail's two casts --------------------------------
 // Retail Slot4 stores `IsDerivedFrom(hit, id) ? hit : nullptr`, reading the ids
 // through exe .rdata exrefs 0x140151668 (UI::LabelElement) and 0x1401516c8
-// (UI::NumberElement — the engine_funcs label "SpinnerElement" is a known
-// misnomer, see standalone/reg_element_typeids.cpp:35).
+// (UI::NumberElement).
 //
 // ENDGAME B.3.9 CG2: TypeId_LabelElement / TypeId_NumberElement -> the ported
 // Runtime statics UI::LabelElement::TypeId() / UI::NumberElement::TypeId(). That
@@ -82,7 +81,7 @@ static UI::Element* FindChildElem(UI::Element* parent, const char* name) {
 
 // ---- ProductionUI: PROMOTED to the real reimpl (production-statistics content) -
 // ProductionUI drives Dialog/Production.rsc:production4 at pageUser — the page
-// PageToggleUI above flips to. Retail bodies:
+// PageToggleUI (pagetoggleui.cpp) flips to. Retail bodies:
 //   Slot4 (+0x20, Setup)  0x140075da0 — find "production"/"production3"/"production4",
 //                         take child 0 (consumed) + child 1 (produced), and cache
 //                         each row's {labelStorage, numberCount} pair into the two
@@ -140,7 +139,7 @@ void ProductionUI::OnCreated() {
         // Retail casts the "labelStorage" hit through IsDerivedFrom(LabelElement) and
         // stores NULL when it isn't one (0x140075da0 uses TypeId_LabelElement_exref
         // @0x140151668); "numberCount" through IsDerivedFrom(NumberElement) (exref
-        // 0x1401516c8, engine_funcs label "SpinnerElement" — the id is NumberElement's).
+        // 0x1401516c8, NumberElement's id).
         ProductionUIRow row;
         row.labelStorage = CastLabel(FindChildElem(childElem, "labelStorage"));
         row.numberCount = CastNumber(FindChildElem(childElem, "numberCount"));
@@ -197,7 +196,7 @@ void ProductionUI::UpdateList(int listIndex) {
     // Production.rsc carries a TrackerComponent (row 1201).
     TrackerComponent* tracker = entityPtr->FindComponent<TrackerComponent>();
 
-    // Check if game world item count changed; rebuild tracker if so
+    // Check if the calendar year changed; rebuild tracker if so
     int gameItemCount = GameUpdateLoop::_singleton->m_dayCounter->year;
     if (gameItemCount != tracker->trackerId) {
         // Call tracker rebuild: FUN_14000d9d0 moves data from +0x38 to +0x28

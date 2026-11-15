@@ -4,12 +4,10 @@
 // The POSIX half of src/platform/common/platform_sync.h (Phase D.4 THREADS E.9;
 // D4_RULES C7: C++17 std + pthreads, never SDL).
 //
-// LOCKS: a RECURSIVE pthread_mutex_t constructed IN PLACE in the 0x28 bytes of
-// LockStorage (Linux x86-64 / arm64 glibc: exactly 40 bytes). No heap object, so
-// MemoryAllocator+0x640 still never allocates from the allocator it guards. The
-// spin count has no pthread equivalent and is ignored (a CRITICAL_SECTION's spin is
-// a contention tuning, not a semantic). macOS's pthread_mutex_t is 64 bytes and
-// does not fit: Darwin stores a pointer to a libc-allocated mutex in the same slot.
+// LOCKS: a RECURSIVE pthread_mutex_t. macOS's pthread_mutex_t is 64 bytes and does not
+// fit the 0x28 bytes of LockStorage, so the slot holds a pointer to a mutex MutexInit
+// allocates with new and MutexDestroy deletes. The spin count has no pthread equivalent
+// and is ignored (a CRITICAL_SECTION's spin is a contention tuning, not a semantic).
 //
 // ONCE: a three-state word in the OnceFlag's pointer slot (null = not run), the
 // losers yielding until the winner has returned: InitOnceExecuteOnce's contract.

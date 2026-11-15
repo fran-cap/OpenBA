@@ -7,18 +7,14 @@
 // handler (citizenai_handlers.cpp). Transcribed from the Ghidra decompile and disasm-
 // verified offset-by-offset.
 //
-// Handlers ported here (all closure-ready — every exe sub-callee is REGISTERED):
+// Handlers ported here (all closure-ready — every exe sub-callee is called by name):
 //   0x14010c360  CitizenAI_State_Education      (case 3) -> PerformWork_Ctor10 + dd30 + 7fb0
 //   0x14010c580  CitizenAI_State_SeekHappiness  (case 8) -> PerformWork_Ctor5  + dd30 + 7fb0
-//                  + (no-target fallback) the MeshInstance "go invisible" render branch
+//                  + (no-target fallback) the StatusIconComponent "show icon" branch
 //   0x14010d560  CitizenAI_State_FindWork       (case 10)-> WalkTowards + 122be0/122b00 + 115a50
 //
 // HANDLERS NOT PORTED IN *THIS* FILE — they live in citizenai_handlers3.cpp.
-// (This list used to say "blocked on UNregistered deep helpers"; that stopped being
-// true when reg_citizenai_findhelpers.cpp landed db20/e370/ec70/2ac30, and the stale
-// wording survived long enough to be filed as PLAN.md §1.2 item 2 "unported". They
-// are ported, registered and observed entering in-game — see
-// docs/history/waves/exe_closeout/lane_c.md.)
+// (Their port is recorded in docs/history/waves/exe_closeout/lane_c.md.)
 //   0x14010d790  State_Work           -> citizenai_handlers3.cpp (helper db20 @ 0x14010db20)
 //   0x14010cd80  State_AdultTransition-> citizenai_handlers3.cpp (e370 @ 0x14008e370 + 2ac30)
 //   0x14010d2c0  State_ElderTransition-> citizenai_handlers3.cpp (ec70 @ 0x14008ec70 + 2ac30)
@@ -27,27 +23,22 @@
 //   CitizenComponent (+0x38), its fields read by name. The action builders take
 //   (CitizenComponent-IBP, ...) and push internally.
 //
-// Registered exe sub-callees (resolved via ResolveAddr — bodies NOT duplicated here):
-//   0x14008dd30 CitizenAI_FindBestTarget_dd30   (citizenai_findtarget.cpp)
-//   0x140087fb0 Pf_EntityAnchorCell_7fb0        (reg_pf_road.cpp)
+// Exe sub-callees (called by name — bodies NOT duplicated here):
+//   0x14008dd30 CitizenBehavior::FindBestTarget  (citizenai_findtarget.cpp)
+//   0x140087fb0 EntityAnchorCell                 (action_pf_road.cpp)
 //   0x1400bccb0 PerformWork_Action_Ctor10       (citizenai_actionctors.cpp)
 //   0x1400bd070 PerformWork_Action_Ctor5        (citizenai_actionctors.cpp)
 //   0x1400bb490 Pathfinding_WalkTowards         (citizenai_actionctors.cpp)
-//   0x140002f90 Entity_FindComponent_MeshInstance (WorkBase_FindComponent_2f90)
-//   0x140002ed0 Entity_FindComponent_Position   (WorkBase_FindComponent_2ed0)
-//   0x140122be0 FUN_140122be0 walkable-pos       (WorkImpl_WalkablePos_122be0)
-//   0x140122b00 FUN_140122b00 walkable-pos recur (WorkImpl_WalkablePosRecursive_122b00)
-//   0x140115a50 FUN_140115a50                    (AttendanceComponent_ReleasePartnerSlot)
-//   0x1400c3470 FUN_1400c3470 notify-entity      (ActHunt_NotifyEntityChanged_c3470)
-//
-// Engine helpers (engine_funcs.h): fn_InternalBasePtr_CheckPtr (== _slot in decompiles),
-//   fn_Time_Ctor_Float, fn_IsDerivedFrom, fn_Graphics_Scene_AddObject, fn_SceneRemoveObject,
-//   g_pGameWorldSingleton, g_pGameSettingsPtr.
+//   0x140002f90 Entity_FindComponent_MeshInstance (ComponentEntity::FindComponent<T>)
+//   0x140002ed0 Entity_FindComponent_Position   (ComponentEntity::FindComponent<T>)
+//   0x140122be0 FUN_140122be0 walkable-pos       (InteractComponent::FindWalkablePos)
+//   0x140122b00 FUN_140122b00 walkable-pos recur (InteractComponent::FindWalkablePosRecursive)
+//   0x140115a50 FUN_140115a50                    (CitizenComponent::LeaveSchool)
+//   0x1400c3470 FUN_1400c3470 notify-entity      (ComponentEntity::RefreshEntityFlags)
 //
 // SELF-CONTAINED-BRICK type-ids: DAT_1401c7938 ("InteractDescription") and
-//   DWORD_1401c7190 ("CitizenDescription") are UNFILLED (0xFFFFFFFF) in standalone, so the
-//   original's IsDerivedFrom scans would miss and then dereference NULL (+0x28 / +0x120).
-//   Resolved self-contained via Object::GetTypeIdByName, exactly like citizenai_findtarget.cpp.
+//   DWORD_1401c7190 ("CitizenDescription"), each read from its class's TypeId() (EnsureInit),
+//   exactly like citizenai_findtarget.cpp.
 //   TypeNames recovered from each global's *_Register [DATA] writer (Ghidra-verified):
 //     DAT_1401c7938 -> InteractDescription_Register  -> "InteractDescription"
 //     DWORD_1401c7190 -> CitizenDescription_Register -> "CitizenDescription"
@@ -59,7 +50,7 @@
 
 // graphics/*.h FIRST: they pull src/engine/volume/Volume.h, whose global-scope
 // `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()` once <windows.h> has
-// been seen through resolve.h.  ENDGAME B.3.5 caller batch I2.
+// been seen.  ENDGAME B.3.5 caller batch I2.
 #include "graphics/Scene.h"
 // EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMPRIO.md): ext.item_priority (class C), the finder tiers
 #include "ext/item_priority/item_priority.h"
@@ -94,7 +85,7 @@
 
 namespace {
 
-// --- registered exe sub-callees (resolved lazily via ResolveAddr) ---
+// --- exe sub-callees, called by name ---
 // dd30: (param_1 listpair, &outBest, goalCellA, goalCellB, &outFoundComp, outVec3, category)
 // 7fb0: (InternalBasePtr* ibp, float* outVec3orNull) -> cell idx
 // Ctor10: (CitizenComp-IBP, &srcEntityIBP, float* dest, entity-list object)
@@ -104,7 +95,7 @@ namespace {
 // 122be0: (entity, transformSub, &posVec3, outVec3, &bestCost) -> bool
 
 // 122b00: (child, 0, &posVec3, outVec3, &bestCost) -> byte
-// 115a50: (CitizenComponent, char) -> bool
+// 115a50: (CitizenComponent, char) -> void
 // c3470: (MeshInstance) -> void
 
 

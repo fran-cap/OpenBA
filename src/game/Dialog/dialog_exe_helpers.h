@@ -1,5 +1,5 @@
 #pragma once
-// Declarations for Dialog-module exe-helper reimplementations.
+// Dialog-module exe-helper notes (no declarations).
 // See src/game/Dialog/dialog_exe_helpers.cpp.
 #include <cstdint>
 

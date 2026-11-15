@@ -1,5 +1,5 @@
 // ============================================================================
-// src/ext/better_trees/better_trees.h -- ext.better_trees (class A, default OFF)
+// src/ext/better_trees/better_trees.h -- ext.better_trees (class A, default ON)
 // ============================================================================
 // NOT RETAIL. docs/extensions/handins/BETTER-TREES.md (this row); the history of its two
 // halves: docs/extensions/FOLIAGE_AA.md (smooth edges, §6 the spike's rulings),

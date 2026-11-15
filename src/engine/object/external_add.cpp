@@ -66,7 +66,7 @@
 //   ?GetPath@External@Object@@         0x180006250   ported, external.cpp
 //   Set<ResourceEntry>::Insert         0x18002ca00   ported, external_set.cpp
 //   the AVL node layout / EntryValue                 external_set.h
-//   ResourceEntry field offsets                      types/object/External.h
+//   ResourceEntry field offsets                      object/External.h
 //   Filename copy-ctor and the String release idiom  external_set.cpp
 //
 // so the only new code here is the descent, the clean-bit test, and the
@@ -115,16 +115,16 @@ void ExternalSerialize(::Object::External* self, IO::Stream& stream) {
 // ---------------------------------------------------------------------------
 // The comparator, and why it is spelled out here again.
 //
-// This is the third copy in the tree (external.cpp's `StriCmpAscii` /
-// `FilenameLess`, external_set.cpp's, and this one). They are duplicated rather
-// than shared because the other two are `static` in files other lanes own, and
-// because reference_a_rule_on_the_callers_side_gets_broken.md is about exactly
+// This is one of four copies in src/engine/object (external.cpp's `StriCmpAscii`
+// / `FilenameLess`, external_set.cpp's, External.h's `Object::detail` pair, and
+// this one). They are duplicated rather than shared because
+// reference_a_rule_on_the_callers_side_gets_broken.md is about exactly
 // what happens when a shared helper drifts from the call site that depends on
-// it. The behaviour is pinned by the assertion below, not by inspection.
+// it.
 //
 // Retail's comparisons go through the CRT `_stricmp` at 0x18007eefc. The DLL
 // never calls `setlocale`, so that runs in the "C" locale: plain ASCII case
-// folding. `runtime/src` must not depend on a CRT whose locale behaviour
+// folding. `src/engine` must not depend on a CRT whose locale behaviour
 // differs between toolchains (PLAN §4.1).
 // ---------------------------------------------------------------------------
 int StriCmpAscii(const char* a, const char* b) {

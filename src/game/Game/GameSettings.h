@@ -10,28 +10,24 @@
 // profile build (Application-x64-profile.exe) lists `GameConfiguration.h` and
 // `Globals.h` as candidates, but it was not open in Ghidra when this header
 // was written. `GameSettings` is the tree's name (the persistence helpers are
-// GameSettings_Load / _Save).
+// GameSettings::Load / Save).
 //
 // FIELDS AND NAMES (Application-x64.exe):
 //   names  = retail's own IO::Persistence keys, section "Game", in
 //            0x140098b60 (Get) / 0x140098970 (Set). The key spelled
 //            "ShowCelcius" by retail is the field `showCelsius`.
 //   types  = the Persistence overload retail passes: int& for the int32
-//            fields, bool& (one byte) for the six flags. The six flags are
-//            DECLARED uint8_t (H8 candidate, B.4 W0-H2): the tree copies the
-//            Options checkbox byte in raw (as retail does, 0x14007249d MOV
-//            byte) and GameSettings_Save normalises it (`!= 0`) where retail
-//            hands the raw byte to Set(bool) (0x1400989d7 MOVZX R9D). A bool
-//            field would let the compiler drop that normalisation. Retail's
-//            type is bool; switching is a later `behaviour:` commit.
+//            fields, bool& (one byte) for the six flags, declared bool.
+//            The Options dialog copies the checkbox byte in raw, as retail
+//            does (0x14007249d MOV byte), and GameSettings::Save hands it to
+//            Set(bool) raw (0x1400989d7 MOVZX R9D).
 //   defaults (GameMain 0x140041f00): UIScale 100, AutosaveInterval 1,
 //            StatusIconOpacity 100, StatusIconEnable 1, StatusIconScale 100,
 //            EdgeScroll 1, ShowCelcius 0, ShowWeather 1, AutoSlow 1,
 //            AutoPause 1, LastOption 0, LastTerrain 0, LastMapSize 0,
 //            LastClimate 1, LastStart 1, LastDisaster 0.
 //   The padding bytes (+0x0D..+0x0F, +0x19..+0x1B) are never written by
-//   retail (MemAlloc garbage); the tree's GameMain zeroes them (H8 candidate,
-//   listed in the W0-H2 hand-in).
+//   retail (MemAlloc garbage) or by the tree's GameMain.
 // ============================================================================
 
 #include <cstdint>

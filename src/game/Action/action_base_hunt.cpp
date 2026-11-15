@@ -1,11 +1,9 @@
 // src/game/Action/action_base_hunt.cpp
 // Shared / high-reuse exe sub-helpers referenced from the HuntAnimal / RemoveAnimal /
-// CompleteRoad action families (and, for 0x1400c3470 / 0x140003110, from many
-// Component & Work files as well).
+// CompleteRoad action families: HuntComponent::IsReady and ComponentEntity::MarkForRemoval.
 //
-// Their callers call them by name through Action/exe_bodies.h (B3R); the registration
-// (RegisterActionHuntBatch in standalone/reg_action_hunt.cpp) stays for readers other
-// blocks still have.
+// Their callers call them by name (declared in Component/HuntComponent.h and
+// Entity/ComponentEntity.h).
 #include "Action/exe_bodies.h"
 //
 // Wave 3 (Action). Each function is a 1:1 port of the decompiled exe helper; do not

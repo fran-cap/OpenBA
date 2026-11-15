@@ -1,5 +1,5 @@
 // ============================================================================
-// src/ext/fast_paths/fast_paths.h -- ext.fast_paths (class B, default OFF)
+// src/ext/fast_paths/fast_paths.h -- ext.fast_paths (class B, default ON)
 // ============================================================================
 // NOT RETAIL. The game glue around the grid search (src/game/Action/grid_search.h,
 // run at the extension's heuristic scale): the once-per-game selection,

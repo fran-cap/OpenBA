@@ -11,25 +11,21 @@
 // on"): System::String has a user-declared constructor, so MSVC returns it BY
 // MEMORY. The hidden return-slot pointer is an ARGUMENT — the SECOND register
 // for a member (RCX=this, RDX=ret, R8=arg1) and the FIRST for a static
-// (RCX=ret, RDX=arg1) — and the callee returns it again in RAX. Every port
-// below spells the slot out as a parameter and returns it. Writing these as
-// C++ methods returning by value is the wild write described in the memory
-// note reference_hidden_retslot_wild_write.md.
+// (RCX=ret, RDX=arg1) — and the callee returns it again in RAX. The members
+// below return String by value and leave that slot to the compiler.
 //
-// ALLOCATION GOES THROUGH THE ONE REGISTERED ALLOCATOR. String objects and
+// ALLOCATION GOES THROUGH THE ONE ALLOCATOR. String objects and
 // their refcounted buffers are handed around the whole tree, so every buffer
-// must come from and go back to the same heap. Both ends resolve
-// System::MemoryAllocator's MemAlloc/MemFree through the registry.
+// must come from and go back to the same heap. Both ends call
+// System::MemoryAllocator's MemAlloc/MemFree by name.
 // ============================================================================
 
 // ============================================================================
-// ENDGAME B.3.1 step 1: the bodies below now live on `System::String`
-// (src/engine/system/String.h). They MOVED — they were not rewritten — and
-// the hidden return slot went with the DLL boundary that required it. Every
-// `RtSystem_String_*` / `RtString_*` free function in this file is now a
-// one-line shim over the member on the same eight bytes, so that no caller has
-// to move in this commit. THE SHIMS AND THE REGISTRY ROWS DIE IN STEP 2, when
-// the last caller of each is converted (B31_RULES.md).
+// ENDGAME B.3.1 step 1 (docs/history/endgame_b/B31_RULES.md): the bodies below
+// live on `System::String` (src/engine/system/String.h). They MOVED — they were
+// not rewritten — and the hidden return slot went with the DLL boundary that
+// required it. The one shim over a member left in this file is
+// `RtSystem::RtString_StrCompare`, at the end.
 // ============================================================================
 
 #include <cstdarg>
@@ -64,13 +60,9 @@ namespace RtSystem {
 // circulates in this project's notes is NOT an export of Runtime-x64.dll. The
 // only two forms are the _KH (size_t, int) and PEAX ones used here.
 
-// Registration is all-or-nothing (RegisterAllocatorExports registers MemAlloc
-// and MemFree together), so the two halves can never disagree about whose heap
-// they are on.
-
 #ifdef BANISHED_UNIT_TEST
-// The host unit test (tests/unit, `make unit`) links this file without the
-// registry, so there is no MemoryAllocator to resolve. The class under test
+// The host unit test (tests/unit, `tools/build.sh unit`) links this file without
+// System::MemoryAllocator. The class under test
 // only needs A heap, and every allocation it makes it also frees, so malloc is
 // the whole requirement. B31_RULES rule 6 allows exactly this and asks that it
 // be named in the report.
@@ -96,8 +88,7 @@ void* RtMemAlloc(uint64_t size, int align) {
 // ############################################################################
 // Every body below is the body the like-named C function in this file had
 // before the conversion, with `self->data` spelled `_data` and the hidden
-// return slot dropped. The `RtSystem_*` names live on as shims at the end of
-// the file.
+// return slot dropped.
 // ############################################################################
 namespace System {
 
@@ -139,11 +130,9 @@ void String::SetLength(int len) {
 // `static_cast<int>(a[i])` on a plain `const char*`, which is only the same
 // thing while `char` happens to be signed — true for MSVC and for MinGW on
 // x86-64 Windows, and therefore invisible to every build this project makes.
-// It is written as an explicit `signed char` now so the port states the fact
-// rather than inheriting it from the toolchain, and the static_assert below
-// records which way the assumption used to point. Any input with a byte >=
-// 0x80 at the differing index separates the two spellings; the sweep in
-// RtSystem_StrCompareProbe() feeds exactly those (bucket `highBit`).
+// It is written as an explicit `signed char` so the port states the fact
+// rather than inheriting it from the toolchain. Any input with a byte >=
+// 0x80 at the differing index separates the two spellings.
 int String::StrCompare(const char* a, const char* b) {
     if (a == nullptr)
         return -static_cast<int>(b != nullptr);
@@ -292,7 +281,7 @@ String::String(const char* src) : _data(nullptr) {
 // (B7 D4: operator=(const String&) 0x1800c9810 is header-inline in String.h.)
 
 // Not retail's: the pointer steal. Self-move is short-circuited on the pointer
-// exactly as the copy overload above is.
+// exactly as the copy overload in String.h is.
 String& String::operator=(String&& rhs) noexcept {
     if (this != &rhs) {
         Release();
@@ -534,10 +523,6 @@ float String::ToFloat(const char* s) {
 // ============================================================
 // Format / FormatIndexed — NOT DIFFED (varargs cannot be forwarded)
 // ============================================================
-// Both are `...` functions with no va_list twin in the DLL's export table, so
-// there is no way to hand the original the same argument list a second time.
-// The diff harness has nothing to offer here; faking it with a hand-built
-// argument list would test a different call than the one that happened.
 
 // ?Format@String@System@@SA?AV12@PEBDZZ  retail 0x1800c9730
 // ABI: a static returning by memory, so RCX = the hidden return slot and RDX =
@@ -620,8 +605,8 @@ void StringArray_DestroyRange(String* p, int n) {
 }  // namespace
 
 // ?FormatIndexed@String@System@@SA?AV12@PEBDZZ  retail 0x1800c8b40
-// "@1".."@9" substitution, not printf: FormatParamCount scans the format for
-// the highest @n used, an Array<String> of that many entries is built from the
+// "@0".."@9" substitution, not printf: FormatParamCount scans the format for
+// the highest @n used, an Array<String> of n + 1 entries is built from the
 // C-string varargs, and FormatParamList does the substitution.
 //
 // FormatParamCount (0x1800c8d20) and FormatParamList (0x1800c8dc0) were left on
@@ -633,20 +618,17 @@ void StringArray_DestroyRange(String* p, int n) {
 // whose R8 argument Ghidra drops, so it was transcribed from the listing at
 // 0x1800c8dc0..0x1800c9017 instruction by instruction and not from decompiled C.
 // ============================================================
-// Wave 9 lane B3 - the four System::String exports left on the DLL
+// FormatParamCount, FormatParamList and ToInteger (Release is inline in String.h)
 // ============================================================
-// All four are WAVE9_LANE_V.md REAL DEPENDENCY rows. Two are pure and get a
-// full differential oracle; Release mutates a refcount and gets a shadow with
-// the reason stated; FormatParamList allocates a fresh result from const
-// inputs and so replays cleanly, exactly like SubString above.
+// Their export rows are in docs/history/runtime_port/WAVE9_LANE_V.md.
 
 // ?FormatParamCount@String@System@@SAHPEBD@Z  retail 0x1800c8d20
 //
-// Returns the HIGHEST parameter index used in `fmt`, where a parameter is the
-// two characters `@` followed by an ASCII digit, and `@1` is index 1 -- so the
-// answer is `digit - '0'`, computed by retail as `(int)(signed char)d - 0x2f`
+// Returns the ARRAY SIZE the highest parameter index used in `fmt` needs, where a
+// parameter is the two characters `@` followed by an ASCII digit, and `@0` is index 0
+// -- so the answer is `digit - '0' + 1`, computed by retail as `(int)(signed char)d - 0x2f`
 // against a `- 0x30` range check. It is a MAXIMUM, not a count of occurrences:
-// `"@2 @2"` answers 2 and `"@2"` alone also answers 2, which is why the
+// `"@2 @2"` answers 3 and `"@2"` alone also answers 3, which is why the
 // StringArray FormatIndexed sizes from it can legitimately have holes.
 //
 // Retail's loop bound is the SECOND character's: a format ending in a bare `@`
@@ -771,22 +753,9 @@ String String::FormatIndexedList(const char* fmt, const char* const* argv, int a
 // ?Release@String@System@@AEAAXXZ  retail 0x1800c9870
 //
 // The private release primitive, byte-for-byte the sequence String.h documents
-// and RtString_ReleaseInline already implements -- including the asymmetry that
-// the freeing branch leaves `data - 8` in the object while the sharing branch
-// nulls it. This export is those same eleven instructions; it is registered so
-// that the name is not missing at cutover, and so our callers stop reaching the
-// DLL for a routine this file has had all along.
-//
-// NO ORACLE, and the reason is intrinsic rather than a gap in the harness: the
-// refcount lives in the one shared block, so running the shipped body after
-// ours would decrement a second time and free a live string. There is nothing
-// to snapshot and restore -- a second String object referring to the same block
-// IS the same counter. The shadow below is our own post-condition (the object
-// is either nulled or holds block-8), which is a weaker claim than a diff and
-// is labelled as one.
-// The body moved to `String::Release()` in the "inlined idioms" section at the
-// top of this file — it and RtString_ReleaseInline were always the same eleven
-// instructions, and now they are literally the same function.
+// -- including the asymmetry that the freeing branch leaves `data - 8` in the
+// object while the sharing branch nulls it. The body is `String::Release()`,
+// header-inline in String.h.
 
 // ?ToInteger@String@System@@SAHPEBD@Z  retail 0x18003f620
 //
@@ -1030,7 +999,7 @@ String operator+(const String& lhs, char c) {
 
 // ??YString@System@@QEAA?AV01@D@Z   retail 0x1800c89e0
 // MEMBER operator+=(char): RCX=this, RDX=hidden return slot, R8B=c. Same shape
-// as the two AppendAssign overloads above -- concat into a temporary, Set
+// as the two operator+= overloads above -- concat into a temporary, Set
 // `this` from it, release the temporary, then return a COPY of the new value.
 String String::operator+=(char c) {
     String tmp = *this + c;
@@ -1098,24 +1067,11 @@ String String::RemoveAt(int index) const {
 }  // namespace System
 
 // ############################################################################
-// ENDGAME B.3.1 step 1 — THE SHIMS. THEY DIE IN STEP 2.
+// ENDGAME B.3.1 step 1 — THE SHIM (docs/history/endgame_b/B31_RULES.md).
 // ############################################################################
-// Every name below kept its exact pre-conversion signature — including the
-// hidden return slot, which the callers still pass — and is now one line over
-// the member on the same eight bytes. The `RegisterRuntimeExport` /
-// `RegisterRuntimeAddr` rows at the bottom of the file register THESE, so the
-// registry seam, the `fn_String_*` pointers in engine/funcs/engine_funcs.h and
-// every `RT_EXPORT_ONCE("...String@System@@...")` site keep resolving exactly
-// as before.
-//
-// A caller that reaches a shim hands it RAW BYTES, not a constructed object:
-// the `ret` slot is uninitialised String-sized storage. So a shim that
-// produces a value CONSTRUCTS INTO the slot with placement new rather than
-// assigning to it — an assignment would Release() whatever garbage pointer the
-// caller's stack happened to hold.
-//
-// Step 2 deletes each of these when the last caller of it is converted; the
-// grep to run first is in B31_RULES.md ("when a shim ... has zero callers left").
+// `RtString_StrCompare` is one line over `System::String::StrCompare`; its
+// callers are src/engine/io/modification_sort.cpp, src/engine/ui/tooltipdialog.cpp
+// and src/engine/ui/sprite.cpp.
 // ############################################################################
 namespace RtSystem {
 

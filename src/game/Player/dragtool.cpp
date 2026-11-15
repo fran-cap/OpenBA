@@ -4,12 +4,12 @@
 // DragTool (ABSTRACT, 0x38 bytes) — base class for click-and-drag placement tools.
 // Extends Tool (0x28 bytes), vtable at 0x140161c10 (15 slots).
 //
-// Sub-classes: BridgeTool, RoadTool, WallTool, etc.
+// Sub-classes: BridgeTool, RoadTool, RemovalTool, FencedTool, DragPlacementTool (and the ext RoadUpgradeTool).
 // DragTool::OnKey implements the shared drag lifecycle:
 //   1. key==0 (key up): close dialog if open, check Released -> reset dragState
 //   2. key!=0 && dragState==Idle: check Pressed -> pick start cell, open dialog
-//   3. key!=0 && dragState==Dragging: update end cell, call virtual BuildPath,
-//      update UI via operator_impl_fc60, handle release -> commit or cancel
+//   3. key!=0 && dragState==Dragging: update end cell, call virtual CalcCost,
+//      update UI via PlayerToolManager::UpdateCreateBar, handle release -> commit (CalcPath) or cancel
 //
 // Decompiled from Application-x64.exe.
 
@@ -47,28 +47,26 @@ DEFINE_EXE_ABSTRACT_TYPE(DragTool, "Tool")
 // [6] 0x1400fc6b0 OnKey and [9] 0x1400fc640 OnCancel: bodies below.
 
 // ============================================================
-// Exe helpers, called by name (Player/exe_bodies.h):
-//   0x140101270 PlayerRay_ScreenToCell_101270 -- ray-picks the map cell under the
-//               cursor: row*gridSize + col, or -1 if off-map
-//   0x1400ff9e0 ToolUI_OpenToolDialog_ff9e0 -- closes an existing dialog, loads
+// Exe helpers, called by name:
+//   0x140101270 PlayerRay_ScreenToCell_101270 (Player/exe_bodies.h) -- ray-picks the
+//               map cell under the cursor: row*gridSize + col, or -1 if off-map
+//   0x1400ff9e0 PlayerToolManager::OpenToolDialog -- closes an existing dialog, loads
 //               "Dialog/CreateBar.rsc", creates the DialogInstance with its ToolUI
 //               child, adds it to the UI manager. Args: (dialogIBP_ptr, retval_ptr,
 //               descriptionPtr)
-//   0x1400ffbf0 DragTool_PlayTickSound_ffbf0 -- the "tick" when endCell changes
+//   0x1400ffbf0 PlayerToolManager::PlayTickSound -- the "tick" when endCell changes
 //               during a drag (a timer at +0x48 on the IBP storage stops rapid-fire)
-//   0x140005160 DragTool_FindDescription_5160 -- the description (DAT_1401c7f58)
-//               search; the found pointer lands in retval
-//   0x1400ffc60 UpdateToolUI_fc60 (operator_impl_fc60) -- cost text, status text,
-//               icon tint and screen position of the placement dialog
-//   0x1400ff980 DragTool_CloseToolDialog_ff980 -- closes the dialog if open, nulls
+//   0x140005160 ComponentDescription::FindDescription<ToolbarDescription> -- the
+//               description (DAT_1401c7f58) search
+//   0x1400ffc60 PlayerToolManager::UpdateCreateBar (operator_impl_fc60) -- cost text,
+//               status text, icon tint and screen position of the placement dialog
+//   0x1400ff980 PlayerToolManager::CloseToolDialog -- closes the dialog if open, nulls
 //               the IBP
 //   0x1401000f0 DragTool_PlayPlaceSound_1000f0 / 0x140100140
-//   DragTool_PlayErrorSound_100140 -- the place / error sounds (sound ids at
-//               g_pKeyMapSingleton + 0x88 / + 0x90)
-// All eight are registered, so the SA no-op fallbacks that used to stand in for a
-// null resolve are gone with the resolver.
-// Import slot 0x1401513f8 (Volume::Box::Box) is NOT filled in standalone (a STUB):
-// its reader below is its null arm.
+//   DragTool_PlayErrorSound_100140 (Player/exe_bodies.h) -- the place / error sounds
+//               (sound ids at g_pKeyMapSingleton + 0x88 / + 0x90)
+// Import slot 0x1401513f8 (Volume::Box::Box) is RtVolume_Box_Ctor (volume/Volume.h):
+// it builds the empty box below.
 // ============================================================
 
 // ============================================================
@@ -98,7 +96,7 @@ static inline const Input::KeyMap* GetKeyMap() {
 //     If endCell changed: play tick, update lastEndCell
 //     Call virtual CalcCost (+0x70) for segment count + path type
 //     Find description, extract cost string
-//     Call UpdateToolUI for UI overlay
+//     Call PlayerToolManager::UpdateCreateBar for UI overlay
 //     On release: check singleClick behavior
 //
 //   key==0: close dialog if open, if Released(0,5): reset dragState+singleClick
@@ -205,7 +203,7 @@ char DragTool::OnKey(char key) {
             ::Box box;              // Volume::Box
             RtVolume_Box_Ctor(&box);   // ??0Box@Volume@@QEAA@XZ 0x180011ea0 (import 0x1401513f8, 0x1400fc890): the empty box
 
-            // ---- Call UpdateToolUI (operator_impl_fc60 at 0x1400ffc60) ----
+            // ---- Call PlayerToolManager::UpdateCreateBar (operator_impl_fc60 at 0x1400ffc60) ----
             dialogPtr->UpdateCreateBar(// param_1
                 tileH[0],                              // param_2
                 tileW[0],                              // param_3

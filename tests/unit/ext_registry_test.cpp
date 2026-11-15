@@ -58,7 +58,7 @@ static bool BcOnByDefault(const char* id) {
 }
 
 UNIT_TEST(ext_registry_table_shape) {
-    // The three fixes block FIXPILOT wires, default ON, no class.
+    // These fixes: default ON, no class.
     for (const char* id : {"icon_slide", "residence_goto", "tavern_counter", "start_barn_height",
                            "ui_scale_layout", "rock_seat", "terrain_resort",
                            "large_packages", "boot_device_lost", "slider_drag_clamp",
@@ -88,8 +88,8 @@ UNIT_TEST(ext_registry_table_shape) {
         if (e.tier == Ext::Tier::Fix) CHECK(e.cls == Ext::Class::None);
         else CHECK(e.cls != Ext::Class::None);
         // Class A ships ON (DESIGN.md section 2, ruled 2026-10-18). Class B / C ship OFF except the rows
-        // ruled ON for 1.0.3 (2026-11-08): kBcOn below. better_camera, terrain_edit, town_screenshot and
-        // family_tree stay OFF.
+        // ruled ON for 1.0.3 (2026-11-08): kBcOn above. terrain_edit, town_screenshot and family_tree
+        // stay OFF.
         // The unit_* test rows keep OFF: the lock tests below start from nothing on.
         // eye_camera is class A but changes how the game is played: the player's call, OFF.
         // show_grid is class A but changes how the map looks: the player's call, OFF (no_fog was too; ON since 1.0.3 at retail's fog).

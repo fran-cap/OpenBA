@@ -34,8 +34,8 @@
 //   | 0x180011460 | Mod::~Mod()                   (unexported)     |
 //   | 0x180010110 | Array<Mod>::operator=         (unexported)     |
 //
-// plus the seven unexported container internals those five reach, which have
-// no name in either shipped build and are therefore RegisterRuntimeAddr ONLY:
+// plus the unexported container internals those five reach, which have no
+// name in either shipped build:
 //
 //   0x180010b80  Array<Mod>::~Array          (per-element ~Mod, then free)
 //   0x180011110  Array<int32>::operator=     0x1800111a0  Array<int32>::~Array
@@ -46,43 +46,13 @@
 //   0x180010570  Set<Filename> node alloc+init
 //   0x180009c30  Set<Filename> node free
 //
-// Every one of those addresses was grepped for an existing
-// `RegisterRuntimeAddr(0x…` across runtime/ before being claimed here, exactly
-// as lane FIND and lane PKG did, so no other lane's registration is shadowed.
-//
 // ---------------------------------------------------------------------------
-// WHAT IS *NOT* PORTED, AND WHY  (the honest half of the deliverable)
+// WHAT IS PORTED ELSEWHERE
 // ---------------------------------------------------------------------------
 //
-// 0x1800af5f0  ?RefreshList@Modification@IO@@QEAAXXZ — HELD BACK.
-//   ~450 instructions that stack-construct an IO::PackageFile (vtable
-//   0x180155700), call its Open (0x1800b46b0) / GetName-family accessors
-//   (0x180025310/50/90, 0x180025450/530/580) and Close (0x1800b4540), then
-//   build a Filename-keyed set per mod and sort the array. IO::PackageFile is
-//   the CURRENT cutover wall (WAVE9.md attempt 14: `[RtResolve] MISS
-//   "??0PackageFile@IO@@QEAA@XZ" -> NULL`, VCALL-of-0 on the all-zero object).
-//   Porting RefreshList before PackageFile would produce a body that cannot be
-//   exercised and cannot be diffed. It is blocked on a NAMED dependency that
-//   another lane already owns, which is the one blocker shape
-//   reference_holdback_blockers_are_stale_check_them_first.md says to state
-//   plainly rather than work around.
-//
-// 0x18002a090  the string-keyed map insert — HELD BACK, and NOT this lane's.
-//   It is a two-instruction-deep wrapper: it addrefs the key and value into a
-//   stack Pair<String,String>, calls 0x18002a170 (117 instructions: the real
-//   insert, which allocates through 0x18000f970 and rebalances through
-//   0x18002a310), then releases both. src/engine/system/configuration.cpp:315
-//   already recorded the same disposition — "a red-black insert, a Collection
-//   lane's work". This lane CORRECTS one word of that entry: configuration.cpp
-//   calls it "unreachable on our boots", which is true of ITS call site (an
-//   empty command line) but NOT of the address. persistence_registry_win.cpp:266
-//   reaches the same address from ReadSettings, which every boot runs. So the
-//   address is live even though the call site that documented it is not — see
-//   WAVE9_LANE_MOD.md. It is left to the Collection lane rather than written
-//   blind here: an AVL/red-black rebalance written from a paginated
-//   disassembly, with no populated tree to test it against, is precisely the
-//   silent-corruption case reference_uniform_population_is_not_a_verification.md
-//   is about.
+// 0x1800af5f0  ?RefreshList@Modification@IO@@QEAAXXZ — modification_refresh.cpp.
+// 0x18002a090  the string-keyed map insert — `rtavl::StringMapInsert`
+//   (src/engine/collection/avl_trees.cpp).
 //
 // ---------------------------------------------------------------------------
 // ONE DELIBERATE DEVIATION FROM THE INSTRUCTION STREAM
@@ -91,8 +61,8 @@
 // cluster: `MOV RBX,[0x1801fc718]; ADD RBX,0x640; EnterCriticalSection;
 // Allocate/Free(_singleton, …); LeaveCriticalSection`. That is byte-for-byte
 // what the composed statics ?MemAlloc@MemoryAllocator@System@@ (0x1800c7a50)
-// and ?MemFree@ (0x1800c7ad0) do — allocator.cpp's RegisterAllocatorAddresses()
-// (WAVE9.md attempt 14) registers both — so this file calls those instead of
+// and ?MemFree@ (0x1800c7ad0) do, so this file calls those
+// (`System::MemoryAllocator::MemAlloc` / `MemFree`) instead of
 // re-inlining the critical section eleven times. Same lock, same singleton,
 // same order; only the inlining differs. Doing it the other way would mean
 // eleven independent copies of the lock sequence, which is eleven chances to
@@ -102,46 +72,6 @@
 // first instruction), which is why the bodies below hand it possibly-null
 // pointers exactly as retail does.
 //
-// ---------------------------------------------------------------------------
-// DIFFABILITY, PER FUNCTION
-// ---------------------------------------------------------------------------
-//   GetCount / GetModification  full oracle; both are const reads of two
-//                               fields and produce independent results.
-//   Enable                      full BYTE oracle. Enable writes exactly two
-//                               bytes and allocates nothing, so the diff can
-//                               run ours, photograph the whole 0x80 record plus
-//                               the 0x28 header, RESTORE the pre-image, run
-//                               theirs, and memcmp. Restoring is only safe
-//                               because nothing was allocated — see Swap for
-//                               the case where it is not.
-//   Swap                        SHADOW, by value. It cannot be replayed and its
-//                               bytes cannot be restored: retail's swap deep
-//                               copies the two Arrays and CLONES the Set (new
-//                               heap nodes), so putting the old bytes back
-//                               would leak them. The shadow instead asserts the
-//                               post-condition against a pre-image: the shared
-//                               (refcounted) members must have exchanged
-//                               POINTERS exactly, and the deep-copied members
-//                               must have exchanged VALUES. That is not
-//                               tautological — it fails on a wrong offset, a
-//                               skipped member, or a deep copy that lost
-//                               elements.
-//   SaveList                    the mutation it makes to the object is
-//                               `mods[i].order = i`, which is IDEMPOTENT and
-//                               allocates nothing, and its Persistence writes
-//                               are idempotent too. So it IS replayable: run
-//                               ours, photograph the order column, restore the
-//                               pre-image, run theirs, compare the columns.
-//                               Retail's run is the one that lands, so a diff
-//                               run's live behaviour is retail's.
-//   the lifecycle triple + the container internals
-//                               NOT DIFFED, and not diffable: each one mutates
-//                               a live object through the shared heap, so
-//                               running the original as an oracle would double
-//                               free at refcount 1. They are verified
-//                               INDIRECTLY, through Swap's shadow — Swap is
-//                               nothing but three calls into the triple, so a
-//                               green Swap shadow is a statement about them.
 // ============================================================================
 
 #include <cstdio>
@@ -166,12 +96,6 @@
 namespace RtIO {
 
 
-// ---------------------------------------------------------------------------
-// The allocator boundary. See the banner: the composed statics, by address,
-// with the same never-cache-a-null contract array.cpp uses (a caller that runs
-// before RegisterAllocatorAddresses() must not freeze a null in for the life of
-// the process).
-// ---------------------------------------------------------------------------
 }  // namespace RtIO
 
 namespace RtIO {
@@ -217,8 +141,8 @@ static void* ArrayFreeBuffer(ModArrayOf<T>* a) {
 // and preview arrays and VertexLayout::_signature became typed members (B4
 // X7-RT): those call `Collection::Array<T>::~Array`, the same free-and-zero.
 
-// 0x180009af0, already ported by lane FIND (filesystem_find.cpp) and
-// registered there. Declared, not re-implemented: two copies of a release loop
+// 0x180009af0, already ported by lane FIND (filesystem_find.cpp).
+// Declared, not re-implemented: two copies of a release loop
 // is how a refcount idiom drifts.
 void DestroyFilenameArray(void* ignoredThis, uint8_t* base, int count);
 
@@ -517,46 +441,6 @@ const ArraySpec kSpec_Mod = {                 // 0x180010b80 / 0x180010110 / 0x1
 
 namespace RtIO {
 
-// ============================================================================
-// The five Modification entry points
-// ============================================================================
-
-// ?GetCount@Modification@IO@@QEBAHXZ   retail 0x18000da90
-//     MOV EAX,[RCX+0x10] ; RET
-
-// ?GetModification@Modification@IO@@QEBAAEBUMod@12@H@Z   retail 0x18000da80
-//     MOVSXD RAX,EDX ; SHL RAX,7 ; ADD RAX,[RCX+8] ; RET
-//
-// MOVSXD, not a zero extension: a NEGATIVE index strides BACKWARDS off the
-// array. Ghidra's C prints this as a zero extension
-// (reference_ghidra_c_output_vs_disassembly.md), which would silently turn
-// index -1 into an 8-GB forward offset. `static_cast<int64_t>` is the sign
-// extension, and it is load-bearing.
-
-// ?Enable@Modification@IO@@QEAAXH_N@Z   retail 0x1800aeab0
-//
-//     MOV RAX,[RCX+8] ; MOVSXD RDX,EDX ; MOV byte [RCX],1
-//     SHL RDX,7 ; MOV byte [RDX+RAX+0x50],R8B ; RET
-//
-// Note that the dirty flag is set BEFORE the bounds-free indexed store, and
-// unconditionally — Enable(i, x) marks the list dirty even when x is what the
-// mod already held. Nothing in our tree depends on that, but a "no-op returns
-// early" tidy-up would be a real behaviour change to IsDirty.
-
-// ?Swap@Modification@IO@@QEAAXHH@Z   retail 0x1800aeb20
-//
-//     if (a == b) return;                      // CMP EDX,EBX ; JZ epilogue
-//     this->dirty = 1;
-//     Mod tmp;  Mod::Mod(&tmp, &mods[a]);      // 0x1800101e0
-//     mods[a] = mods[b];                       // 0x180026ef0
-//     mods[b] = tmp;                           // 0x180026ef0
-//     tmp.~Mod();                              // 0x180011460
-//
-// The equality test is on the two INDICES and happens before the dirty flag is
-// touched, so Swap(i, i) is a complete no-op. `b` is sign-extended (MOVSXD
-// RBX,R8D) before the shift and `a` separately (MOVSXD RDI,EDX); both strides
-// are `<< 7`.
-
 }  // namespace RtIO
 
 // ============================================================================
@@ -574,12 +458,6 @@ namespace RtIO {
 // whatever `namespace IO` sees first, so every POD is spelled `RtIO::` and every
 // real class `System::` (B34_RULES §7.2, THE GREP HAZARD).
 //
-// NO QUALIFIED `IO::Modification::` CALL IS NEEDED IN THE DOORS ABOVE, and that
-// is worth saying because a reader coming from blocks 1-2 will look for it:
-// §A.1's recursion hazard is about a POLYMORPHIC receiver whose live instances
-// wear a MINTED table whose slots resolve back to the doors. `IO::Modification`
-// has no vtable at all (Modification.h's banner), so a member call on it is
-// already a direct call.
 // ============================================================================
 
 namespace IO {
@@ -587,7 +465,7 @@ namespace IO {
 // ?GetCount@Modification@IO@@QEBAHXZ                        retail 0x18000da90
 //     MOV EAX,[RCX+0x10] ; RET
 // ?_singleton@Modification@IO@@2PEAV12@EA (0x1801fc6b0) -- the class static
-// (ENDGAME B.3.9 IO, D7); RtIoPortInit redirects the minted row onto it.
+// (ENDGAME B.3.9 IO, D7).
 Modification* Modification::_singleton = nullptr;
 
 // ext.menu_entry (NOT RETAIL, docs/extensions/handins/MENUENTRY.md): src/ext/menu_entry/ sets them.
@@ -699,7 +577,7 @@ void Modification::SaveList() {
             if (ref != nullptr) ++RtIO::RefCount(ref);
         }  // ~tmp releases here, exactly where retail's release sat
 
-        // The door decides the overload: ?Set@..@QEAAXPEBD0_N@Z (bool), then
+        // The casts pick the overload: ?Set@..@QEAAXPEBD0_N@Z (bool), then
         // ?Set@..@QEAAXPEBD0H@Z (int).
         p->Set("ModEnabled_", ref, static_cast<bool>(m->enabled != 0));
         p->Set("ModIndex_", ref, static_cast<int>(m->order));

@@ -9,8 +9,8 @@
 //   0x14010d2c0  CitizenAI_State_ElderTransition (state id 1/15) -> ec70 + 2ac30 + Ctor8
 //
 // Each makes its state ENTERABLE by building + pushing an Action/Work sequence onto the
-// citizen action stack (via the registered builder ctors). ValidateAndEnterState
-// (citizenai_candidatelist.cpp) dispatches them by ResolveAddr; returning 1 ("pushed")
+// citizen action stack (via the builder ctors). ValidateAndEnterState
+// (citizenai_candidatelist.cpp) calls them directly from its state switch; returning 1 ("pushed")
 // commits the state. Transcribed from the Ghidra decompile, offset-by-offset.
 //
 // B.4 W1 COMP-b: the handlers are CitizenAIComponent members; `citizen` is the sibling
@@ -20,28 +20,27 @@
 //   statusFlags |= 4, lastErrand = None and returns 1. Cooldown-fail stamps Time(3.75) into
 //   timers[0] & timers[14] (Adult) or timers[1] & timers[15] (Elder) and returns 0.
 //
-// Registered exe sub-callees (resolved via ResolveAddr; bodies NOT duplicated):
-//   0x14010db20 CitizenAI_helper_db20  (citizenai_findhelpers.cpp)   [Work]
-//   0x14008e370 CitizenAI_helper_e370  (citizenai_findhelpers.cpp)   [Adult]
-//   0x14008ec70 Entity_impl_ec70       (citizenai_findhelpers.cpp)   [Elder]
-//   0x14008dd30 CitizenAI_FindBestTarget_dd30 (citizenai_findtarget.cpp) [Adult]
-//   0x14012ac30 ResidenceCheck_2ac30   (citizenai_findhelpers.cpp)   [Adult, Elder]
-//   0x1401158d0 CitizenComp_CheckWorkplaceValid (reg_component_gap_A.cpp) [Adult]
-//   0x14012a9d0 CitizenComp_Storage_GetResourceCount (reg_component_people.cpp) [Adult]
-//   0x140002ed0 WorkBase_FindComponent_Position (reg_work_base.cpp)  [all]
-//   0x140008090 CitizenComp_Entity_FindComponent_Storage (reg_component_people.cpp) [Adult, Elder]
-//   0x140122e20 Pf_EntityResolvePos_2e20 (reg_pf_road.cpp)           [all]
-//   0x140087fb0 Pf_EntityAnchorCell_7fb0  (reg_pf_road.cpp)          [Adult]
-//   0x140122be0 WorkImpl_WalkablePos_122be0 (reg_work_walkpos.cpp)   [Work]
-//   0x140122b00 WorkImpl_WalkablePosRecursive_122b00 (reg_work_walkpos.cpp) [Work]
-//   0x1401159b0 AttendanceComponent_ReleaseLink59b0 (reg_component_gap_A.cpp) [Work]
-//   0x1400bd420 PerformWork_Action_Ctor6  (citizenai_actionctors.cpp) [Adult]
-//   0x1400bd790 PerformWork_Action_Ctor8  (citizenai_actionctors.cpp) [Elder]
-//   0x1400bda50 Pathfinding_NavigateTo    (citizenai_actionctors.cpp) [Work]
-//   0x1400bb490 Pathfinding_WalkTowards   (citizenai_actionctors.cpp) [Work]
+// Exe sub-callees (called by name; bodies NOT duplicated):
+//   0x14010db20 CitizenAIComponent::CanReachHome       (citizenai_findhelpers.cpp)   [Work]
+//   0x14008e370 CitizenBehavior::FindAdultTarget       (citizenai_findhelpers.cpp)   [Adult]
+//   0x14008ec70 CitizenBehavior::FindElderResidence    (citizenai_findhelpers.cpp)   [Elder]
+//   0x14008dd30 CitizenBehavior::FindBestTarget        (citizenai_findtarget.cpp)    [Adult]
+//   0x14012ac30 ResidenceComponent::CheckHeating       (citizenai_findhelpers.cpp)   [Adult, Elder]
+//   0x1401158d0 CitizenComponent::CanReach                                           [Adult]
+//   0x14012a9d0 ResidenceComponent::GetFoodCount                                     [Adult]
+//   0x140002ed0 ComponentEntity::FindComponent<InteractComponent>                    [all]
+//   0x140008090 ComponentEntity::FindComponent<ResidenceComponent>                   [Adult, Elder]
+//   0x140122e20 InteractComponent::NodePosition                                      [all]
+//   0x140087fb0 EntityAnchorCell                                                     [Adult]
+//   0x140122be0 InteractComponent::FindWalkablePos                                   [Work]
+//   0x140122b00 InteractComponent::FindWalkablePosRecursive                          [Work]
+//   0x1401159b0 CitizenComponent::ReleaseCareBuilding                                [Work]
+//   0x1400bd420 CitizenAI_PerformWorkCtor6_bd420        (citizenai_actionctors.cpp) [Adult]
+//   0x1400bd790 CitizenAI_PerformWorkCtor8_bd790        (citizenai_actionctors.cpp) [Elder]
+//   0x1400bda50 CitizenAI_Pathfinding_NavigateTo_bda50  (citizenai_actionctors.cpp) [Work]
+//   0x1400bb490 CitizenAI_Pathfinding_WalkTowards_bb490 (citizenai_actionctors.cpp) [Work]
 //
-// SELF-CONTAINED-BRICK type-ids (UNFILLED 0xFFFFFFFF in standalone; resolved via
-//   Object::GetTypeIdByName, scan-result derefs null-guarded):
+// SELF-CONTAINED-BRICK type-ids (each class's TypeId(), cached by EnsureInit):
 //     DAT_1401c7938  -> "InteractDescription" [Work transform-sub IsDerivedFrom]
 //     DWORD_1401c7190 -> "CitizenDescription" [Work walk-time IsDerivedFrom]
 //
@@ -76,7 +75,7 @@
 
 namespace {
 
-// --- registered exe sub-callees: called by name (Component/Action/Work exe_bodies.h) ---
+// --- exe sub-callees: called by name (Component/Action/Work exe_bodies.h) ---
 
 // EnsureInit resolves no door: it only caches the type ids.
 static uint32_t s_tid_InteractDescription = 0;  // DAT_1401c7938
@@ -270,7 +269,7 @@ uint64_t CitizenAIComponent::State_AdultTransition() {
     }
 
     if (!ctorDirect) {
-        // common tail: validate found entity's Storage with ResidenceCheck_2ac30
+        // common tail: validate found entity's ResidenceComponent with CheckHeating
         // 0x140008090 twice (was its CitizenComp_Entity_FindComponent_Storage forwarder)
         ResidenceComponent* storComp = found->FindComponent<ResidenceComponent>();
         if (storComp == nullptr) {

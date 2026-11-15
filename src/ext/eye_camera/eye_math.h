@@ -111,8 +111,8 @@ void Step(Smooth& s, const Vec3& feet, float heading, float distance, float dt);
 // object's index changes whenever it was last and something else died). `hint`
 // is the index it had; when the table no longer holds it there, the table is
 // searched by pointer value (nothing is dereferenced). -1 = not in the table:
-// the object was destroyed (~Internal removes it). The caller checks the
-// generation once the slot names the object (an address reused by a new one).
+// a destroyed object never is (~Internal removes it), and a live one can drop
+// out of it (EYECAM.md §10.2).
 template <class Slot>
 int FollowSlot(const Slot* slots, int count, const void* object, int hint) {
     if (hint >= 0 && hint < count && slots[hint] == object) return hint;

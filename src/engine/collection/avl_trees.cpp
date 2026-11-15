@@ -1,7 +1,7 @@
 // ============================================================================
 // src/engine/collection/avl_trees.cpp — Wave 9 lane COLL
 //   The `Collection::Set` / `Collection::Map` INSERT side: the three keyed
-//   trees our tree reaches by address, plus the recursive subtree free.
+//   trees, plus the recursive subtree free.
 // ============================================================================
 //
 // WHAT THIS CLOSES
@@ -16,17 +16,13 @@
 // Four unregistered by-address doors close here:
 //
 //   0x180030140  Set<Pair<u32,TypeRecord>>::Insert  — the row that
-//                `Object::Factory::Startup` could not close. Its port
-//                (src/engine/object/type_system.cpp:639) resolves this
-//                address through the port-aware door and PRINTS A DIAGNOSTIC
-//                AND RETURNS if it is null, so before this file the type tree
-//                was simply not built at cutover.
+//                `Object::Factory::Startup` could not close. Object::Factory's
+//                type tree is a `Collection::Set` whose insert reaches
+//                Retrace50 (GROUP A below).
 //   0x18002a090  Map<String,String>::Insert — reached from `ReadSettings` on
-//                EVERY boot (persistence_registry_win.cpp:266), from
-//                `Persistence` (persistence.cpp:59), from
-//                `Configuration::ParseCommand` (configuration.cpp:268) and
-//                from engine_funcs.cpp:1723 (`fn_Map_Insert`, the mods
-//                cluster lane MOD routed).
+//                EVERY boot (persistence_settings.cpp), from
+//                `Persistence` (persistence.cpp) and from
+//                `Configuration::SetCommandLine` (configuration.cpp).
 //   0x180025a80  Set<Pair<Filename,u64>>::Insert — LoadPackages' path index
 //                (filesystem_packages.cpp:824), one entry per file per
 //                packfile.
@@ -68,15 +64,11 @@
 // **Closure size: 20 bodies. 15 written here, 3 already ported by lane VID2
 // and reused (see below), 2 already registered by other lanes.**
 //
-// ONE dependency is left open on purpose and it does NOT grow the census:
-// `0x18007eefc` (the CRT `_stricmp` the packfile descent needs) is ALREADY an
-// unregistered address door, at `filesystem_openfile.cpp:192` and
-// `filesystem_packages.cpp:438`. This file becomes its THIRD caller through
-// the same door; it does not add a row. Naming it rather than hiding it behind
-// a helper is what keeps the census able to see the edge
-// (reference_census_cannot_see_nonliteral_registrations.md).
+// ONE dependency is the CRT's: `0x18007eefc` (the `_stricmp` the packfile
+// descent needs) is `rtcrt::StrICmp` (rt_crt.h), called by name from
+// PathStrICmp below.
 //
-// SIX ADDRESSES ARE REGISTERED TO LANE VID2's BODIES, AND IT IS MEASURED
+// SIX ADDRESSES RUN LANE VID2's BODIES, AND IT IS MEASURED
 // ----------------------------------------------------------------------
 // The Map<String,String> tree and the packfile Filename tree have the SAME
 // node header as the message-callback Set lane VID2 ported: element 0x10,
@@ -109,15 +101,11 @@
 // ORACLE
 // ------
 // A destructive mutator cannot be replayed at a live call site: running ours
-// and then theirs starts the second run from the state the first left. All
-// four entry points here are verified by the LOCKSTEP SYNTHETIC-SUBJECT PROBE
-// in avl_trees_probe.cpp — two private trees, the same script, ours through
-// these bodies and theirs through the shipped ones reached with
-// `ResolveRuntimeRaw`, compared AFTER EVERY STEP.
+// and then theirs starts the second run from the state the first left.
 //
-// AVL defects CANCEL, which is why the comparison is per-step and structural
+// AVL defects CANCEL, which is why a comparison has to be per-step and structural
 // (shape, balance, height, parent linkage, key order) rather than a final
-// key-set check. And the population is adversarial on purpose — see the probe.
+// key-set check.
 // ============================================================================
 
 #include <cstddef>
@@ -149,24 +137,9 @@ ProbeCounters g_pc = {};
 // (`MOV RBX,[0x1801fc718] / ADD RBX,0x640 / EnterCriticalSection /
 //  Allocate(_singleton, n, 8) / LeaveCriticalSection`), which is exactly
 // `?MemAlloc@MemoryAllocator@System@@SAPEAX_KH@Z` (0x1800c7a50) with align 8.
-// Going through that one door instead of pinning 0x1800c6e60 and the +0x640
-// lock offset in a fourth place is the call array.cpp:159 and
-// type_system.cpp:552 already made, for the reason array.cpp's banner gives:
-// a heap cannot be half-ours, so this must move with lane E's allocator and not
-// independently of it.
-//
-// RETRIES A NULL rather than caching one — the RtResolveCached contract. At
-// cutover this address is supplied by RegisterAllocatorAddresses() inside the
-// allocator's own arming path, and any caller that ran before that point would
-// otherwise freeze a null for the life of the process.
+// The two wrappers below call System::MemoryAllocator::MemAlloc / MemFree by
+// name instead of pinning 0x1800c6e60 and the +0x640 lock offset here.
 // ---------------------------------------------------------------------------
-// ENDGAME B.3.2 closing pass: the resolution itself moved to
-// `rtcoll::DoorAlloc`/`DoorFree` (src/engine/collection/alloc_door.cpp) so that
-// the four collection seams reach the allocator through the exe dispatch slots
-// 0x140152b60 / 0x140152b68 — the same door the rest of the tree uses and the
-// one `BANISHED_REDZONE` rewrites — with these two addresses as the fallback.
-// Same allocator, same lock, same order; "a heap cannot be half ours" now
-// covers the instrument too.
 static void* MemAlloc(uint64_t bytes, int align) {
     return System::MemoryAllocator::MemAlloc(bytes, align);
 }
@@ -445,8 +418,8 @@ void Retrace50(TypeNode** root, TypeNode** slot) {
 // DELETED in ENDGAME B.3.3 step 7, with its declaration in avl_trees.h and its
 // `RegisterRuntimeAddr(0x180030140, …)` row. Step 3 moved `Object::Factory`
 // onto `Collection::Set<TypeEntry,…>`, whose `Insert` reaches the SAME ported
-// core (`TypeInsertCore` / `AvlOps<Node,0x30>::Retrace` = `PortedRetrace48`,
-// both still here and still registered). That left `TypeSetInsert` with zero
+// core (`AvlOps<Node,0x30>::Retrace` = `PortedRetrace48`, set_core.cpp, which
+// calls Retrace50 here). That left `TypeSetInsert` with zero
 // callers by NAME and zero readers of 0x180030140 by ADDRESS — no `ResolveAddr`,
 // no per-file wrapper, no `rt_data_mint_tables.inc` `RT_MINT_UNNAMED` slot and
 // no `rt_export_addrs.inc` row cite it (swept 2026-09-18).
@@ -458,7 +431,7 @@ void Retrace50(TypeNode** root, TypeNode** slot) {
 //
 // Node header IDENTICAL to lane VID2's (element 0x10, parent +0x10, left
 // +0x18, right +0x20, balance +0x28, height +0x2a, sizeof 0x30), which is why
-// its retrace and rotations are registered to lane VID2's bodies rather than
+// its retrace and rotations are the shared rtsetavl bodies (set_avl.cpp) rather than
 // re-transcribed. The element is two `char*` System::String slots.
 //
 // THE COMPARATOR IS AN INLINE strcmp AND IT IS THE HAZARD IN THIS SECTION.
@@ -594,7 +567,7 @@ namespace {
 // The policy for the string map. Same shared descent as group A's; what
 // differs — and what is therefore here — is the comparator (retail's inlined
 // SIGNED strcmp, NOT `_stricmp`), the null-key asymmetry a pointer key has,
-// the node allocator, and the retrace reached through its own address door.
+// and the node allocator.
 struct StringPolicy : Collection::detail::NoCounters {
     using Node    = StringPairNode;
     using SetT    = RtIo::SettingsSet;
@@ -653,9 +626,6 @@ StringPairNode** StringInsertCore(RtIo::SettingsSet* set, StringPairNode** outSl
 // ---------------------------------------------------------------------------
 StringPairNode** StringMapInsert(RtIo::SettingsSet* map, StringPairNode** outSlot,
                                  char* const* key, char* const* value) {
-    // The probe ALLOCATES, so it cannot run from a *PortInit (WAVE9.md, lane
-    // PKG2). It self-schedules here instead: this moment is provably safe
-    // because the caller is itself about to allocate a node.
     StringPair temp;
     StringAddRefInto(&temp.key,   *key);
     StringAddRefInto(&temp.value, *value);
@@ -683,9 +653,7 @@ StringPairNode** StringMapInsert(RtIo::SettingsSet* map, StringPairNode** outSlo
 // for arm. That is a free second reading of the comparator's null handling.
 // ============================================================================
 
-// 0x18007eefc — the CRT `_stricmp`. ALREADY an unregistered address door with
-// two other callers; this is the third and it adds no census row. Spelled as a
-// literal inside ResolveAddr at the call site so the census can see the edge.
+// 0x18007eefc — the CRT `_stricmp`, called by name as rtcrt::StrICmp (rt_crt.h).
 static int PathStrICmp(const char* a, const char* b) {
     const int r = rtcrt::StrICmp(a, b);
     if (r < 0)      ++g_pc.icmpLt;
@@ -701,9 +669,8 @@ static int PathStrICmp(const char* a, const char* b) {
 //   node[+0x08] = src[+0x08]                    ; the packed value qword
 //   node[+0x10] = parent ; +0x18 = 0 ; +0x20 = 0 ; +0x28 = 0 (DWORD)
 //
-// The Filename copy ctor is reached through the port-aware address door rather
-// than called directly, so that `src/engine/system/filename.cpp`'s
-// registration of 0x1800067d0 is what runs and the site's `calls=` counts it.
+// The Filename copy ctor is called directly, as a placement new on the raw
+// MemAlloc storage.
 // ---------------------------------------------------------------------------
 FilenamePairNode* FilenamePairCtor(FilenamePairNode* node, const FilenamePair* src,
                                    FilenamePairNode* parent) {
@@ -733,7 +700,7 @@ namespace {
 // The policy for the packfile path index. IDENTICAL to the string map's except
 // for the comparator — `_stricmp` (0x18007eefc), not group B's signed strcmp;
 // the two disagree on any byte >= 0x80 and a package path can contain one
-// (filesystem_openfile.cpp:185) — the node allocator, and the retrace door.
+// (filesystem_openfile.cpp:185) — and the node allocator.
 struct FilenamePolicy : Collection::detail::NoCounters {
     using Node    = FilenamePairNode;
     using SetT    = RtIO::PackfileIndexTree;
@@ -783,9 +750,6 @@ FilenamePairNode** FilenameInsertCore(RtIO::PackfileIndexTree* set, FilenamePair
 FilenamePairNode** FilenameSetInsert(RtIO::PackfileIndexTree* set, FilenamePairNode** outSlot,
                                      const System::Filename* key,
                                      const RtIO::PackfileIndexValue* value) {
-    // The probe ALLOCATES, so it cannot run from a *PortInit (WAVE9.md, lane
-    // PKG2). It self-schedules here instead: this moment is provably safe
-    // because the caller is itself about to allocate a node.
     // B.4 Z MIRROR2: the stack pair is a real FilenamePair: the Filename copy
     // ctor 0x1800067d0 on +0x00, the raw value qword on +0x08, the insert,
     // then ~FilenamePair (the key's release) at scope exit, retail's order.
@@ -816,10 +780,9 @@ FilenamePairNode** FilenameSetInsert(RtIO::PackfileIndexTree* set, FilenamePairN
 // exactly one slot and so does this.
 //
 // `SetNodeFree` is 0x180009c30, the allocator-lock Free wrapper whose FIRST
-// PARAMETER IS IGNORED — registering a one-argument MemFree there would free
-// the ignored `this` and corrupt the free list. It is already registered, with
-// src/engine/system/allocator.cpp as the single owner, and is reached here
-// through the same shared contract (ignore arg 1, free arg 2).
+// PARAMETER IS IGNORED — a one-argument MemFree there would free the ignored
+// `this` and corrupt the free list. It is rtsetavl::SetNodeFree (set_avl.cpp),
+// called here by name with the same contract (ignore arg 1, free arg 2).
 //
 // RECURSION DEPTH is the tree's height, which for an AVL tree of the ~9,000
 // entries a stock install's four packfiles produce is under 20. Retail
@@ -827,10 +790,7 @@ FilenamePairNode** FilenameSetInsert(RtIO::PackfileIndexTree* set, FilenamePairN
 // program with a different stack-overflow point.
 //
 // ORACLE: NONE, and it is not close. It frees everything it touches; running it
-// twice is a double free. What the probe CAN and does verify is the tree it
-// runs on — a tree built by our inserts and then torn down by our free, with
-// the allocator's own accounting as the check that every node came back. That
-// is stated as a weaker claim than the other three rather than dressed up.
+// twice is a double free.
 // ============================================================================
 void SubtreeFree(void* ignoredThis, FilenamePairNode* node) {
     if (node == nullptr) return;

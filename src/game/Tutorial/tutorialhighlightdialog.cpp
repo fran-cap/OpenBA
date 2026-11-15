@@ -94,10 +94,10 @@ void TutorialHighlightDialog::OnUpdate(const System::Time& time) {
 // arrow's bob is  sinf(elapsedSeconds * pi) * 8  pixels.
 // ===========================================================================
 
-#include "Action/exe_bodies.h"      // 0x140003f60 ActCNR_FindComponent_3f60
-#include "Component/exe_bodies.h"   // 0x140004680 FloorComponent_FindResData
-#include "Game/exe_bodies.h"        // 0x14009f3e0 Reimpl_MapGetTerrainPos
-#include "Player/exe_bodies.h"      // 0x140100380 PlayerScreenRect_Entity_0380
+#include "Action/exe_bodies.h"
+#include "Component/exe_bodies.h"
+#include "Game/exe_bodies.h"
+#include "Player/exe_bodies.h"      // 0x140100380 PlayerScreenRect_EntityRect_0380
 #include "Object/factory_registration.h"
 #include "Entity/ComponentEntity.h"
 #include "Component/ModelComponent.h"
@@ -113,7 +113,7 @@ void TutorialHighlightDialog::OnUpdate(const System::Time& time) {
 namespace {
 
 // Volume::Rectangle::Rectangle() is RtVolume_Rectangle_Ctor; 0x140100380 — entity
-// screen bounding rectangle — is PlayerScreenRect_Entity_0380 (ported in
+// screen bounding rectangle — is PlayerScreenRect_EntityRect_0380 (ported in
 // src/game/Player/tool_base_screenrect.cpp). param_1 is unused by the body; retail
 // passes the rectangle itself there.
 
@@ -206,7 +206,7 @@ namespace {
 
 // The FindComponent<T> instances the screen-rect path uses: 0x140003f60 ->
 // ModelComponent, 0x140004680 -> MapComponent.
-// 0x14009f3e0 Reimpl_MapGetTerrainPos — grid cell -> world position (real terrain z).
+// 0x14009f3e0 Map::GetTerrainPos — grid cell -> world position (real terrain z).
 
 // The diagnostic's reprint-on-change filter (main thread only: OnUpdateLayout).
 const ComponentEntity* s_diagLastEntity = nullptr;

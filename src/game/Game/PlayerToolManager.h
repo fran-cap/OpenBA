@@ -20,8 +20,9 @@
 //                      (0x14002e000): data +0x70, count +0x78, capacity +0x7C
 //   +0x28 is an InternalPtr<Tool> member (its ctor is retail's null store);
 //   +0x00 is still declared as a plain pointer. Every other field is a
-//   typed guess from the ctor's store; the tree reads +0x30 as the paused
-//   flag and +0x34 as the game speed (ctor 1) — not yet confirmed in retail.
+//   typed guess from the ctor's store; +0x30 is the paused flag (the toolbar's
+//   pause / unpause buttons write it, 0x1400b92a0); the tree reads +0x34 as the
+//   game speed (ctor 1) — not yet confirmed in retail.
 // ============================================================================
 
 #include <cstdint>

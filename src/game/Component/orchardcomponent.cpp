@@ -6,11 +6,6 @@
 //   +0x60 ExternalPtr treeType
 //
 // Vtable at 0x14015a180. Persist (0x140051de0) serializes the slot array.
-//
-// LEFT (B.4 COMP-d): GameUpdateLoop m_game / m_dayCounter are void* (W0 header) and
-// the Map's 0x30-byte cell record (array at +0x80, +0x08 = the entity on the cell)
-// has no type yet (GAME-b); the StateMachine at StateMachineComponent+0x48 is a void*
-// (COMP-e's header); WorkPlaceComponent_SetAccepting takes an int64_t (COMP-f).
 
 #include "Component/OrchardComponent.h"
 #include <cstdint>
@@ -29,7 +24,7 @@
 #include "Game/Map.h"              // Map::cells (GameUpdateLoop::m_game)
 #include "Game/Calendar.h"         // GameUpdateLoop::m_dayCounter
 #include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
-#include "Game/exe_bodies.h"     // Reimpl_ExternalPtr_Serialize_StringTable
+#include "Game/exe_bodies.h"
 #include "Game/exe_constants.h"  // kRdata_*
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch A
 #include "io/Stream.h"      // ENDGAME B.3.4 callers batch H: IO::Stream::GetDirection
@@ -45,7 +40,7 @@
 //   0x140051830 OrchardComponent::ValidateRefs  -- validate entity references in orchard
 //   0x140009f80 OrchardComponent::SetSlotCount  -- resize the slot array at +0x50
 //   0x14000a230 SerializeSlots                  -- serialize the slot array entries
-//   0x140002340 Reimpl_ExternalPtr_Serialize_StringTable -- serialize the ExternalPtr at +0x60
+//   0x140002340 ::Object::SerializeExternal     -- serialize the ExternalPtr at +0x60
 
 
 // ============================================================
@@ -236,10 +231,10 @@ float OrchardComponent::GetGrowth() const {
 
 // ============================================================
 // OrchardComponent::OnMessage — primary vtable idx15 (+0x78), retail 0x140051990.
-// ABI confirmed by src/game/Action/sendcomponentmessage.cpp:231, which dispatches
+// ABI confirmed by src/game/Action/sendcomponentmessage.cpp, which dispatches
 // vtable+0x78 as (comp, msgId, srcEntityRef, p1, p2). p1 is the SLOT INDEX.
 //
-// This is the writer the whole planting loop was missing. PlantOrchard::Slot4 skips any
+// This is the writer the whole planting loop was missing. PlantOrchard::Execute skips any
 // slot whose tree already holds an entity and marks its own validity byte, and
 // PlantOrchard::OnComplete clears that byte again on completion — so with nothing ever
 // writing slot.tree the orchardist replanted the same cell forever (measured: 29 executed
@@ -256,8 +251,7 @@ float OrchardComponent::GetGrowth() const {
 // ⚠ Two faithful landmines kept verbatim: msg 2 reads the boost rate through a pointer that
 // retail nulls when IsDerivedFrom fails, and BoostFruit does the same with the fruit
 // description's rate. Both are load-bearing — they only fire if a type-id global is unfilled,
-// which is a bug to fix at the registration, not to paper over here (see
-// reg_orchard_typeid.cpp / reg_component_fruit.cpp).
+// which is a bug to fix at the registration, not to paper over here.
 // ============================================================
 
 // 0x14000a0b0 is FindComponent<FruitComponent>. 0x140172234 = 300.0f (kRdata_140172234).
@@ -283,20 +277,13 @@ static void BoostFruit(FruitComponent* fruit, float scale) {
 // ============================================================
 // Slot indices verified from the vtable BYTES at 0x14015a180: +13*8 = 0x14015a1e8 reads
 // {0x140051c90, 0x140051ba0, 0x140051990, 0x1400026c0} — and the last two are the
-// addresses this file already cites for OnMessage (idx15) and GetDefaultState (idx16),
-// which is what pins the indexing.
-//
-// WHY THEY WERE MISSING: neither slot was ever assigned, so both kept the shared inert
-// stub MakeInertTyped installs — "returns 0 for every non-dtor slot". CanCommand
-// returning 0 unconditionally is exactly the reported symptom: every orchard panel
-// button renders disabled regardless of state, and a click dies at the first hop. This
-// is the same trap the slot-15 comment below documents, so the wiring hangs off the
-// same PopulateFn hook.
+// addresses this file cites for OnMessage (idx15) and OrchardComponent.h cites for
+// GetDefaultState (idx16), which is what pins the indexing.
 namespace {
 
 // Finders called here: 0x140003ea0 FindComponent<StateMachineComponent>, 0x140003050
 // FindComponent<WorkComponent>, 0x140002e10 FindComponent<WorkPlaceComponent>; leaves
-// 0x14012ead0 WorkComponent_CheckWorkSlot, 0x14012fc00 WorkPlaceComponent_SetAccepting.
+// 0x14012ead0 WorkComponent::IsWorkPosted, 0x14012fc00 WorkPlaceComponent::SetAccepting.
 
 // The SM's current state id: +0x52 (pending), falling back to +0x50 when negative.
 // NB these are offsets on the StateMachineComponent, and the `sm` the state handlers
@@ -464,8 +451,8 @@ void OrchardComponent::Persist(IO::Stream& stream) {
 // [4] 0x140051dd0: `MOV qword [RCX+0x60],0` — one store, nothing else.
 void OrchardComponent::Startup() { treeType = nullptr; }
 
-// [13] 0x140051c90 / [14] 0x140051ba0 / [15] 0x140051990 below; the extern "C" doors
-// of [13]/[14] stay above (src/diag/orchard_cut_harness.cpp calls them).
+// [13] 0x140051c90 / [14] 0x140051ba0 / [15] 0x140051990 below; src/diag/orchard_cut_harness.cpp
+// calls [13]/[14] (CommandMask / Command).
 // idx13 CanCommand — retail 0x140051c90. Returns the button's enabled state.
 //   id 0 WORK    : (no work slot held && planted < slots) || slots == 0, ANDed with hasType
 //   id 1 HARVEST : state == 10 && lastHarvestYear != current year, ANDed with hasType

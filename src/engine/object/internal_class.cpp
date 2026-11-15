@@ -10,23 +10,20 @@
 // WHY THIS FILE IS SEPARATE FROM internal.cpp
 // -------------------------------------------
 // The same split src/engine/object/type_reflection.cpp has against
-// type_system.cpp: internal.cpp owns the REGISTRY — the `RtObject_*` ABI shims,
-// the mangled-name doors, the attendance counters and the vtable-pin screen.
-// None of that can link into `make unit` (tests/unit/rt_port_stub.cpp stubs
-// `ResolveExport`/`ResolveAddr` but not `RtResolveCached`). The CLASSES have to
-// be unit-testable — B33_RULES §9 step 5 asks for the slot order, the
-// `Type()`/`TypeName()` chain, `Destroy(p)` and the factory table logic — so the
-// bodies live here behind one `-DBANISHED_UNIT_TEST` seam and the doors stay
-// there.
+// type_system.cpp: internal.cpp holds `InternalBasePtrSerializeBody` and is not
+// in the unit build. The CLASSES have to be unit-testable — B33_RULES §9 step 5
+// asks for the slot order, the `Type()`/`TypeName()` chain, `Destroy(p)` and
+// the factory table logic — so the bodies live here behind one
+// `-DBANISHED_UNIT_TEST` seam.
 //
 // WHAT DID **NOT** MOVE, AND WHY
 // ------------------------------
-//   * `??0InternalFactory@Object@@QEAA@XZ` (0x1800c0030) is registered from
-//     src/engine/engine/singleton_ctors.cpp and `??1InternalFactory@Object@@`
-//     (0x18002f860) from src/engine/object/factory_dtors.cpp. Neither file is
-//     in this step's set, so the class declares neither: a second spelling of a
-//     body that is already registered at those two addresses is exactly the
-//     drift B31_RULES' two-step shim pattern exists to avoid.
+//   * `??0InternalFactory@Object@@QEAA@XZ` (0x1800c0030) is `Ctor_InternalFactory`
+//     in src/engine/engine/singleton_ctors.cpp and `??1InternalFactory@Object@@`
+//     (0x18002f860) is `RtObject_InternalFactory_Dtor` in
+//     src/engine/object/factory_dtors.cpp. The class declares neither: a second
+//     spelling of a body that already exists is exactly the drift B31_RULES'
+//     two-step shim pattern exists to avoid.
 //   * `?Clone@Internal@Object@@QEAAPEAV12@XZ` (0x1800bfb10) *** IS PORTED AS OF
 //     ENDGAME B.3.4 STREAMS (6/6) *** and is declared on the class. This
 //     paragraph used to read "is UNPORTED — nothing in the tree registers it by
@@ -35,16 +32,13 @@
 //     B.3 step 4; B34_RULES §6.5(e) re-measured that blocker as ALREADY
 //     SATISFIED (all eight slots of ??_7MemoryStream@ have had real bodies
 //     since Wave 9/19) and scheduled the port as its own small commit.
-//     The body is at the bottom of this file and the registered door is
-//     `RtObject_Internal_Clone` in internal.cpp — the symbol's FIRST
-//     registration, by name AND by address.
+//     The body is `Internal::Clone` in this file.
 //   * B.3.4 block 3 LANDED `IO::Serializer`, so every `Serialize`/persist body
 //     here now goes through the real class instead of `RtObject::SerializerLite`
 //     (which is deleted). What did NOT change is the numbers: the **retail**
-//     ReaderWriter vtable byte offsets, now spelled `rt::io::rw_vtbl::k*`,
-//     still DIFFER in the profile build, and the raw slot calls stay raw until
-//     nothing hands a Serializer a minted-table ReaderWriter (B34_RULES §3.1,
-//     §4.2). Nothing here is cross-checked against the profile disassembly.
+//     ReaderWriter vtable byte offsets, spelled `rt::io::rw_vtbl::k*`, still
+//     DIFFER in the profile build; the ReaderWriter members are called by name.
+//     Nothing here is cross-checked against the profile disassembly.
 //
 // No C++ exceptions anywhere in this file (PLAN.md §4.3 risk 5).
 // PORTABILITY: no <windows.h> (PLAN.md §4.1 decision 1).
@@ -75,14 +69,14 @@ namespace Object {
 // MemoryAllocator STATICS, not through the container's own allocator policy:
 // every inlined copy is `EnterCS(_singleton+0x640); Allocate(...); LeaveCS`,
 // which is precisely `?MemAlloc@MemoryAllocator@System@@SAPEAX_KH@Z`
-// (0x1800c7a50) with the align argument threaded through. This step does not
-// move that door — it only gives the bodies a home on the class.
+// (0x1800c7a50) with the align argument threaded through; `detail::InternalMemAlloc`
+// below calls it.
 //
 // `?MemFree@MemoryAllocator@System@@SAXPEAX@Z` (0x1800c7ad0) is the same body as
 // the class-scoped `operator delete` at 0x180006a10 that `Internal`'s slot 0
-// tail-calls (proved for all 88 such deletes in
-// src/engine/object/class_operator_delete.cpp's banner), so slot 0's free arm
-// goes through this one door rather than pinning an 89th copy.
+// tail-calls (proved for all 88 such deletes). Slot 0's free arm is
+// `Object::Base::operator delete` in src/engine/object/root_operator_delete.cpp,
+// which calls `System::MemoryAllocator::MemFree`.
 namespace detail {
 
 #if defined(BANISHED_UNIT_TEST)
@@ -93,12 +87,10 @@ void* InternalMemAlloc(uint64_t bytes, int /*align*/) { return std::malloc((size
 void  InternalMemFree(void* p)                        { std::free(p); }
 
 // `?Rand@Random@System@@QEAAIXZ` (0x1800c7f90) is ported in
-// src/engine/system/value_types.cpp, which stands on the registry and is not
-// linked into `make unit`. A test that wants to observe the generation draw
-// installs this hook for its duration and clears it again — the same shape
-// tests/unit/rt_port_stub.cpp's `g_unitResolveAddr` has, and the same shape
-// tests/unit/array_test.cpp already drives. With no hook installed the draw is
-// 0, which is what `_generation` is initialised to anyway.
+// src/engine/system/value_types.cpp; this unit arm does not call it. A test that
+// wants to observe the generation draw installs this hook for its duration and
+// clears it again (tests/unit/object_internal_test.cpp does). With no hook
+// installed the draw is 0, which is what `_generation` is initialised to anyway.
 uint32_t (*g_unitInternalRandHook)(System::Random*) = nullptr;
 
 uint32_t InternalRand(System::Random* random) {
@@ -285,13 +277,11 @@ void ArrayIntSetSize(Collection::Array<int32_t>* a, int newSize) {
 // block the mint ALSO minted `?_typeInfo@Internal@Object@@0VBaseTypeInfo@2@A`
 // (0x1801f9c18) and spliced it in front of this one, so `Factory::Startup` saw
 // the name twice and its `Insert` silently kept the minted node. That row is
-// retired (tools/rt_mint_retired/obj.txt): this CRT-init record is the only
+// retired: this CRT-init record is the only
 // `Internal` in `_firstTypeInfo`, `Factory::Startup` inserts it, and every
-// reader of the type id -- `Internal::TypeId()`/`Type()`, the minted
-// `??_7Internal@Object@@6B@` slot doors (object_typeinfo_accessors.cpp),
+// reader of the type id -- `Internal::TypeId()`/`Type()`,
 // `PersistObject` and `Clone` below -- reads it. Its factory pointers are the
 // real `return nullptr` bodies, which is what retail has.
-// tests/unit/b39_obj_typeinfo_unique_test.cpp keeps it the only one.
 DEFINE_TYPE(Object::Internal, "Base", nullptr)
 
 // 0x18002fc80 / 0x1800070c0 — `XOR EAX,EAX; RET`, both of them.
@@ -306,10 +296,8 @@ Base* Internal::CreateInPlaceObject(void*)     { return nullptr; }
 //
 // The two vptr stores retail makes at 0x1800bfd2b and 0x1800bfd35 are the
 // constructor chain (Base's, then Internal's own) and GCC emits both for us.
-// They are NOT written by hand: a hand-written store would name the MINTED
-// table address, and an object built by this constructor carries the COMPILER's.
-// tests/unit/object_vtable_abi_test.cpp is why that is safe — the two tables are
-// slot-for-slot interchangeable in both directions.
+// They are NOT written by hand: an object built by this constructor carries the
+// COMPILER's table.
 Internal::Internal() {
     _factoryIndex = -1;   // 0x1800bfd3f — dead: AddObject overwrites it
     _generation   = 0;    // 0x1800bfd46 — dead likewise. Reproduced anyway.
@@ -404,9 +392,8 @@ void Internal::Persist(IO::Stream&/*stream*/) {
 // FIELD-STORE ORDER IS RETAIL'S: data, size, cursor, direction, ownsData, for
 // both streams, after the constructor has run and overwriting what it wrote.
 //
-// Not compiled into `make unit`: the host links no IO::MemoryStream bodies
-// (its vtable's slots live in compressedstream.cpp) and nothing there calls
-// `Clone`, which needs a live Object::Factory and a real Persist override.
+// Not compiled into the unit build: nothing there calls `Clone`, which needs a
+// live Object::Factory and a real Persist override.
 #if !defined(BANISHED_UNIT_TEST)
 Internal* Internal::Clone() {
     // 0x1800bfb35 loads the singleton BEFORE the virtual call at 0x1800bfb3f.
@@ -478,10 +465,9 @@ Internal* Internal::Clone() {
 // ============================================================================
 
 // ?_singleton@InternalFactory@Object@@0PEAV12@EA — retail 0x1801fc6d8. The
-// class static (ENDGAME B.3.9 OBJ, B39_RULES D7); the minted row is redirected
-// onto it in RtObjectPortInit, so the name and address doors answer these
-// bytes. The mint never zeroes or re-seeds it; the language zero-initialises
-// it and the ctor door publishes into it.
+// class static (ENDGAME B.3.9 OBJ, B39_RULES D7); the language zero-initialises
+// it and `Ctor_InternalFactory` (src/engine/engine/singleton_ctors.cpp)
+// publishes into it.
 InternalFactory* InternalFactory::_singleton = nullptr;
 
 // ?Get@InternalFactory@Object@@SAPEAV12@XZ   retail 0x18002f850 —
@@ -581,8 +567,8 @@ void InternalFactory::ClearPersistState() {
 // port pinned the same arity from the out-of-line 0x1800b9960, where
 // BinaryWriter STORES that int and writes it to the stream.
 //
-// *** THE READERWRITER VTABLE OFFSETS ARE BUILD-SPECIFIC. *** `kScalarInt`
-// below is 0xa0, the RETAIL number. The PROFILE build uses 0xb8 for the same
+// *** THE READERWRITER VTABLE OFFSETS ARE BUILD-SPECIFIC. *** `SerializeInt`
+// below is +0xa0, the RETAIL number. The PROFILE build uses 0xb8 for the same
 // call. Copying the profile number writes the right value through the wrong
 // slot and desyncs every save.
 //
@@ -633,10 +619,8 @@ void InternalFactory::ResetPersistState(IO::Stream& stream) {
 // ?PersistObject@InternalFactory@Object@@QEAAPEAVInternal@2@AEAVStream@IO@@IHI@Z
 //                                                          retail 0x1800bff10
 // ============================================================================
-// Moved here UNCHANGED from src/engine/object/internalfactory_persist.cpp,
-// whose banner carries the full read-out of both arms and is still the place to
-// read it. The three things that must survive any future tidy-up are restated
-// because each one is load-bearing:
+// The three things that must survive any future tidy-up, because each one is
+// load-bearing:
 //
 //   * THE DESCENT'S MISS ARM PRODUCES A NULL NODE AND RETAIL DEREFERENCES IT.
 //     `MOV [RSI+0xc],R15D` at address 0xc is how a save file naming an

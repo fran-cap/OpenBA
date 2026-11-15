@@ -4,7 +4,7 @@
 // (cutover closure batch 3b, 2026-09-12).
 // ============================================================================
 //
-// WHAT IS IN HERE, with retail addresses and the export name each registers:
+// WHAT IS IN HERE, with retail addresses and the export name of each:
 //
 //   0x1800fdf50  ?PlayAnimation@AnimationState@Graphics@@QEAAXV?$ExternalPtr@
 //                VAnimationGroup@Graphics@@@Object@@HAEBV?$Array@UNode@
@@ -41,16 +41,15 @@
 // expressions and no reassociation. The `xorps reg,[0x1801617c0]` sign flips
 // (that constant is four -0.0f, read out of the DLL) are written as unary
 // minus on a float, which is the same bit operation. The compiler is not asked
-// to contract anything: the project builds with no `-ffp-contract` override and
-// no `-mfma`, so the x86-64 baseline has no FMA to contract into, and this file
-// adds no flags of its own (Makefile SA_CXXFLAGS, unchanged).
+// to contract anything: the project builds with `-ffp-contract=off` and no
+// `-mfma` (CMakeLists.txt), and this file adds no flags of its own.
 //
 // A shared helper was considered and rejected on purpose: the four schedules
 // are NOT the same order, so one helper would silently impose one of them on
 // the other three. src/engine/math/transform.cpp already holds the project's
 // ported `Math::Transform::operator*` with its OWN order, and it is likewise
 // not reused here for the inlined copies — only for the real `CALL`s retail
-// makes, which go through the port registry so our own body answers.
+// makes, which are plain calls to the ported members.
 //
 // ---------------------------------------------------------------------------
 // THE INSTANCE HANDLE
@@ -64,7 +63,7 @@
 // ---------------------------------------------------------------------------
 // HIDDEN RETURN SLOTS
 // ---------------------------------------------------------------------------
-// Four Math entry points here return a value by reference in RDX, which shifts
+// Five Math entry points here return a value by reference in RDX, which shifts
 // the real arguments right (reference_hidden_retslot_wild_write.md):
 //   ??DQuaternion@Math@@QEBA?AV01@AEBV01@@Z   (this, ret, rhs)
 //   ?Rotate@Quaternion@Math@@QEBA?AVVector3@2@AEBV32@@Z  (this, ret, v)
@@ -72,7 +71,8 @@
 //   ?Inverse@Transform@Math@@QEBA?AV12@XZ     (this, ret)
 //   ?AsMatrix@Transform@Math@@QEBA?AVMatrix@2@XZ (this, ret)
 // Each returns the slot pointer in RAX, and retail reads the result back
-// through RAX rather than through the buffer it passed; that is reproduced.
+// through RAX rather than through the buffer it passed. Here each is the member
+// of the real Math class, returning by value.
 //
 // PORTABILITY: no <windows.h>, per PLAN §4.1 decision 1.
 // ============================================================================
@@ -88,8 +88,7 @@
 #include "graphics/Mesh.h"             // Graphics::MeshInstance, ditto
 #include "graphics/InterpolatedState.h"  // ENDGAME B.3.5 closing pass:
                                                      // Graphics::InterpolatedState<T>
-#include <new>                                       // placement new, for the
-                                                     // hidden-retslot door below
+#include <new>
 #include "system/Value.h"                // System::Time, ditto
 #include "system/Timer.h"   // ENDGAME B.3.9 SS1: Timer::_secondsPerTick
 #include "graphics/AnimationGroup.h"   // B.4: AnimationGroup::GetAnimation
@@ -1156,8 +1155,8 @@ int32_t AnimationManager::GetInstanceId(Object::ExternalPtr<AnimationGroup> grou
                 for (int rep = 0; rep < 2; ++rep) {
                     const System::Time z = { SecondsToTicks(0.0) };
                     const Math::Transform ident;   // the identity: Transform()
-                    // Through the door: it counts the call for the [GFXBIG27]
-                    // line before it calls the member.
+                    // Through RtGraphics_AnimationState_Update: it counts the call
+                    // for the [GFXBIG27] line before it calls the member.
                     RtGraphics_AnimationState_Update(&st->_state, &z, &inst->_nodes, &ident,
                                                      st->_nodes._data, st->_pose._data,
                                                      &st->_rootOffset, false, false);

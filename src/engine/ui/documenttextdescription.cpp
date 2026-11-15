@@ -3,9 +3,9 @@
 // ============================================================================
 //
 // ??_7DocumentTextDescription@UI@@6B@ (retail 0x180156750), ten slots:
-//   0  deleting dtor      0x18003bd90  src/engine/object/deleting_dtor.cpp row
-//   1  TypeName           0x18003b900  here
-//   2  Type               0x18003b8e0  here
+//   0  deleting dtor      0x18003bd90  the compiler's, from ~DocumentTextDescription
+//   1  TypeName           0x18003b900  DECLARE_TYPE (DocumentTextDescription.h)
+//   2  Type               0x18003b8e0  DECLARE_TYPE (DocumentTextDescription.h)
 //   3  GetFileVersion     0x1800cfb20  here  (returns 0x204)
 //   4  External::Compile  0x1800066e0  already ported
 //   5  Serialize          0x1800cf8a0  here
@@ -15,19 +15,18 @@
 //   9  Construct          0x18003baa0  here
 // plus ??1DocumentTextDescription@UI@@UEAA@XZ (0x1800cfb30) and the applier
 // 0x1800cf520 (the non-virtual CreateInstance(InternalPtr<DocumentTextElement>,
-// const Dialog*) const), registered BY ADDRESS ONLY.
+// const Dialog*) const).
 //
 // B.3.6 block C5: slots 1-3 and 5-9 and the applier are members of
-// UI::DocumentTextDescription (src/engine/ui/DocumentTextDescription.h); the
-// registered names are one-line qualified doors.
+// UI::DocumentTextDescription (src/engine/ui/DocumentTextDescription.h).
 //
-// The constructor is OUT OF LINE (`??0DocumentTextDescription@UI@@QEAA@XZ`,
-// 0x1800cfc30) and is ALREADY ported by src/engine/ui/factory_ui1.cpp.
+// The constructor is OUT OF LINE in retail (`??0DocumentTextDescription@UI@@QEAA@XZ`,
+// 0x1800cfc30); the port's is inline in src/engine/ui/DocumentTextDescription.h.
 //
 // This is the widest class in the batch: four separate arrays, each with its
 // own SetSize/Serialize pair, plus a fifth container. Every one of those pairs
-// belongs to Collection::Array, not to this class, and is reached by address
-// through the registry-first door rather than copied:
+// belongs to Collection::Array, not to this class, and is called rather than
+// copied:
 //     +0x88  SetSize 0x180029a80   Serialize 0x180029bb0   Array<System::String>
 //     +0xb0  SetSize 0x18003e600   Serialize 0x18003e710
 //     +0xc0  SetSize 0x18003ea50   Serialize 0x18003eb60
@@ -41,8 +40,8 @@
 // (The same distinction bit ~AnimatedImageDescription; see
 // src/engine/ui/animatedimagedescription.cpp.)
 //
-// Layout: src/engine/ui/DocumentTextDescription.h (cross-asserted against
-// DescriptionsBatch1.h's POD). sizeof 0xe8.
+// Layout: src/engine/ui/DocumentTextDescription.h (RtUI::DocumentTextDescription
+// in DescriptionsBatch1.h is an alias of it). sizeof 0xe8.
 // ============================================================================
 #include <new>
 
@@ -163,8 +162,7 @@ bool DocumentTextDescription::Serialize(IO::Stream& streamArg) {
 // ============================================================================
 // The applier, retail 0x1800cf520 — the NON-virtual
 // `CreateInstance(InternalPtr<DocumentTextElement>, const Dialog*) const`
-// (B36_SLOTS §6: exported, not the "UNEXPORTED" this file used to say). The
-// registration stays address-only, as before.
+// (B36_SLOTS §6: exported, not the "UNEXPORTED" this file used to say).
 // ============================================================================
 // R8 IS NEVER READ by this body — it creates no children.
 //
@@ -284,8 +282,8 @@ void DocumentTextDescription::CreateInstance(Object::InternalPtr<DocumentTextEle
 // [8] ?CreateInstance@DocumentTextDescription@UI@@...   retail 0x1800cf7e0
 // ============================================================================
 // DocumentTextElement is 0x1c8 and its constructor is OUT OF LINE
-// (`??0DocumentTextElement@UI@@QEAA@XZ`, 0x1800cf410, already ported by
-// src/engine/ui/factory_ui1.cpp); retail takes its RETURN value as the element.
+// (`??0DocumentTextElement@UI@@QEAA@XZ`, 0x1800cf410; the port's is inline in
+// src/engine/ui/DocumentTextElement.h); retail takes its RETURN value as the element.
 Object::InternalPtr<Element>* DocumentTextDescription::CreateInstance(
         Object::InternalPtr<Element>* ret, const Dialog* dialog) const {
     void* raw = MemAlloc(0x1c8, 8);                         // 1800cf822

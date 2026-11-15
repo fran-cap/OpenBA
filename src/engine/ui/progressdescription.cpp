@@ -5,7 +5,7 @@
 // Vtable batch 2. Derives straight from UI::ElementDescription.
 //
 // ??_7ProgressDescription@UI@@6B@ (retail 0x1801591e0), ten slots:
-//   0  deleting dtor      0x180077c80  deleting_dtor.cpp row (sizeof 0xb0)
+//   0  deleting dtor      0x180077c80  ProgressDescription.h (the class's own; sizeof 0xb0)
 //   1  TypeName           0x180077770  here
 //   2  Type               0x180077750  here
 //   3  GetFileVersion     0x18011a070  here  (returns 0x204)
@@ -22,11 +22,10 @@
 // this file's offsets there under the retail name).
 //
 // ENDGAME B.3.6 block C5: every slot body MOVED into the members of the real
-// `UI::ProgressDescription`; each registered door is a one-line QUALIFIED
-// delegation. The ctor / dtor stay doors (B4b-2).
+// `UI::ProgressDescription`.
 //
 // Every helper is already ported, including ??0ProgressElement@UI@@
-// (0x180119c40, ui_factory_wave28.cpp), so this file adds none.
+// (0x180119c40, ProgressElement.h), so this file adds none.
 // ============================================================================
 #include <cstddef>
 #include <cstdint>

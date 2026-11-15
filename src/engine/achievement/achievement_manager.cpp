@@ -22,15 +22,11 @@
 // INDEPENDENT SYNTHETIC SINK, so there is no shared stream to desync and each
 // side constructs its own codec. Lane P discharged the IDENTICAL blocker, in
 // the identical words, for Goal::Serialize and GoalInstance::Persist
-// (src/engine/achievement/goal_serialize.cpp). Persist is now ported in
-// src/engine/achievement/achievement_serialize.cpp, under a PREFIX oracle
-// (stopAfter = 1) because its element loop mutates the global Object::Factory.
+// (src/engine/achievement/goal_serialize.cpp). Persist is ported in
+// src/engine/achievement/achievement_serialize.cpp.
 // The paragraph above is kept rather than deleted: it is the evidence for
 // PLAN rule "re-check a stated blocker before acting on it", and this one
 // survived fourteen waves because nobody re-read it.
-//   ?_singleton@AchievementManager@Achievement@@0PEAV12@EA and the two
-//   ?_typeInfo@… symbols are DATA exports; they cannot be registered before
-//   cutover (same finding as Wave 4 lane D's FileSystem::_singleton).
 //
 // STATE. Only nine of these functions are pure reads; the other nine mutate
 // the live singleton, a live instance, or the Windows registry.
@@ -48,7 +44,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
-#include <new>          // placement new into the retslot doors
+#include <new>          // placement new: the CreateNewObject / CreateInPlaceObject factories
 
 #include "achievement/AchievementManager.h"
 #include "io/FileSystem.h"
@@ -57,11 +53,9 @@
 
 // ENDGAME B.3.7 block B3: every body below is a MEMBER of
 // `Achievement::AchievementManager`, `AchievementInstance` or `Achievement`
-// (src/engine/achievement/AchievementManager.h); every registered door is a
-// one-line QUALIFIED delegation. ENDGAME B.3.9 ENG: the two CONSTRUCTOR doors
-// (`??0Achievement`, `??0AchievementInstance`), which stamped the MINTED
-// tables, are gone with those rows -- the classes' real constructors are the
-// only bodies, and the factory pairs are the classes' own statics below.
+// (src/engine/achievement/AchievementManager.h). The classes' real constructors
+// are the only constructor bodies, and the factory pairs are the classes' own
+// statics below.
 //
 // The callers inside this file that used to reach sibling members through
 // ResolveExport name doors (`ReadAchievements`, `SetAchievementMet`,

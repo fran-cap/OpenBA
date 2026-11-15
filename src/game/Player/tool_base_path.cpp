@@ -1,29 +1,9 @@
 // src/game/Player/tool_base_path.cpp
-// Player registration wave (batch "path") — shared exe sub-helpers referenced
-// from src/game/Player/removaltool.cpp (RemovalTool::Draw / per-tile checks).
-//
-// These are exe sub-helpers resolved via ResolveAddr(Module::Exe, 0xADDR) from
-// the RemovalTool reimpl. They resolve to 0 (silently skipped) unless registered.
-// This file provides faithful 1:1 reimplementations and a single registration point
-// (RegisterPlayerPathBatch in standalone/reg_player_path.cpp) so the call sites
-// fire real logic.
+// Shared exe sub-helpers called from src/game/Player/removaltool.cpp
+// (RemovalTool::Draw / per-tile checks) and keystone_a_removalcalcpath.cpp.
 //
 // Each function is a 1:1 port of the decompiled exe helper; do not "improve"
 // behavior.
-//
-// Closure note: every exe sub-callee reached by the bodies here is either
-// (a) registered elsewhere (FUN_1400052c0 area-self find, FUN_14009f3e0
-//     CharComp height query, dispatch slot fn_InternalBasePtr_*),
-// (b) registered in this batch bottom-up (the FindComponent leaves 5780/3ea0,
-//     FUN_14011e710, CharComp f5d0),
-// (c) a Runtime export resolved via engine_funcs.h.
-//
-// DEFERRED (NOT here): PathTool helper 0x1400dd710 (closure pulls in the
-// 520-line AVL builder d770 + ~12 unregistered exe sub-callees), RemovalTool
-// CalcPath 0x1401035e0 (~770 lines + ~15 unregistered sub-fns), and
-// QuarryComponent_impl_a530 0x1400aa530 RaycastTerrain (closure IS satisfied but
-// its float-march pointer-aliased body is too risky to port faithfully in this
-// wave; a wrong port is silent corruption). See reg_player_path.cpp.
 
 #include <new>
 #include "Entity/exe_bodies.h"
@@ -51,7 +31,6 @@
 
 // ============================================================
 // FindComponent instances: ComponentEntity::FindComponent<T>() (Entity/ComponentEntity.h).
-// These names stay as B4 FORWARD forwarders until their callers hold a typed entity.
 // ============================================================
 // (0x140005780 PlayerPath_FindComponent_5780, the FindComponent<DestroyComponent>
 // forwarder, had no caller left: deleted, B4 wave X.)
@@ -97,7 +76,7 @@ bool DestroyComponent::InRemovalState() {
 // Faithful 1:1 port. DAT_140172114 = 0.5f. Math::Scalar::Abs(x) == fabsf(x).
 // f3e0 writes its result Vector3 (x,y,z) into outPos; 'local_28' (compared to
 // param_5) is the 5th-argument vector's z term.
-// The map's header (Map.h) is block GAME-b's: a free function over the typed map.
+// A Map member, declared in Game/Map.h.
 // ============================================================
 bool Map::TestPlacement(int param_2, int param_3, uint32_t param_4,
                               float param_5, float param_6, float param_7,

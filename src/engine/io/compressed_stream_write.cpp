@@ -1,16 +1,10 @@
 // ============================================================================
-// src/engine/io/compressed_stream_write.cpp — Wave 19 lane CSTREAM
+// src/engine/io/compressed_stream_write.cpp
 // The WRITER half of IO::CompressedStream, plus the three vtables' remaining
-// slots. Twelve bodies; the file compressed_stream_read.cpp named as owed.
+// slots.
 // ============================================================================
 //
-// compressed_stream_read.cpp closes with an explicit list of what it did NOT
-// port:
-//
-//     ?CompressWindow@CompressedStream@IO@@  0x1800a9810   write path only.
-//     ?Write@ / ?Commit@ / ?PreCommit@ / ?Close@   the writer half.
-//
-// This file is that list. Every body below was read as DISASSEMBLY from
+// Every body below was read as DISASSEMBLY from
 // Runtime-x64.dll through Ghidra MCP on port 8089
 // (reference_ghidra_c_output_vs_disassembly.md — the decompiled C drops
 // dereferences, prints MOVSXD as a zero extension, and drops whole arguments at
@@ -25,97 +19,28 @@
 // That is §2's point: IO is not greenfield and the first hour is grep.
 //
 // ---------------------------------------------------------------------------
-// 1. WHY THIS LANE'S SCOPE IS 14 BODIES AND NOT THE PLAN'S 14 TRAP SLOTS
+// 1. THE THREE VTABLES
 // ---------------------------------------------------------------------------
-// The Wave 19 plan prices lane CSTREAM at "8 traps" + "6 traps". Phase 0c
-// re-measured and said something better: those 14 trap slots resolve to 8
-// DISTINCT FUNCTIONS, so **scope by function, not by slot**.
-//
-// Re-measured again here, on this tip, because phase 0c's own subject moved
-// under it. Phase 0c recorded `??_7CompressedFileStream@IO@@6B@` as UNMINTED
-// and therefore UNMEASURED. Phase 0b then MINTED it, and phase 0b is in this
-// lane's base. So this lane owns THREE nine-slot rows, not two:
-//
 //   ??_7CompressedStream@IO@@6B@        0x180155640   9 slots
 //   ??_7CompressedMemoryStream@IO@@6B@  0x180155560   9 slots
 //   ??_7CompressedFileStream@IO@@6B@    0x1801555f0   9 slots
 //
-// 27 slots. Read out of standalone/rt_data_mint_tables.inc, which is what the
-// readiness screen actually dispatches, they carry **14 distinct functions**:
-//
-//   slot 0  0x180023fd0 / 0x1800244a0 / 0x180024100   three DISTINCT dtor thunks
-//   slot 1  ?GetSource@Stream@IO@@                    ONE, shared by all three
-//                                                     (LANE IOBASE'S, consumed)
-//   slot 2  ?Write@CompressedStream@IO@@              ONE, shared by all three
-//   slot 3  ?Read@CompressedStream@IO@@               ONE, shared — ALREADY PORTED
-//   slot 4  ?SetCurrentPos@CompressedStream@IO@@      ONE, shared by all three
-//   slot 5  ?GetCurrentPos@CompressedStream@IO@@      ONE, shared by all three
-//   slot 6  ?GetSize@CompressedStream@IO@@            ONE, shared by all three
-//   slot 7  ?Close@ CS / CMS / CFS                    three DISTINCT; CMS PORTED
-//   slot 8  ?PreCommit@ CS (shared CS+CFS) / CMS      two DISTINCT
-//
-// Three of the fourteen are already in the tree (Read and Close@CMS in
-// compressed_stream_read.cpp / compressedstream.cpp; slot 0 of CMS in
-// src/engine/object/deleting_dtor.cpp, which is a whole ported FAMILY of these
-// thunks and is the reason two of my three slot-0s cost a table row each rather
-// than a body). **11 DATA bodies remained**, and this lane's three CODE rows
-// (?Commit, ?CompressWindow, ?Create) bring it to 14.
-//
-// Reported up-front rather than at close: phase 0c's saving was real AND it
-// grew this lane's denominator, exactly as correction C7 said phase 0b's did.
+// Slot 0 of each is the class's deleting dtor (0x180023fd0 / 0x1800244a0 /
+// 0x180024100, in Stream.h and FileStream.h). Slot 1 is IO::Stream's GetSource,
+// slot 3 (Read) is in compressed_stream_read.cpp and CompressedMemoryStream's
+// Close in compressedstream.cpp; the members below fill the other slots.
 //
 // ---------------------------------------------------------------------------
-// 2. ?Commit IS A DOOR IN THIS TREE, NOT A DUPLICATE — the §2 worked example
+// 2. THE BODIES THIS FILE CALLS OUTSIDE ITSELF
 // ---------------------------------------------------------------------------
-// `src/engine/io/compressedstream.cpp` names ?Commit@CompressedStream@IO@@
-// eight times and NONE of them is a body: lines 327 and 429 reach it through
-// RT_EXPORT_ONCE, which is a door, and the rest are comments. ResolveExport
-// falls through silently to the shipped impl for an unported symbol
-// (reference_converting_a_door_is_not_satisfying_it.md), so those two call
-// sites have been running the DLL's compressor this whole time and looked
-// ported to a grep. They keep their spelling and now resolve to the body below
-// — registry-first, no source change there.
-//
-// ---------------------------------------------------------------------------
-// 3. WHAT THE WRITE PATH STILL OWES AFTER THIS FILE — stated, not hidden
-// ---------------------------------------------------------------------------
-// ?Write below calls ?SetWindow, which IS ported — but SetWindow's
-// `direction != 0 && blk >= headerSize` GROW branch is NOT: compressed_stream_
-// read.cpp §4 delegates it to the shipped body, counts it, and announces it
-// once as a named cutover blocker. **Every write that starts a new block takes
-// that branch.** So this file does not make the writer cutover-clean on its
-// own, and saying "the writer is ported" would be false. What it does is remove
-// eleven of the twelve remaining trap slots and three CODE rows; the grow path
-// stays exactly as named as compressed_stream_read.cpp left it.
-//
-// Two further doors this file OPENS, which GROW the census's `called` column
-// (reference_porting_can_grow_the_cutover_surface.md — a faithful port that
-// reaches DLL internals makes them newly called, and that is a real cost, not
-// an accounting artefact). Both are named here so the next census does not
-// discover them:
-//
-//   ?Create@MemoryStream@IO@@QEAA_NH@Z            0x1800ae7f0   NOT PORTED.
-//       PreCommit@CompressedMemoryStream TAIL-JUMPS into it. Reached by name.
-//   ?CloseFile@FileSystem@IO@@QEAAXAEAUFileInfo@12@@Z  0x1800accc0  NOT PORTED.
-//       Close@CompressedFileStream tail-jumps into it. It is **lane FILE's row**
-//       — one of the six screenshot-debt exports correction C2 enumerates — so
-//       this door closes itself the moment lane FILE registers, with no change
-//       here. ResolveAddr/ResolveExport are registry-first
-//       (reference_resolveaddr_consults_port_registry_first.md).
-//   ??0Compression@System@@QEAA@XZ                0x1800c41a0   NOT PORTED.
-//       ?Create@CompressedStream constructs one. src/engine/system/
-//       compression.cpp ports the DECODER and deliberately not the encoder, and
-//       already reaches this ctor through a probe-only door; this is its first
-//       LIVE caller.
-//   ?Compress@Compression@System@@QEAAHPEBXIPEAXI@Z  0x1800c4230  NOT PORTED.
-//       ?CompressWindow calls it. **THIS ONE WAS MISSED when the list above was
-//       first written**, and the census caught it, not the prose: a whole-tree
-//       set-diff of "called but not ported" showed TWO symbols entering, and only
-//       one of them was predicted here. compression.cpp names it twice already,
-//       but both of those are probe-only and the census does not count them, so
-//       this file is its first LIVE caller in exactly the same sense as the ctor
-//       one line up. Recorded as a correction rather than folded in silently,
-//       because "I listed the doors I opened" is a claim a reader will trust.
+//   ?Create@MemoryStream@IO@@QEAA_NH@Z                 0x1800ae7f0   compressedstream.cpp
+//       PreCommit@CompressedMemoryStream tail-jumps into it.
+//   ?CloseFile@FileSystem@IO@@QEAAXAEAUFileInfo@12@@Z  0x1800accc0   filesystem_createfile.cpp
+//       Close@CompressedFileStream tail-jumps into it.
+//   ??0Compression@System@@QEAA@XZ                     0x1800c41a0   src/engine/system/compression.cpp
+//       ?Create@CompressedStream constructs one.
+//   ?Compress@Compression@System@@QEAAHPEBXIPEAXI@Z    0x1800c4230   src/engine/system/compression.cpp
+//       ?CompressWindow calls it.
 //
 // ---------------------------------------------------------------------------
 // 4. A CORRECTION TO src/engine/io/Stream.h's PROSE
@@ -136,21 +61,6 @@
 // The layout is independently re-confirmed by Commit below, which walks all
 // three from the disassembly quoted line by line.
 //
-// ---------------------------------------------------------------------------
-// 5. VERIFICATION — an artefact-producing body is compared by its artefact
-// ---------------------------------------------------------------------------
-// See compressed_stream_write_probe.cpp. Compression is exactly the case §5 of
-// the plan names as directly oracle-able: this half PRODUCES a byte stream, and
-// ?Open@CompressedStream (the DLL's, unported by choice) is a total validator
-// for it — it recomputes `4 + n*8 + sum(block sizes)` and requires it to equal
-// the source size EXACTLY.
-//
-// Round-tripping our own output would be a SELF-CHECK, not an oracle
-// (reference_shadow_marker_is_not_an_oracle.md: the ~250 the diff oracle sites
-// take the port's own verdict and never consult the DLL, so a shared
-// misunderstanding of retail passes every time). The probe therefore compares
-// against RETAIL'S BYTES: identical input driven through both writers, and the
-// two produced buffers memcmp'd.
 // ============================================================================
 
 #include <cstdint>
@@ -193,170 +103,26 @@ inline uint32_t StoredLength(const Header& h) {
 // by name on `IO::Stream` / `IO::CompressedStream`, through each object's own
 // vtable as retail does.
 
-// The two System::MemoryAllocator doors. Retail INLINES lock/Allocate/unlock in
+// The two System::MemoryAllocator calls. Retail INLINES lock/Allocate/unlock in
 // ?Create below (`MOV RBX,[0x1801fc718] / ADD RBX,0x640 / EnterCriticalSection
 // / Allocate(_singleton,8,4) / LeaveCriticalSection`) and calls the exported
 // MemAlloc directly in ?CompressWindow. Both spellings are the same function:
-// System::MemoryAllocator::MemAlloc (B3R RT-IO: called by name; it was the
-// exported door) rather than pinning 0x1801fc718 and the +0x640 lock offset in
-// yet another file.
+// System::MemoryAllocator::MemAlloc, called by name rather than pinning
+// 0x1801fc718 and the +0x640 lock offset in yet another file.
 
 }  // namespace
 
 // ============================================================================
 // ?GetSource@Stream@IO@@UEBA?AVString@System@@XZ  (0x18000c6a0) IS NOT HERE
 // ============================================================================
-// It WAS. This lane ported and registered it, and so did lane IOBASE, and both
-// bodies used the same `extern "C" RtIo_Stream_GetSource` symbol — so the two
-// would not even have linked together, which is the cheap end of that failure.
-// The expensive end is the one that DOES link: two RegisterRuntimeExport calls
-// on one name are a SHADOWED registration where the later binding silently wins
-// and the earlier line is dead code that still reads like a port.
-//
-// The integrator arbitrated it to IOBASE (`src/engine/io/iobase_vtables.cpp`)
-// on a correctness argument that beats the process one: `??_7MemoryStream@` and
-// `??_7VisitorStream@` are PROMOTED and reach READY only through that body, so
-// reverting IOBASE's copy would open an interval in which two promoted rows
-// carry traps. This lane consumes theirs; the three CompressedStream-family
-// rows pick it up with no registration here, because ResolveExport and
-// ResolveAddr are both registry-first.
-//
-// TWO THINGS WORTH KEEPING FROM HAVING WRITTEN IT ANYWAY:
-//
-//  * **It moves the identity by ZERO on its own.** It has no call door anywhere
-//    in this tree — its only occurrences are six RT_MINT_NAMED rows in
-//    standalone/rt_data_mint_tables.inc, and the census builds its row set from
-//    call doors, so a registration with no door becomes a "port with no caller"
-//    rather than a row. Its whole value is unblocking six `??_7` rows. It must
-//    not be booked as identity progress, and no diff oracle can verify it
-//    (reference_uncalled_port_is_not_verified.md).
-//  * **The hidden return slot is the only way to get it wrong.** RDX is the
-//    by-value System::String return slot; the body writes ONE qword of zero
-//    through it and returns RDX, and `this` is never read. The two `[RSP]`
-//    stores around that are compiler-generated SEH state, NOT object state. A
-//    typedef that omits the slot is a wild write that STILL RETURNS THE RIGHT
-//    ANSWER (reference_hidden_retslot_wild_write.md) — it passes a naive test
-//    and corrupts the caller.
-//
-// The probe in compressed_stream_write_probe.cpp still COMPARES it against the
-// DLL, because this lane's oracle is the only differential one either lane has
-// for it: IOBASE reports having no differential oracle at all.
-// An fn_* typedef that OMITS the hidden return slot is a wild write that still
-// returns the right answer (reference_hidden_retslot_wild_write.md), so the
-// slot is SPELLED here as the first parameter rather than left to the compiler:
-// registering this into a vtable means an arbitrary caller supplies RDX, and a
-// C++ `System::String Get(const void*)` would put the slot where MSVC puts
-// it, which is the same place — but only by agreement, not by construction.
-// Written out, the agreement is checkable.
-// INTEGRATOR, WAVE 19 MERGE: this lane's ?GetSource@Stream@IO@@ body was
-// REMOVED here and lane IOBASE's kept (iobase_vtables.cpp:345), per the
-// arbitration recorded in WAVE19_INTEGRATOR_CORRECTIONS.md C20/C32. Both lanes
-// ported it; both definitions were `extern "C"`, so this was a HARD LINK ERROR
-// rather than a silent shadow -- the linker would have refused the merge.
-//
-// IOBASE's was kept on ITS argument, not mine: reverting IOBASE's would leave
-// ??_7MemoryStream@ and ??_7VisitorStream@ PROMOTED WHILE CARRYING TRAPS. A
-// resolution that transiently breaks the tree loses to one that does not.
-//
-// The commentary above is retained because it is the better write-up of the
-// hidden return slot, and it documents a body this file still USES -- the
-// probe in compressed_stream_write_probe.cpp declares and calls
-// RtIo_Stream_GetSource, and now links against IOBASE's definition. The two
-// signatures are ABI-identical (pointer, pointer -> pointer) and both are
-// extern "C", so the probe's screen still exercises the surviving body.
-//
-// Duplicate registrations of one address are a SHADOWED slot where the later
-// binding wins and the earlier checked line is dead code. Note this class is
-// invisible to `dispatch_slot_map.py --check`, which scans RegisterDispatchSlot
-// only; use `tools/dup_runtime_export.py` (C29).
-
-// ============================================================================
-// ?GetCurrentPos@CompressedStream@IO@@UEBAIXZ                retail 0x1800aa850
-// ============================================================================
-//     MOV EAX,[RCX+0x1c] ; RET
-// The LOGICAL position in the DECOMPRESSED stream, not the source cursor. The
-// two differ and Stream.h says so explicitly (+0x1c vs the embedded
-// MemoryStream's +0x8c); both are right for what they measure.
-// ENDGAME B.3.9 IO (W2): the slot door RtIo_CompressedStream_GetCurrentPos went with the minted
-// CompressedStream / CompressedMemoryStream rows, its last readers; the
-// class table carries the member.
-
-// ============================================================================
-// ?SetCurrentPos@CompressedStream@IO@@UEAA_NH@Z              retail 0x1800aa830
-// ============================================================================
-//     SUB RSP,0x28 ; CALL 0x1800a9aa0 ; MOV AL,1 ; ADD RSP,0x28 ; RET
-// A tail-ish call into SetWindow with RCX and RDX untouched, and the return
-// value is DISCARDED: this returns true unconditionally even when SetWindow
-// failed. That is retail's behaviour and it is reproduced, not corrected.
-// ENDGAME B.3.9 IO (W2): the slot door RtIo_CompressedStream_SetCurrentPos went with the minted
-// CompressedStream / CompressedMemoryStream rows, its last readers; the
-// class table carries the member.
-
-// ============================================================================
-// ?GetSize@CompressedStream@IO@@UEBAIXZ                      retail 0x1800aa860
-// ============================================================================
-// max( the furthest window END currently in memory,
-//      the length the committed block directory implies )
-//
-// Two details that a paraphrase loses and the bytes do not:
-//
-//  1. `MOVSXD RCX,[RCX+0x38] ; TEST ECX,ECX ; JZ out` — a windowSize of EXACTLY
-//     zero returns 0 and NEVER reaches the header half. A NEGATIVE windowSize
-//     (`JLE` at 1800aa870) skips only the loop and does reach it. Those are
-//     different exits and they are kept different here.
-//  2. The directory length is `((headerSize-1) << 15) + lastUncompressedSize`,
-//     spelled by retail as `(headerSize<<15) - 0x8000 + last`. Same value; the
-//     shift is on the SIGNED count, which is why headerSize is read MOVSXD.
-// ENDGAME B.3.9 IO (W2): the slot door RtIo_CompressedStream_GetSize went with the minted
-// CompressedStream / CompressedMemoryStream rows, its last readers; the
-// class table carries the member.
-
-// ============================================================================
-// ?Write@CompressedStream@IO@@UEAA_NHPEBX@Z                  retail 0x1800aa6c0
-// ============================================================================
-// The mirror of ?Read: page the window that covers `position` in, copy as much
-// of the caller's buffer as fits inside THAT window, extend the window's high
-// water mark, repeat.
-//
-//   while (n > 0) {
-//       SetWindow(position);                 // return value DISCARDED (see below)
-//       w = &window[activeWindow];
-//       chunk = (position + n > w->start + 0x8000) ? (w->start + 0x8000 - position) : n;
-//       memcpy(w->buffer + (position - w->start), src, chunk);
-//       position += chunk; n -= chunk; src += chunk;
-//       if (position > w->end) w->end = position;    // the high water mark
-//   }
-//   return true;
-//
-// THREE THINGS THE DISASSEMBLY SAYS AND A SUMMARY WOULD NOT:
-//
-//  * The clamp is against `w->start + 0x8000`, the window's CAPACITY, not
-//    against `w->end`, its current extent. Writing past `end` is the normal
-//    case — that is what growing the stream IS. (Read clamps against `end`,
-//    because reading past it is not.)
-//  * SetWindow's bool is discarded here too (there is no TEST after the CALL at
-//    1800aa6f6), so a failed page-in silently writes into whatever window was
-//    active. Faithful; not guarded (§"Don't fix a faithful crash with a null
-//    check" — and this is not even a crash, it is retail's contract).
-//  * `n <= 0` writes nothing and returns true, without touching the object.
-//
-// AND THE ONE THING THIS BODY DOES NOT MAKE OURS: on the write path SetWindow
-// takes its GROW branch whenever `position >> 15 >= headerSize`, i.e. on the
-// first write into every new block, and that branch is DELEGATED to the DLL by
-// compressed_stream_read.cpp §4. See §3 of this file's banner.
-// ENDGAME B.3.9 IO (W2): the slot door RtIo_CompressedStream_Write went with the minted
-// CompressedStream / CompressedMemoryStream rows, its last readers; the
-// class table carries the member.
+// It is the inline virtual IO::Stream::GetSource in Stream.h (slot 1).
 
 // ============================================================================
 // ?CompressWindow@CompressedStream@IO@@AEAAXH@Z              retail 0x1800a9810
 // ============================================================================
 // Encode ONE resident window into its block, replacing whatever block was
 // there. AEAA is PRIVATE, **not unexported** — this DLL exports its private
-// members (reference_aeaa_is_private_not_unexported.md), so it is registered by
-// NAME below and not through an address door with a comment claiming otherwise.
-// That memory records three silent address doors that survived review on
-// exactly that misreading.
+// members (reference_aeaa_is_private_not_unexported.md).
 //
 //   w = &window[i];
 //   if (w->start < 0) return;                 // an empty window encodes nothing
@@ -436,38 +202,6 @@ void IO::CompressedStream::CompressWindow(int i) {
 }
 
 namespace RtIo {
-
-// ============================================================================
-// ?PreCommit@CompressedStream@IO@@UEAAXXZ                    retail 0x1800aa8c0
-// ============================================================================
-// One instruction: `RET`. The base class's hook is EMPTY, and slot 8 of BOTH
-// ??_7CompressedStream@ and ??_7CompressedFileStream@ points at it — one body,
-// two trap slots. It is not a purecall and it is not a stub: Commit dispatches
-// slot 8 virtually and the base genuinely has nothing to do, because a plain
-// CompressedStream writes onto a source that is already the right size.
-// ENDGAME B.3.9 IO (W2): the slot door RtIo_CompressedStream_PreCommit went with the minted
-// CompressedStream / CompressedMemoryStream rows, its last readers; the
-// class table carries the member.
-
-// ============================================================================
-// ?PreCommit@CompressedMemoryStream@IO@@UEAAXXZ              retail 0x1800a9660
-// ============================================================================
-// The memory subclass's source is its OWN embedded MemoryStream (+0x68), which
-// has to be sized before Commit writes the archive into it. So this computes
-// the archive's exact length and hands it to MemoryStream::Create:
-//
-//     total = 4 + headerSize*8 + sum(StoredLength(header[i]))
-//     return MemoryStream::Create(this + 0x68, total);        // TAIL JUMP
-//
-// `4 + n*8` is the four-byte count plus the directory — the same expression
-// ?Open@CompressedStream validates the source size against, and the same one
-// Commit uses to seed the first block's offset. Three independent sites agree
-// on the format, which is what makes it a format and not a guess.
-//
-// The tail jump means the bool is this function's return value even though the
-// slot is typed `void` — harmless, and reproduced by simply discarding it.
-// ENDGAME B.3.9 IO (W2): the slot door that stood here went with the minted
-// ??_7CompressedMemoryStream row; the class's table carries the member.
 
 // ============================================================================
 // ?Commit@CompressedStream@IO@@QEAAXXZ                       retail 0x1800a9ee0
@@ -553,23 +287,6 @@ void IO::CompressedStream::Commit() {
 namespace RtIo {
 
 // ============================================================================
-// ?Close@CompressedStream@IO@@UEAAXXZ                        retail 0x1800aa8d0
-// ============================================================================
-//     if (headerSize > 0 && direction == 1) Commit(this);      // TAIL JUMP
-// Nothing else. Note it is `direction == 1` (writing), not `!= 0`: Stream.h
-// pins 1 == writing from ?Create and 0 == reading from ?Open. A stream that was
-// opened for READING and closed writes nothing back, which is what makes Close
-// safe to call unconditionally — and the `headerSize > 0` guard is Stream.h's
-// "has anything been written yet".
-// ENDGAME B.3.9 IO (W2): the slot door RtIo_CompressedStream_Close went with the minted
-// CompressedStream / CompressedMemoryStream rows, its last readers; the
-// class table carries the member.
-
-// ?Close@CompressedFileStream@IO@@UEAAXXZ (0x1800a9490): ENDGAME B.3.9 IO --
-// the slot door that stood here is gone with the minted ??_7CompressedFileStream
-// row; the body is the member below.
-
-// ============================================================================
 // ?Create@CompressedStream@IO@@QEAA_NAEAVStream@2@H@Z        retail 0x1800aa4b0
 // ============================================================================
 // Open a CompressedStream for WRITING onto `src`, with `windows` windows.
@@ -609,16 +326,14 @@ bool IO::CompressedStream::Create(Stream& src, int windows) {
 // ============================================================================
 // The `IO::Compressed*` member bodies this file owns — B.3.4 block 4 (STREAMS)
 // ============================================================================
-// Six of the family's nine vtable slots. Every body below is the one that was
-// in the door above it, transcribed unchanged: same statements, same order,
-// same absent guards. B34_BRIEFS section D BINDS this file — the compressed
-// path carries a live intermittent defect that a separate agent is
-// root-causing, so nothing here may gain a lock, a retry, a loop bound, a null
-// check or a reordering, and nothing may quietly lose one either.
+// Six of the family's nine vtable slots. B34_BRIEFS section D
+// (docs/history/endgame_b/B34_BRIEFS.md) BINDS this file: nothing here may
+// gain a lock, a retry, a loop bound, a null check or a reordering, and nothing
+// may quietly lose one either.
 //
-// `namespace IO` opens after the `RtIo` doors close, because a member of
+// `namespace IO` opens after `RtIo` closes, because a member of
 // `IO::X` cannot be defined inside the sibling namespace `RtIo` (section A.2).
-// The file-local helpers are reached as `RtIo::Windows` / `RtIo::Headers` —
+// The file-local helpers are reached as `RtIo::StoredLength` / `RtIo::kWin` —
 // anonymous-namespace members ARE reachable that way from elsewhere in the same
 // translation unit, which is what lets the bodies move without moving the
 // helpers.
@@ -627,7 +342,7 @@ namespace IO {
 // ?GetCurrentPos@CompressedStream@IO@@UEBAIXZ                retail 0x1800aa850
 //     MOV EAX,[RCX+0x1c] ; RET
 // The LOGICAL position in the DECOMPRESSED stream, not the source cursor. The
-// two differ and this header says so explicitly (+0x1c versus the embedded
+// two differ and Stream.h says so explicitly (+0x1c versus the embedded
 // MemoryStream's +0x8c); both are right for what they measure.
 uint32_t CompressedStream::GetCurrentPos() const {
     return static_cast<uint32_t>(_position);             // 1800aa850
@@ -705,10 +420,9 @@ uint32_t CompressedStream::GetSize() const {
 //    with a null check", and this is not even a crash, it is retail's contract.
 //  * `n <= 0` writes nothing and returns true, without touching the object.
 //
-// AND THE ONE THING THIS BODY DOES NOT MAKE OURS: on the write path SetWindow
-// takes its GROW branch whenever `position >> 15 >= headerSize`, i.e. on the
-// first write into every new block, and that branch is DELEGATED — see section
-// 3 of this file's banner.
+// On the write path SetWindow takes its GROW branch whenever
+// `position >> 15 >= headerSize`, i.e. on the first write into every new block;
+// that branch is SetWindow's own (compressed_stream_read.cpp).
 bool CompressedStream::Write(int n, const void* src) {
 
     const uint8_t* in = static_cast<const uint8_t*>(src);   // CAST-OK: byte_io

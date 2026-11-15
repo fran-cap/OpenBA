@@ -10,9 +10,9 @@
 //   PostSdlInit()     -- after SDL_Init and the drop-event disables, before Init()
 //   Shutdown()        -- immediately before every SDL_Quit (the Init-failed path too)
 // D4_RULES C1: namespace `Platform`, free functions, NO OS header here. Bodies:
-// src/platform/win/app_win.cpp and src/platform/posix/app_posix.cpp (both empty:
-// neither platform has a step there today), the Darwin twin and the Android twin
-// (src/platform/darwin/README.md, src/platform/android/README.md).
+// src/platform/win/app_win.cpp and src/platform/posix/app_posix.cpp (on both, Shutdown
+// stops the boot-state watchdog; on Windows, PreSdlInitHints sets one SDL hint), the Darwin
+// twin and the Android twin (src/platform/darwin/README.md, src/platform/android/README.md).
 // ============================================================================
 
 namespace Platform {

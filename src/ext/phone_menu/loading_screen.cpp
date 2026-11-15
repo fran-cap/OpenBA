@@ -7,8 +7,8 @@
 // splash, a new game, a load, the tutorial transitions) and by ext.load_progress's boot screen, as
 // a LoaderDialog whose OnOpened looks up `loadingImage` (loaderdialog.cpp). The Shining Rock splash
 // is a LoaderDialog too but has no such element, and keeps retail's fit. The descriptions are
-// recognised at their first layout by that element's name and recorded (resources live for the
-// run); the draw reads the record.
+// recognised at their first layout by that element's name and recorded by address and path
+// (dialog_records.h: they are evicted and come back at new addresses); the draw reads the record.
 // ============================================================================
 
 #include "ext/phone_menu/loading_screen.h"

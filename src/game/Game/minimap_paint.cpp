@@ -20,10 +20,8 @@
 // creates the display GPU buffers (minimap+0x08/+0x10) and uploads both pixel
 // arrays — the CreateAndUpload tail is shared with src/game/Game/minimap_upload.cpp.
 //
-// In standalone the exe function is unavailable (ResolveAddr(Exe,0x1400a5140)==NULL),
-// so GameUpdateLoop::Draw's paint block was skipped and the minimap stayed blank.
-// This clean port lets it run: gameupdateloop.cpp wires fn_ImageCapture_DrawCheck to
-// Minimap_PaintTerrain when the exe address doesn't resolve (standalone).
+// GameUpdateLoop::Draw (step 3, gameupdateloop.cpp) calls Minimap::PaintTerrain by name
+// while terrainImage is still null.
 //
 // Minimap struct (== GameWorld+0x148):
 //   +0x00 byte  dirty flag
@@ -39,10 +37,7 @@
 //   fog start=1000 end=1001 color(1,1,1,1); clear color 0xff000000 then 0xffff00ff.
 
 // ENDGAME B.3.5 Video/Graphics caller batch: Graphics::{Camera,Scene},
-// Video::{Context,RenderBuffer,ImageBuffer} are real classes. These headers go
-// AHEAD of "resolve.h" — resolve.h pulls <windows.h>, whose <wingdi.h> declares
-// a global `Rectangle` FUNCTION that hides `Volume::Rectangle`'s class name
-// inside Volume.h's own static_asserts (Camera.h and Geometry.h include Volume.h).
+// Video::{Context,RenderBuffer,ImageBuffer} are real classes.
 #include "graphics/Camera.h"
 #include "graphics/Scene.h"
 #include "video/Context.h"       // also brings Video::{Device,RenderBuffer,Viewport}
@@ -64,8 +59,8 @@
 #include "Game/exe_constants.h"   // kRdata_14017214c
 
 // B.4 GAME-b: the painter is Minimap::PaintTerrain and reads the minimap, the
-// context, the camera and the video configuration by name. Its doors (ENDGAME
-// B.3.5 / B3R): Video_RenderBuffer_Ctor / _Dtor; the Camera is constructed
+// context, the camera and the video configuration by name. It calls
+// Video_RenderBuffer_Ctor / _Dtor by name; the Camera is constructed
 // directly (X5-GAME); the Frustum, Renderer and Scene are typed locals built by
 // their real ctors (ENDGAME B7 CTOR: their doors are deleted).
 

@@ -32,8 +32,6 @@ using namespace rtuielem;
 
 namespace {
 
-// UI::SpriteContext (block D's class), reached by address.
-
 }  // namespace
 
 namespace UI {

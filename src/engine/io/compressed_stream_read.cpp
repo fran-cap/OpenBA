@@ -11,7 +11,7 @@
 //   | ?DecompressFromSource@CompressedStream@IO@@AEAA_NH@Z | 0x1800a96b0 | 2152 | 52 |
 //
 // Names and ordinals printed out of Runtime-x64.dll's export directory with
-// `pefile`. `tools/export_name_audit.py` re-checks them.
+// `pefile`.
 //
 //
 // ---------------------------------------------------------------------------
@@ -88,37 +88,6 @@
 // `CompressWindow` (0x1800a9810), which `GetAvailableWindow` calls to flush a
 // dirty window before evicting it, lives in compressed_stream_write.cpp.
 //
-// ---------------------------------------------------------------------------
-// 5. THE ORACLE — LOCKSTEP, AND STATE NOT JUST BYTES
-// ---------------------------------------------------------------------------
-// Both requirements come from lane PICK and both are live here, which is why
-// this rung's oracle is a bespoke probe rather than the usual replay:
-//
-//  * **State, not just bytes.** A read mutates `position` (+0x1c),
-//    `activeWindow` (+0x20) and EVERY window's `useCount`. Two implementations
-//    can return identical bytes and leave the object in different states, and
-//    the next read then diverges for reasons the previous comparison called
-//    fine. Rung 1 was exempt because `Decompress` is static with a local cursor;
-//    this rung has no such excuse.
-//  * **Lockstep, not end-to-end.** A CompressedStream carries state between
-//    blocks. A defect that cancels out compares equal at the end while every
-//    intermediate read differed.
-//
-// So `RtIo_CompressedStreamReadProbe()` builds TWO CompressedMemoryStreams over
-// byte-identical content, drives one entirely through our ports and the other
-// entirely through the DLL's, and after EVERY read compares: the returned bool,
-// the bytes, `position`, `activeWindow`, and the full window array — each
-// window's `useCount`, `start`, `end`, and the CONTENT of every loaded window's
-// 32 KB page. It stops at the first mismatch and names which term failed.
-//
-// The two stacks are genuinely independent: our `Read` calls our `SetWindow` by
-// direct C++ call and the DLL's calls its own by a direct relative CALL, so
-// neither can be entered by accident.
-//
-// The content is produced by the DLL's own WRITER (Create + Write + Close),
-// the same trick rung 1 used with `Compress` — valid input by construction,
-// and the writer is deliberately not ported so a shared misreading cannot pass
-// its own test.
 // ============================================================================
 
 #include <cstdint>
@@ -171,11 +140,9 @@ inline void GrowByOne(T*& data, int32_t& size, int32_t& cap, int32_t align) {
 
 }  // namespace
 
-// SetWindow's branch histogram. Five outcomes, counted rather than inferred,
-// because the probe cannot see from outside which one a read took — and the
-// first two versions of that probe both tried to infer it from window state and
-// both measured a proxy that was constant by construction. A branch that reads
-// zero is an UNVERIFIED branch, and only a counter inside the body can say so.
+// SetWindow's branch histogram: five outcomes, counted inside the body.
+// RtIo_SetWindowBranchCounts and RtIo_CompressedStreamGrowDelegations expose it;
+// nothing in the tree calls them.
 struct SetWindowBranchCounts {
     int64_t fastPath   = 0;   // the active window already covers pos
     int64_t scanHit    = 0;   // another LOADED window covers pos (the LRU re-use path)
@@ -222,8 +189,8 @@ int IO::CompressedStream::GetAvailableWindow() {
     }
 
     // Flush before evicting, but only when WRITING. On the read path
-    // `direction` is 0 and CompressWindow is never reached — which is why this
-    // lane does not port it.
+    // `direction` is 0 and CompressWindow (compressed_stream_write.cpp) is never
+    // reached.
     if (w[best].start >= 0 && _direction == 1) {        // 1800a9a1d / 1800a9a24
         CompressWindow(best);                           // 1800a9a2f
     }
@@ -234,11 +201,6 @@ int IO::CompressedStream::GetAvailableWindow() {
     for (int32_t i = 0; i < _windowSize; ++i)           // 1800a9a59
         if (i != best) ++w[i].useCount;                 // 1800a9a6a
 
-    // No oracle here: this MUTATES the window array, so calling the shipped body
-    // to compare would evict a second window and corrupt the state being
-    // compared. It is verified through the lockstep probe in §5, which compares
-    // the whole window array after every read — that is where its effect is
-    // visible, and comparing it here would destroy what the probe measures.
     return best;                                        // 1800a9a8a
 }
 
@@ -414,12 +376,12 @@ bool IO::CompressedStream::SetWindow(int pos) {
 // EXECUTING inside this very function 45 seconds after Quit. A separate agent
 // is root-causing it.
 //
-// So the body below is the door's former body, transcribed statement for
-// statement, with only `self->X` becoming the member's own field. Nothing was
-// added: no lock, no retry, no loop bound, no null check, no reordering. And
-// nothing was quietly removed — in particular the loop's exit condition and the
-// unguarded `SetWindow` failure return are exactly as they were, because
-// whatever makes the read spin must still be able to.
+// So the body below is retail's, statement for statement, with only `self->X`
+// becoming the member's own field: no lock, no retry, no reordering, and the
+// unguarded `SetWindow` failure return as retail has it. What it adds is marked
+// NOT RETAIL / EXT SEAM at its line: the int64 `pos + n` test, the `chunk <= 0`
+// failure where retail spins at the end of a short block, and ext.stream_cache's
+// read tap.
 //
 // If this conversion made the symptom STOP reproducing, that is a red flag to
 // report, not a win.

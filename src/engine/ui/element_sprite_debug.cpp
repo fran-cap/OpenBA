@@ -1,6 +1,6 @@
 // element_sprite_debug.cpp — Debug logging wrappers for UI element sprite operations.
 //
-// Logs SetSprite/GetSprite calls for ImageElement and LabelElement to understand
+// Logs SetSprite calls for ImageElement and LabelElement to understand
 // sprite data flow at runtime. All printf output is guarded by _DEBUG.
 //
 // These are standalone debug functions, not hooks. They can be called from
@@ -36,7 +36,7 @@ static void PrintSpriteValue(const char* label, const UI::Sprite& sprite) {
 // ============================================================
 
 // Debug wrapper: log before/after ImageElement::SetSprite
-// Call this instead of fn_ImageElement_SetSprite to get logging.
+// Call this instead of UI::ImageElement::SetSprite to get logging.
 // `sprite` is the Sprite the caller built in place (Debug_Sprite_Ctor's result).
 void Debug_ImageElement_SetSprite(UI::ImageElement* self, const UI::Sprite* sprite) {
     UI::ImageElement* elem = self;

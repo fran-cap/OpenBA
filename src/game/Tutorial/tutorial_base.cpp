@@ -1,20 +1,16 @@
 // src/game/Tutorial/tutorial_base.cpp
-// Clean reimplementations of the 10 exe-internal helper functions the Tutorial
-// module calls via ResolveAddr(Module::Exe, ...) but which were unregistered in
-// standalone (the Tutorial ResolveAddr gap). Registering these (standalone/
-// reg_tutorial_base.cpp) lets the tutorial reimpls fire real behavior instead of
-// silently skipping the guarded call.
+// Clean reimplementations of exe-internal helper functions the Tutorial module
+// calls by name.
 //
 // Two families:
 //   A. 27de0 cached-resolve (the four ExternalPtr<T> array helpers 26fb0 / 28cf0 /
 //      28f40 / 29190 are Object::SerializeExternalArray<T> at their callers since B8 RT2).
-//   B. TutorialGoalCount::Check data helpers (BST counts, work-capacity, slider cast).
+//   B. TutorialGoalCount::IsComplete data helpers (BST counts, work-capacity).
 //
-// Closure-safety: family A's entire sub-callee closure is Runtime exports
-// (FindOrLoad/Filename/Serializer/String — ResolveExport, no registration) +
-// engine_funcs. Family B's only exe sub-callees are FUN_140003050 (registered,
-// Work wave) and FUN_140004680 (registered, component-nature wave) plus the
-// internal compute FUN_14012e5c0 (registered here). All verified in Ghidra.
+// Family A's entire sub-callee closure is Runtime functions
+// (FindOrLoad/Filename/Serializer/String). Family B's only exe sub-callees are
+// FUN_140003050 and FUN_140004680 plus the internal compute FUN_14012e5c0
+// (WorkComponent::CalcMaxWorkers). All verified in Ghidra.
 //
 // Decompiled from Application-x64.exe; ABI/control-flow verified instruction-level.
 
@@ -23,8 +19,8 @@
 #include "system/Filename.h"
 #include "system/String.h"
 #include "object/TypeInfo.h"
-#include "Component/exe_bodies.h"   // 0x140004680 FloorComponent_FindResData
-#include "Work/exe_bodies.h"        // 0x140003050 WorkBase_FindComponent_3050
+#include "Component/exe_bodies.h"
+#include "Work/exe_bodies.h"
 #include "Object/factory_registration.h"
 #include "object/External.h"   // ENDGAME B.3.3 step 6A
 #include <cstdint>
@@ -54,7 +50,7 @@
 // ============================================================
 
 /// 0x140027de0 — ExternalPtr<Toolbar>'s resolve by name: resolve + cache a
-// Toolbar external referenced by name. Mirrors ResolveExternalByName_Impl
+// Toolbar external referenced by name. Mirrors NamedExternalRef::ResolveDescription
 // exactly, validating against the Toolbar type instead.
 void NamedExternalRef::ResolveToolbar() {
     ::Object::ExternalFactory* efactory = ::Object::ExternalFactory::_singleton;
@@ -75,9 +71,8 @@ void NamedExternalRef::ResolveToolbar() {
     // Retail reaches here with "Game\\Toolbar.rsc:<item>" already in the
     // ExternalFactory, because UpdateLoop::LoadResources has preloaded the
     // "Game/GameResources.rsc" dependency tree into it. In standalone that preload
-    // populates the loop's m_resourceList but does NOT leave these entries in the
-    // factory (see standalone/gameupdateloop_stubs.cpp on the non-terminating
-    // recursive load), so Find() misses and TutorialImageToolbarIcon::Slot9 built a
+    // populates the loop's _resourceList but does NOT leave these entries in the
+    // factory, so Find() misses and TutorialImageToolbarIcon::CreateElement built a
     // Sprite of {sheet = null, index = 0} — which reads as VALID to
     // UI::ImageElement::ComputeSize and faults it on *(sheet + 0x20).
     //
@@ -120,7 +115,7 @@ void NamedExternalRef::ResolveToolbar() {
 }
 
 // ============================================================
-// Family B — TutorialGoalCount::Check data helpers
+// Family B — TutorialGoalCount::IsComplete data helpers
 // ============================================================
 
 // Shared BST lookup over the CitizenBehavior entity-bucket trees: the bucket's

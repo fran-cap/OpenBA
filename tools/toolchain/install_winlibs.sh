@@ -5,14 +5,14 @@
 # (mingw-w64 14.0.0, UCRT, posix threads, SEH), release 3. The pin is a measured choice
 # (perf/pgo/README.md: GCC 16 is ~3% faster on the sim than the MSYS2 GCC 13.1 it replaced, and
 # PGO profiles only load into the exact compiler version that wrote them), so the version is
-# fixed, not "latest". Moving it = change the three constants below, rebuild, retrain the
+# fixed, not "latest". Moving it = change the four constants below, rebuild, retrain the
 # profile set (perf/pgo/train.sh), re-run the gate and the resave check, update
 # docs/reference/environment.md.
 #
 # usage: tools/toolchain/install_winlibs.sh [<dir>]      default C:/winlibs-gcc16
 #   Downloads the zip (GitHub release), verifies its sha256 against the pin, unpacks it so
 #   <dir>/mingw64/bin/g++.exe exists. Idempotent: an existing install of the pinned version
-#   is left alone. tools/build.sh reads BANISHED_GCC_DIR (default <dir>/mingw64/bin).
+#   is left alone. tools/build.sh reads BANISHED_GCC_DIR (default C:/winlibs-gcc16/mingw64/bin).
 #   CI (.github/workflows/ci.yml, release.yml) runs this on the Windows runner.
 set -euo pipefail
 

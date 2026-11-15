@@ -9,8 +9,8 @@
 //   [3] Shutdown  = 0x14011F560 -- serialize floorFlag as bool
 //   [6] OnAdded   = 0x14011F340 -- Ghidra "Draw"; place the floor iff desc `_addOnCreate`
 //   [7] OnRemove  = 0x14011F2A0 -- Ghidra "OnCreate"; remove the floor mesh
-//  [11] (dead)    = 0x14011F540 -- NOT a stub: a real re-place body, but nothing in the
-//                                  shipped exe dispatches component slot +0x58. See the
+//  [11] Slot11    = 0x14011F540 -- the load-time re-place: the EntityList post-load pass
+//                                  (EntityList_PostLoad_c4730) dispatches slot +0x58. See the
 //                                  long note at the factory below before touching it.
 //  [12] Message   = 0x14011F520 -- on message 1, place the floor (the path buildings use)
 //  [19]           = 0x14011F6E0
@@ -39,13 +39,11 @@
 #include "Game/Map.h"
 #include <cstring>
 
-// BANISHED_FLOOR_TRACE (src/game/Game/mapquery.cpp) — shared with the consumer side.
-
 // ============================================================
-// Helpers, called directly (B.3R): 0x140004680 FloorComponent_FindResData,
-// 0x14009cba0 FloorComponent_RemoveFloorMesh, 0x14011f390 FloorComponent_SubF390
-// (all three defined below), the import slot 0x140152a98 Object::Base::IsDerivedFrom,
-// and the game-world cell 0x1401c3dd8 read through g_pGameWorldSingleton.
+// Helpers, called directly (B.3R): 0x140004680 FindComponent<MapComponent>,
+// 0x14009cba0 Map::RemoveFloor, 0x14011f390 FloorComponent::PlaceFloor
+// (the last two defined below), the import slot 0x140152a98 Object::Base::IsDerivedFrom,
+// and the game-world cell 0x1401c3dd8 read through GameUpdateLoop::_singleton.
 // ============================================================
 
 // ============================================================
@@ -57,7 +55,7 @@
 // FloorComponent::Draw (vtable slot [6], 0x14011F340)
 // ============================================================
 // Checks IsDerivedFrom on _unk18 with floor building type ID.
-// If building[0x28] != 0, calls FloorComponent_sub_f390 for floor mesh placement.
+// If building[0x28] != 0, calls FloorComponent::PlaceFloor (0x14011f390) for floor mesh placement.
 //
 // Original disassembly:
 //   MOV RBX,[RCX+0x18]              ; get sibling component
@@ -90,7 +88,7 @@
 // pseudo-C but the CALL at 0x14011f41c targets 0x140003f60; the wrong one would have
 // returned a ParticleComponent (or null) and f390 would then have read a Transform out
 // of the wrong object's +0x148. Disassembly-verified 2026-08-29.
-// It is called directly: ActCNR_FindComponent_3f60.
+// It is called directly: FindComponent<ModelComponent>.
 //
 // Picking::Scene::AddMesh / RemoveMesh — Runtime exports.
     // 0x1801252e0, NOT 0x1800f8d80. The latter is int3 PADDING, not a function entry —
@@ -109,8 +107,8 @@
     // save/load-wave mid-function address sweep, 2026-08-28).
 
 // Map::RemoveFloor — FUN_14009cba0: decrement the per-cell floor counter (cell +0x2d)
-// over the w*h footprint, then Picking::Scene::RemoveMesh. Map's embedded
-// Picking::Scene is raw storage (Map.h, DLG-1; H5): LEFT.
+// over the w*h footprint, then Picking::Scene::RemoveMesh on the Map's embedded
+// Picking::Scene (Map::pickingScene, +0x08).
 void Map::RemoveFloor(uint32_t floorId, int x, int y, int w, int h) {
     MapCell* grid = cells.GetData();   // +0x80
     for (int j = 0; j < h; ++j) {
@@ -191,20 +189,19 @@ void FloorComponent::PlaceFloor() {
 
 
 
-// ===== Standalone factory =====
+// ===== The class (FloorComponent.h) =====
 //
-// Hand-rolled rather than COMPONENT_LIVE_FACTORY_ONADDED because this component needs
-// THREE real slots plus a non-zero field default, and no macro covers that shape:
+// Its overridden slots (slot 11 below) plus a non-zero field default (floorId = -1):
 //
-//   [3]  +0x18  Serialize   FloorComponent_Shutdown  (floorFlag round-trips a save)
-//   [6]  +0x30  OnAdded     FloorComponent_Draw      (Ghidra's "Draw" — dispatched by
-//                                                     ComponentEntity_OnAddedPass; the
+//   [3]  +0x18  Serialize   Persist                  (floorFlag round-trips a save)
+//   [6]  +0x30  OnAdded     OnAdded                  (Ghidra's "Draw" — dispatched by
+//                                                     ComponentEntity::OnAddedPass; the
 //                                                     ctor's flags bit 0 is what enrols it)
-//   [7]  +0x38  OnRemove    FloorComponent_OnCreate  (Ghidra's "OnCreate" — the usual
+//   [7]  +0x38  OnRemove    OnRemove                 (Ghidra's "OnCreate" — the usual
 //                                                     OnCreate/OnRemove off-by-one; the
 //                                                     body REMOVES the mesh, and f390
 //                                                     calls this very slot itself)
-//  [12]  +0x60  Message     FloorComponent_Slot12    (0x14011f520 — on msg 1, place)
+//  [12]  +0x60  Message     OnEvent                  (0x14011f520 — on msg 1, place)
 //
 // SLOT 11 (+0x58, 0x14011f540) IS THE LOAD-TIME RE-PLACE — WIRED (corrected 2026-08-29).
 // Body: `if (floorFlag == 0) return;` then a verbatim inline f390 — "the save said this
@@ -238,7 +235,7 @@ void FloorComponent::PlaceFloor() {
 // slot 6 logs `enabled=0` and places nothing, which is what the first run of this change
 // did.
 //
-// floorId defaults to -1, not 0. The inert factory zeroes the body, and f390 opens with
+// floorId defaults to -1, not 0 (the ctor below), because f390 opens with
 // `if (floorId >= 0) <remove the existing mesh>` — a zeroed id would make the very first
 // placement try to remove picking-mesh 0 (someone else's mesh) before adding its own.
 //
@@ -246,9 +243,7 @@ void FloorComponent::PlaceFloor() {
 // (0x1401188e6), i.e. 0xC3 like every other component's bit 7. (An earlier note here
 // read the OR alone as the whole word and stored 0x43.)
 //
-// Gated on BANISHED_LIVE_FLOOR, DEFAULT-ON since 2026-08-29 (the default-on table) — the env
-// var is now a kill-switch (=0) for A/B runs. With it off this is byte-for-byte the old
-// inert component. What it turns on: docks/bridges register their
+// What the component does: docks/bridges register their
 // deck mesh into the map's Picking::Scene and bump each covered cell's floor counter
 // (+0x2d), which is what makes the height query in mapquery.cpp stand a citizen ON the
 // deck instead of on the terrain beneath it.

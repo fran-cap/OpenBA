@@ -9,14 +9,14 @@
 //   prompt's is_trivially_copyable assert is false for this layout and for the
 //   POD before it); its default ctor is protected (RULE B6-4.5 / B5-4).
 // PART B — (no test) the two BY-VALUE holders in src/engine/engine/UpdateLoop.h:
-//   `RtEngine::DialogLoopT::_ui` at +0x40 (pinned by
+//   `Engine::DialogLoopT::_ui` at +0x40 (pinned by
 //   ?GetUserInterface@DialogLoopT@Engine@@ 0x18004d7c0) and
-//   `RtEngine::DialogLoaderLoopT::_ui` at +0x60; the offsets are static_asserts
+//   `Engine::DialogLoaderLoopT::_ui` at +0x60; the offsets are static_asserts
 //   in that header, so the test body here was empty and was removed.
 // PART C — the hidden-retslot DOORS keep retail's `(this, ret, …)` shape while
 //   the non-virtual members return by value (B5-12); checked on the declared
-//   door types, unevaluated (the doors live in src/engine/ui, which the unit
-//   binary does not link).
+//   door types, unevaluated (the doors are extern "C" functions in
+//   src/engine/ui/userinterface.cpp).
 // PART D — RULE B6-11: an `InternalPtr<T>` BY-VALUE argument is the ADDRESS of
 //   the caller's temporary. `IsDialogOpen` (0x180120410, header-inline) is
 //   raw-called in retail order — RCX = this, RDX = &temporary — through its
@@ -79,7 +79,7 @@ UNIT_TEST(ui_userinterface_retslot_door_shapes) {
                         Object::InternalPtr<UI::DialogInstance>>::value));
     CHECK((std::is_same<decltype(std::declval<UserInterface&>().SetClipRegion(0, 0, 0, 0)),
                         UserInterface::ClipRegion>::value));
-    // … and the registered doors keep retail's `(this, ret, …)` order and hand
+    // … and the doors keep retail's `(this, ret, …)` order and hand
     // the slot back in RAX.
     CHECK((std::is_same<decltype(&RtUi_UserInterface_GetFirstDialog),
                         void* (*)(UI::UserInterface*, void*)>::value));
@@ -89,9 +89,8 @@ UNIT_TEST(ui_userinterface_retslot_door_shapes) {
 
 // ---------------------------------------------------------------- PART D
 // GCC's pointer-to-member for a NON-virtual member is {code address, this
-// adjustment}; the first qword is the bare function address. That is the entry
-// a retail caller reaches through the door, so calling it with the retail
-// register order is the B6-11 proof.
+// adjustment}; the first qword is the bare function address, so calling it
+// with the retail register order is the B6-11 proof.
 template <typename Fn, typename PMF>
 Fn BareAddress(PMF pmf) {
     static_assert(sizeof(PMF) == 16, "Itanium/GCC PMF is two qwords");

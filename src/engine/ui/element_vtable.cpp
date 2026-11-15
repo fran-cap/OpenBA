@@ -5,13 +5,7 @@
 //
 // WHAT THIS FILE IS FOR
 // ---------------------------------------------------------------------------
-// `??_7Element@UI@@6B@` (DLL 0x180156160, 12 slots) is one of the four minted
-// UI vtables that `tools/runtime_census.py --unported --namespace UI` still
-// lists. As lane UIDATA established and standalone/reg_mint_promoted.cpp
-// restates, the row is not "unwritten data" — the table is already minted in
-// standalone/rt_data_mint_tables.inc. What was unwritten is its CONTENTS: a
-// minted slot is filled from the port registry and stays a NAMED ABORT TRAP
-// until the body behind it is ported.
+// `??_7Element@UI@@6B@` (DLL 0x180156160, 12 slots) is UI::Element's vtable.
 //
 // At the wave-10B baseline (docs/history/runtime_port/wave10b/baseline_shadow_7358732.txt)
 // the row read `slots=12 ported=3 TRAP=8 purecall=1`. The three that were ours
@@ -19,40 +13,18 @@
 // (ComputeLayout/Draw, wave 7 lane A, in element.cpp). Slot 4 (ComputeSize) is
 // `_purecall` in `Element` itself. This file is the other eight.
 //
-// Registering a vtable is NOT passive: our ported `??0Element` stamps this
-// table into every Element in the game, so the DLL's own
-// `UI::UserInterface::Update` dispatches straight into these bodies. That is
-// the whole risk and the whole point.
 //
-//   | slot | Export                      | Retail      | Ord  | Bytes | Oracle |
-//   |------|-----------------------------|-------------|------|-------|--------|
-//   |  1   | ?TypeName@Element@UI@       | 0x180035440 | 4385 |   8   | replay |
-//   |  2   | ?Type@Element@UI@           | 0x180035420 | 4178 |   7   | replay |
-//   |  3   | ?Persist@Element@UI@        | 0x180116870 | 3323 |  0x4b | pin    |
-//   |  7   | ?Update@Element@UI@         | 0x180116270 | 4489 | 0x5ec | pin    |
-//   |  8   | ?Enable@Element@UI@         | 0x180116910 | 2288 |  0xc8 | scratch|
-//   |  9   | ?Contains@Element@UI@       | 0x1801169e0 | 1862 | 0x101 | replay |
-//   | 10   | ?SetColor@Element@UI@       | 0x180035620 | 3847 |   4   | scratch|
-//   | 11   | ?GetBorder@Element@UI@      | 0x180035630 | 2468 |  0xe  | replay |
+//   | slot | Export                      | Retail      | Ord  | Bytes |
+//   |------|-----------------------------|-------------|------|-------|
+//   |  1   | ?TypeName@Element@UI@       | 0x180035440 | 4385 |   8   |
+//   |  2   | ?Type@Element@UI@           | 0x180035420 | 4178 |   7   |
+//   |  3   | ?Persist@Element@UI@        | 0x180116870 | 3323 |  0x4b |
+//   |  7   | ?Update@Element@UI@         | 0x180116270 | 4489 | 0x5ec |
+//   |  8   | ?Enable@Element@UI@         | 0x180116910 | 2288 |  0xc8 |
+//   |  9   | ?Contains@Element@UI@       | 0x1801169e0 | 1862 | 0x101 |
+//   | 10   | ?SetColor@Element@UI@       | 0x180035620 | 3847 |   4   |
+//   | 11   | ?GetBorder@Element@UI@      | 0x180035630 | 2468 |  0xe  |
 //
-// THE FOUR ORACLE DISPOSITIONS, AND WHY EACH ONE
-// ---------------------------------------------------------------------------
-//  * `replay`  — the body is a pure read (or writes only a caller-owned return
-//    slot) and re-running the shipped export on the SAME live object changes
-//    nothing. Full comparison, no qualification.
-//  * `scratch` — the body mutates `this`. Ours runs on the live object; a
-//    PRIVATE 0xC0-byte copy of the pre-state is handed to the shipped export
-//    and all 0xC0 bytes are compared. For `Enable` the copy additionally has
-//    its child array emptied — see that body for why, stated rather than
-//    hidden.
-//  * `pin`     — the body cannot be replayed (it emits into a stream, or it
-//    raises UI events and closes dialogs), so there is no post-state to
-//    compare. What IS checked, at registration time and through an ordinary
-//    diff site, is that the SHIPPED BYTES this port was transcribed from are
-//    the bytes in the loaded image: an FNV-1a-64 over the whole shipped body.
-//    That is a PRE-FLIGHT ON THE TRANSCRIPTION, not a post-state comparison
-//    against retail, and this file says so in both places rather than letting
-//    a `divergences=0` row imply more than it measured.
 //
 // A RETAIL DEAD BRANCH THIS LANE FOUND, AND KEPT
 // ---------------------------------------------------------------------------
@@ -93,9 +65,6 @@
 
 #include "ui/Element.h"
 #include "ui/UserInterface.h"
-// `enum class Module` + `ResolveAddr` (declared once there, byte-identical to
-// standalone/resolve.h) and `rtuielem::AtomicExport`/`AtomicAddr`, the B6-5
-// door caches.
 #include "element_common.h"
 #include "ui/DialogInstance.h"
 #include "ui/ToolTipDialog.h"   // B4: UserInterface::_toolTipDialog is typed
@@ -105,17 +74,9 @@
 
 using UI::Element;
 
-// ENDGAME B.3.6 block A: the eight slot bodies below MOVED into the members of
-// the real `UI::Element` (src/engine/ui/Element.h); each registered door is
-// now a one-line QUALIFIED delegation. A live Element wears the MINTED
-// `??_7Element@UI@@6B@`, whose slots resolve back to these very doors, so an
-// unqualified virtual call from a door would re-enter it (B34_BRIEFS A.1).
-//
-// RULE B6-5: UI is constructed on the loader thread while the main thread
-// draws. The doors of OTHER classes the member bodies call (UserInterface,
-// DialogInstance, the event-array grow helper, the type-info record) are
-// resolved through namespace-scope std::atomic slots, never through a
-// function-local static first-call cache inside a member.
+// The slot bodies below are members of the real `UI::Element` (src/engine/ui/Element.h).
+// They call the other classes they use (UserInterface, DialogInstance, the event-array grow
+// helper) by name.
 
 namespace {
 
@@ -127,8 +88,8 @@ namespace {
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// One queued UI event, 0x30 bytes — the interior src/engine/ui/
-// UserInterface.h:176 leaves opaque, named from Element::Update's own eleven
+// One queued UI event, 0x30 bytes — the layout of `UI::Event`
+// (src/engine/ui/UserInterface.h), named from Element::Update's own eleven
 // record writes (nine distinct offsets) and lane UI1's:
 //
 //      +0x00 dialog      +0x08 element     +0x10 eventId
@@ -137,7 +98,7 @@ namespace {
 //      +0x28 dragData
 //
 // +0x24 is deliberately left uninitialised: retail never writes it and the grow
-// helper never copies it (userinterface_frame.cpp:277 records the same).
+// helper never copies it (userinterface_frame.cpp records the same).
 // ---------------------------------------------------------------------------
 struct EventRecord {
     void*    dialog;     // +0x00

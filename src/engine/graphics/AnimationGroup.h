@@ -16,8 +16,7 @@
 // The evidence that file records, restated so it travels with the declaration:
 //
 //   * 0x58 total — the `MOV EDX,0x58` in the vector deleting destructor at
-//     0x1800167f0, which `src/engine/object/deleting_dtor.cpp:974` carries as
-//     `RT_DELDTOR(0x1800167f0, 0x1800fb620, 0x058, "Graphics::AnimationGroup")`.
+//     0x1800167f0.
 //   * +0x20 `Array<Animation>` — `?GetAnimation@AnimationGroup@Graphics@@
 //     QEBAAEBVAnimation@2@H@Z` @ 0x180016660 is the `imul $0x70` element helper
 //     over it, and the mangled RETURN TYPE names the element `Animation`, which
@@ -47,12 +46,9 @@
 // with no `CompiledExternal` step. That is the exact mistake B35_RULES section
 // 2.1 warns about for `Video::VideoProgram`.
 //
-// RULE B5-15 — THE TWO NAME LITERALS, RECORDED AND NOT USED. Nothing here
-// re-mints or retires a reflection row (B35_RULES section 11): the two
-// `_typeInfo` rows and the `??_7AnimationGroup@Graphics@@6B@` mint row stay, and
-// slots 1/2 keep reading `?_typeInfo@AnimationGroup@Graphics@@0VBaseTypeInfo@
-// Object@@A` (0x1801fa6d0). The literals are written down so a later
-// `DEFINE_TYPE` is COPIED and not derived from a C++ base name:
+// RULE B5-15 — THE TWO NAME LITERALS. The record is `DEFINE_TYPE`d in
+// src/engine/graphics/graphics_type_records.cpp with parent "Object::External";
+// retail's literals:
 //     ?_TypeName@AnimationGroup@Graphics@@       -> "AnimationGroup"
 //     ?_ParentTypeName@AnimationGroup@Graphics@@ -> "Object::External"
 // ============================================================================
@@ -182,10 +178,10 @@ public:
 
     // ??2AnimationGroup@Graphics@@SAPEAX_K@Z          0x180016320  — NOT PORTED
     // ??2AnimationGroup@Graphics@@SAPEAX_KPEAX@Z      0x180016390  — NOT PORTED
-    // ??3AnimationGroup@Graphics@@SAXPEAX@Z           0x1800163a0  — NOT PORTED
+    // ??3AnimationGroup@Graphics@@SAXPEAX@Z           0x1800163a0  — defined inline below
     // ?CreateNewObject@…SAPEAVBase@Object@@XZ         0x180016400  — (D2) the class's own
     // ?CreateInPlaceObject@…SAPEAVBase@Object@@PEAX@Z 0x1800164d0  — (D2) the class's own
-    //   The three operators are declared so no caller batch has to edit this
+    //   The two operator new are declared so no caller batch has to edit this
     //   header and stay undefined: placement is spelled `::new`.
     static void* operator new(std::size_t bytes);
     static void* operator new(std::size_t bytes, void* place);
@@ -197,10 +193,10 @@ public:
     // PUBLIC for the same reason `Object::External`'s are: unconverted bodies
     // reach them at these offsets through a cast.
     //
-    // Element construction, copy and destruction of the three Arrays run
-    // through the REGISTERED `kSpec_*` rows in `src/engine/collection/
-    // array.cpp`, at retail's own addresses; `_clips` and `_tags` name those
-    // rows as their spec, so no trait-derived element lifecycle exists.
+    // Element construction, copy and destruction of `_clips` and `_tags` run
+    // through the hand-derived `kSpec_*` rows in `src/engine/collection/
+    // array.cpp`, at retail's own addresses; both members name those rows as
+    // their spec, so no trait-derived element lifecycle exists for them.
     // B.4 Y RT (`behaviour:`): `_clips` carries its element under retail's row
     // (kSpec_AnimClip70), so its implicit ~Array is 0x18001c1e0's own shape
     // (~Animation per element, then J1); the dtor body's explicit 0x18001c1e0

@@ -8,89 +8,18 @@
 // SHIPPED Runtime-x64.dll (base 0x180000000) on 2026-09-06; both addresses and
 // the oracle shape for each function are in docs/history/runtime_port/WAVE5_LANE_C.md.
 //
-// HELD BACK, with reasons (a held-back function with a stated reason is a
-// result; a registered function nothing ever measured is not):
+// Draw (0x1800c2eb0) is ported in src/engine/save/saveload_draw.cpp; ~SaveLoad
+// (0x1800c3c90) is RtSave_SaveLoad_Dtor below; `?_singleton@SaveLoad@Save@@0PEAV12@EA`
+// (0x1801fc6f0) is the class static Save::SaveLoad::_singleton at the bottom of
+// this file, which the ctor and dtor publish through `SaveLoadSingletonSlot()`.
 //
-//   ?Draw@SaveLoad@Save@@…            0x1800c2eb0 — *** NO LONGER HELD BACK. ***
-//       PORTED 2026-09-09 by Wave 14 lane DRAW, in src/engine/save/saveload_draw.cpp.
-//       BOTH of this entry's reasons were wrong, and the correction is recorded
-//       here rather than only in a wave doc because this is where the next
-//       reader will meet the claim (PLAN §6 step 8).
-//         * "it stamps five vtables this project does not own" — irrelevant and
-//           also not a blocker. Those constructors are INLINED into Draw, so
-//           there was never anything to port first; the four vtable symbols it
-//           stamps are ordinary DATA EXPORTS of the shipped DLL (??_7Base@Object@@6B@,
-//           ??_7External@Object@@6B@, ??_7MaterialInstance@Graphics@@6B@,
-//           ??_7SpriteSheet@UI@@6B@) and resolve by name.
-//         * "the load-bearing reason is the oracle: running both would draw
-//           twice and leak a render target every frame" — the FREQUENCY was
-//           wrong (Draw runs on exactly one frame per save, gated by
-//           _captureFlags, not every frame) and the leak is the harness's to
-//           fix, not the oracle's to suffer. saveload_draw.cpp's replay round
-//           frees our readback buffer and rewinds _captureFlags, _capturePixels
-//           and four Video::Context fields before handing the frame to the DLL,
-//           so retail runs on pristine input and the game keeps RETAIL's result.
-//       What the old comment WAS right about: MaterialInstance's and
-//       SpriteSheet's vtables and SpriteContext::AddLine/SetScissor are still
-//       individually unported. Draw does not need them to be.
-//
-//   ??1SaveLoad@Save@@QEAA@XZ         0x1800c3c90 — NO LONGER HELD BACK. This
-//       entry described the destructor as "left on the DLL"; it has been ported
-//       and registered since (see RtSave_SaveLoad_Dtor below and the
-//       RegisterRuntimeExport at the bottom of this file). Corrected by Wave 14
-//       lane SINGLETON, which had to know which of the five writers of
-//       _singleton run OUR code and found this banner claiming one of them does
-//       not. The oracle situation is unchanged and still honest: the dtor
-//       frees, so nothing compares it.
-//
-//   ?_singleton@SaveLoad@Save@@0PEAV12@EA  0x1801fc6f0 — a DATA export, MINTED
-//       and deliberately NOT promoted (Wave 14 lane SINGLETON). The claim above
-//       — "a data symbol cannot be redirected before cutover" — was true of the
-//       FUNCTION seam and false of the tree as it stands: Wave 9 lane C2's mint
-//       registers data names and addresses through the same registry, so this
-//       row COULD be redirected today. It is not, and the reasoning plus the
-//       full reader/writer enumeration that would license it live in
-//       standalone/reg_mint_promoted.cpp under "THE STANDING CASE FOR PROMOTING
-//       AT CUTOVER". Short version: with the DLL present, registering the row
-//       would CREATE a split (our writers move, retail's dead ?Get@ cannot),
-//       and it buys nothing until the DLL is gone. What has NOT
-//       changed is the rule the old text was protecting: the ctor and dtor
-//       below must PUBLISH through `SaveLoadSingletonSlot()` rather than own a
-//       static of their own, because that accessor is the door that follows the
-//       registration. Verified per run by ProbeSaveLoadSingleton
-//       (standalone/rt_orphan_probe.cpp, the old DLL-era switch).
-//
-// THE HAZARD THAT DEFINES THIS LANE. A wrong port here does not crash, it
-// desyncs a save and surfaces later on an innocent record. So the oracle shape
-// was chosen BEFORE each body was written, and three shapes are in use:
-//
-//   * FULL DIFF — both implementations run on the same inputs and the results
-//     are compared. Only for functions that are read-only or idempotent:
-//     GetOperation, GetSaveCount, GetSaveInfo, GetSaveState, CheckMod.
-//
-//   * SCRATCH-COPY DIFF — the function only writes into `*this` and allocates
-//     nothing, so two private 0x90-byte copies of the live object can be made,
-//     ours run on one and theirs on the other, the two compared byte for byte,
-//     and only then is ours applied to the real object. Neither scratch run
-//     touches shared state. Used by SetOperation, SetMinOperationTime,
-//     SetSaveSprite, ??0SaveLoad, ??0SavedState, and — with refcount
-//     compensation, see the comment there — SetSaveName.
-//
-//   * SCRATCH-OBJECT DIFF — theirs runs against a private replica of the
-//     OUTPUT object rather than the live one, and the buffer it produces is
-//     compared against ours and then freed. Used by Store and Retrieve, whose
-//     whole job is to move bytes: running both against the live MemoryStream
-//     would double-consume it, which is precisely the failure mode Wave 4
-//     spent itself on.
-//
-// ~SavedState is ported with NO oracle and that is said plainly here rather
-// than dressed up: it is nine instructions (`if (p) locked-free(p)`) and
-// unambiguous, but nothing measures it.
+// THE HAZARD THAT DEFINES THIS FILE. A wrong port here does not crash, it
+// desyncs a save and surfaces later on an innocent record.
 //
 // PLATFORM SEAM (PLAN §4.1 decision 1): nothing in these two classes touches
 // Win32 directly. The critical sections retail inlines around Allocate/Free
-// live inside MemoryAllocator::MemAlloc/MemFree, which this file calls as
-// exports, so no `_win` twin is needed and <windows.h> stays out.
+// live inside MemoryAllocator::MemAlloc/MemFree, which this file calls
+// directly, so no `_win` twin is needed and <windows.h> stays out.
 // ============================================================================
 
 #include <cstdint>
@@ -116,25 +45,6 @@ using RtSave::Operation;
 using RtIo::MemoryStream;
 
 namespace {
-
-// ----------------------------------------------------------------------------
-// Dependencies. Every one of these is fetched from the SHIPPED DLL through
-// the raw DLL door / the raw export door, never through ResolveExport.
-//
-// Two reasons, and they are different reasons:
-//   1. Half of these (String::operator+, Filename::AdjustDelimiters,
-//      MemAlloc/MemFree) are already ported by Waves 2 and 4. Resolving them
-//      by NAME through the seam would make this lane's ordinary, non-diff path
-//      silently depend on another lane's port being enabled. persistence.cpp
-//      (Wave 4 lane C) made the same call for the same reason: a lane's job is
-//      to be correct standing alone against the DLL.
-//   2. the raw DLL door is GetProcAddress — an export-table binary search under the
-//      loader lock. Two of them in one hot body cost Wave 2 five points of sim
-//      time and were invisible to both profilers
-//      (reference_rtoriginal_is_getprocaddress.md). the raw DLL door caches
-//      per call site, which is why every accessor below is a function with a
-//      `static` and not a bare the raw DLL door call.
-// ----------------------------------------------------------------------------
 
 // ----------------------------------------------------------------------------
 // Dependencies. Wave 13 moved every definition that used to sit here into
@@ -163,15 +73,7 @@ using RtSaveDetail::ZeroTime;
 // Save::SaveLoad::SaveLoad()            retail 0x1800c3d30   ordinal 360
 // ??0SaveLoad@Save@@QEAA@XZ
 // ----------------------------------------------------------------------------
-// Oracle: SCRATCH-COPY DIFF, with both scratches pre-filled with 0xCD rather
-// than with the live object. That is deliberate: the ctor leaves seven fields
-// untouched (see the header), so comparing two buffers that started identical
-// and non-zero proves BOTH what it writes and what it does not — a plain
-// zero-filled comparison would hide a missing store into an already-zero field.
-//
-// ORDER MATTERS. Theirs runs first, because the last thing the ctor does is
-// publish `_singleton = this`; running theirs second would leave the DLL global
-// pointing at a stack buffer that is about to go out of scope.
+// The last thing the ctor does is publish `_singleton = this`.
 //
 // Returns `this` in RAX (MOV RAX,RCX before the RET).
 // ============================================================================
@@ -220,21 +122,18 @@ SaveLoad* RtSave_SaveLoad_Ctor(SaveLoad* self) {
 //    so it is unlikely ever to run"              -- **FALSE, and measurably so.**
 //
 // The third is what made the holdback look cheap, and it does not survive a
-// grep. `??1SaveLoad@Save@@QEAA@XZ` has FOUR live call sites in this tree, all
-// through `fn_SaveLoad_Dtor`, and every one of them is followed by a
-// `fn_MemFreeStatic` of the same pointer — i.e. these are real deletes of a
-// heap object, not a process-exit formality:
+// grep. `??1SaveLoad@Save@@QEAA@XZ` has FIVE call sites in this tree, all
+// through `RtSave_SaveLoad_Dtor`, and every one of them is followed by a
+// `System::MemoryAllocator::MemFree` of the same pointer — i.e. these are real
+// deletes of a heap object, not a process-exit formality:
 //
-//   src/game/Dialog/mainmenudialog.cpp:218  MainMenuDialog_ReturnToMenu, the
-//   src/game/Dialog/mainmenudialog.cpp:226    no-game and in-game branches
-//   src/game/Game/gameupdateloop.cpp:3140   GameUpdateLoop::Shutdown
-//   src/game/Tutorial/tutorialui.cpp:81     tutorial teardown
+//   src/game/Dialog/mainmenudialog.cpp:204       MainMenuDialog::ReturnToMenu, the
+//   src/game/Dialog/mainmenudialog.cpp:212         no-game and in-game branches
+//   src/game/Game/gameupdateloop.cpp:2348        GameUpdateLoop::Shutdown
+//   src/game/Game/menudialogloopt_stubs.cpp:306  MenuDialogLoopT::Shutdown
+//   src/game/Tutorial/tutorialui.cpp:82          TutorialUI::QuitTutorial
 //
-// Quit-to-menu runs this. So at cutover it is not a symbol that "might" be
-// asked for -- attempt 14 recorded it as asked
-// (wave9_attempt14_error.txt line 32), and with the DLL gone the resolve is
-// NULL and `fn_SaveLoad_Dtor(saveLoad)` is a call through zero on the way back
-// to the main menu.
+// Quit-to-menu runs this.
 //
 // THE FULL RETAIL CHAIN, disassembled at all five addresses on 2026-09-08:
 //
@@ -248,12 +147,9 @@ SaveLoad* RtSave_SaveLoad_Ctor(SaveLoad* self) {
 // in that order, 0x20 bytes at a time — an independent confirmation of the
 // ModInfo layout this file's own header pins from CheckMod.
 //
-// FOUR SaveInfo OFFSETS THIS DESTRUCTOR PINS THAT THE HEADER CALLS UNMODELLED.
-// src/engine/save/SaveLoad.h deliberately declines to name +0x10..+0x37 and
-// +0x40..+0x47, on the grounds that only UpdateList/LoadMetaData write them and
-// naming from a guess is what PLAN §6 step 8 forbids. That stands — this port
-// does NOT rename them. It reaches them as raw displacements, with what the
-// destructor proves about each and nothing more:
+// FOUR SaveInfo OFFSETS THIS DESTRUCTOR PINS. src/engine/save/SaveLoad.h names
+// them `description`, `imageBuffer`, `thumbPixels` and `saveIndex`; what the
+// destructor proves about each:
 //
 //   +0x10  a System::String slot          (released with the refcount idiom)
 //   +0x18  a pointer to a POLYMORPHIC object; retail calls vtable slot 0 with
@@ -263,26 +159,17 @@ SaveLoad* RtSave_SaveLoad_Ctor(SaveLoad* self) {
 //          when it is >= 0. A negative value means "this SaveInfo does not own
 //          them", the same -1-is-empty convention Sprite::index uses at +0x08.
 //
-// ORACLE: NONE, and that is a property of the function, not of this lane's
-// effort. Everything it does is a free. "Call ours, call theirs, compare"
-// double-frees every block in the object, and there is no scratch-copy form
-// either: a 0x90-byte copy of the live SaveLoad aliases the SAME strings and
-// the SAME array buffer, so running the DLL's body on the copy destroys the
-// real object's heap before ours is allowed to run. What backs it instead:
+// Everything it does is a free. What backs it:
 //
 //   1. Byte-for-byte transcription of all five bodies, disassembled (not
 //      decompiled — reference_ghidra_c_output_vs_disassembly.md).
 //   2. Every free routed through the SAME `MemFree()` accessor the rest of
 //      this file already uses, so the heap stays whole-ours
-//      (WAVE9.md §3). Retail's array-buffer frees are written out as
+//      (docs/history/runtime_port/WAVE9.md §3). Retail's array-buffer frees are written out as
 //      Lock(alloc+0x640); ?Free@(alloc, p); Unlock() -- which is what
 //      ?MemFree@MemoryAllocator@System@@SAXPEAX@Z IS, and this file's
-//      `MemFree` resolves to our port of exactly that.
-//   3. The live path: quitting to the menu runs it, under the allocator
-//      watchdog, and a wrong free surfaces there rather than nowhere.
-//
-// It is registered because at cutover the alternative to an unverifiable port
-// is not "the DLL's body", it is a null call.
+//      `MemFree` calls System::MemoryAllocator::MemFree.
+//   3. The live path: quitting to the menu runs it.
 // ============================================================================
 
 // ============================================================================
@@ -424,7 +311,7 @@ void RtSave_SaveLoad_Dtor(SaveLoad* self) {
     RtSaveDetail::ArraySaveInfoDtor(&self->_saves);
 
     // FUN_180006a10, the un-exported second copy of MemFree
-    // (src/engine/engine/engine_lifecycle.cpp:262 records it as "MemFree
+    // (src/engine/engine/engine_lifecycle.cpp:256 records it as "MemFree
     // verbatim"). Routed through the same accessor, not the raw address. This
     // is the embedded SavedState's buffer (+0x30), freed inline by retail.
     void* buffer30 = self->_embeddedState._data;
@@ -444,8 +331,6 @@ void RtSave_SaveLoad_Dtor(SaveLoad* self) {
 // function is `MOV EAX,[RCX] ; RET`, RCX is `this` and RDX is untouched.
 // (A hidden slot would have made `this` arrive in RDX; getting that wrong is
 // the wild-write family of reference_hidden_retslot_wild_write.md.)
-//
-// Oracle: FULL DIFF — a single load, no side effects.
 // ============================================================================
 // ENDGAME B.3.7 B2: the body is the inline member (SaveLoad.h).
 
@@ -454,7 +339,7 @@ void RtSave_SaveLoad_Dtor(SaveLoad* self) {
 // ?GetSaveCount@SaveLoad@Save@@QEBAHXZ
 // ----------------------------------------------------------------------------
 // `return *(int*)(this + 0x58)` — the _size half of the Array<SaveInfo> at
-// +0x50. Oracle: FULL DIFF.
+// +0x50.
 // ============================================================================
 
 // ============================================================================
@@ -467,8 +352,6 @@ void RtSave_SaveLoad_Dtor(SaveLoad* self) {
 // NO bounds check — index is sign-extended (MOVSXD) and multiplied, so a
 // negative or out-of-range index produces a wild pointer. Reproduced exactly;
 // CLAUDE.md's rule is that retail's unguarded arithmetic is load-bearing.
-//
-// Oracle: FULL DIFF on the returned pointer.
 // ============================================================================
 
 // ============================================================================
@@ -486,18 +369,9 @@ void RtSave_SaveLoad_Dtor(SaveLoad* self) {
 //     LEA RDX,[0x180155b30] ; MOV RCX,RBX              <- "Auto\0" literal
 //     CALL String::Set [0x1800c95d0]                   <- Set(ret, "Auto")
 //     MOV RAX,RBX ; RET                                 <- return ret
-// String::Set is already ported verbatim as RtSystem_String_Set
-// (src/engine/system/string.cpp, same 0x1800c95d0 body), so this reduces to
-// zeroing the slot and calling it -- retail always returns the literal "Auto"
-// regardless of `self`.
-//
-// Oracle: FULL DIFF, the diff oracle against a genuine second call into the
-// shipped export (not a self-check -- reference_shadow_marker_is_not_an_oracle.md),
-// same shape as RtSystem_String_Concat's diff above. The function takes no
-// meaningful input (every call is the same case), so the commit's input sweep
-// instead varies `self` -- nullptr, a stack-garbage pointer, and a live
-// SaveLoad -- to verify the "self is dead" claim rather than sweeping an
-// argument that does nothing.
+// String::Set is ported (System::String::Set, src/engine/system/string.cpp,
+// same 0x1800c95d0 body), so this reduces to zeroing the slot and calling it
+// -- retail always returns the literal "Auto" regardless of `self`.
 // ============================================================================
 System::String Save::SaveLoad::GetAutoSaveName() const {
     // ENDGAME B.3.1 step 2: retail's `*ret = 0` IS the default ctor
@@ -515,10 +389,7 @@ System::String Save::SaveLoad::GetAutoSaveName() const {
 // ABI: a const member returning System::String BY VALUE. The disassembly has
 // `this` arriving in RCX and the hidden return slot in RDX — the MEMBER-
 // function ordering (`this` is the first physical argument, the retslot is
-// pushed to second), not the namespace-scope one (contrast
-// RtSystem_String_Concat's banner in string.h, where the retslot IS first).
-// This matches `NameGetterFn` at saveload_update.cpp:362 — `(self, ret)` — the
-// typedef this function's two existing call sites already use.
+// pushed to second), not the namespace-scope one (where the retslot IS first).
 //
 // LOGIC (0x1800c1250..0x1800c1449; read from the disassembly, not the
 // decompiled C, which collapses the do-while into goto soup Ghidra itself
@@ -527,7 +398,7 @@ System::String Save::SaveLoad::GetAutoSaveName() const {
 // 0x38, RtSave::SaveInfo::name) of any row in
 // self->_savesData[0 .. self->_savesSize). The inlined per-row comparison is
 // length-then-bytes with two empty/null strings counted equal — exactly what
-// the already-ported `RtSystem::RtString_StrCompare` (string.cpp) computes,
+// the already-ported `System::String::StrCompare` (string.cpp) computes,
 // so this port calls that directly instead of re-transcribing a second copy
 // of the same comparison. (A null row name, length 0, can never collide with
 // a candidate — "SaveN" is never shorter than 5 bytes — so the reuse changes
@@ -538,14 +409,8 @@ System::String Save::SaveLoad::GetAutoSaveName() const {
 // save list returns "Save0" on the very first pass without ever touching
 // self->_savesData. Retail's retslot is zeroed UNCONDITIONALLY at entry
 // (`*in_RDX = 0`), not released: this is the caller-pre-zeroes-the-String
-// convention (both existing call sites already set `generated = nullptr`
-// before calling), reproduced here rather than "fixed" into a release
+// convention, reproduced here rather than "fixed" into a release
 // (CLAUDE.md — retail's unguarded behaviour is load-bearing, not a bug).
-//
-// Oracle: FULL DIFF on the returned string's CONTENT (RtString_StrCompare),
-// not its pointer — ours and theirs each format their own fresh buffer, so
-// equal candidates never share an address the way GetSaveInfo's pointer-
-// identity oracle can rely on.
 // ============================================================================
 System::String Save::SaveLoad::GenerateSaveName() const {
     System::String result;     // retail's unconditional `*ret = 0`, NOT a release
@@ -582,7 +447,6 @@ System::String Save::SaveLoad::GenerateSaveName() const {
 // `return *(SavedState**)(this + 0x40)`. Note that ??0SaveLoad does NOT
 // initialise +0x40 (see the header's list), so before any operation has run
 // this returns whatever the allocator left there. Faithful.
-// Oracle: FULL DIFF.
 // ============================================================================
 
 // ============================================================================
@@ -592,7 +456,6 @@ System::String Save::SaveLoad::GenerateSaveName() const {
 // Four stores and one global read. Note it zeroes _progress (+0x18), which the
 // CONSTRUCTOR does not — so a freshly built SaveLoad has an uninitialised
 // progress value until the first SetOperation. Faithful.
-// Oracle: SCRATCH-COPY DIFF.
 // ============================================================================
 void Save::SaveLoad::SetOperation(Operation op, int index) {
     _operation         = op;
@@ -607,7 +470,7 @@ void Save::SaveLoad::SetOperation(Operation op, int index) {
 // ?SetMinOperationTime@SaveLoad@Save@@QEAAXAEBVTime@System@@@Z
 // ----------------------------------------------------------------------------
 // One qword copy. System::Time is a single int64 tick count (Wave 2 pinned it,
-// src/engine/system/Value.h). Oracle: SCRATCH-COPY DIFF.
+// src/engine/system/Value.h).
 // ============================================================================
 void Save::SaveLoad::SetMinOperationTime(const System::Time& time) {
     _minOperationTime = time._ticks;
@@ -625,11 +488,6 @@ void Save::SaveLoad::SetMinOperationTime(const System::Time& time) {
 // RDX is dereferenced, so it is a pointer. Declaring the parameter as a value
 // here would have made GCC read the caller's 16 bytes out of RDX:RSI and
 // corrupt the sprite.
-//
-// This also matches the existing typedef in engine/funcs/engine_funcs.h:1102
-// (`void (*)(void* saveLoad, void* sprite)`), which is already correct.
-//
-// Oracle: SCRATCH-COPY DIFF.
 // ============================================================================
 
 // ============================================================================
@@ -638,27 +496,7 @@ void Save::SaveLoad::SetMinOperationTime(const System::Time& time) {
 // ----------------------------------------------------------------------------
 // A refcounted String assignment into +0x70 plus a mode int into +0x78. If the
 // incoming data pointer is already the one stored, retail writes ONLY the mode
-// and does no refcount work at all — that short path is why the compensation
-// below is conditional.
-//
-// ORACLE: SCRATCH-COPY DIFF WITH REFCOUNT COMPENSATION, and this is the one
-// place in the lane where the oracle needed real thought, so the reasoning is
-// written out.
-//
-// The naive scratch diff does not work here. Both scratch runs manipulate the
-// refcounts of the SAME two shared strings, so the old string would be
-// decremented twice; if its count was 1, the first decrement frees it and the
-// second writes through a freed block. That is the Wave 4 lane H defect
-// (a String release applied where it did not belong) in a new costume.
-//
-// The fix is to make the extra pair of operations provably harmless:
-//   * BEFORE the two scratch runs, add 2 to the OLD string's refcount, so the
-//     two decrements can never reach zero and never free.
-//   * AFTER them, subtract 2 from the NEW string's refcount, undoing the two
-//     increments.
-// The live object is then updated by one ordinary run of ours, and the net
-// refcount effect of the whole thing is exactly one assignment. Nothing is
-// freed early and nothing leaks.
+// and does no refcount work at all.
 // ============================================================================
 void Save::SaveLoad::SetSaveName(const System::String& name, int mode) {
     // Pointer compare, release, adopt, AddRef: String::operator= (0x1800c9810),
@@ -692,9 +530,8 @@ void Save::SaveLoad::SetSaveName(const System::String& name, int mode) {
 //       pre-check reads `data[-8]`, i.e. the String allocation header, and
 //       treats a null data pointer as length 0 rather than faulting.
 //
-// ORACLE: FULL DIFF. CheckMod allocates three temporary Strings and releases
-// all three before returning, reads two DLL singletons, and mutates nothing —
-// so calling it twice is safe and the second call sees identical inputs.
+// CheckMod allocates three temporary Strings and releases all three before
+// returning, reads two singletons, and mutates nothing.
 //
 // _stricmp: retail calls its own CRT copy at 0x18007eefc. Ours calls the same
 // body, ported: rtcrt::StrICmp (src/engine/crt/msvc_stricmp.cpp, D.4 Q9), so
@@ -782,30 +619,8 @@ int Save::SaveLoad::CheckMod(int saveIndex, int modIndex) const {
 // The state machine's tick. Accumulates the frame delta into _elapsed and then
 // dispatches on _operation to one of five exported UpdateXxx bodies, but ONLY
 // while `!(Persistence::_singleton[0x18] & 1) && Persistence::_singleton[0x48]`
-// — a gate this lane does not model further, because IO::Persistence's layout
-// past +0x08 is explicitly not pinned (src/engine/io/Persistence.h models
-// only _savePath at +0x90 and calls +0x08..+0x8f "NOT modelled"). Both are read
-// here as raw displacements with that stated, rather than by inventing two
-// field names in someone else's header.
-//
-// ORACLE: PARTIAL, and this is stated plainly rather than dressed up as a
-// full one. The accumulation is checked in shadow mode against an independent
-// replica; the DISPATCH is not checked by anything, because running it twice
-// would perform the save/load/delete file work twice. What backs the dispatch
-// is that all five targets stay on the DLL and the branch is five integer
-// comparisons transcribed from a decompile — plus the end-to-end evidence that
-// a save still saves and a load still loads.
-//
-// The five targets are resolved through RT_EXPORT_ONCE — the port registry,
-// cached once per call site. WAVE 9 LANE V2, 2026-09-07 corrects this: the
-// paragraph used to say the raw DLL door "NOT ResolveExport", on the grounds
-// that the five are unported and a bare ResolveExport per frame would be the
-// Wave 2 perf defect again. The perf half is right and RT_EXPORT_ONCE keeps it
-// (one resolve per call site, then a static). The door half is wrong: this
-// dispatch IS the work of Update, not an oracle, so it is a REAL DEPENDENCY.
-// On the raw door it is a call through NULL the moment the DLL is absent; on
-// the port door it picks up a port of any of the five the day one lands, and
-// until then it is a named unresolved import at cutover instead of a crash.
+// — read here through IO::Persistence's `_worker` (src/engine/io/Persistence.h):
+// `IsWorking()` and `_status` against `Status::Pending`.
 // ============================================================================
 void Save::SaveLoad::Update(const System::Time& delta) {
     _elapsed = _elapsed + delta._ticks;
@@ -830,9 +645,7 @@ void Save::SaveLoad::Update(const System::Time& delta) {
 // Save::SavedState::SavedState()        retail 0x1800c0ee0   ordinal 362
 // ??0SavedState@Save@@QEAA@XZ
 // ----------------------------------------------------------------------------
-// Two qword zero stores. Oracle: SCRATCH-COPY DIFF over 0x10 bytes, both
-// scratches pre-filled with 0xCD so the comparison proves the writes rather
-// than agreeing on an accident of zeroed memory.
+// Two qword zero stores.
 // ============================================================================
 
 // ============================================================================
@@ -847,9 +660,6 @@ void Save::SaveLoad::Update(const System::Time& delta) {
 // It does NOT null _data afterwards, so the object is left holding a dangling
 // pointer. Faithful — this is a destructor, and its callers do not read it back.
 //
-// ORACLE: NONE. Running theirs as well would free the same block twice. Said
-// plainly rather than hidden: this function is ported on the strength of nine
-// unambiguous instructions and is measured only by `calls=`.
 // ============================================================================
 Save::SavedState::~SavedState() {
     if (_data != nullptr) MemFree(_data);
@@ -880,17 +690,11 @@ void RtSave_SavedState_Dtor(SavedState* self) {
 // The locked Allocate that retail inlines is byte-identical to
 // ?MemAlloc@MemoryAllocator@System@@SAPEAX_KH@Z (decompiled both).
 //
-// ORACLE: SCRATCH-OBJECT DIFF, the real one. Theirs runs against a private
-// zeroed SavedState, so its `if (_data) MemFree` is skipped and it allocates
-// its own buffer; we then compare the two buffers byte for byte and free
-// theirs. The stream is only READ by either run, so nothing is double-consumed
-// — which is the failure mode this whole lane was warned about.
 // ============================================================================
 void Save::SavedState::Store(IO::MemoryStream& stream) {
     void* src = stream._data;
     // Slot 5 (+0x28) of the stream's table, GetCurrentPos — a real virtual call
-    // on the real class, dispatching through the live object's (minted) table
-    // exactly as retail's `CALL [RAX+0x28]` does.
+    // on the real class, exactly as retail's `CALL [RAX+0x28]` does.
     const uint32_t size = stream.GetCurrentPos();
 
     if (_data != nullptr) MemFree(_data);
@@ -910,13 +714,7 @@ void Save::SavedState::Store(IO::MemoryStream& stream) {
 // MemoryStream::Open (decompiled) allocates a fresh buffer, stores it at +0x18,
 // sets _size, zeroes _cursor, sets _direction = 0 (reading) and _ownsData = 1
 // — and does NOT free whatever buffer the stream already held. That leak is
-// retail's; it is also the reason theirs cannot simply be run a second time
-// against the live stream in diff mode.
-//
-// ORACLE: SCRATCH-OBJECT DIFF. Theirs runs against a private copy of the
-// stream OBJECT (0x30 bytes, taken before ours ran), so it allocates its own
-// buffer, and we compare that buffer against the one ours produced and then
-// free it. Both runs only read `*this`.
+// retail's.
 // ============================================================================
 void Save::SavedState::Retrieve(IO::MemoryStream& stream) {
     // ENDGAME B.3.9 IO (W2, foreign site): ?Open@MemoryStream is the member.
@@ -924,37 +722,6 @@ void Save::SavedState::Retrieve(IO::MemoryStream& stream) {
     std::memcpy(stream._data, _data, _size);
 }
 
-// ============================================================================
-// Registration
-// ----------------------------------------------------------------------------
-// Every name below is spelled as a SINGLE string literal on ONE line. The
-// census (tools/runtime_census.py) matches `RegisterRuntimeExport("<literal>"`
-// and can see through neither a named constant nor a line break; both blind
-// spots have already produced a silent under-count of live ports in this
-// project (WAVE3.md's Object 21/41 was really 27/41).
-//
-// Every name was also checked against the shipped DLL's export directory with
-// pefile before being written here — see the phantom-name section of
-// docs/history/runtime_port/WAVE5_LANE_C.md, which found that two of the names our
-// tree has been asking for do not exist in the DLL at all.
-//
-// TWO FUNCTIONS ARE REGISTERED TWICE, BY NAME *AND* BY ADDRESS.
-// `engine/funcs/engine_funcs.cpp` resolves GetOperation (:2428) and
-// GetSaveState (:2468) by NAME and then, if that returns null, falls back to
-// `ResolveAddr(Module::Runtime, …)`. The name path works today, so the port is
-// already reached — but the fallback is a live second door, and a name path
-// that is later renamed or removed would send the call back to the DLL with no
-// diagnostic whatsoever. That silent reversion is this project's single most
-// repeated failure mode (the phantom-name family, the unregistered type-id
-// slot, the null dispatch slot read under the wrong name), and closing it
-// costs one line. `src/engine/achievement/goal.cpp` registers all eight of
-// its ports both ways for the same reason.
-//
-// The `++n` deliberately does NOT fire on the address registrations: `n` is
-// the count of PORTED FUNCTIONS, and these are second doors onto functions
-// already counted, not extra ports. Incrementing here would inflate the census
-// figure the project treats as authoritative over any agent's claim.
-// ============================================================================
 // ---------------------------------------------------------------------------
 // Save::SaveLoad::Get() - retail 0x180030D40, ord 2425.  WAVE 23 LANE TAIL
 //
@@ -966,56 +733,19 @@ void Save::SavedState::Retrieve(IO::MemoryStream& stream) {
 // `SA` is the static-member spelling: no `this`, returns `SaveLoad*`.
 //
 // ---------------------------------------------------------------------------
-// WHY THIS ROW EXISTS AT ALL, SAID PLAINLY
-// ---------------------------------------------------------------------------
-// It is in the census's `called` column because standalone/rt_orphan_probe.cpp
-// NAMES IT AS A STRING LITERAL, and that file says so itself. Nothing in any
-// shipped binary calls it. Lane TAIL re-derived that independently rather than
-// inheriting it:
+// Nothing in any shipped binary calls it:
 //
 //   * Runtime-x64.dll: `get_xrefs_to(0x180030d40)` returns exactly two
 //     references, `0x1801B3028 [DATA]` (a .pdata unwind record) and the export
 //     directory. No call site.
 //   * Application-x64.exe (899 imports), VideoDX11-x64.dll (163) and
 //     VideoDX9-x64.dll (146): the name is in none of their import tables.
-//     Checked with pefile in this lane, not quoted from the prior record.
-//
-// SO THIS PORT CLOSES A ROW OUR OWN DIAGNOSTIC CREATED AND BUYS NO BEHAVIOUR
-// TODAY. That is stated rather than dressed up. It is landed anyway for one
-// reason that is NOT cosmetic:
-//
-//   `?_singleton@SaveLoad@Save@@0PEAV12@EA` IS PROMOTED (census ported=1), so
-//   our storage is the live one and the DLL's .data copy is stale. Retail's
-//   `Get` is an un-interceptable RIP-relative load of that stale copy - the
-//   very fact reg_mint_promoted.cpp leans on to argue the promotion is safe.
-//   Reading through RT_DATA_SLOT makes OUR `Get` return the live pointer, so
-//   the symbol is correct at cutover instead of resolving null.
-//
-// ---------------------------------------------------------------------------
-// THIS DOES NOT DARKEN THE ORACLE - CHECKED, NOT ASSUMED
-// ---------------------------------------------------------------------------
-// `ProbeSaveLoadSingleton` uses retail's `Get` as its oracle: it writes six
-// sentinels into the DLL's raw slot and requires `Get` to hand each back. That
-// is exactly the shape that went dark for five waves in Wave 5's Goal::Serialize
-// probe, where the ours-side reached the body BY ADDRESS and so compared retail
-// with itself (reference_registering_an_address_converts_a_selfcheck_into_an_oracle.md).
-//
-// It survives here because the probe resolves `Get` with **the raw export door**
-// (standalone/rt_orphan_probe.cpp, `retailGet`), which skips the port registry
-// by construction. Registering this body under the NAME door leaves that line
-// pointing at the shipped bytes. The ADDRESS door is registered too, and that
-// is the one that COULD have broken it - it does not, because the probe never
-// resolves 0x180030D40 by address. Both doors were checked against that file
-// before either was added.
 // ---------------------------------------------------------------------------
 Save::SaveLoad* Save::SaveLoad::Get() {
-    // `SaveLoadSingletonSlot()` is this file's existing door on 0x1801FC6F0 -
-    // the same one `SaveLoad_CtorLogic` publishes through (saveload.cpp:233).
-    // Retail dereferences the slot unconditionally; the null check here is NOT
-    // a behaviour guard but the slot-resolution contract RT_DATA_SLOT carries
-    // (a name that has not been minted yet returns null rather than a slot),
-    // and it is the same shape the three sibling accessors in
-    // saveload_internal.h use.
+    // `SaveLoadSingletonSlot()` (saveload_internal.h) is the address of
+    // Save::SaveLoad::_singleton (0x1801FC6F0) - the same slot
+    // `SaveLoad_CtorLogic` publishes through. Retail dereferences the slot
+    // unconditionally; the slot is never null, so the null check never fires.
     SaveLoad** slot = SaveLoadSingletonSlot();
     return slot ? *slot : nullptr;
 }

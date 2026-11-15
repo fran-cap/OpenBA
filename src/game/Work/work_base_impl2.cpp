@@ -2,20 +2,14 @@
 // Wave 2 (Work) — impl/geometry/math sub-batch.
 #include "Work/exe_bodies.h"
 //
-// Currently contains ONLY the closure-safe math helper:
-//   0x140132010  FUN_140132010  — sqrtf (NaN/Inf-aware)  [no sub-callees → safe to register]
+// Contains the math helper:
+//   0x140132010  FUN_140132010  — sqrtf (NaN/Inf-aware)
 //
-// The five INTRICATE helpers originally drafted for this sub-batch
-//   0x140087fb0 Entity_impl_7fb0, 0x1400f6ef0 BuildStructure_impl_6ef0,
-//   0x140122b00 / 0x140122be0 walkable-position search, 0x140122e20 Entity_impl_2e20
-// were moved to docs/history/notes/wave2_drafts/work_base_impl2_full.cpp.draft. They are NOT yet
-// registered because each calls exe sub-callees that are still UNREGISTERED
-// (0x140003f60 ClearPathQueue, 0x140123070 PosCount, 0x14009f810 MapPathCost, plus
-// several dispatch-slot helpers). Registering a helper whose sub-callee closure is
-// absent would build a half-null / drifted result — per the wave plan's safety rule
-// that is strictly WORSE than the safe no-op of leaving it unregistered. Re-land them
-// together with their sub-callee closure during the Action wave, after Ghidra-verifying
-// the drafts offset-by-offset.
+// The other helpers drafted for this sub-batch (the draft is
+// docs/history/notes/wave2_drafts/work_base_impl2_full.cpp.draft) are ported elsewhere:
+// 0x140087fb0 EntityAnchorCell and 0x140122e20 InteractComponent::NodePosition
+// (Action/action_pf_road.cpp), 0x1400f6ef0 Work::StepProgress and the 0x140122b00 /
+// 0x140122be0 walkable-position search (work_base_walkpos.cpp).
 //
 
 #include <cmath>

@@ -4,19 +4,11 @@
 //   retail 0x1800b6290, UNEXPORTED, 780 bytes / 218 instructions.
 // ============================================================================
 //
-// This is one of the five address doors `persistence_worker.cpp` opened
-// when it ported the worker's `Run` dispatcher (0x1800b7260) and declared, in
-// its "WHAT THIS GROWS" section:
-//
-//     SYMBOL      (unexported) 0x1800b6290  the GET-SAVE-LIST job
-//     CONSEQUENCE … At cutover an unported arm resolves NULL and the worker
-//                   thread executes address 0 — so these five are a cutover
-//                   obligation this file CREATES and does not pay.
-//
-// This pays one of the five. The other four (SAVE 0x1800b6e00, LOAD
-// 0x1800b6aa0, DELETE 0x1800b69c0, GET-SAVE-INFO 0x1800b65b0) are still open;
-// that file's addressee note is updated in the same commit rather than left to
-// claim all five are outstanding.
+// One of the five job bodies `IO::PersistenceWorker::Run` (0x1800b7260,
+// persistence_worker.cpp) dispatches to. The other four are SAVE 0x1800b6e00
+// (persistence_worker.cpp), LOAD 0x1800b6aa0 and DELETE 0x1800b69c0
+// (closure_batch2b.cpp), and GET-SAVE-INFO 0x1800b65b0
+// (persistence_saveinfo_job.cpp).
 //
 // ---------------------------------------------------------------------------
 // WHAT IT DOES
@@ -48,11 +40,11 @@
 // ---------------------------------------------------------------------------
 // `??0Persistence@IO@@` embeds a Thread-derived worker at +0x10 and stamps
 // vtable 0x180155860 over it, so every offset in the shipped listing is
-// `Persistence offset - 0x10`:  worker+0x38 is `status` (+0x48), worker+0x70
-// is `saves` (+0x80), worker+0x78 is `saveCount` (+0x88). This body recovers
-// the `Persistence*` and uses the NAMED fields, exactly as
-// persistence_worker.cpp does, so a future change to the layout breaks the
-// static_asserts rather than silently shifting a raw offset here.
+// `Persistence offset - 0x10`:  worker+0x38 is `_status` (+0x48), worker+0x70
+// is `_saves` (+0x80), worker+0x78 is its count `_saves._size` (+0x88). This
+// body is a `PersistenceWorker` member and uses the NAMED fields, so a future
+// change to the layout breaks the static_asserts in Persistence.h rather than
+// silently shifting a raw offset here.
 //
 // ---------------------------------------------------------------------------
 // `GetFileTimeStamp` IS GIVEN THE FULL FOUND PATH, NOT THE BASE NAME
@@ -89,8 +81,7 @@
 // releases the Strings the first run just adopted, so the comparison is not
 // merely vacuous, it destroys the subject it would compare. (Same shape
 // avl_trees.cpp records for its inserts: a destructive mutator on shared state
-// has no live replay.) And it runs on the WORKER THREAD, where the diff
-// registry's counters are not synchronised.
+// has no live replay.)
 //
 // What a boot checks instead is end to end and is not weak: the save browser
 // lists the files that are on disk, in modification order, with their base
@@ -102,13 +93,13 @@
 // (reference_uncalled_port_is_not_verified.md).
 //
 // PORTABILITY: no <windows.h>. The Win32 half of this path lives behind
-// `FileSystem::FindFiles` and `FileSystem::GetFileTimeStamp`, which are
-// `_win` files of their own (PLAN.md §4.1 decision 1).
+// `FileSystem::FindFiles` and `FileSystem::GetFileTimeStamp`, which reach it
+// through Platform:: hooks (platform_file.h; PLAN.md §4.1 decision 1).
 // ============================================================================
 
 #include <cstddef>
 #include <cstdint>
-#include <new>        // placement new into a hidden-return-slot / a raw struct field
+#include <new>
 
 #include "io/FileSystem.h"
 #include "io/Persistence.h"
@@ -154,7 +145,7 @@ void IO::PersistenceWorker::GetSaveListJob() {
     // ENDGAME B.3.2 step 2 — 0x18002aae0 is the SAME `Array<SaveGameInfo>` as
     // 0x18002ae20 below with the new size folded to 0 (array.cpp's
     // kSpec_SaveGameInfo banner); NOT trait-expressible (see array_internal.h),
-    // so `_saves` names that hand-derived row as its spec (PersistenceWorker.h).
+    // so `_saves` names that hand-derived row as its spec (Persistence.h).
     _saves.SetSize(0);                                          // 0x1800b62b3
 
     // `IO::FileSystem::_singleton`, the class static (`0x1801fc6a8`).

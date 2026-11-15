@@ -122,13 +122,13 @@ static inline float rfloat(System::Random* rng) {
 
 // ============================================================
 // FUN_1400245d0  @0x1400245d0  —  AppendVec3 (0xC-stride resize-and-fill).
-// Resizes the {data,count,cap} header at `hdr` to `newCount` (grow ×3 on the
+// Resizes the {data,count,cap} header at `list` to `newCount` (grow ×3 on the
 // count+1 fast path), copying any tail-overrun slots from `src` (a 12-byte
 // {float x,float y,float z} record). Callers always pass newCount = count+1 and
 // src = the element to push, so the net effect is push_back(src). The original's
 // 4-wide unrolled copy is purely a perf optimization of this element-wise fill.
 //
-// ENDGAME B.3.2 step 2: now the 3-argument `Collection::Array<WgVec3Rec>::SetSize`
+// ENDGAME B.3.2 step 2: now the 3-argument `Collection::Array<TerrainStamp>::SetSize`
 // (src is the fill). Trait-derived row, and it IS trait-equivalent: the element
 // is three floats, `assign` a 12-byte copy (byteCopy == is_trivially_copyable),
 // no destroy, and the 2-argument form's `init` is never reached by a fill call.
@@ -163,11 +163,9 @@ static void DeepAppendAoA(TerrainPathList* paths, int newCount, const void* srcV
 // elements and zeroing the new tail. cc850 calls this then overwrites the tail.
 //
 // ENDGAME B.3.2 step 2: now `Collection::Array<>::SetSize` over this site's own
-// zeroing 0x1C-byte element (the closing pass collapsed what was a hand-derived
-// `kSpec_WgPathPointZeroInit` row in worldgen_f390_coastline.cpp onto the
-// trait-derived form — the row was a whole-stride byte copy, a whole-stride zero
-// tail, no destroy and no deliberately-untouched extent, which is precisely what
-// `rtcoll::SpecFor<Bytes<0x1C,4>>()` (the old bridge element) derives).
+// zeroing row `kSpec_RgPathPointZeroInit` (below): a whole-stride byte copy, a
+// whole-stride zero tail, no destroy and no deliberately-untouched extent, which is
+// precisely what `rtcoll::SpecFor<Bytes<0x1C,4>>()` (the old bridge element) derives.
 // Compared arm for arm against rtcoll::SetSizeCore and the retail body
 // 0x140023b70 (re-decompiled 2026-09-13): every structural arm matched.
 //

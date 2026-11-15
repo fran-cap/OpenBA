@@ -9,21 +9,20 @@
 // the retail build inlines something, Runtime-x64-profile.dll is quoted as the
 // independent witness.
 //
-// ORIGINAL SOURCE FILES (profile-build strings, docs/runtime_port/
-// original_source_tree.txt): there is no IO\Stream.cpp and no
-// IO\CompressedMemoryStream.cpp. The recovered tree has
+// ORIGINAL SOURCE FILES (profile-build strings, docs/history/runtime_port/
+// original_source_tree.txt): there is no IO\CompressedMemoryStream.cpp. The
+// recovered tree has
 //     IO\MemoryStream.cpp        — Stream, MemoryStream
 //     IO\CompressedStream.cpp    — CompressedStream, CompressedMemoryStream,
 //                                  CompressedFileStream, CompressedCopyFileStream
-// so the bodies live in src/engine/io/compressedstream.cpp (scaffolded as
-// stream.cpp, renamed by the orchestrator: the recovered tree has a separate
-// IO\Stream.cpp for the IO::Stream base and the old name would have collided
-// with it). Recorded here because
-// src/engine/io/README.md otherwise reads as a mirror of the original tree.
+// so the bodies live in src/engine/io/memory_stream.cpp, compressedstream.cpp and
+// compressed_stream_{open,read,release,write}.cpp (no stream.cpp: the recovered
+// tree has a separate IO\Stream.cpp for the IO::Stream base). Recorded here
+// because src/engine/io/README.md otherwise reads as a mirror of the original tree.
 //
 // LANE BOUNDARY: IO::Encoding and IO::Serializer belong to lane A
-// (src/engine/io/Encoding.h, Serializer.h). This header only ever treats an
-// Encoding as an opaque void*, so the two headers cannot disagree.
+// (src/engine/io/Serializer.h, included below). The RtIo PODs here treat an
+// Encoding as an opaque void*; IO::Stream holds the typed `Encoding*`.
 //
 // PORTABILITY: no <windows.h> (PLAN.md §4.1 decision 1).
 // ============================================================================
@@ -355,36 +354,13 @@ static_assert(sizeof(CompressedMemoryStream) == 0x98,
 // ===========================================================================
 //
 // Design: B34_RULES.md section 1.3 (the slot lists), section 1.5.2 (the two
-// duplicate PODs), section 4.3 (no real constructors). Bodies:
-// src/engine/io/memory_stream.cpp.
-//
-// ---------------------------------------------------------------------------
-// THERE ARE NO CONSTRUCTORS HERE, AND THAT IS THE RULE, NOT AN OMISSION
-// ---------------------------------------------------------------------------
-// B34_RULES section 4.3: a stream class gets real members and a real
-// declaration in this step; it does NOT get a C++ constructor. Thirteen of the
-// fifteen IO vtables are stamped from OUTSIDE `src/engine/io/` — by
-// `Object::External`'s load / add / save-text paths, `Save`'s metadata reader,
-// `UI` and `Achievement::Goal` — so every live stream object wears the MINTED
-// table, and every construction site keeps stamping
-// `RT_DATA_SLOT("??_7...@IO@@6B@")`. Two of those sites are stack locals in
-// `src/engine/object/`, which block 4 does not own. A C++ constructor here
-// would swap the table under an object built in a file we do not touch.
-//
-// The consequence for this header: the classes are reached ONLY through
-// `reinterpret_cast` plus a QUALIFIED, non-virtual call from a registered
-// door. A plain virtual call inside a door would dispatch through the minted
-// table straight back into that same door — infinite recursion, not
-// delegation (B34_BRIEFS section A.1). `sizeof` and `offsetof` work on an
-// abstract class, so the layout pins below hold regardless.
+// duplicate PODs). Bodies: src/engine/io/memory_stream.cpp.
 //
 // ---------------------------------------------------------------------------
 // WHICH CLASSES ARE ABSTRACT, AND WHY `MemoryStream` IS NOT
 // ---------------------------------------------------------------------------
-// Slot 0 (`DeletingDtor`) is left PURE wherever it can be: its body is a
-// registered `RT_DELDTOR` / by-address row that section 4.2 forbids retiring
-// in this step, and block 2 established the shape (BinaryReader and friends
-// are `final` AND abstract).
+// Slot 0 (the destructor) is left PURE wherever it can be: in this header
+// `IO::Stream` and `IO::CompressedStream` declare `= 0` destructors and stay abstract.
 //
 // `IO::MemoryStream` is the EXCEPTION, and it is forced, not chosen:
 // `IO::CompressedMemoryStream` holds one BY VALUE at +0x68 (section 2 finding
@@ -398,8 +374,8 @@ static_assert(sizeof(CompressedMemoryStream) == 0x98,
 //     carries `IO::Stream`'s own 0x18000c6a0 — so `IO::Stream::GetSource` is
 //     the one base slot with a real body (see the note on it below).
 //
-// The by-value holder reaches the protected, non-virtual `~MemoryStream` as a
-// friend (B.3.9 IO); the same holds for `IO::BinaryFileStream` inside
+// `~MemoryStream` is public and virtual; the by-value holder is also declared a
+// friend (B.3.9 IO), and the same holds for `IO::BinaryFileStream` inside
 // `IO::CompressedFileStream`.
 // ===========================================================================
 
@@ -449,14 +425,6 @@ public:
     // `System::String`. (ENDGAME B.3.9 IO, W2: the registered door
     // `RtIo_Stream_GetSource` went with the minted Stream row; this member is
     // the one body.)
-    //
-    // ⚠ NEVER VIRTUAL-CALL THIS ON AN OBJECT WEARING A MINTED TABLE. MinGW GCC
-    // passes the hidden return pointer as the FIRST argument and `this` second;
-    // the registered door's signature is `(self, ret)`, MSVC's order. Both are
-    // self-consistent — our C++ callers reach the member, raw slot callers
-    // reach the door — but a virtual call from ported C++ onto a minted vptr
-    // would cross between them and write the String through `this`. No caller
-    // in the tree does; this comment is so none starts.
     virtual System::String GetSource() const { return System::String(); }
 
     // slots 2..6 — `_purecall` in retail's own table (0x18007ec28 five times).
@@ -526,7 +494,7 @@ static_assert(offsetof(Stream, _encoding)  == 0x10, "?SetEncoding@Stream@IO@@ wr
 // same slot meaning and `FileStream.h` says so again from its side.
 // ENDGAME B.3.9 IO: CONSTRUCTIBLE. The minted ??_7MemoryStream row is retired;
 // the public constructor below is retail's and stores the compiler's table.
-// The destructor is protected and virtual (B3X W1).: a stack instance
+// The destructor is public and virtual (B3X W1): a stack instance
 // is built with placement new into raw storage and ended by a qualified
 // `T::~T()`, exactly as retail's inlined teardown frees it.
 class MemoryStream : public Stream {
@@ -592,8 +560,8 @@ static_assert(offsetof(MemoryStream, _size)     == 0x28, "?GetSize@MemoryStream 
 // ---------------------------------------------------------------------------
 // There are TWO independently declared `Stream` PODs — `RtIo::Stream` in this
 // header and `rt::io::Stream` in `Serializer.h` — written either side of the
-// Wave-4 lane boundary, in two namespaces, with neither header including the
-// other. `IO::Stream` replaces both. They STAY, trivially destructible, until
+// Wave-4 lane boundary, in two namespaces (this header includes Serializer.h,
+// not the reverse). `IO::Stream` replaces both. They STAY, trivially destructible, until
 // their last user converts (B33 section 7: giving a POD a destructor runs a
 // second one — the `RtSystem::String` double-free lesson), and they are pinned
 // field for field against the class here, which is what makes every
@@ -647,9 +615,8 @@ static_assert(std::is_trivially_destructible<RtIo::MemoryStream>::value,
 // concrete subclasses.
 // ===========================================================================
 //
-// Design: B34_RULES.md section 1.3 (the slot lists), section 4.3 (no real
-// constructors — stated in full in this header's `namespace IO` banner above),
-// and B34_BRIEFS.md section D, which BINDS this family in particular.
+// Design: B34_RULES.md section 1.3 (the slot lists) and B34_BRIEFS.md
+// section D, which BINDS this family in particular.
 //
 // ---------------------------------------------------------------------------
 // SECTION D: THIS IS THE COMPRESSED-LOAD PATH, AND IT HAS A LIVE DEFECT
@@ -660,12 +627,10 @@ static_assert(std::is_trivially_destructible<RtIo::MemoryStream>::value,
 // `CompressedStream::Read` 45 seconds after Quit — a spin, measured on an
 // UNCHANGED tree. A separate agent is root-causing it.
 //
-// So the bodies below moved onto these members **byte-faithfully**: no added
-// lock, no retry, no loop bound, no null check, no reordering — and equally no
-// SILENT REMOVAL of whatever makes the read spin. If a conversion here made the
-// symptom stop reproducing that would be a RED FLAG to report, not a win: it
-// would mean the conversion changed timing or control flow somewhere nobody
-// intended.
+// So the bodies below moved onto these members byte-faithfully, except where a
+// line is marked NOT RETAIL: the corrupt-directory bounds in Open and
+// DecompressFromSource, Read's int64 sum and its failure on `chunk <= 0` where
+// retail spins, and the extension seams.
 //
 // ---------------------------------------------------------------------------
 // NINE SLOTS: THIS BRANCH ADDS `Close` AT 7 AND `PreCommit` AT 8
@@ -680,10 +645,9 @@ static_assert(std::is_trivially_destructible<RtIo::MemoryStream>::value,
 // `Open`, `Create`, `Release`, `Commit`, `CompressWindow`, `SetWindow`,
 // `SetWindowCount`, `GetAvailableWindow` and `DecompressFromSource` were free
 // `RtIo_CompressedStream_*` doors on the RtIo POD view; they are members now,
-// each body moved statement for statement (section D: no lock, retry, loop
-// bound, null check or reorder added, and nothing removed), with `self->x`
-// become the member's own field and the three arrays and the Compression
-// pointer typed.
+// each body moved statement for statement (section D; the additions are marked
+// NOT RETAIL at their lines), with `self->x` become the member's own field and
+// the three arrays and the Compression pointer typed.
 // ===========================================================================
 
 namespace IO {
@@ -692,8 +656,8 @@ namespace IO {
 // IO::CompressedStream — vtable 0x180155640, 9 slots, 0x68 bytes.
 // ---------------------------------------------------------------------------
 // A Stream that codes a windowed, block-compressed byte stream onto ANOTHER
-// Stream (`_source`). ABSTRACT: slot 0 (0x180023fd0) is an `RT_DELDTOR` row
-// section 4.2 keeps, and nothing holds a `CompressedStream` by value.
+// Stream (`_source`). ABSTRACT: slot 0 (0x180023fd0) is a pure virtual
+// destructor, and nothing holds a `CompressedStream` by value.
 //
 // Slot 1 is NOT overridden — 0x180155640[1] is `IO::Stream`'s own 0x18000c6a0.
 class CompressedStream : public Stream {
@@ -881,9 +845,7 @@ public:
     MemoryStream& GetMemoryStream() { return _memoryStream; }
 
     // +0x68 — a MEMBER, not a second base. See B34_BRIEFS section A.3: this is
-    // the by-value containment that forces `IO::MemoryStream` to be concrete,
-    // and that this class must be a `friend` of to reach its protected
-    // destructor (B.3.9 IO).
+    // the by-value containment that forces `IO::MemoryStream` to be concrete.
     MemoryStream _memoryStream;
 };
 
@@ -911,11 +873,10 @@ static_assert(std::is_trivially_destructible<RtIo::CompressedMemoryStream>::valu
 
 }  // namespace IO
 
-// ==== B3R W0-P0c: Runtime bodies reached by retail address ====
-// ENDGAME B.3R (B3R_RULES R5): each body below is registered at the retail
-// address in its trailing comment and read through the registry today. It is
-// declared here, copied from its definition (linkage, namespace, types), so the
-// reader can call it by name. Nothing calls it through this declaration yet.
+// ==== B3R W0-P0c: Runtime bodies called by name ====
+// ENDGAME B.3R (B3R_RULES R5): each body below is declared here, copied from its
+// definition (linkage, namespace, types), so its callers call it by name. The
+// trailing comment is its retail address.
 
 // (B.4 R-IO: the four RtIo_CompressedStream_* bodies that stood here are
 // IO::CompressedStream members.)

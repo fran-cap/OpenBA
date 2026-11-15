@@ -31,7 +31,7 @@
 //     transcription of retail's (unexported) body, named per member below.
 //   * `Save::SavedState` — held BY VALUE in SaveLoad (+0x28) and heap-allocated
 //     by UpdateLoad/UpdateSave/UpdateLoadFromFile, so it gets its real ctors
-//     and dtor too; the registered `??0`/`??1` doors delegate to them.
+//     and dtor too; RtSave_SavedState_Dtor (saveload.cpp) calls the dtor.
 //
 // ARGUMENT PASSING (RULE B7-5, read from the retail prologues, B37_SLOTS 8):
 //   * `SaveMetaData`'s `System::String` BY VALUE arrives by HIDDEN POINTER and
@@ -49,13 +49,10 @@
 //
 // HIDDEN RETURN SLOTS, all NON-virtual (B37_RULES 2.5): `GenerateSaveName`,
 // `GetAutoSaveName` (`System::String`), `SavedState::SetupLoad`/`GetSaveBlock`
-// (`IO::Persistence::SaveBlock`). The members return by value; the registered
-// doors keep retail's `(this, ret)` shape and placement-new the prvalue (B5-12).
+// (`IO::Persistence::SaveBlock`). The members return by value.
 //
-// `SaveLoad::_singleton` (0x1801fc6f0) is NOT a class static here: it is read
-// through `RT_DATA_SLOT` (saveload_internal.h) and promoted by
-// standalone/reg_mint_promoted.cpp; the class-static conversion is the END of
-// B.3 (carry-over 5).
+// `SaveLoad::_singleton` (0x1801fc6f0) is a class static (`_singleton` below);
+// saveload_internal.h's SaveLoadSingletonSlot() returns its address.
 // ============================================================================
 
 #include <cstdint>
@@ -115,7 +112,7 @@ public:
     SavedState& operator=(const SavedState&) = default;
 
     // ?SetupLoad@SavedState@Save@@QEAA?AUSaveBlock@Persistence@IO@@XZ
-    //   0x1800c0c60 — RETSLOT (the door keeps `(this, ret)`). savedstate_setupload.cpp
+    //   0x1800c0c60 — RETSLOT. savedstate_setupload.cpp
     RtIo::SaveBlock SetupLoad();
     // ?GetSaveBlock@SavedState@Save@@QEBA?AUSaveBlock@Persistence@IO@@XZ
     //   0x1800c0d50 — RETSLOT: {data = _data, size = _size, id = _id}. Defined,
@@ -278,7 +275,7 @@ public:
     // CheckMod's prologue does `IMUL R9,R9,0x58`; ~SaveLoad's array destructor
     // (0x1800329c0) walks the buffer in 0x58 steps.
     //
-    //   +0x00  Sprite    thumbnail (saveloaddialog.cpp:253/258 IsValid + memcpy).
+    //   +0x00  Sprite    thumbnail (saveloaddialog.cpp:213/218 IsValid + copy).
     //   +0x10  String    the description/metadata text. ?UpdateList state 4
     //                    (0x1800c2455) refcount-assigns LoadMetaData's out-param.
     //   +0x18  ImageBuffer*  ?OnVideoRestart (0x1800c0f44) recreates it;
@@ -290,7 +287,7 @@ public:
     //                   first qword of IO::Persistence::SaveGameInfo into it;
     //                   the qsort comparator 0x1800c3db0 compares exactly this
     //                   qword, UNSIGNED, DESCENDING.
-    //   +0x38  String    display name (autostart.cpp:411 strcmp's it).
+    //   +0x38  String    display name (autostart.cpp:428 strcmp's it).
     //   +0x40  int32    the Persistence save index this row came from, or -1
     //                   for the blank "new save" row (UpdateList 0x1800c1fcf /
     //                   0x1800c1fdf: R12D, state 1's loop counter). Every sign
@@ -298,7 +295,7 @@ public:
     //                   ~SaveInfo tears +0x18/+0x28 down only when it is >= 0.
     //   +0x44  int32    LoadMetaData out-param 6 — the save's FORMAT VERSION.
     //   +0x48  Array<ModInfo> — _data pinned by CheckMod ([R9+RAX+0x48]); _size
-    //                   by saveloaddialog.cpp:1088 reading the count at +0x50.
+    //                   by saveloaddialog.cpp:879 reading the count at +0x50.
     //                   Retail's own type (LoadMetaData's mangled parameter),
     //                   so the default, trait-derived spec: with ModInfo's real
     //                   ctor / copy / dtor that IS kSpec_MetaEntry20's behaviour
@@ -363,8 +360,8 @@ public:
 
     // The retail type of the +0x50 array: `Array<SaveInfo>` driven by the
     // hand-derived 0x1800332d0 row (its assign is the SaveInfo copy ctor and
-    // its destroy ~SaveInfo, both reached through their registered address
-    // doors). Retail has no two-argument SetSize for this element and no init
+    // its destroy ~SaveInfo, both called by name from array.cpp's row). Retail
+    // has no two-argument SetSize for this element and no init
     // arm, so the trait-derived default (which would default-construct a grown
     // tail) is not the instantiation.
     using SaveInfoArray = Collection::Array<SaveInfo, Collection::DefaultAllocator,
@@ -375,9 +372,6 @@ public:
     //   saveload.cpp
     static SaveLoad* Get();
     // ?_singleton@SaveLoad@Save@@0PEAV12@EA (0x1801fc6f0) — the class static (ENDGAME B.3.9 ENG, B39_RULES D7).
-    // The namespace's *PortInit redirects the minted storage row onto it, so
-    // the name door, the address door and this member are the same bytes.
-    // PUBLIC while foreign readers still reach the row through the doors.
     static SaveLoad* _singleton;
 
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/EXTSAVE.md, SAVETAIL.md §4): the class B / C pseudo-mods
@@ -488,7 +482,7 @@ public:
     //   declared: nothing destroys a SaveLoad in C++.
     // ??0SaveLoad@Save@@QEAA@XZ  0x1800c3d30 — DOOR (RtSave_SaveLoad_Ctor), not
     //   declared (see the banner).
-    // ?_singleton@SaveLoad@Save@@0PEAV12@EA  0x1801fc6f0 — RT_DATA_SLOT (banner).
+    // ?_singleton@SaveLoad@Save@@0PEAV12@EA  0x1801fc6f0 — the class static `_singleton` above.
 
     // ---- the 0x90 bytes (public: the bodies in six files, and the exe's
     //      raw-offset readers, reach them) ------------------------------------
@@ -619,11 +613,10 @@ static_assert(offsetof(Sprite, spriteIndex) == 0x08, "Sprite.index @ 0x08");
 static_assert(sizeof(Sprite) == 0x10, "sizeof(UI::Sprite) == 0x10");
 }  // namespace RtSave
 
-// ==== B3R W0-P0c: Runtime bodies reached by retail address ====
-// ENDGAME B.3R (B3R_RULES R5): each body below is registered at the retail
-// address in its trailing comment and read through the registry today. It is
-// declared here, copied from its definition (linkage, namespace, types), so the
-// reader can call it by name. Nothing calls it through this declaration yet.
+// ==== B3R W0-P0c: Runtime bodies called by name ====
+// ENDGAME B.3R (B3R_RULES R5): each body below (retail address in its trailing
+// comment) is declared here, copied from its definition (linkage, namespace,
+// types), so callers outside its module call it by name.
 
 // ---- save/saveload.cpp
 void RtSave_SaveLoad_Dtor(Save::SaveLoad* self);  // 0x1800c3c90

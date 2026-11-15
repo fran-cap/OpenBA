@@ -13,7 +13,7 @@
 //
 // Factory  : MemAlloc 0x1b8 + External ctor + vtable + 12 weather-entry defaults.
 // Serialize (vtable +0x28, 0x140094040), stream order:
-//   ExternalPtr @ +0x20  (FUN_140002340 / Reimpl_ExternalPtr_Serialize_StringTable)
+//   ExternalPtr @ +0x20  (FUN_140002340 / ::Object::SerializeExternal)
 //   int count   @ +0x30
 //   [if loading: Reimpl_WeatherArray_Resize(+0x28, count)]
 //   for each array entry (stride 16): WeatherExternalSerialize(entry) + ExternalPtr(entry+8)
@@ -21,8 +21,8 @@
 // GetVersion (vtable +0x18, 0x1400941b0): mov eax,7; ret -> version 7.
 // Dtor (vtable +0x00, 0x140019190): MemFree(array @+0x28) + External::~External + free.
 //
-// The three helpers (0x1400198a0 Reimpl_WeatherArray_Resize, 0x1400196a0
-// Reimpl_ExternalPtr_Serialize_Weather, 0x140002340) are called directly (B.3R).
+// The resize (0x1400198a0 Reimpl_WeatherArray_Resize) is called directly (B.3R); the two
+// ExternalPtr serializes (0x1400196a0 Weather, 0x140002340) are ::Object::SerializeExternal<T>.
 //
 // Field knowledge harvested from engine/reimpl/environmentdescription.cpp.
 // Decompiled from Application-x64.exe (READ-ONLY recon).

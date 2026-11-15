@@ -3,8 +3,7 @@
 // src/game/Component/AnimalComponent.h — ENDGAME B.3.8 block CIT
 //
 // `AnimalComponent` (the per-creature component) as a real C++ class with a
-// compiler-generated vtable (B38_RULES.md D1-D4). The engine/types POD is a
-// forwarder to this file.
+// compiler-generated vtable (B38_RULES.md D1-D4).
 //
 // RETAIL (Application-x64.exe, B38_SLOTS.md §6):
 //   reflected "AnimalComponent", parent "Component", ti 0x1401c6f98
@@ -58,7 +57,7 @@ public:
     int32_t      habitatCell;   // +0x28 habitat cell index (y * mapDim + x)
     uint8_t      _pad2C[4];     // +0x2C
     System::Time moveTimer;     // +0x30 counts down to the next wander
-    int16_t      wanderX;       // +0x38 wander box (PastureComponent_AnimalSetBounds)
+    int16_t      wanderX;       // +0x38 wander box (GetWanderBox)
     int16_t      wanderY;       // +0x3A
     int16_t      wanderWidth;   // +0x3C
     int16_t      wanderHeight;  // +0x3E

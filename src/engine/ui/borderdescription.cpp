@@ -141,8 +141,8 @@ bool BorderDescription::Serialize(IO::Stream& streamv) {
 // creates no children — so it is declared and ignored, exactly as the bytes do.
 //
 // BorderElement is 0x150 bytes and its constructor is OUT OF LINE
-// (`??0BorderElement@UI@@QEAA@XZ`, 0x18010fd40, a door ported by
-// factory_ui1.cpp), unlike ImageDescription's, which is inlined at its call
+// (`??0BorderElement@UI@@QEAA@XZ`, 0x18010fd40, the class's ctor in
+// BorderElement.h), unlike ImageDescription's, which is inlined at its call
 // site. Retail takes the ctor's RETURN value as the element, not the raw
 // allocation (`MOV RDI,RAX` at 0x18010ffb4).
 //
@@ -153,9 +153,9 @@ bool BorderDescription::Serialize(IO::Stream& streamv) {
 //     elem->sprite[i].index = idx   <- QWORD store from a DWORD slot (+0xc8 + 0x10*i)
 // ONE STACK SLOT SERVES ALL NINE ([RBP-0x10]); its high dword is never written
 // by anything, so every one of the nine qword stores carries four arbitrary
-// bytes into the Sprite's pad. See `SpriteIndexSlot` in description_common.h —
-// the WIDTH is what is faithful, which is why the nine are written through the
-// byte view below and not as `Sprite` fields.
+// bytes into the Sprite's pad. See `SpriteFromName` in description_common.h —
+// the WIDTH is what is faithful, which is why each of the nine is built as a
+// whole `Sprite` and copied.
 Object::InternalPtr<Element>* BorderDescription::CreateInstance(
         Object::InternalPtr<Element>* ret, const Dialog* /*dialog*/) const {
     void* raw = MemAlloc(0x150, 8);                        // 18010ff80

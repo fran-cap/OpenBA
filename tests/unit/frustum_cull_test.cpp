@@ -7,8 +7,9 @@
 // retail ctors (perspective and orthographic) moved by random transforms, fully random
 // planes, planes and boxes carrying -0.0 / denormals / +-inf / NaN, zero-size and
 // inverted boxes, boxes with a face or a corner exactly on a plane, and masks with the
-// high bits set. The fast body is compared directly (whatever kFastCull says), and the
-// shadow entry point is checked to return the reference and to report the pair.
+// high bits set. The fast body is compared through FrustumCull_Contains (the fast body
+// while kFastCull is true), and the shadow entry point is checked to return the reference
+// and to report the pair.
 // ============================================================================
 #include "unit.h"
 #include "volume/Volume.h"

@@ -25,9 +25,9 @@
 //   | SpriteSheet::GetUVs()                     | 0x180003330 | yes    | replay  |
 //   | SpriteSheet::SetSpriteInfo()               | 0x180003460 | yes    | scratch |
 //   | SpriteSheet::AddSpriteInfo()                | 0x180003390 | yes    | scratch |
-//   | SpriteContext::AddLine()                   | 0x18011cbe0 | NO     | —       |
-//   | SpriteContext::SetScissor(Viewport const&)  | 0x18011d050 | NO     | —       |
-//   | SpriteContext::SetScissor(int,int,int,int)  | 0x18011d010 | NO     | —       |
+//   | SpriteContext::AddLine()                   | 0x18011cbe0 | yes    | —       |
+//   | SpriteContext::SetScissor(Viewport const&)  | 0x18011d050 | yes    | —       |
+//   | SpriteContext::SetScissor(int,int,int,int)  | 0x18011d010 | yes    | —       |
 //   | StringTable::GetCount()                    | 0x180002610 | yes    | replay  |
 //   | StringTable::GetText(int)                  | 0x180002550 | yes    | replay* |
 //   | StringTable::GetText(String const&)         | 0x1800025b0 | yes    | replay* |
@@ -50,17 +50,12 @@
 // was a latent defect, not a live one.
 //
 // ---------------------------------------------------------------------------
-// WHAT STAYS ON THE DLL, AND WHY (docs/history/runtime_port/WAVE7_LANE_F.md §2)
+// AddLine AND BOTH SetScissor OVERLOADS
 // ---------------------------------------------------------------------------
-// AddLine and both SetScissor overloads all reach unexported, unreversed
-// internal helpers (`Flush`, `FlushDeferredFonts`, `AddSpriteDraw`,
-// `SpriteCapture::AddScissor`) that submit into the LIVE Video::Context /
-// GPU vertex buffer this SpriteContext wraps — state that lives outside the
-// SpriteContext object, so a scratch copy of the object does not isolate a
-// replay the way it does for SetSpriteInfo/AddSpriteInfo. Running the DLL's
-// body a second time for comparison would submit a second, real, visible
-// draw or scissor change. See src/engine/ui/SpriteContext.h for the
-// partial layout this lane read while making that argument.
+// AddLine and both SetScissor overloads are in src/engine/ui/spritecontext.cpp,
+// with `FlushDeferredFonts` and `AddSpriteDraw`; `Flush` is in
+// spritecontext_flush.cpp and `SpriteCapture::AddScissor` in spritecapture.cpp.
+// Their retail call shapes are in docs/history/runtime_port/WAVE7_LANE_F.md §2.
 // ============================================================================
 
 #include <cstddef>
@@ -78,15 +73,6 @@
 #include "system/MemoryAllocator.h"
 #include "system/string_internal.h"   // RtString_StrCompare, for GetIndexFromName
 #include "../collection/array_internal.h" // ENDGAME B.3.2 step 2 — kSpec_Sprite38
-
-// ----------------------------------------------------------------------------
-// Module / ResolveAddr / ResolveExport, forward-declared rather than pulled in
-// from standalone/resolve.h — same reasoning rt_port.h gives for declaring
-// RegisterRuntimeExport locally: resolve.h drags in <windows.h>, which PLAN.md
-// §4.1 keeps out of src/engine/. These declarations must stay byte-identical
-// to resolve.h's; the linker checks them against it. (Precedent:
-// src/engine/achievement/achievement_manager.cpp:69-71.)
-// ----------------------------------------------------------------------------
 
 namespace {
 
@@ -122,11 +108,8 @@ int SpriteIndexFromName(const SpriteInfo* data, int32_t count, const char* key) 
 // UI::Sprite — ENDGAME B.3.6 block D (RULE B6-10)
 // ============================================================================
 //
-// The bodies are the class's real constructors and members now
-// (src/engine/ui/Sprite.h). Each registered DOOR keeps its name and
-// placement-news / delegates onto them: the exe and the unconverted bodies
-// construct Sprites INTO CALLER STORAGE through the ctor doors, so the doors
-// stay until the caller batches convert those sites to C++ construction.
+// The bodies are the class's real constructors and members
+// (src/engine/ui/Sprite.h).
 
 namespace UI {
 
@@ -197,8 +180,8 @@ int32_t SpriteSheet::GetSpriteIndexFromName(const System::String& name) const {
 // `m_sprites` by `IMUL RAX,RAX,0x38`. Same faithfulness call as GetUVs below,
 // and CLAUDE.md's rule — do not add a guard retail lacks.
 //
-// RETSLOT in retail: the door keeps (this, hidden-return-slot, index) and
-// placement-news this member's prvalue into the slot.
+// RETSLOT in retail: (this, hidden-return-slot, index); the member returns the
+// String by value.
 System::String SpriteSheet::GetSpriteNameFromIndex(int32_t index) const {
     System::String out;                        // 0x1800032f4, null before the load
     char* name = m_sprites._data[index].name._data;
@@ -259,9 +242,8 @@ void SpriteSheet::AddSpriteInfo(const System::String& name, const System::String
 
     // The array mechanics (grow-if-needed, copy-construct with refcount bump,
     // free the old buffer) are Collection::Array<SpriteInfo>'s append-by-one
-    // body. `m_sprites` + `m_sprites._size` + `m_spriteCapacity` (+0x20/+0x28/
-    // +0x2C) are the {data,size,capacity} triple `Collection::Array<SpriteInfo>`
-    // would use, so the call bridges at the use site. `kSpec_Sprite38`
+    // body. `m_sprites` is that Array, its {data,size,capacity} triple at
+    // +0x20/+0x28/+0x2C. `kSpec_Sprite38`
     // (0x180004e30) is NON-TRIVIAL — a String refcount bump in its element
     // assign — so it stays the hand-derived `ExplicitSpec`.
     m_sprites.SetSizeFill(oldCount + 1, &newEntry);
@@ -404,7 +386,7 @@ Object::ExternalPtr<StringTable> String::GetStringTable() const {
 // ONE-LINE forwarder: `return table->GetText(index)`, with `table` read
 // UNGUARDED — StringTable::GetText(int) tests `index < 0` BEFORE it touches
 // `this`, which is what makes a never-assigned `{null, -1}` harmless (the
-// WAVE 10 LANE UIORACLE note on RtUi_StringTable_GetText_Index). No null check
+// WAVE 10 LANE UIORACLE note on StringTable::GetTextOf above). No null check
 // retail lacks (CLAUDE.md). NOT RETAIL (review F-009): the call goes through the
 // static StringTable::GetTextOf, not a member call on the possibly-null `table`.
 String::operator System::String() const {
@@ -412,10 +394,6 @@ String::operator System::String() const {
 }
 
 }  // namespace UI
-
-// ---- the doors --------------------------------------------------------------
-
-// WAVE 9 LANE UIF — src/engine/ui/spritecontext.cpp.
 
 // ============================================================================
 // ============================================================================
@@ -442,11 +420,9 @@ String::operator System::String() const {
 // NOTE THE ORDER IS NOT SOURCE ORDER: the body assigns +0x40 from p4 FIRST
 // (0x1800034FF..0x180003558) and +0x38 from p3 SECOND. Reproduced.
 //
-// THIS ALSO NAMES THREE FIELDS src/engine/ui/SpriteSheet.h left as
-// `m_field48` / `m_field4C` / `m_field50` "unknown". They are precisely this
-// function's two ints and its bool. The header is NOT renamed here - a name
-// needs more evidence than "the one setter that writes it", and this lane has
-// no reader to corroborate against. Recorded in the lane report instead.
+// THIS ALSO NAMES THREE FIELDS of src/engine/ui/SpriteSheet.h: +0x48
+// `m_imageWidth`, +0x4C `m_imageHeight` and +0x50 `m_padForFiltering` are
+// precisely this function's two ints and its bool.
 //
 // ---------------------------------------------------------------------------
 // THE STRING ASSIGN IDIOM, AND THE QUIRK IN IT
@@ -485,8 +461,7 @@ String::operator System::String() const {
 //    body reproduces the sequence rather than the shortcut.
 //
 // The only callee is `?MemFree@MemoryAllocator@System@@SAXPEAX@Z`
-// (0x1800C7AD0, confirmed by pefile against the export directory), which this
-// file already reaches through its existing MemFree door. No other call.
+// (0x1800C7AD0, confirmed by pefile against the export directory). No other call.
 // ---------------------------------------------------------------------------
 // B4 X7-RT: both behaviours above are exactly `System::String::operator=`
 // (string.cpp: the buffer guard, Release() storing `data - 8` into the member

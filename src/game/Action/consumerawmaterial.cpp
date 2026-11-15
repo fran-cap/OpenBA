@@ -23,7 +23,7 @@
 //   +0x20: InternalBasePtr  targetEntity    (entity whose storage to consume from)
 //   +0x28: void*            materialList    (array of {ExternalPtr, int32_t count} pairs, 0x10 each)
 //   +0x30: int32_t          materialCount   (number of entries in material list)
-//   +0x38: bool             consumeMode     (true = subtract, false = just check availability)
+//   +0x38: bool             consumeMode     (true = release the reserve; false = check availability first)
 //
 // Decompiled from Application-x64.exe using Ghidra.
 
@@ -32,7 +32,7 @@
 #include "Component/StorageComponent.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "Action/exe_bodies.h"   // ActRm_* helpers
-#include "Game/exe_bodies.h"     // Reimpl_ExternalPtr_Serialize_StringTable
+#include "Game/exe_bodies.h"
 #include "Entity/CitizenBehavior.h"   // professionResources (the +0x170 per-category counters)
 #include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch C
@@ -64,18 +64,18 @@ static void MapOverlaysConsumed(const ComponentEntity* holder, const ComponentDe
 
 // ============================================================
 // Helpers, called by name (B3R)
-//   0x14012d150 ActRm_StorageSubtract_d150      -- StorageComponent::SubtractItem(storage, itemType, count)
-//   0x140088f90 ActRm_GetResourceCategory_88f90 -- GetResourceCategoryIndex(storageComp, materialExternalPtr)
+//   0x14012d150 StorageComponent::SubtractItem  -- SubtractItem(material, count)
+//   0x140088f90 ResourceCategory                -- ResourceCategory(material)
 //               -> int; the resource category index for the material, or -1 if not found
 //   0x14000da70 ActRm_ArrayResize16_da70        -- array resize for 16-byte elements (material list)
-//   0x140002340 Reimpl_ExternalPtr_Serialize_StringTable -- ExternalPtr serialize
+//   0x140002340 Object::SerializeExternal<ComponentDescription> -- ExternalPtr serialize
 // DAT_1401c7158 -- type ID for CitizenAI-like component (not used here; for reference)
 // ============================================================
 
 // ============================================================
 // ConsumeRawMaterial::Serialize (0x1400c6120) -- slot 3
 // Versioned serialization (version 2):
-//   v0: legacy format (single ExternalPtr + int)
+//   v0: entity ref(+0x20), legacy format (single ExternalPtr + int)
 //   v1+: entity ref(+0x20), material count(+0x30), material list(+0x28)
 //   v2+: consume mode flag(+0x38)
 // ============================================================
@@ -109,8 +109,8 @@ void ConsumeRawMaterial::Persist(IO::Stream& stream) {
 
         // If loading, resize the material array
         if (static_cast<int>(ser.GetDirection()) == 0) {   // IO::Serializer::GetDirection, retail 0x180006210
-            // LEFT: the shared 16-byte Array SetSize 0x14000da70 is ACT-a's file-local body,
-            // reached only through its int64_t* forwarder.
+            // The shared 16-byte Array SetSize 0x14000da70 (ActRm_ArrayResize16_da70,
+            // Action/exe_bodies.h) is reached through its typed wrapper MaterialArraySetSize.
             MaterialArraySetSize(&_materials, matCount);   // 0x14000da70
         }
 

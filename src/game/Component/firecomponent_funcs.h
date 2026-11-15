@@ -8,7 +8,7 @@
 // FireComponent — building fire simulation
 // Vtable: 0x140159380 (16 slots; FireDescription's vtable starts at 0x140159400)
 // Size:   0x48 bytes
-// Overridden slots: 0, 1, 2, 3, 9, 15 — see engine/types/FireComponent.h for the
+// Overridden slots: 0, 1, 2, 3, 9, 15 — see Component/FireComponent.h for the
 // byte-verified table. Slots 4-8 and 10-14 are bare `RET` base stubs.
 // ============================================================
 

@@ -6,7 +6,7 @@
 // This is the missing piece behind the save/load tree-regrowth bug: on load,
 // GrowthComponent had NO stream serializer at all (vtable slot 3 stayed the
 // base-Component no-op), so every plant's growth state came back zeroed and
-// GrowthComponent_Update (growthcomponent.cpp) re-derives the model's visual
+// GrowthComponent::PostUpdate (growthcomponent.cpp) re-derives the model's visual
 // scale from that zeroed progress — trees visibly shrink to nothing and
 // regrow from scratch, in EntityList update-bucket batches as each bucket's
 // components first tick post-load.
@@ -14,17 +14,17 @@
 // Fields (verified against the retail decompile / disassembly at 0x1401207c0):
 //   +0x28  InternalBasePtr  sibling natural-resource component (validated
 //                           against type id DAT_1401c7b30 — see
-//                           growthcomponent.cpp's GrowthComponent_Startup
+//                           growthcomponent.cpp's GrowthComponent::Startup
 //                           comment: "resource@+0x28 = first sibling
 //                           component of the natural-resource type").
 //   +0x30  InternalBasePtr  sibling ModelComponent (validated against type id
 //                           DWORD_1401c7a50 — same Startup comment: "+0x30 =
 //                           sibling of type DAT_1401c7a50").
 //   +0x48  float            smoothed displayed visual scale (see
-//                           GrowthComponent_ApplyVisualScale, vtable slot 10).
+//                           GrowthComponent::PostUpdate, vtable slot 10).
 //   +0x4c  float            growthScale — the randomized per-instance harvest
-//                           threshold set once by GrowthComponent_Startup.
-//   +0x40  Time (8 bytes)   sub-resource spawn timer (see GrowthComponent_Update).
+//                           threshold set once by GrowthComponent::Startup.
+//   +0x40  Time (8 bytes)   sub-resource spawn timer (see GrowthComponent::Update).
 //
 // NOTE: the actual growth PROGRESS value that Update reads/writes every tick
 // lives on the SIBLING resource component (resourceComp+0x28, where
@@ -32,8 +32,8 @@
 // not on GrowthComponent itself. This serializer restores GrowthComponent's
 // own fields (including the +0x28 IBP that RE-LINKS to that sibling), which
 // is everything retail's GrowthComponent::Serialize touches — the resource's
-// own growth-progress field must come back through THAT component's own
-// serializer (out of scope here; flagged for the save/load wave).
+// own growth-progress field comes back through THAT component's own
+// serializer (NaturalResourceComponent::Persist, naturalresourcecomponent.cpp).
 //
 // Serializer facts reused from animalwave_serialize.cpp (verified against
 // this function's own disassembly, same dispatch slots):

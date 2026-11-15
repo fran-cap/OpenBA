@@ -3,7 +3,7 @@
 // ============================================================================
 // The lane's two legs over a made-up river: built only when the game's own legs exist, ending on the
 // cell centres the game's route uses, deterministic, and kept off the banks. The registry row (class B,
-// OFF by default). Every platform.
+// ON by default). Every platform.
 // ============================================================================
 #include "unit.h"
 

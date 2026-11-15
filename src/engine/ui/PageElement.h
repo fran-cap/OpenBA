@@ -5,8 +5,8 @@
 //
 // Two things live here:
 //   * `UI::PageElementOffsets` — Wave 7 lane E's offsets-only namespace, which
-//     src/engine/ui/widgets_layout.cpp (GetActivePage / SetActivePage, a
-//     fragment-pass file) still reads. Unchanged.
+//     the static_assert below and tests/unit/ui_leaf_c2_abi_test.cpp check
+//     against the class.
 //   * `UI::PageElement` — the REAL C++ class (ENDGAME B.3 step 6, block C2).
 //
 // Evidence for the offsets (Runtime-x64.dll addresses):
@@ -26,7 +26,7 @@
 // ---------------------------------------------------------------------------
 // PARENT `UI::GroupElement` — READ, not inferred (B36_SLOTS.md section 3):
 //     ?_ParentTypeName@PageElement@UI@@CAPEBDXZ  @0x180047240 -> "GroupElement"
-// RULE B5-15 / B6-7 — the two literals, RECORDED, NOT USED:
+// RULE B5-15 / B6-7 — the two literals, RECORDED; DEFINE_TYPE (pageelement.cpp) returns both:
 //     ?_TypeName@PageElement@UI@@CAPEBDXZ        @0x180047230 -> "PageElement"
 //     ?_ParentTypeName@PageElement@UI@@CAPEBDXZ  @0x180047240 -> "GroupElement"
 //
@@ -105,8 +105,7 @@ public:
     // ---- non-virtual ------------------------------------------------------
     // 0x1800d5100 — `MOV EAX,[RCX+0xc0] ; RET`.
     int32_t GetActivePage() const { return _activePage; }
-    // 0x1800d5110 — PORTED; DEFINED in widgets_layout.cpp (fragment pass), whose
-    // registered door delegates to it.
+    // 0x1800d5110 — PORTED; DEFINED in widgets_layout.cpp (fragment pass).
     void SetActivePage(int32_t page);
 
     // ---- exported, NOT PORTED as members ----------------------------------

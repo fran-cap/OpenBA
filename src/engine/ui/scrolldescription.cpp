@@ -5,7 +5,7 @@
 // Vtable batch 2. Derives straight from UI::ElementDescription.
 //
 // ??_7ScrollDescription@UI@@6B@ (retail 0x180156460), ten slots:
-//   0  deleting dtor      0x18003a790  deleting_dtor.cpp row (sizeof 0xc8)
+//   0  deleting dtor      0x18003a790  the compiler's (sizeof 0xc8)
 //   1  TypeName           0x18003a120  here
 //   2  Type               0x18003a100  here
 //   3  GetFileVersion     0x18011a930  here  (returns 0x104)
@@ -30,7 +30,7 @@
 // and both are kScalarUInt (vt+0x98), not kScalarInt.
 //
 // Every helper is already ported, including ??0ScrollElement@UI@@ (0x18011a7f0,
-// ui_factory_wave28.cpp), so this file adds none.
+// inline in ScrollElement.h), so this file adds none.
 // ============================================================================
 #include <new>
 
@@ -48,10 +48,8 @@
 #include "collection/Collection.h"
 
 // ENDGAME B.3.6 block C4: the layout moved to src/engine/ui/
-// ScrollDescription.h (the real class). Every slot body below is a MEMBER; each
-// registered door is a one-line QUALIFIED delegation. The ctor and dtor stay
-// DOORS (B4b-2). RULE B6-5: every export the members reach is cached in a
-// namespace-scope std::atomic slot, never in a function-local static.
+// ScrollDescription.h (the real class). Every slot body below is a MEMBER; the
+// ctor is inline in ScrollDescription.h and the dtor is below.
 
 
 
@@ -103,7 +101,7 @@ bool ScrollDescription::Serialize(IO::Stream& streamv) {
 // ?CreateInstance@ScrollDescription@UI@@...   retail 0x18011aac0
 // ============================================================================
 // ScrollElement is 0x178 bytes (`MOV EDX,0x178` at 0x18011ab00); its ctor is
-// CALLED out of line (0x18011a7f0, the scrollelement.cpp door). R8 (the
+// CALLED out of line (0x18011a7f0; here ScrollElement.h's inline ctor). R8 (the
 // Dialog) is never read — this class creates no children.
 //
 // NINE {sheet, index} pairs into +0xc0/+0xc8 .. +0x140/+0x148, with the same

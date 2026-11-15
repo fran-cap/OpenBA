@@ -26,12 +26,6 @@
 // 0x1800c7ad0 to prove it instruction for instruction. So the platform boundary
 // that blocked this cluster in Wave 5 is now a function call.
 //
-// With `Runtime-x64.dll` absent all five resolve to null and any call executes
-// address 0 — the exact failure shape of the current cutover wall. No
-// name-based instrument can see them, because the call sites never mention a
-// name; that is why Wave 5 could close the layer above them and leave these
-// open.
-//
 // WHY NINETEEN BODIES AND NOT FIVE
 // --------------------------------
 // The five call fourteen more unexported internals, and none of those fourteen
@@ -56,42 +50,15 @@
 //   GridFreeEntry 0x18007b390 -> EntryAssign, ArrayDtorTransform
 //   CellIterAdvance 0x18007b6d0 -> (leaf)
 //
-//   (*) `Math::Transform::AsTransform3` 0x18001fcd0 is Wave 9 lane P's port and
-//       is already registered under BOTH doors, so reaching it by address here
-//       reaches the PORT, not the DLL. That is the one external dependency and
-//       it needs nothing from this lane.
+//   (*) `Math::Transform::AsTransform3` 0x18001fcd0 is Wave 9 lane P's port,
+//       called by name. That is the one external dependency.
 //
-// BOTH DOORS? NO — THERE IS ONLY ONE.
-// -----------------------------------
-// The normal rule is that a port reached by address needs `RegisterRuntimeAddr`
-// AS WELL AS `RegisterRuntimeExport`. It does not apply to any of these
-// nineteen: not one of them is exported. `tools/pe_exports.py` over the retail
-// export directory (4,800 ordinals) and over `Runtime-x64-profile.dll`'s 5,182
-// names finds no symbol resolving to any of these addresses, and
-// `docs/history/runtime_port/wave9_internals.csv` records the same for the five census
-// rows ("profile_build_name: none"). So the ADDRESS registration is the only
-// door and `RegisterRuntimeExport` has nothing to register under. Stated
-// explicitly rather than left implied.
-//
-// Nor is this the allocator lane's situation. `RegisterAllocatorAddresses()`
-// (src/engine/system/allocator.cpp, 309c015) is cutover-only because
-// standalone/allocator_lock.cpp PATCHES the same addresses in the loaded DLL
-// and `ResolveAddr` consults the port registry FIRST — registering early would
-// have handed the patcher our own prologue to rewrite. Nothing patches any of
-// these nineteen (grepped across standalone/, code/, engine/ and src/render/dx11/: the
-// only textual hits for these addresses are scene.cpp's five forwarders and
-// this file), so they register unconditionally at init like every other wave.
-//
-// WHAT ResolveAddr DOES FOR US HERE
-// ---------------------------------
-// scene.cpp's five forwarders are LEFT EXACTLY AS THEY ARE. `ResolveAddr`
-// consults the port registry first (reference_resolveaddr_consults_port_registry
-// _first.md), so the moment RtPickingGridRegister() runs, those five
-// `ResolveAddr(Module::Runtime, 0x…)` sites stop reaching the DLL and reach the
-// bodies below — and the addresses drop out of the unregistered-door census
-// because they are now registered. No edit to scene.cpp was needed for either
-// effect, and not editing it keeps the forwarders' analysis (which is good, and
-// is where most of this lane's groundwork came from) intact.
+// NONE OF THE NINETEEN IS EXPORTED
+// --------------------------------
+// `tools/pe_exports.py` over the retail export directory (4,800 ordinals) and
+// over `Runtime-x64-profile.dll`'s 5,182 names finds no symbol resolving to any
+// of these addresses, and `docs/history/runtime_port/wave9_internals.csv`
+// records the same for the five census rows ("profile_build_name: none").
 //
 // THE HAZARD IN THIS SECTION, AND WHAT WAS DONE ABOUT IT
 // -----------------------------------------------------
@@ -103,14 +70,6 @@
 // ported inline `strcmp` survived four waves of green oracles because 13 of the
 // 14 values in the population were the same value
 // (reference_uniform_population_is_not_a_verification.md).
-//
-// So the oracle is scene_grid_probe.cpp: two identical private Scenes, ours run
-// on one and the SHIPPED bodies on the other, compared field by field after
-// every operation. Its population is deliberately non-uniform — entries
-// threaded into MULTIPLE cells, cells shared by several entries, and a free
-// list that is already non-empty before the reuse paths are exercised — and it
-// reports an EFFECTIVENESS control (how many comparisons did any work, per
-// path) and carries a NEGATIVE control that must be flagged.
 //
 // READ AS DISASSEMBLY, NOT AS C. Every body below was transliterated from
 // `disassemble_function`, not from the decompiler: Ghidra's C drops
@@ -141,11 +100,8 @@
 #pragma GCC diagnostic ignored "-Wuninitialized"
 
 // Wave 9 lane Q's allocator boundary. These two ARE the Enter/Allocate/Leave
-// and Enter/Free/Leave triples retail inlines at every site below, reached
-// through the port-aware address door — see array.cpp's banner for the
-// instruction-for-instruction argument. Declared rather than included:
-// array_internal.h says only two files include it, and this lane needs exactly
-// these two symbols.
+// and Enter/Free/Leave triples retail inlines at every site below — see
+// array.cpp's banner for the instruction-for-instruction argument.
 namespace rtcoll {
 void* MemAlloc(uint64_t bytes, int align);
 void  MemFree(void* p);
@@ -209,7 +165,7 @@ inline int32_t HashBucket(int32_t hash, int32_t size) {
 // ============================================================================
 // 0x18001c100 — Collection::Array<T>::~Array, trivially-destructible T
 // ============================================================================
-// The J1 body Wave 9 lane Q ported and registered at twelve OTHER addresses.
+// The J1 body Wave 9 lane Q ported at twelve OTHER addresses.
 // This is the thirteenth, and it is the same body: 0x18001c100's disassembly is
 // `if (_data) { Enter(_singleton+0x640); Free(_singleton, _data); Leave; }` then
 // `_data = 0` and one qword store covering `_size` and `_capacity` — the same
@@ -217,14 +173,8 @@ inline int32_t HashBucket(int32_t hash, int32_t size) {
 // 0x1800c6c00, 0x18014b388), and lane Q's "J1 has NO parameters at all, not
 // even a stride" conclusion covers it unchanged.
 //
-// It is written here rather than added to array.cpp's J1_ENTRY list on purpose:
-// three lanes are editing that file this wave and a thirteenth macro line is a
-// guaranteed conflict, while this costs eight lines. The registration below IS
-// the address's only registration, so nothing is registered twice.
-//
-// `rtcoll::MemFree` performs the null test itself (0x1800c7ad0's first
-// instruction is `TEST RCX,RCX; JZ ret`), which is why the pointer is handed
-// over unguarded exactly as retail does.
+// The `if (_data)` test is retail's own (the banner above); `rtcoll::MemFree`
+// repeats it (0x1800c7ad0's first instruction is `TEST RCX,RCX; JZ ret`).
 void ArrayDtorTransform(TransformArray* a) {
     if (a->_data) rtcoll::MemFree(a->_data);
     a->_data = nullptr;
@@ -410,10 +360,10 @@ float* BoxTransform(float* out, const Math::Transform* transform, const ::Box* b
 // ============================================================================
 // 0x180125bc0 — a mesh's world AABB, projected to XY
 // ============================================================================
-// `descTail` is Entry+0x18 shaped: { PickingMesh* _mesh; Array<Transform>
-// _transforms; }. GridAdd hands it the AddDesc (identical layout, which is why
+// `desc` is either holder of { PickingMesh* _mesh; Array<Transform> _transforms; },
+// read by name. GridAdd hands it the AddDesc (Entry+0x18 shaped, which is why
 // the entry allocator can copy the descriptor field for field); GridReindex
-// hands it `&entry->_mesh`.
+// hands it the Entry itself.
 //
 // It walks the mesh's SubMesh nodes (stride 0x80, AABB at +0x28), transforms
 // each node's box by the matching world transform, and unions the results — but
@@ -602,9 +552,7 @@ void FreeEmptyCell(Scene* scene, Cell* cell) {
 // unreachable and retail's shape is what keeps the loop to one test per node.
 // A "helpful" not-found guard here would change the shape and prove nothing.
 //
-// The freed link is stamped `_entry = -1` before it goes on the free list —
-// which is what makes a stale link visible in the probe's comparison rather
-// than merely absent.
+// The freed link is stamped `_entry = -1` before it goes on the free list.
 void UnlinkEntryFromCell(Scene* scene, Cell* cell, int32_t entryId) {
     Link* links = scene->_links._data;
 
@@ -767,7 +715,7 @@ void AddToCells(Scene* scene, const int32_t* xy, uint16_t w, uint16_t h,
 // destroyed after the hand-off, which is why the same buffer is not owned
 // twice.
 //
-// TWO BYTES THIS BODY DOES NOT WRITE, both from the stack temporary:
+// FOUR BYTES THIS BODY DOES NOT WRITE, in the stack temporary:
 //   +0x14..+0x17  the slack that 8-aligns `_mesh`
 // and on the REUSE arm the free-list pop happens BEFORE the temporary is built,
 // so `scene->_freeEntry` is already the NEXT free slot by the time anything is
@@ -780,7 +728,7 @@ int32_t EntryAlloc(Scene* scene, const AddDesc* desc, const int32_t* xy,
 
     // NOT value-initialised: retail leaves +0x14..+0x17 holding whatever the
     // frame held, and an oracle that compares those bytes fails 100% of calls.
-    // The probe excludes them; zeroing here would make the port differ from
+    // Zeroing here would make the port differ from
     // retail in a way nothing would ever report. `_transforms` is the one
     // member with a constructor: its zeroed header is retail's "Array header
     // zeroed first", and its destructor at the end of the scope is retail's
@@ -865,7 +813,7 @@ uint32_t GridAdd(Scene* scene, const AddDesc* desc) {
 // function's `calls=` is not its coverage: on a settled scene most transform
 // changes leave the rectangle alone and this does nothing at all. That is
 // exactly Wave 9 lane M's Finding 1 — `calls=12896` on a site where ten calls
-// did any work — so the probe counts CHANGED rectangles separately.
+// did any work.
 //
 // The order matters and is retail's: unthread FIRST with the entry's OLD
 // rectangle (which is still in the entry), then thread with the new, and only

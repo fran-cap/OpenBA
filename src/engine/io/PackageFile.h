@@ -11,9 +11,8 @@
 // `src/engine/io/package_file.cpp`'s constructor writes. This header is
 // written FROM THAT CONSTRUCTOR, which is the strongest source a layout can
 // have: `??0PackageFile@IO@@QEAA@XZ` (retail 0x1800b4440) writes the WHOLE
-// 0xf0-byte object, store by store, and `src/engine/io/package_file.cpp`'s
-// `PackageFileCtorBody` already carries every one of those stores with the
-// address of the instruction it reproduces.
+// 0xf0-byte object, store by store, and the constructor below carries those
+// stores with the addresses of the instructions it reproduces.
 //
 // Every field below is pinned by a `static_assert` against either that store or
 // the one-instruction accessor that reads it. Where the constructor's store
@@ -69,34 +68,8 @@
 // with the note "so `Construct` is ExternalList's OWN new virtual: External's
 // table stops at eight". This header does the same thing for the same reason.
 //
-// ----------------------------------------------------------------------------
-// IT GETS NO REAL CONSTRUCTOR AND NO REAL DESTRUCTOR — B34_RULES §4.3
-// ----------------------------------------------------------------------------
-// `IO::PackageFile` is constructed TWO ways, and neither is ours to take over:
 //
-//   * a `standalone/rt_factories_io.*` object-creation replay row (an
-//     `RtFactOp::Call` into `??0PackageFile@IO@@QEAA@XZ`), and
-//   * `src/engine/io/filesystem_packages.cpp`'s `MemAlloc(0xF0)` followed by
-//     the same ctor door.
-//
-// Both leave the object wearing the MINTED `??_7PackageFile@IO@@6B@`, whose
-// nine rows are LIVE (B34_RULES §4.2: not one of the nineteen IO minted rows
-// and not one of the fourteen IO deleting-dtor registrations may retire in this
-// step). A real C++ constructor would stamp GCC's table instead and swap the
-// table under the replay.
-//
-// THE SHAPE THAT ENFORCES IT is B34_BRIEFS §A.4's: slot 0 is re-declared
-// `override = 0`, so **the class is ABSTRACT and nothing can construct one**.
-// That is not a workaround, it is the honest statement: slot 0's body lives in
-// `src/engine/object/deleting_dtor.cpp` as
-// `RT_DELDTOR(0x1800259d0, …, 0x0f0, "IO::PackageFile")`, which is also what
-// FILLS slot 0 of the live minted table, and §4.2 forbids retiring it. The
-// destructor (0x1800b4540, `src/engine/io/package_file_dtor.cpp`) stays a
-// transcribed body for the same reason: it performs retail's base->derived->base
-// vptr restamp BY HAND, and a compiler-generated destructor chain would do
-// something different with a table other code still reads.
-//
-// The class is therefore NOT marked `final`: unlike `IO::BinaryReader` and
+// The class is NOT marked `final`: unlike `IO::BinaryReader` and
 // friends, its slot ORDER has to be pinned by a concrete probe subclass in
 // `tests/unit/`, and `final` would make that impossible.
 //
@@ -151,12 +124,9 @@ public:
     static constexpr int32_t  kDefaultPriority      = 0x2710;        // 10000, the ctor's / uncompressed default
     static constexpr uint32_t kPlaceholderIconPixel = 0xff000000u;   // the 1x1 opaque-black default icon
     // ---- ENDGAME B.3.9 IO: CONCRETE ------------------------------------------
-    // The two banners above ("NO REAL CONSTRUCTOR", "NO DESTRUCTOR
-    // DECLARATION") describe B.3.4. In B.3.9 the minted ??_7PackageFile row,
-    // its RT_DELDTOR row, the FACTREST replay and the ??0 / ??1 / slot doors
-    // are retired; every PackageFile is built by this constructor
-    // (LoadPackages, CreateNewObject / CreateInPlaceObject, Construct,
-    // Reconstruct) and wears the compiler's table.
+    // Every PackageFile is built by this constructor (LoadPackages,
+    // CreateNewObject / CreateInPlaceObject, Construct, Reconstruct) and wears
+    // the compiler's table.
     //
     // ??0PackageFile@IO@@QEAA@XZ 0x1800b4440: External() (Base's and
     // External's stores; the vptrs are the compiler's), then retail's stores
@@ -206,16 +176,10 @@ public:
     // [4] 0x1800b6090 — PackageFile's OWN override, NOT External's inherited
     // 0x1800066e0. `MOV EAX,0x1 ; RET`: a package is never "compiled", so the
     // slot reports the same result whatever Filename it is handed and the
-    // parameter is genuinely unread. Its body is ported but has NEVER been
-    // registered (there is no `?Compile@PackageFile@IO@@` row anywhere in the
-    // tree, by name or by address); that is unchanged here, because this commit
-    // adds no registration.
+    // parameter is genuinely unread. Its body is in package_file.cpp.
     CompileResult Compile(const System::Filename& path) override;  // [4] 0x1800b6090
-    // [5] 0x1800b60a0. The parameter is `IO::Stream&` in retail
-    // (`?Serialize@PackageFile@IO@@UEAA_NAEAVStream@2@@Z`) and `void*` here
-    // because `Object::External` declares the slot that way until STREAMS
-    // lands `IO::Stream`. Changing it is block 4's job, on the base, and this
-    // override follows it for free.
+    // [5] 0x1800b60a0. The parameter is `IO::Stream&`, as retail's
+    // `?Serialize@PackageFile@IO@@UEAA_NAEAVStream@2@@Z` spells it.
     bool          Serialize(IO::Stream& stream) override;             // [5] 0x1800b60a0
     Object::External* Reconstruct() override;                   // [6] 0x1800252d0
     void          Destruct() override;                          // [7] 0x180025300
@@ -273,10 +237,8 @@ public:
     bool ReadPackfile(const System::Filename& path);
 
     // ---- ENDGAME B.3.4a closing: the last two PackageFile bodies ----------
-    // Both lived in FileSystem's files (filesystem_openfile.cpp,
-    // filesystem_packages.cpp) because that is where their CALLERS are, not
-    // because they are FileSystem's. Their doors stay in those files with their
-    // names and registrations; only the bodies moved here.
+    // Both are defined in filesystem_packages.cpp; they are PackageFile's, not
+    // FileSystem's.
     //
     // ?GetFileInfo@PackageFile@IO@@QEBA?AUFileInfo@FileSystem@2@XZ 0x180025400
     // Returns the EMBEDDED `_file` at +0xc0 BY VALUE — a copy ctor into the
@@ -290,10 +252,9 @@ public:
     // GetFileCount and a guard here would skip work rather than restore it.
     System::Filename GetFileName(int index) const;
 
-    // Retail's factory pair (B39_RULES D2), declared by DECLARE_TYPE above,
-    // replacing the FACTREST replay row: MemAlloc(0xf0, 8) + the ctor, and the
-    // null-tested in-place ctor. Defined and registered (name + VA) in
-    // package_file.cpp.
+    // Retail's factory pair (B39_RULES D2), declared by DECLARE_TYPE above:
+    // MemAlloc(0xf0, 8) + the ctor, and the null-tested in-place ctor. Defined
+    // in package_file.cpp.
 
     // ---- the 0xd0 bytes PackageFile adds, from +0x20 ----------------------
     // PUBLIC, like `Object::External`'s and `IO::Serializer`'s, because the
@@ -305,7 +266,7 @@ public:
     // MEANING is unknown and is NOT invented here: `package_file_serialize.cpp`
     // refuses to name them on the argument that "a Serialize pins a field's
     // TYPE and its POSITION IN THE RECORD STREAM and says nothing about its
-    // meaning", which is the same argument FileSystem.h:101 makes for
+    // meaning", which is the same argument FileSystem.h:106 makes for
     // +0x58/+0x60. What IS known: the serializer writes each as
     // count-then-elements through `StringArraySerialize`, and sizes the array
     // from the count on the reading side only.
@@ -327,7 +288,7 @@ public:
     // (0x1800264a0's whole comparator is `CMP dword ptr [RCX+0x70],EAX`).
     int32_t  _priority;     // +0x70
     int32_t  _platform;     // +0x74
-    // The only two fields the CONSTRUCTOR does not initialise: its store list
+    // Two fields the CONSTRUCTOR does not initialise: its store list
     // jumps +0x70 -> +0x80. That is retail leaving them to ReadPackfile, not a
     // gap in the transcription.
     int32_t  _iconWidth;    // +0x78
@@ -391,8 +352,8 @@ public:
 };
 
 // ---- the layout pins ------------------------------------------------------
-// The size is not a guess: `RT_DELDTOR(0x1800259d0, 0x1800b4540, 0x0f0,
-// "IO::PackageFile")` carries it, and the constructor's last store is the
+// The size is not a guess: the vector deleting dtor 0x1800259d0 carries it
+// (`MOV EDX,0xf0`), and the constructor's last store is the
 // FileInfo's +0x18 at object offset 0xd8, inside a 0x30-byte member starting at
 // 0xc0 — 0xc0 + 0x30 == 0xf0 exactly.
 static_assert(sizeof(PackageFile) == 0xf0,
@@ -441,7 +402,7 @@ static_assert(sizeof(RtIO::FileInfo) == 0x30, "the embedded FileInfo is what mak
 // are gone with the POD; the pins above are the class's own.)
 
 // The class IS polymorphic and that is the point — unlike `IO::Serializer`
-// and `IO::Modification`, this one has a live nine-row minted
+// and `IO::Modification`, this one has a nine-slot
 // vtable. What must not drift is the SLOT COUNT, and nothing a header can
 // assert covers that; `tests/unit/io_vtable_abi_test.cpp`'s
 // `package_file_adds_exactly_one_virtual_at_slot_8_over_External` is the guard.

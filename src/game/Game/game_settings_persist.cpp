@@ -84,8 +84,8 @@ void GameSettings::Load() {
         fprintf(stderr, "[GameSettings] Load SKIPPED — persistence=%p\n", p);
         return;
     }
-    // ENDGAME B.3.4a closing: onto IO::Persistence::Get. The DOOR names the
-    // overload (int& / bool&), as §7.3 requires — the bool keys are one byte at
+    // ENDGAME B.3.4a closing: onto IO::Persistence::Get. The field's type picks the
+    // overload (int& / bool&) — the bool keys are one byte at
     // settings+0xC/+0x14/+0x18 and must not pick the int& overload.
     bool haveUiScale = false;
     for (const auto& k : kIntKeys) {
@@ -119,7 +119,7 @@ void GameSettings::Save() {
         fprintf(stderr, "[GameSettings] Save SKIPPED — persistence=%p\n", p);
         return;
     }
-    // ENDGAME B.3.4a closing: onto IO::Persistence::Set, DOOR-typed as above.
+    // ENDGAME B.3.4a closing: onto IO::Persistence::Set, typed as above.
     for (const auto& k : kIntKeys)
         p->Set("Game", k.key, this->*k.field);
     // 0x1400989d7 MOVZX R9D,byte ptr [RBX+0xc] -> CALL [0x140152300] Set(bool): the byte is passed

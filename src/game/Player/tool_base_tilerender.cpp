@@ -4,8 +4,7 @@
 // under the building ghost. This is the last piece of the placement UX — it shows
 // whether the current spot is buildable AND which way the building's entry faces.
 //
-// Closure (resolved via ResolveAddr(Module::Exe, 0xADDR) from placementtool.cpp's
-// Draw slot):
+// Closure (called by name from placementtool.cpp's Draw slot):
 //   0x140101380  sub_1380  — build the per-cell tile-record array (col,row,variant,
 //                            color,angle) validating each cell via f5d0, then hand it
 //                            to 08c0 to tessellate + submit.  [ported here]
@@ -15,12 +14,11 @@
 //                            UV, per-record RGBA color).  [ported here]
 //   0x1400b10e0  b10e0     — sample a tile's 6 terrain corners (18 floats) from the
 //                            heightfield with the correct even/odd triangulation. [ported here]
-//   0x14009f5d0  f5d0      — single-cell terrain/occupancy validity test. ALREADY
-//                            registered (reg_player_path.cpp → PlayerPath_CharComp_f5d0);
-//                            resolved via ResolveAddr here.
+//   0x14009f5d0  f5d0      — single-cell terrain/occupancy validity test:
+//                            Map::TestPlacement (tool_base_path.cpp), called by name.
 //   0x1400b0f90  0f90      — vertical-down-ray terrain height sampler, RETURNS the hit
 //                            height as a float (Ghidra types it void; see the disassembly
-//                            quoted at its definition in action_pf_road.cpp).
+//                            quoted at its definition in Game/worldgeometry_ray.cpp).
 //                            ⚠ The FIRST loop below is NOT dead. It is empty on the
 //                            building-placement path (sub_1380 passes {0,0}), but
 //                            PathTool::Draw fills param_4 with worker-route SEGMENTS, and
@@ -29,13 +27,11 @@
 //                            and the Paths overlay drew a bar floating above the map.
 //                            Do not re-describe this loop as dead.
 //
-// Each function is a 1:1 port of the Ghidra decompile + disassembly. Registration is in
-// standalone/reg_player_tilerender.cpp (RegisterPlayerTileRenderBatch), wired into
-// RegisterCodeFunctions().
+// Each function is a 1:1 port of the Ghidra decompile + disassembly.
 
 // The runtime type headers come FIRST: they pull src/engine/volume/Volume.h,
 // whose global-scope `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()`
-// once <windows.h> has been seen through resolve.h.  ENDGAME B.3.5 batch I2.
+// once <windows.h> has been seen.  ENDGAME B.3.5 batch I2.
 #include "video/Context.h"
 #include "graphics/Material.h"   // ENDGAME B.3.5 batch K1 — same include-order reason
 #include "graphics/Camera.h"
@@ -61,9 +57,7 @@
 
 namespace {
 
-// ---- Bit-exact .rdata float constants (raw .rdata constants are NULL via
-// ResolveAddr in standalone — reference_standalone_rdata_null_fallback — so inline
-// the verified values). ----------------------------------------------------------
+// ---- Bit-exact .rdata float constants (the verified retail values, inlined). -----
 static inline float C_half()    { return 0.5f;         }  // DAT_140172114
 static inline float C_uvScale() { return 0.125f;       }  // DAT_1401720ec (0x3e000000)
 static inline float C_deg2rad() { return 0.017453292f; }  // DAT_1401720cc (0x3c8efa35)
@@ -75,10 +69,8 @@ static inline float C_hScale()  { return 0.00390625f;  }  // DAT_1401720bc (0x3b
 // OVERLOAD: that mangled name is `Graphics::MaterialInstance::Setup` (0x180102c90,
 // ported), NOT `Graphics::Material::Setup` (0x1801027e0, declared-undefined).
 
-// The record array is owned/freed by sub_1380. Uses the proven engine_funcs
-// allocator pair (fn_MemAlloc(singleton,size,align) + fn_MemFreeStatic(ptr)) — same
-// heap the rest of the reimpl uses; the raw static-MemAlloc export doesn't resolve
-// reliably in standalone.
+// The record array is owned by sub_1380: a Collection::Array released by ~Array at
+// scope exit.
 
 // Overlay Z handling (standalone). DEFAULT = faithful: the grid conforms exactly to the
 // collision terrain (verified: b10e0 == the game's own aa20 terrain ray), which renders
@@ -87,10 +79,9 @@ static inline float C_hScale()  { return 0.00390625f;  }  // DAT_1401720bc (0x3b
 // as "above the (sunk) model" — a model-Z / terrain-baseline issue, NOT an overlay bug.
 //
 
-// Called by name: 0x14009f5d0 PlayerPath_CharComp_f5d0 (single-cell validity test,
-// Player/exe_bodies.h), 0x1400b0f90 Pf_CellQuadRayWrap_0f90 (terrain Z under a point,
-// Action/exe_bodies.h), 0x14009f3e0 Reimpl_MapGetTerrainPos (grid -> world,
-// Game/exe_bodies.h).
+// Called by name: 0x14009f5d0 Map::TestPlacement (single-cell validity test,
+// Game/Map.h), 0x1400b0f90 WorldGeometry::HeightUnderPoint (terrain Z under a point,
+// Game/WorldGeometry.h), 0x14009f3e0 Map::GetTerrainPos (grid -> world, Game/Map.h).
 
 // The vertex 0x1401008c0 streams (stride 0x18): position, uv, ARGB.
 struct OverlayVertex {

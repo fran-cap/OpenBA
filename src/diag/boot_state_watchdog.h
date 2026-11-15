@@ -12,7 +12,7 @@ namespace BootState {
 
 // The states a run publishes (STATE= in standalone_boot_state.txt, the [BootState] stderr lines).
 // Not retail: the numbers are this file's own. The SPELLINGS are the external contract that
-// tools/boot_state.sh, tools/android_boot_state.sh and agents' greps parse, so BootStateName must
+// tools/boot_state.sh (also with --android) and agents' greps parse, so BootStateName must
 // keep them byte for byte. Shared by the four platform twins (src/diag/<platform>/).
 enum class BootStateId : uint8_t {
     None          = 0,   // no state published yet (the watchdog loop's first lastState)
@@ -71,12 +71,12 @@ void SetExitState(const char* state, const char* detail);
 }  // namespace BootState
 
 // ---------------------------------------------------------------------------
-// The heartbeat, as extern "C" so the runtime port and code/Game can call it
-// without taking a dependency on standalone/ headers.
+// The heartbeat, as extern "C" so src/engine and src/game can declare it themselves
+// without including a src/diag header.
 // ---------------------------------------------------------------------------
 
 // Bump the frame counter. Called once per main-loop iteration from
-// RtEngine_MainLoop_Run (src/engine/engine/mainloop_run.cpp) -- the single
+// Engine::MainLoop::Run (src/engine/engine/mainloop_run.cpp) -- the single
 // point every loop type (loader, splash, menu DialogLoopT, GameUpdateLoop)
 // passes through. A counter that stops advancing is what "frozen" means here.
 extern "C" void BootState_MarkFrame();

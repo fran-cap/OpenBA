@@ -7,15 +7,16 @@ usage: sample_report.py <samples.txt> [--exe build/perf/OpenBA.exe]
 
 Each line (block LOADSTAMP): "@<role><tid> <ms> <tag> <n> <frame0> <frame1> ...",
 frame0 = leaf; <role> is one letter (M main, L loader, S persist, A audio,
-F pathfinder, P path worker, R render, C cull helper, T other System::Thread),
+F pathfinder, P path worker, R render, C cull helper, J parallel worker, T other System::Thread),
 <ms> the sample time in ms since process start (the [LoadTime] clock). The older
 "<tag> <n> <frames...>" lines (main thread only, no time) are still read.
 Frames are E:0x140... (exe, symbolized with addr2line), R:<export>+off (Runtime),
 V:..., ?:mod+off. Tags: 0 outside Update, 1 Update (no phase), 2 PairCache,
-3 Animation, 4 EntityList, 5 Weather, 6 CitizenList, 7 PostSim, 99 not the main thread.
+3 Animation, 4 EntityList, 5 Weather, 6 CitizenList, 7 PostSim, 8 EntityList buckets,
+99 not the main thread.
 
 --thread picks the samples of one thread: a role letter (M, L, ...), a role name
-(main, loader, persist, audio, pathfinder, path, render, cull, thread), a numeric
+(main, loader, persist, audio, pathfinder, path, render, cull, parallel, thread), a numeric
 tid, or "all". The default is the main thread (what the report always showed).
 --from / --to keep samples with from <= ms <= to (old-format lines carry no time and
 are dropped by either).

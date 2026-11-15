@@ -5,9 +5,6 @@
 //   `Collection::Array<PathStackEntry>` bodies they need.
 // ============================================================================
 //
-// Shared between external_path_stack.cpp and its probe, for the reason
-// array_internal.h gives: the probe must drive the SAME bodies the registered
-// entry points drive, or it is testing a copy of the port.
 // ============================================================================
 
 #include <cstddef>
@@ -59,12 +56,5 @@ void  RtObject_PathStackRemoveAt_18002de30(RtObject::PathStackArray* arr,
                                            int index);
 }
 
-// external_path_stack_probe.cpp
-// `live` is the LIVE ExternalFactory singleton, or null. It is NOT optional
-// decoration: part 2 of the probe drives PushPath/PopPath against retail's own
-// object rather than a fake, because every row in this lane is a non-static
-// member on that singleton and an oracle that builds its own factory measures
-// an object the game never uses.
-
-// src/engine/object/rt_object_port.cpp calls this.
+// Declared only: no definition and no caller in the tree.
 namespace RtObject { int RtObjectExternalPathStackRegister(); }

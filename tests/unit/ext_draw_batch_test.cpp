@@ -7,7 +7,7 @@
 //   * retail's capacity test, the sic index-vs-vertex-capacity compare included;
 //   * a run is cut where it would pass 65536 vertices or fail the capacity test;
 //   * the registry row: class A, on by default, off under the faithful profile.
-// The DrawItemList copy and the smoke VS rewrite are the exe's (docs/extensions/handins/DRAWBATCH.md).
+// The DrawItemList copy is the exe's (docs/extensions/handins/DRAWBATCH.md).
 // ============================================================================
 #include "unit.h"
 #include "ext/draw_batch/batch_fill.h"

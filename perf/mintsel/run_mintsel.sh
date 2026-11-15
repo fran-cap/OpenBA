@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# usage: run.sh <label> [extra env assignments...]
+# usage: run_mintsel.sh <label> [extra env assignments...]
 set -u
 WT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"   # the repo this script lives in (perf/mintsel/)
 GAME="${BANISHED_DIR:-C:/GOG Games/Banished}"            # the game directory (env BANISHED_DIR, as tools/build.sh)

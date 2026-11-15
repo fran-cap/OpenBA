@@ -9,7 +9,7 @@
 // rest of the UI tree). None of the tests reaches them: each stub aborts
 // loudly rather than fake a body, so a future test that does reach one has
 // to link the real file (and delete the stub, tests/unit/README.md).
-// The three class statics are plain null data slots, as in the exe before boot.
+// The four class statics are plain null data slots, as in the exe before boot.
 // ============================================================================
 #include "application/Application.h"
 #include "input/Input.h"

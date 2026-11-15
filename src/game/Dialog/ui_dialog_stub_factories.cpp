@@ -1,37 +1,15 @@
 // src/game/Dialog/ui_dialog_stub_factories.cpp
 //
-// Dormant-safe standalone factories for the UI dialog family — the last family
-// of the factory cascade (docs/history/notes/FACTORY_CASCADE_145_BRIEF.md).
+// The reflected factories of the UI dialog family (the factory cascade:
+// docs/history/notes/FACTORY_CASCADE_145_BRIEF.md). For each DialogController below,
+// CreateNewObject allocates sizeof(<Type>) through Object::detail::InternalMemAlloc
+// and runs the class's ctor, CreateInPlaceObject runs the ctor in the caller's
+// storage, and DEFINE_EXE_TYPE (Object/exe_type.h) records the type under its
+// parent. The DialogInstance classes near the end carry only their DEFINE_EXE_TYPE
+// here.
 //
-// These 58 dialog/controller/config types are all DORMANT in the current
-// standalone path (menu + worldgen never instantiate them; verified 0
-// NullFactory hits with BANISHED_GAME_PRELOAD). Each was a REGISTER_NULL_FACTORY
-// stub in factory_registrations_bulk.cpp — a latent IsDerivedFrom(NULL) landmine
-// that crashes only if the type is ever loaded/instantiated by name.
-//
-// Strategy (same dormant-safe policy as src/game/Game/tornado.cpp and
-// src/game/Component/frustumoutlineelement.cpp): replace the NullFactory with a
-// real factory that
-//   - MemAlloc's the object at its TRUE exe size (decompiled from each
-//     Factory_<Type> / <Type>_Factory in Application-x64.exe),
-//   - zeroes it,
-//   - installs a minimal per-type standalone vtable (slot0 ScalarDtor,
-//     slot2 GetTypeId returning the registered type id, all other slots a nop).
-// No base ctor (DialogInstance / DialogController / DialogControllerConfig /
-// External) is run — every base field is left zero, which is correct because the
-// object is never dispatched while dormant. The non-null return removes the
-// landmine; GetTypeId reports the right id for any IsDerivedFrom query.
-//
-// NOTE: the exe subclass vtable (vtable_<Type>, full of exe->Runtime thunks that
-// don't resolve in standalone) is intentionally NOT installed, so no
-// RegisterExeAddr / address_registry edit is needed here. When the HUD bring-up
-// (task #10) makes a specific dialog reachable, promote it out of this file into
-// a full per-class standalone block wiring its reimplemented slot methods (see
-// src/game/Dialog/messagedialog.cpp for that pattern).
-//
-// The method bodies for most of these dialogs already exist in their own
-// src/game/Dialog/<type>.cpp; this file only supplies the standalone
-// construction/registration the exe ctors used to provide.
+// The method bodies for most of these dialogs live in their own
+// src/game/Dialog/<type>.cpp.
 
 #include "Object/factory_registration.h"
 #include "options.h"
@@ -207,7 +185,7 @@ DEFINE_EXE_TYPE(ConsumeProduceUI, "UI::DialogController")
 }
 
 DEFINE_EXE_TYPE(HelpUI, "UI::DialogController")
-// HotKeyToolTipUI promoted to a real Slot4 reimpl above (was a no-op stub).
+// HotKeyToolTipUI: its Slot4 reimpl (OnCreated) is in hotkeytooltipui.cpp.
 // ---- ImmigrationUI: the slot bodies and their standalone guards live in immigrationui.cpp.
 
 
@@ -348,9 +326,8 @@ DEFINE_EXE_TYPE(ProductionUI, "UI::DialogController")
 
 DEFINE_EXE_TYPE(ProfessionUI, "UI::DialogController")
 // ---- RadiusUI: PROMOTED to the real reimpl (2026-08-15) ---------------------
-// Moved to src/game/Dialog/radiusui_promote.cpp, which carries the REGISTER_TYPE
-// (never delete a stub REGISTER_TYPE — some are the only filler of a live type-id
-// global). The stub's 48 no-op slots left idx5/idx6 dead, so the coverage-radius
+// Moved to src/game/Dialog/radiusui_promote.cpp, which carries the DEFINE_EXE_TYPE.
+// The stub's 48 no-op slots left idx5/idx6 dead, so the coverage-radius
 // overlay never appeared on any radius building's info panel. It also zeroed +0x30,
 // which the real Factory seeds to -1.
 
@@ -405,7 +382,7 @@ DEFINE_EXE_TYPE(SpriteCaptureUI, "UI::DialogController")
 //      storage building's "X%" fill number now computes+renders instead of staying
 //      blank (Serialize finds the ProgressElement, Startup sets count/capacity %). ----
 // ---- TitleDescToolTipUI: PROMOTED — wiring only, the logic was already ported --
-// titledesctooltipui.cpp has held a faithful TitleDescToolTipUI_Serialize (exe
+// titledesctooltipui.cpp has held a faithful TitleDescToolTipUI::OnCreated (exe
 // 0x14007b730, vtable +0x20 = idx4) since it was decompiled, and NOTHING ever wired
 // it: the generic stub left every slot StubNop, so the tooltip rendered its .rsc
 // placeholder text forever. No port work was needed here, only a wire.
@@ -416,13 +393,9 @@ DEFINE_EXE_TYPE(SpriteCaptureUI, "UI::DialogController")
 // byte-faithful. So idx4 closes the work list at the vtable boundary — there is no
 // second slot waiting to be found.
 //
-// No readiness gate: unlike PageToggleUI/ProductionUI this reimpl reads no element
-// type id (it finds "textTitle"/"textDesc" BY NAME) and touches no .rdata type-id
-// global, so there is nothing that could be null at static-init time. It also has
-// zero unguarded dereferences — it null-checks both +0x18 (dialog) and +0x28
-// (datasource) before use — which is why this was chosen as the first wire of the
-// sweep: if the wiring mechanism itself is wrong, this class fails visibly without
-// being able to fault.
+// No readiness gate. The body finds "textTitle"/"textDesc" BY NAME, narrows each with
+// UI::TextElement::TypeId(), and dereferences +0x18 (dialog) and +0x28 (datasource)
+// unguarded.
 
 
 // create 0x1400144c0: MemAlloc(0x30, 8), then the ctor (DialogController ->
@@ -572,7 +545,7 @@ DEFINE_EXE_TYPE(ToolbarDialog, "UI::DialogInstance")   // was a UI_DIALOG_STUB t
 // framework binding. Promoting ControlUIConfig the same way immediately produced
 // real values, proving the framework does create AND deserialize these configs.
 // The dispatch-order workaround it justified was itself the cause of the Town Hall
-// limits changing value across dialog open/close — see the IdxFor note above.
+// limits changing value across dialog open/close — see resourcelimitui_sa::IdxFor in resourcelimitui.cpp.
 // StatusIconUIConfig: PROMOTED to the real config class in
 // src/game/Dialog/statusiconuiconfig.cpp. Its Serialize (vtable idx5, retail
 // 0x14007b400) reads ONE bool byte (_showOnMainPage) off the resource stream;
@@ -586,7 +559,3 @@ DEFINE_EXE_TYPE(ToolbarDialog, "UI::DialogInstance")   // was a UI_DIALOG_STUB t
 // target ComponentEntity template into +0x20 — the zero-fill stub left it null,
 // so the upgrade button could never resolve a target). Stub registration
 // removed to avoid a duplicate REGISTER_TYPE(UpgradeUIConfig).
-
-// ---- External-based tutorial dialogs (parents are abstract External bases) --
-
-

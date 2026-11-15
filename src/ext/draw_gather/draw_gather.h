@@ -12,7 +12,7 @@
 // dereferenced; and prefetch ahead in Clean's node loop and in the AddDrawItems
 // dispatch loop. Same visible list, same order, so the same draw items.
 //
-// Selection: the three null-by-default statics on Graphics::Scene (scene_ext.h),
+// Selection: the four null-by-default statics on Graphics::Scene (scene_ext.h),
 // set by Sync() -- at boot and on every Extensions-dialog toggle -- never in a
 // hot loop. Off: they are null, every side array is dropped.
 // ============================================================================

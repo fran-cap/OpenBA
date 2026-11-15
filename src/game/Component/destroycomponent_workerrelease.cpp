@@ -15,7 +15,7 @@
 //
 //   FUN_14012f520  ENTER the builder profession ("state-4 workplace re-seat").
 //       Release every seated worker (ee60), re-key any pending work item from the old
-//       profession to Builder (f8400 — unported, see below), set +0x48 = Builder, add the
+//       profession to Builder (f8400, see below), set +0x48 = Builder, add the
 //       owner entity to the Builder bucket (0x1400895a0), recompute the worker capacity
 //       (from the WorkComponent description, or from the position child count once the
 //       entity has a BuildComponent), publish it and evict any excess (fb00), then
@@ -27,7 +27,7 @@
 //       over to the natural profession (f8400), reset +0x48 to desc+0x20, and release every
 //       seated worker (ee60).
 //
-// f670 was ALREADY ported — workplacecomponent.cpp WorkPlaceComponent_LeaveBuilderProfession,
+// f670 was ALREADY ported — workplacecomponent.cpp WorkPlaceComponent::LeaveBuilderProfession,
 // written for the build-COMPLETION hand-off (BuildComponent_State8Finalize ->
 // WorkPlaceComponent_EnterBuiltState). It was simply never registered at its exe address, so
 // the DestroySM's ResolveAddr(Module::Exe, 0x14012f670) handed back 0 and the call was
@@ -46,15 +46,15 @@
 //     replacement spawn) -> f670 — ported at destroycomponent_states.cpp
 //     DestroyComponent::State5Tick.
 //   (retail also reaches them from the WorkPlaceComponent controller's own state table,
-//   WorkPlaceDescription_helper_ee40 / _edf0 — our WorkPlaceComponent has no live
-//   controller node, so those two run from BuildComponent_State8Finalize instead.)
+//   WorkPlaceDescription_helper_ee40 / _edf0 — WorkPlaceComponent::EnterConstruction and
+//   WorkPlaceComponent::EnterBuilt in workplacecomponent.cpp.)
 //
 // ============================================================
 // Full closure
 // ============================================================
 // FUN_1400f8400 — the work-scheduler re-key (move the pending task node from the old
-// profession bucket to the new one inside sched+0x120, keyed by the work id) — is now
-// ported and registered: citizenai_work_scheduler.cpp, CitizenAI_WorkScheduler_Rekey. It is
+// profession bucket to the new one inside sched+0x120, keyed by the work id) — is
+// ported: citizenai_work_scheduler.cpp, WorkScheduler::Rekey. It is
 // reachable only when the WorkComponent still holds a work id (+0x28 >= 0).
 
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
@@ -78,15 +78,15 @@
 // ============================================================
 // Closure, called directly
 // ============================================================
-//   0x14012ee60 release loop              WorkPlaceComponent_OnCreateInit
-//   0x140003050 WorkComponent finder      WorkBase_FindComponent_3050
-//   0x14000d6c0 BuildComponent finder     Dialog_FindComponent_d6c0 (type 1401c7008)
-//   0x140002ed0 PositionComponent finder  WorkBase_FindComponent_2ed0
-//   0x14012e5c0 WorkComponent_CalcMaxWorkers, 0x140123070 Pf_RecursiveChildSum_123070,
-//   0x1400895a0 profession-bucket insert  ResidenceComponent_impl_95a0
-//   0x14012fc00 WorkPlaceComponent_SetAccepting
-//   0x14010ffc0 / 0x140110470 workplace finders  CitizenComp_sub_ffc0 / CitizenComp_sub_0470
-//   0x140111ee0 CitizenComp_AssignHousing, 0x1400f8400 CitizenAI_WorkScheduler_Rekey
+//   0x14012ee60 release loop              WorkPlaceComponent::ReleaseWorkers
+//   0x140003050 WorkComponent finder      FindComponent<WorkComponent>
+//   0x14000d6c0 BuildComponent finder     FindComponent<BuildComponent> (type 1401c7008)
+//   0x140002ed0 PositionComponent finder  FindComponent<InteractComponent>
+//   0x14012e5c0 WorkComponent::CalcMaxWorkers, 0x140123070 InteractComponent::NodeCount,
+//   0x1400895a0 profession-bucket insert  CitizenBehavior::RegisterWorkplace
+//   0x14012fc00 WorkPlaceComponent::SetAccepting
+//   0x14010ffc0 / 0x140110470 workplace finders  CitizenComponent::FindWorkplace / FindRankedWorkplace
+//   0x140111ee0 CitizenComponent::SetWorkplace, 0x1400f8400 WorkScheduler::Rekey
 
 static bool Plausible(const void* p) {   // LEFT: void* is a raw address (diagnostic probe), not an object: checks it is >= 0x10000
     return reinterpret_cast<uintptr_t>(p) >= 0x10000;   // CAST-OK: ptr_int
@@ -101,15 +101,9 @@ static bool Plausible(const void* p) {   // LEFT: void* is a raw address (diagno
 // clear, sub_0470 when set) and AssignHousing it there — AssignHousing detaches from the
 // old workplace, which is what decrements +0x60 and terminates the loop.
 //
-// REGISTERED at 0x14012fb00 (reg_destroy_workers.cpp). It was previously file-local, on the
-// theory that registering it would newly expose the WorkPlaceUI worker spinner to the
-// eviction loop. That is what retail does — the spinner's whole job is to lower the cap and
-// let the excess re-home — and leaving it unregistered was the worse bug: the OTHER retail
-// caller, WorkPlaceUI_AdjustWorkerCount (0x140087610, workplaceui.cpp), reaches it through
-// fn_WorkplaceComp_SetMaxWorkers, which resolved to 0. That call is not on a live path today
-// (the SA WorkPlaceUI vtable routes its spinner through W_OnRemove's seat cascade instead of
-// the exe port), so this is a landmine defused rather than a crash fixed — but the address
-// belongs to a real, ported body and must resolve to it.
+// Called from EnterBuilderProfession below and from WorkPlaceUI::AdjustJobCount (0x140087610,
+// workplaceui.cpp), the worker spinner. That is what retail does — the spinner's whole job is
+// to lower the cap and let the excess re-home.
 //
 // In the f520 flow the loop is dead by construction: ee60 has already drained the roster to
 // zero, so `newMax < count` is false on entry. The guards below are for the UI path, where

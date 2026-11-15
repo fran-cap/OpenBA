@@ -265,9 +265,9 @@ inline Audio::Scene* AudioScene() {
 
 // ------------------------------------------------------------
 // qsort comparator — faithful port of CitizenComponent_helper_9e20 (0x140129e20).
-// Elements are raw 8-byte citizen-component pointers. Ranks by "has-guardian"
-// (+0x258 == 0 -> +0x1000) and "is-child/education-state==1" (+0x38 == 1 -> +0x100),
-// preferring guardianed adults toward the front. CheckPtr resolves each lazy ptr on a
+// Elements are raw 8-byte citizen-component pointers. Ranks by "no parent"
+// (+0x258 null -> +0x1000) and gender (+0x38 == 1 -> +0x100); the higher rank
+// sorts toward the front. CheckPtr resolves each lazy ptr on a
 // stack copy before the field reads (exactly as the original does).
 // ------------------------------------------------------------
 int RosterCompare_9e20(const void* pa, const void* pb) {   // LEFT: qsort's comparator signature (int (*)(const void*, const void*)); each points at a CitizenComponent* slot
@@ -308,8 +308,9 @@ uint32_t ResidenceComponent::CountResidents() const {
 //   family     = the household slot
 //   citizenIBP = InternalBasePtr wrapping the citizen component to remove
 // Roster bookkeeping (find + compact + decrement) is the faithful core and runs
-// unconditionally. When the house goes fully empty, the exe tears down the status
-// icon + 3D audio emitter — that whole branch is inert and guarded here.
+// unconditionally. When the house goes fully empty, the exe clears the status
+// icons, refreshes the model and tears down the 3D audio emitter (the icon and the
+// audio scene are null-tested here).
 // ============================================================
 void ResidenceComponent::RemoveResident(int family, Object::InternalPtr<CitizenComponent>* citizenIBP) {
 
@@ -346,7 +347,7 @@ void ResidenceComponent::RemoveResident(int family, Object::InternalPtr<CitizenC
     }
     rec->_size = cnt - 1;   // DEC dword[rec+8] — unconditional, as in the original.
 
-    // --- Inert: house became empty -> clear status icon + tear down audio emitter. ---
+    // --- House became empty -> clear status icon + tear down audio emitter. ---
     if (CountResidents() == 0) {
         // Status-icon toggles (flags 6 and 7 off). The icon may be absent.
         for (int flag = 6; flag <= 7; ++flag) {
@@ -380,18 +381,18 @@ void ResidenceComponent::RemoveResident(int family, Object::InternalPtr<CitizenC
 // ============================================================
 // ResidenceComponent::AddResident (0x14012a710) — ADD a citizen to a family.
 //   family / citizenIBP as above.
-// Material reservation (guarded) + inert audio reposition (guarded) run first; the
-// FAITHFUL CORE is: model refresh when the family was empty (guarded), then
+// The posted-work cancel (guarded) + the audio reposition run first; the
+// FAITHFUL CORE is: model refresh when the family was empty, then
 // grow-array append of the citizen ptr, then qsort the family when it now holds >1.
 // ============================================================
 void ResidenceComponent::AddResident(int family, Object::InternalPtr<CitizenComponent>* citizenIBP) {
-    // --- Material reserve (guarded; the WorkComponent may be absent). ---
+    // --- Cancel a posted work (guarded; the WorkComponent may be absent). ---
     WorkComponent* work = _entity->FindComponent<WorkComponent>();   // 0x140003050
     if (work && work->IsWorkPosted()) {
         work->CancelWork();
     }
 
-    // --- Inert: house was empty -> move emitter to model position + set volume. ---
+    // --- House was empty -> move emitter to model position + set volume. ---
     if (CountResidents() == 0) {
         // 0x14012a764: FindComponent<AmbientEmitterComponent> (0x140002280). The first
         // resident moves the house's emitters to the model's position and starts slot
@@ -456,11 +457,11 @@ void ResidenceComponent::AddResident(int family, Object::InternalPtr<CitizenComp
         RtCrt_Qsort_18007f050(rec->_data, static_cast<size_t>(newCount), 8, &RosterCompare_9e20);   // CALL 0x14003ae10
 }
 
-// ===== Standalone factory (Foundation D → Keystone D states) =====
-// Inert-but-valid ResidenceComponent: size 0x60 + Object::Internal base + capability
+// ===== The slots and the state table =====
+// ResidenceComponent: size 0x60 + Object::Internal base + capability
 // flags +0x20=0x82 (from ResidenceComponent_Ctor) + zeroed body.
 //
-// LIVE bring-up (BANISHED_LIVE_RESIDENCE, default ON via the default-on table):
+// The slots and the state table:
 //   * vtable index 4 (+0x20, 0x14012a120, Serialize/Startup) — resizes the resident
 //     array at +0x50 from the description capacity (desc+0x20). Dispatched at spawn
 //     by the ComponentEntity StartupComponents pass (FUN_1400c30a0), gated on entity

@@ -103,7 +103,6 @@ UNIT_TEST(ext_family_tree_rules_of_the_table) {
     CHECK(!t.Died(a, 31, 26, kCold));
     CHECK(t.Find(a)->died == 30 && t.Find(a)->ageAtDeath == 25);
     CHECK(!t.Died(77, 30, 1, kCold));
-    // a marriage can still be recorded for the dead (the page shows who they married)
     CHECK_EQ(t.SameNameOrdinal(a), 1);
     const uint32_t a2 = t.Add("Anna", 0, true, 40, 0, 0, 0);
     CHECK_EQ(t.SameNameOrdinal(a2), 2);
@@ -904,7 +903,7 @@ UNIT_TEST(ext_family_tree_picture_raster_draws_the_layout) {
     CHECK(px[0] == 0xfd && px[1] == 0xe8 && px[2] == 0xef);
     PixelAt(r, adam->x + 8, canvas.RowY(adam->gen) + 4, px);
     CHECK(px[0] == 0xef && px[1] == 0xef && px[2] == 0xef);
-    // the family's line is drawn in its palette color: the middle of the first segment of each colored stroke
+    // the family's line is drawn in its palette color: the middle of the last segment of each colored stroke
     for (const PictureStroke& s : BuildPictureStrokes(l)) {
         if (s.color < 0) continue;
         const PictureSegment& g = s.segments.back();   // a drop to a child, clear of the boxes' text

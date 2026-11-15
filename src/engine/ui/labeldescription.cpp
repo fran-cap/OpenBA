@@ -4,8 +4,8 @@
 //
 // ??_7LabelDescription@UI@@6B@ (retail 0x180156b30), ten slots:
 //   0  deleting dtor      0x180042730  LabelDescription.h (the class's own)
-//   1  TypeName           0x1800423b0  here
-//   2  Type               0x180042390  here
+//   1  TypeName           0x1800423b0  LabelDescription.h (DECLARE_TYPE)
+//   2  Type               0x180042390  LabelDescription.h (DECLARE_TYPE)
 //   3  GetFileVersion     0x1800d2950  here  (returns 0x2304)
 //   4  External::Compile  0x1800066e0  already ported
 //   5  Serialize          0x1800d2820  here
@@ -16,12 +16,11 @@
 // plus ??1LabelDescription@UI@@UEAA@XZ (0x1800d2960) and the factory pair.
 //
 // ENDGAME B.3.6 block C3: every slot body is a `UI::LabelDescription` member
-// (src/engine/ui/LabelDescription.h) and the doors delegate with a
-// QUALIFIED call. It DERIVES FROM UI::TextDescription, a real class in the same
-// block now, so Serialize's base call is the qualified member
+// (src/engine/ui/LabelDescription.h). It DERIVES FROM UI::TextDescription, a real
+// class in the same block now, so Serialize's base call is the qualified member
 // `UI::TextDescription::Serialize`. The TextDescription applier
-// (0x18011ef70, element_bodies_b5.cpp's non-slot door) is still reached by
-// address.
+// (0x18011ef70, element_bodies_b5.cpp) is the member
+// `TextDescription::CreateInstance`, called by name.
 //
 // ENDGAME B.3.9 block UI-A (B39_RULES D1/D2): the class is CONCRETE. The
 // out-of-line ctor (`??0LabelDescription@UI@@QEAA@XZ`, 0x1800d29d0) is the
@@ -93,7 +92,7 @@ bool LabelDescription::Serialize(IO::Stream& streamv) {
 // ============================================================================
 // RETSLOT (B6-2). LabelElement is 0x130 and its constructor is OUT OF LINE
 // (0x1800d2620, the real ctor since B.3.9). The base applier is TextDescription's (0x18011ef70,
-// element_bodies_b5.cpp's door, reached by address) and it DOES take the Dialog.
+// element_bodies_b5.cpp, a member call) and it DOES take the Dialog.
 //
 // THE SPRITE ASSIGNMENT IS GUARDED BY A CHANGE TEST, and the two halves of the
 // pair are compared SEPARATELY (`CMP qword [RDI+0x100],RBX` then

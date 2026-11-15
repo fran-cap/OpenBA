@@ -16,7 +16,7 @@
 //   }
 //
 // Output goes to stdout (standalone_debug.log). Each line is prefixed with
-// `[Stall]` so it can be greppped from the log.
+// `[Stall]` (Mark's with `[BootTime]`) so it can be greppped from the log.
 
 #pragma once
 
@@ -45,7 +45,7 @@ void SetStallThresholdMs(double thresholdMs);
 // long straight-line sequence (Init / RunGameMain) rather than one nested span.
 void Mark(const char* what);
 
-// Discrete phase timing. Always prints start + duration on End/dtor.
+// Discrete phase timing: BEGIN / END lines with the time; the Phase dtor also prints the duration.
 void BeginPhase(const char* name);
 void EndPhase(const char* name);
 

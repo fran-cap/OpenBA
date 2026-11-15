@@ -13,12 +13,12 @@
 //
 // (B.4 acceptance MOD: RtIO::Mod is the real class -- String / Filename / Array
 // members -- so its readers below take them by name.)
-// SpriteSheet::m_materialInstance is `uint64_t` (R-UI) and
-// MaterialInstance::AddTexture takes the RtSystem::String POD (R-GFX).
+// SpriteSheet::m_materialInstance is a Graphics::MaterialInstance* and
+// MaterialInstance::AddTexture takes a const System::String&.
 
 // ENDGAME B.3.5 batch K1: the runtime type headers come FIRST — they reach
 // src/engine/volume/Volume.h, whose global-scope `struct Rectangle` is hidden by
-// <wingdi.h>'s `Rectangle()` once <windows.h> has been seen through resolve.h.
+// <wingdi.h>'s `Rectangle()` once <windows.h> has been seen.
 #include "ui/TextElement.h"   // ENDGAME B.3.6 UI callers (K2)
 #include "ui/ImageElement.h"   // ENDGAME B.3.6 UI callers (K2)
 #include "ui/ButtonElement.h"
@@ -62,7 +62,7 @@
 #include "save/SaveLoad.h"             // B3R: Save::SavedState
 #include "system/Configuration.h"      // B3R: System::Configuration::GetVersionString
 #include "Game/exe_constants.h"   // B3R: kRdata_*
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"   // B3R: System::MemoryAllocator::MemAlloc
 #include "io/Persistence.h"             // fix.mods_persist: Persistence::WriteSettings
 #include "ext/registry.h"               // Ext::Fix().mods_persist
 
@@ -164,8 +164,7 @@ conflict_done:
             uint32_t versionMinor = (uint32_t)mod.userVersion;
 
             // GetVersionString returns a String for the version major (as game build version)
-            // ?GetVersionString@Configuration@System@@ is a by-value static; its door
-            // placement-constructed the result over this (empty) local.
+            // ?GetVersionString@Configuration@System@@ is a by-value static.
             System::String buildStr = System::Configuration::GetVersionString(versionMajor, false);
 
             System::String formatted = System::String::Format("%i (%s)", (int)versionMinor, buildStr._data);
@@ -213,8 +212,8 @@ conflict_done:
 //
 // Finds buttonCancel/buttonOk/tableMods, then for each installed mod:
 //   1. Clones the dialog template element and adds it to tableMods
-//   2. Finds 10 child elements by name, assigns IDs (1000+/2000+/3000+/4000+/5000+i)
-//   3. Hides buttonUp+buttonTop for first mod, buttonDown for last
+//   2. Finds 11 child elements by name, assigns IDs (1000+/2000+/3000+/4000+/5000+i)
+//   3. Disables buttonUp+buttonTop for first mod, buttonDown for last
 //   4. Builds 48x48 ImageBuffer + MaterialInstance + SpriteSheet thumbnail
 //   5. Appends the 0x58-byte row to `entries`
 // After loop: calls RefreshDisplay, loads browser controller, hides browse UI.
@@ -372,7 +371,6 @@ void ModDialog::OnOpened() {
             sprSheet->m_materialInstance = matInst;
 
             // operator= empty strings at +0x40 and +0x38 (the two String fields).
-            // LEFT: SpriteSheet holds them as char* (H5, R-UI's header).
             System::String emptyStr1, emptyStr2;
             sprSheet->m_groupName = emptyStr1;
             sprSheet->m_textureName = emptyStr2;
@@ -533,7 +531,7 @@ void ModDialog::ShowDetails(int32_t index) {
 //      d. ShowDialog() — blocks until user responds
 //      e. If result 1 or 2 (OK/confirm):
 //         - SaveList(), CloseAndReload()
-//         - Menu: MainMenu_Reload(parentMenu)
+//         - Menu: parentMenu->ReturnToMenu()
 //         - Game: create SavedState, call game reload
 //      f. If other: RefreshList (cancel)
 //   3. Close dialog
@@ -605,7 +603,7 @@ void ModDialog::Apply() {
                 void* savedState = System::MemoryAllocator::MemAlloc(0x10, 4);
                 Save::SavedState* statePtr = nullptr;
                 if (savedState) {
-                    statePtr = ::new (savedState) Save::SavedState();   // ??0SavedState 0x1800c0ee0 (its door placement-news the class)
+                    statePtr = ::new (savedState) Save::SavedState();   // ??0SavedState 0x1800c0ee0
                 }
 
                 // The current loop's slot 7 (SaveRestore) prepares the game for

@@ -1,4 +1,4 @@
-// src/game/Goal/tutorialgoalgamespeed.cpp
+// src/game/Tutorial/tutorialgoalgamespeed.cpp
 // Clean reimplementation of TutorialGoalGameSpeed vtable methods.
 //
 // TutorialGoalGameSpeed (0x28 bytes) — tutorial goal waiting for game speed change.

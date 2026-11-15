@@ -16,23 +16,10 @@
 // comment is not load-bearing for the code, which is exactly why nothing else
 // would ever have caught it — recorded rather than silently fixed.
 //
-// slot bodies — the seven are one vtable row and an A/B that could only move
-// some of them could not attribute anything).
-//
 // SPLIT OUT OF file_stream.cpp PURELY FOR THE PLATFORM SEAM (PLAN.md §4.1
 // decision 1): these two call `WriteFile` and `SetFilePointer` and nothing else
 // in the family does. Both were read out of Runtime-x64.dll's OWN import table
 // with `pefile` — `0x18014b108 WriteFile`, `0x18014b0f0 SetFilePointer`.
-//
-// ---------------------------------------------------------------------------
-// WHY THESE SEVEN SLOTS, AND WHY NOW
-// ---------------------------------------------------------------------------
-// `??_7FileStream@IO@@6B@` and `??_7BinaryFileStream@IO@@6B@` are minted as of
-// Wave 19 phase 0b and BOTH trap on the SAME seven bodies: their slots 1..7 are
-// BYTE-IDENTICAL (verified here by reading both tables' bytes, not inherited),
-// and the two rows differ ONLY in slot 0's deleting-destructor thunk. So one
-// body of work clears 8 + 8 = 16 trap slots across 9 distinct functions.
-// **Scope a DATA row by FUNCTION, never by slot.**
 //
 // ---------------------------------------------------------------------------
 // TWO SIGNATURE FACTS THE EXPORT TABLE SETTLES AND `FileStream.h` DOES NOT
@@ -79,10 +66,11 @@ using RtIo::FileStream;
 // `IO::FileStream`'s two WIN32 member bodies — ENDGAME B.3.4 block 4 (STREAMS)
 // ============================================================================
 // Slots 2 and 4 of ??_7FileStream@IO@@6B@ live here rather than in
-// file_stream.cpp because they are the two that talk to Win32 directly. The
-// other five members are next door; this block opens `namespace IO` after the
-// `RtIO` doors close, for the reason B34_BRIEFS section A.2 gives (a member of
-// `IO::X` cannot be defined inside the sibling namespace `RtIO`).
+// file_stream.cpp because they are the two that reach the OS file handle
+// directly (Platform::FileWrite / FileSeek32). The other five members are next
+// door; this block opens `namespace IO` after `RtIO` closes, for the reason
+// B34_BRIEFS section A.2 gives (a member of `IO::X` cannot be defined inside
+// the sibling namespace `RtIO`).
 namespace IO {
 
 // ============================================================================

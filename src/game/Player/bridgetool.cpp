@@ -4,13 +4,13 @@
 // BridgeTool (0x40 bytes) extends DragTool (0x38 bytes).
 // Handles bridge placement: path calculation, validation, and cost estimation.
 //
-// Vtable at 0x140161b00 (15 slots). Four are reimplemented here:
-//   Slot0  Dtor     (0x14002d7f0) — scalar deleting destructor
+// Vtable at 0x140161b00 (15 slots). Two are reimplemented here:
 //   Slot4  Startup  (0x1400fb7a0) — find BridgeDescription component on entity
-//   Slot13 CalcPath (0x1400f9cd0) — build bridge segment entities along path
 //   Slot14 CalcCost (0x1400facf0) — validate path and return cost/length
+// Slot13 CalcPath (0x1400f9cd0, build bridge segment entities along path) is in
+// bridgetool_calcpath.cpp; Slot0 Dtor (0x14002d7f0) is defaulted in BridgeTool.h.
 //
-// Helper functions (exe-internal, called by name -- Player/exe_bodies.h):
+// Helper functions (BridgeTool members, BridgeTool.h; bodies in bridgetool_validate.cpp):
 //   SnapEndCell   (0x1400fb710) — snaps end cell to same row or column as drag start
 //   ValidatePath  (0x1400fb2d0) — validates path and returns bridge body length
 //
@@ -103,10 +103,8 @@ int BridgeTool::CalcCost(int startCell, int endCell, uint32_t* outValid,
     int valid = static_cast<int>(
         ValidatePath(startCell, snappedEnd, &bridgeLength));   // 0x1400fb2d0
 
-    // Diagnostics: confirm the two helpers are bound to the ports (they resolved to 0 before
-    // reg_player_bridge.cpp existed, which made every drag return 3 = invalid). Logs the
-    // first call, the first real (non-degenerate) drag, and the first validating span —
-    // enough to tell "never runs" from "runs but always rejects".
+    // Diagnostics: logs the first call, the first real (non-degenerate) drag, and the first
+    // validating span — enough to tell "never runs" from "runs but always rejects".
     {
         static bool s_first = false, s_drag = false, s_valid = false;
         const bool isDrag = (startCell != snappedEnd);
@@ -163,20 +161,7 @@ int BridgeTool::CalcCost(int startCell, int endCell, uint32_t* outValid,
 //   5. Finally registers the master entity with the entity list
 //   6. Frees the linked list nodes
 //
-// Full reimplementation is blocked on typing ~20 unresolved helper functions:
-//   - BridgeTool_sub_b710 (SnapEndCell), BridgeTool_sub_b2d0 (ValidatePath)
-//   - System::MemoryAllocator::MemAlloc/MemFree for linked list nodes
-//   - ComponentEntity_CopyCtor, fn_InternalBasePtr_Ctor/CheckPtr
-//   - Component search loops (MapComponent, ModelComponent, MultiObjectComponent,
-//     PickingComponent) — each repeated 4+ times with IsDerivedFrom checks
-//   - CharacterComponent_impl_f3e0 (terrain height query)
-//   - Math::Vector3::Vector3, Math::Transform::FromYawPitchOffset, operator=
-//   - Graphics::Geometry::SetTransform
-//   - Picking::Scene::SetMeshUserData
-//   - FUN_140003110 (append to internal list)
-//   - FUN_1400c48a0 (register entity with world entity list)
-//
-// PORTED 2026-07-26 — the body is BridgeTool::CalcPath in bridgetool_calcpath.cpp.
+// The body is BridgeTool::CalcPath in bridgetool_calcpath.cpp.
 // Original: 0x1400f9cd0
 
 // ============================================================

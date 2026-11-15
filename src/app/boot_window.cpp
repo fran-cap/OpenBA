@@ -15,9 +15,9 @@ namespace BootWindow {
 namespace {
 
 // Video::Configuration+0x42 — the engine's own non-persisted "don't show the
-// window" flag, read by VideoDX11 CreateDevice step 6. Mirrors Cfg::kSkipShow
-// in src/render/dx11/devicedata.cpp; kept as a local constant so this file does not
-// depend on the renderer's internal header.
+// window" flag (Video::Configuration::hideWindow, src/engine/video/Device.h),
+// read by CreateDevice step 6 (src/render/dx11/devicedata.cpp,
+// src/render/vulkan/device.cpp).
 constexpr size_t kCfgSkipShow = 0x42;
 
 void*  g_hwnd      = nullptr;

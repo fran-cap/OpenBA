@@ -32,7 +32,7 @@ public:
     void CheckEntity() override;                               // [8] 0x1400c55a0 own `RET 0` (same bytes as the base body)
     bool GetTarget(ComponentEntity** param) override;                      // [9] 0x1400c5560
 
-    // ---- fields, retail order (PUBLIC: the slot bodies are C functions) ----
+    // ---- fields, retail order (PUBLIC) ----
     Object::InternalPtr<ComponentEntity> resourceEntity;   // +0x20 the natural-resource entity (Persist checks ComponentEntity)
     int32_t   animIndex;         // +0x28 animation index
     bool      waitForAnim;       // +0x2C wait for the animation (Persist 0x1400c5707: the bool overload)

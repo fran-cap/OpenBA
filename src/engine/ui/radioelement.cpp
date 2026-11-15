@@ -15,16 +15,15 @@
 // ??1RadioElement (0x1800d5820) and the factory pair.
 //
 // NOT HERE: the two `?FindCheckBoxes@RadioElement@UI@@` (public 0x180047c00,
-// private 0x1800d5750) and `?SetActiveRadio@` (0x1800d56f0) — widgets_input.cpp
-// doors (fragment pass); declared on the class.
+// private 0x1800d5750) and `?SetActiveRadio@` (0x1800d56f0) — defined in
+// widgets_input.cpp; declared on the class.
 //
 // LAYOUT: src/engine/ui/RadioElement.h — `_checkBoxes` (+0xC0),
 // `_activeIndex` (+0xD0, ctor -1); sizeof 0xD8.
 //
-// ENDGAME B.3.6 block C2: slots 1/2/7 are MEMBERS of `UI::RadioElement`; the
-// registered doors are one-line QUALIFIED delegations. Update's base call (the
-// by-address `ElementUpdate` door before) is the qualified member
-// `GroupElement::Update`, i.e. `Element::Update` (0x180116270).
+// ENDGAME B.3.6 block C2: slots 1/2/7 are MEMBERS of `UI::RadioElement`.
+// Update's base call (the by-address `ElementUpdate` door before) is the
+// qualified member `GroupElement::Update`, i.e. `Element::Update` (0x180116270).
 //
 // ENDGAME B.3.9 block UI-A: the class is CONCRETE; the slot doors and the
 // ??0 / ??1 doors, read only by the retired minted table, its RT_DELDTOR row and

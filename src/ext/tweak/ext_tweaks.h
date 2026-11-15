@@ -5,7 +5,7 @@
 // docs/reference/tweak_overlay.md). Without the option this header is empty and
 // ext_tweaks.cpp is not compiled: the extensions read their constexpr constants as before.
 //
-// The values the debug tweak overlay (src/diag/tweak_overlay.cpp) moves that have no
+// The values the debug tweak overlay (src/diag/win/tweak_overlay.cpp) moves that have no
 // settings key: ext.ambient_occlusion's ASSAO parameters and fog fade, ext.better_trees'
 // distance-fill k and floor and its shadow basis / margin / jitter / noise / noiseScale. Defaults = the constants the faithful-to-today code uses
 // (ao_math.h, better_trees.h), so an untouched overlay changes nothing.
@@ -21,7 +21,7 @@
 
 #include "ext/ambient_occlusion/ao_math.h"
 #include "ext/better_trees/better_trees.h"
-#include "better_trees/receiver_rewrite.h"
+#include "better_trees/receiver_rewrite.h"   // src/render/common: BbsRewrite::kDefaultParams (pure, no D3D)
 #include "ext/winter_ice/winter_ice.h"      // ext.winter_ice's look (WINTERICE)
 #include "ext/better_clouds/cloud_params.h" // ext.better_clouds' look (BETTERCLOUDS)
 #include "ext/winter_ice/open_mask.h"       // ...and the boat channel's default width
@@ -29,7 +29,7 @@
 #include "ext/depth_of_field/dof_params.h"    // ext.depth_of_field's look (DOF.md)
 #include "ext/leaf_lod/leaf_lod_params.h" // ext.leaf_lod's look (LEAF_LOD.md)
 #include "ext/render_pipe/replay_params.h" // ext.render_pipe's replayed frames (SMOOTHREPLAY.md)
-#include "ext/better_water/shore_params.h"   // ext.better_water's look (BETTERWATER)   // src/render/common: BbsRewrite::kDefaultParams (pure, no D3D)
+#include "ext/better_water/shore_params.h"   // ext.better_water's look (BETTERWATER)
 
 namespace Ext {
 namespace Tweak {
@@ -56,8 +56,8 @@ struct Faa {
 
 struct Water {
     BetterWater::ShoreParams p;   // ext.better_water's shore look, read by DrawShore every water range
-    BetterWater::StripParams strip;
-    BetterWater::ContactParams contact;   // Fancy's contact foam look, read by DrawShore every water range   // Fancy's shore strip look, read by DrawStrip once per frame
+    BetterWater::StripParams strip;       // Fancy's shore strip look, read by DrawStrip once per frame
+    BetterWater::ContactParams contact;   // Fancy's contact foam look, read by DrawShore every water range
 };
 // ext.winter_ice (WINTERICE): the ice program's look, read by DrawIce every lake range, and a preview
 // that replaces the fronts the weather made (and the snow cover the ice program reads), so the ice can

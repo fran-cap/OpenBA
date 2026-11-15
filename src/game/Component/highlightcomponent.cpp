@@ -1,11 +1,12 @@
 // src/game/Component/highlightcomponent.cpp
-// Clean reimplementation of HighlightComponent::Shutdown from Application-x64.exe.
+// Clean reimplementation of HighlightComponent from Application-x64.exe.
 //
 // HighlightComponent (0x128 bytes) manages selection/highlight outlines around entities.
 // Embeds Graphics::EdgeMeshInstance at +0x28 (0xD0 bytes) and Math::Transform at +0x100.
 //
-// Vtable at 0x140159990. Only non-trivial override:
+// Vtable at 0x140159990. Non-trivial overrides:
 //   Shutdown (0x14004c880) -- Component_Serialize + empty serializer (version 0)
+//   Tick [8] (0x14004c850), OnEvent [12] (0x14004c870)
 //
 // Ghidra decompilation:
 //   Component_Serialize(param_1, param_2)
@@ -15,7 +16,7 @@
 
 // graphics/Scene.h FIRST: it pulls src/engine/volume/Volume.h, whose
 // global-scope `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()` once
-// <windows.h> has been seen through resolve.h.  ENDGAME B.3.5 caller batch I2.
+// <windows.h> has been seen.  ENDGAME B.3.5 caller batch I2.
 #include "graphics/Scene.h"
 #include "Component/HighlightComponent.h"
 #include "object/Internal.h"
@@ -34,7 +35,7 @@
 // ============================================================
 // The selection outline is an EdgeMeshInstance embedded at +0x28; when it is
 // live in the Graphics::Scene its object id is at +0x120 (set by the tool-side
-// Entity_impl_c4a0 / 0x14004c4a0 in tool_base_render.cpp). Retail's own +0x38 is
+// HighlightComponent::Repaint / 0x14004c4a0 in Player/tool_base_render.cpp). Retail's own +0x38 is
 // a no-op (0x140118830) — retail removes the outline through the EditTool
 // DESELECT path (cb40 -> c4a0 -> Scene::RemoveObject) which runs BEFORE the
 // selected entity is freed.

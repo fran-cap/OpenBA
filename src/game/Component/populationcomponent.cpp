@@ -387,7 +387,7 @@ void PopulationComponent::Startup() {
 // town-registry APPEND: the component is pushed (as an InternalBasePtr) onto the
 // TownManager's population array at (GameWorld+0xF0)+0xC0, whose count lives at
 // +0xC8. That array is the ONLY enumeration of the world's populations — it is
-// what DebugUI::Slot4 (0x1400619E0) walks to fill the "deer population" combo on
+// what DebugUI::OnCreated (0x1400619E0) walks to fill the "deer population" combo on
 // the debug panel's Game tab, reading each element's +0x18 PopulationDescription
 // for the row text. With slot 6 never installed the array stayed empty and the
 // combo had zero rows.

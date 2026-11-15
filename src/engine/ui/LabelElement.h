@@ -19,10 +19,8 @@
 // real class now (TextElement.h, its layout read off its ctor 0x18011eb80), so:
 //   * `UI::LabelElement` below derives from `UI::TextElement` and takes that
 //     class's names for the inherited prefix; it pins only its OWN +0x100..+0x12f;
-//   * the old bare POD moved to `RtUI::LabelElement` (B4b-1) with its TextElement
-//     names CORRECTED to TextElement's and every one of its offset asserts kept.
-//     Its one remaining user is src/engine/ui/element_sprite_debug.cpp, which
-//     reads the sprite triple for a debug print (the calls there are members).
+//   * src/engine/ui/element_sprite_debug.cpp reads the class's `_sprite` for a
+//     debug print (the calls there are members).
 //
 // LabelElement's OWN LAYOUT, every field a store of `??0LabelElement@UI@@QEAA@XZ`
 // (0x1800d2620, read as DISASSEMBLY by block C3; `CALL ??0TextElement` first):
@@ -58,10 +56,6 @@
 #include "Sprite.h"
 #include "../object/Internal.h"   // Object::detail::InternalMemFree
 
-// ############################################################################
-// RtUI::LabelElement — the old bare POD, moved (B4b-1), names corrected.
-// ############################################################################
-
 
 
 
@@ -69,12 +63,12 @@
 // ENDGAME B.3 step 6 (block C3) — `UI::LabelElement`, the REAL C++ class
 // ############################################################################
 //
-// PARENT `UI::TextElement` — READ (B36_SLOTS.md section 3), RECORDED, NOT USED:
+// PARENT `UI::TextElement` — READ (B36_SLOTS.md section 3); DEFINE_TYPE carries both:
 //     ?_TypeName@LabelElement@UI@@CAPEBDXZ       @0x1800427b0 -> "LabelElement"
 //     ?_ParentTypeName@LabelElement@UI@@CAPEBDXZ @0x1800427c0 -> "TextElement"
 //
 // `??_7LabelElement@UI@@6B@` @ 0x180156ad0, TWELVE slots: [0] 0x180042bb0
-// (deleting_dtor.cpp row) · [1] 0x1800427f0 TypeName · [2] 0x1800427d0 Type ·
+// (vector deleting dtor) · [1] 0x1800427f0 TypeName · [2] 0x1800427d0 Type ·
 // [4] 0x1800d2490 ComputeSize · [5] 0x1800d2330 ComputeLayout · [6] 0x1800d1c80
 // Draw · [10] 0x180042970 SetColor — the rest inherited through TextElement.
 //
@@ -120,8 +114,7 @@ public:
     void SetColor(uint32_t color) override;                      // [10] 0x180042970
 
     // ?GetSprite@LabelElement@UI@@QEBA?AVSprite@2@XZ  0x1800429d0 — RETSLOT in
-    // retail; by value here. DEFINED in widgets_layout.cpp (fragment pass),
-    // whose registered door placement-news the result.
+    // retail; by value here. DEFINED in widgets_layout.cpp (fragment pass).
     Sprite GetSprite() const;
     // ?SetSprite@LabelElement@UI@@QEAAXVSprite@2@@Z  0x180042980. `VSprite@2@`
     // is the 0x10-byte UI::Sprite BY VALUE, which MSVC passes by HIDDEN POINTER
@@ -136,7 +129,7 @@ public:
     LabelElement& operator=(const LabelElement& src);            // 0x180042ac0  not ported
     static void* operator new(std::size_t bytes);                // 0x180042800  not ported
     static void* operator new(std::size_t bytes, void* place);   // 0x180042870  not ported
-    static void  operator delete(void* p) { ::Object::detail::InternalMemFree(p); }                       // 0x180042880  not ported
+    static void  operator delete(void* p) { ::Object::detail::InternalMemFree(p); }                       // 0x180042880
 
 private:
 
@@ -169,6 +162,5 @@ static_assert(offsetof(LabelElement, _iconWidth)    == 0x120, "");
 static_assert(offsetof(LabelElement, _iconHeight)   == 0x124, "");
 static_assert(offsetof(LabelElement, _iconColor)    == 0x128, "");
 static_assert(offsetof(LabelElement, _textWidth)    == 0x12c, "");
-// The class and the RtUI POD describe the same bytes.
 
 }  // namespace UI

@@ -4,8 +4,6 @@
 // The ABI claims block LOOP makes for its classes, measured on the SHIPPED
 // HEADERS (src/game/Game/<Class>.h):
 //
-// PART A — LAYOUT. sizeof / alignof against each retail create site's MemAlloc
-//   and the member offsets the ported bodies read.
 // PART B — SHAPE. Every class is concrete, `final`, single inheritance from its
 //   proved Runtime base, polymorphic, a virtual destructor (B3X W1; the
 //   PathfinderThread, a System::Thread, has none).
@@ -14,9 +12,8 @@
 //   index of B38_SLOTS.md sec. 6 / B37_RULES sec. 3.1, and slot 0 is
 //   the destructor (B3X W1: D1 + D0).
 //
-// NOT PROVEN HERE: the bodies (they stand on the address registry and cannot
-// link into a host test; rb_engine_abi_test.cpp proves the loop bases' ctor/dtor
-// stamp order through stand-in subclasses).
+// NOT PROVEN HERE: the bodies (rb_engine_abi_test.cpp proves the loop bases'
+// ctor/dtor stamp order through stand-in subclasses).
 // ============================================================================
 #include "unit.h"
 #include "slot_check.h"

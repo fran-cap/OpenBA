@@ -28,7 +28,7 @@
 #include "object/Internal.h"   // ENDGAME B.3.3 step 6B
 #include "system/Value.h"   // ENDGAME B.3.4b System caller batch
 #include "Component/exe_bodies.h"
-#include "Work/exe_bodies.h"   // WorkBase_TreeNodeFree_e320
+#include "Work/exe_bodies.h"   // WorkBase_TreeNodeFree (0x14000e320)
 #include "system/MemoryAllocator.h"
 #include "Component/CitizenComponent.h"   // B4 S4 RT2: InternalPtr<CitizenComponent>::Get() needs the class complete
 
@@ -427,9 +427,8 @@ void TradeComponent::Command(int /*command*/) {
         TradeWork* work = nullptr;
         // MemAlloc(0x58, 8) + the from-entity TradeWork ctor 0x1400f6ea0, as retail.
         // ENDGAME B.3.8 MI-B: the REAL TradeWork (Work/TradeWork.h) — its default ctor
-        // runs TradeWork_ResolveFuncs (the reason the hand build had to call it) and
         // zeroes +0x48/+0x50, the compiler stamps its table, and Work::InitFromEntity is
-        // Work_Ctor25's body (0x1400f72e0). No more read-back of 0x140161a10.
+        // Work_Ctor25's body (0x1400f72e0).
         void* mem = System::MemoryAllocator::MemAlloc(0x58, 8);
         if (mem) {
             ComponentEntity* entityIBP = _entity.Get();

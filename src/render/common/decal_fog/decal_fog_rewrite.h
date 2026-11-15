@@ -12,7 +12,7 @@
 // out = lerp(F, (0.025, 0.123, 0.19), u). Below the water line u is 1 and the fog is replaced by the dark
 // tint: the decal shows as a sharp dark band through fog. The model programs tint first, then fog.
 //
-// THE MATCH (`Analyse`): a ps_4_x program without flow control whose ONE underwater tint
+// THE MATCH (`Analyse`): a ps_4_x / ps_5_x program without flow control whose ONE underwater tint
 //     E  add U.xyz, -F.xyzx, l(0.025, 0.123, 0.19, *)
 // is preceded by the fog lerp and followed by the rest of the tint, four straight instructions:
 //     C  mad F.xyz, f.cccc, D, L        F = L + f D, the fog lerp (D = fog - L)

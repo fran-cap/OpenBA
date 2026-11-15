@@ -102,7 +102,7 @@ struct State {
 };
 
 State g;
-// Every entry point holds it for its whole body.
+// Held by Shutdown (its whole body), Supported (around InitLocked) and Draw (from InitLocked on).
 std::mutex g_mutex;
 
 std::atomic<bool> g_requested{false};

@@ -50,7 +50,7 @@
 #include "system/MemoryAllocator.h"
 using AttendanceDispatch = ::ControllerLive::Dispatcher<AttendanceCtrlTag>;
 
-// AttendanceComponent_ProcessQueue (attendancecomponent.cpp, declared in exe_bodies.h)
+// AttendanceComponent::ProcessQueue (attendancecomponent.cpp, declared in AttendanceComponent.h)
 // — state 3's enter drains the waiting queue.
 
 // ── Engine helpers, called directly ───────────────────────────────────────────────
@@ -74,7 +74,7 @@ using AttendanceDispatch = ::ControllerLive::Dispatcher<AttendanceCtrlTag>;
 // The town attendance registry: gameWorld+0xf0 is the town object, +0x60 its array
 // base and +0x68 the element count. Both state 2's enter (append) and the component's
 // vtable slot 7 (erase) operate on it, and AllFull below walks it.
-// (CitizenBehavior::attendanceComponents / attendanceComponentCount.)
+// (CitizenBehavior::attendanceComponents.)
 static CitizenBehavior* AC_TownObject() {
     if (GameUpdateLoop::_singleton == nullptr) return nullptr;
     return GameUpdateLoop::_singleton->m_citizenList;

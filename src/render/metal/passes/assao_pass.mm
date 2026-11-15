@@ -65,7 +65,7 @@ Shader Load(const uint8_t (&bytes)[N], id<MTLDevice> device) {
     return Translate(std::vector<uint8_t>(bytes, bytes + N), device);
 }
 // The one lock over `state`: Ready (main thread) and Draw (render thread) both take it, Draw for
-// the whole pass, so a device change in Init can never reset the state under a running Draw.
+// the whole pass, so a device change in InitLocked can never reset the state under a running Draw.
 std::mutex stateMutex;
 // The constants of every ASSAO draw live in one shared ring (kRingSlots slots of kSlotBytes),
 // written in place instead of allocating a buffer per draw. The ring holds far more slots than

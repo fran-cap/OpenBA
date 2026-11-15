@@ -36,11 +36,11 @@ public:
     virtual Object::External* Construct();                                 // [9] 0x1400328c0
 
     // ---- fields (PUBLIC: the components read them at raw offsets today) ----
-    uint32_t _placeBits;                              // +0x20 enum (serialized through the uint door)
-    uint32_t _invalidBits;                              // +0x24 enum (serialized through the uint door)
-    uint32_t _startEndBits;                              // +0x28 enum (serialized through the uint door)
-    uint32_t _requiredBits;                              // +0x2c enum (serialized through the uint door)
-    uint32_t _edgeBits;                              // +0x30 enum (serialized through the uint door)
+    uint32_t _placeBits;                              // +0x20 enum (serialized as an unsigned int)
+    uint32_t _invalidBits;                              // +0x24 enum (serialized as an unsigned int)
+    uint32_t _startEndBits;                              // +0x28 enum (serialized as an unsigned int)
+    uint32_t _requiredBits;                              // +0x2c enum (serialized as an unsigned int)
+    uint32_t _edgeBits;                              // +0x30 enum (serialized as an unsigned int)
     int32_t _edgeWidth;                               // +0x34
     class ComponentDescription* _sections[5];       // +0x38 ExternalPtr[5], inline (B4 PLAYER H4: the segment templates BridgeTool::CalcPath clones: end piece, 1/2/4/8 cells)
 };

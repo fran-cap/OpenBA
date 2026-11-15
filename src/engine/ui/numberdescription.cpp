@@ -5,7 +5,7 @@
 // Vtable batch 2. Derives straight from UI::ElementDescription.
 //
 // ??_7NumberDescription@UI@@6B@ (retail 0x180157530), ten slots:
-//   0  deleting dtor      0x18004a760  deleting_dtor.cpp row (sizeof 0x88)
+//   0  deleting dtor      0x18004a760  NumberDescription.h (sizeof 0x88)
 //   1  TypeName           0x18004a240  here
 //   2  Type               0x18004a220  here
 //   3  GetFileVersion     0x180118e20  here  (returns 0x104)
@@ -18,11 +18,11 @@
 // plus ??1NumberDescription@UI@@UEAA@XZ 0x180118c00.
 //
 // THE CONSTRUCTOR IS INLINED, NOT OUT OF LINE. Unlike Text/Radio/Page/
-// NumberEdit, there is no ??0NumberDescription export to register: the body
+// NumberEdit, there is no ??0NumberDescription export: the body
 // appears twice in the shipped DLL, once inside Construct (0x18004a586..) and
 // once inside Reconstruct (0x18004a4de..). The two were compared instruction by
-// instruction for this port and agree; it is written once here and both slots
-// call it.
+// instruction for this port and agree; it is written once, as the real ctor in
+// NumberDescription.h, and both slots call it.
 //
 // LAYOUT, sizeof 0x88 (`MOV EDX,0x88` at 0x18004a77f). ElementDescription
 // (0x68) plus:
@@ -39,16 +39,15 @@
 // is another covering +0x70..+0x77, which is what pins _numberType and _ivalue as the two
 // halves of that second qword.
 //
-// NOT PORTED HERE: ??0NumberElement@UI@@QEAA@XZ (0x180118c70), reached through
-// ResolveAddr — the *Element constructors belong to the Element files.
+// NOT PORTED HERE: ??0NumberElement@UI@@QEAA@XZ (0x180118c70), the real ctor in
+// NumberElement.h — the *Element constructors belong to the Element files.
 //
 // ENDGAME B.3.6 block C3: every slot body is a `UI::NumberDescription` member
 // (src/engine/ui/NumberDescription.h, the layout above moved out of this
-// file — RULE B6-8). The doors delegate with a QUALIFIED call. CreateInstance
-// writes a real `UI::NumberElement`.
+// file — RULE B6-8). CreateInstance writes a real `UI::NumberElement`.
 // ============================================================================
 
-#include "element_common.h"   // rtuielem::AtomicExport (RULE B6-5), ResolveAddr
+#include "element_common.h"
 #include "ui/NumberDescription.h"
 #include "ui/NumberElement.h"
 #include "io/Serializer.h"
@@ -68,7 +67,7 @@ namespace UI {
 
 int32_t NumberDescription::GetFileVersion() const { return 0x104; }
 
-// 0x18004a570: null test (in the DOOR), the INLINED ctor, `MOV RAX,RCX`.
+// 0x18004a570: null test (it sat in the retired door), the INLINED ctor, `MOV RAX,RCX`.
 // The inlined ctor (0x18004a586..0x18004a600, Reconstruct's copy at
 // 0x18004a4de agrees) is the real ctor now (NumberDescription.h).
 Object::External* NumberDescription::Construct() {

@@ -2,23 +2,15 @@
 // Port of exe 0x1400b49f0 — the "reload the world from a SavedState" loop chain.
 //
 // WHY IT LIVES HERE (and not in a Dialog/ file): 0x1400b49f0 is ONE retail
-// function with TWO call sites in two different dialogs, and engine_funcs.h gives
-// it two different typedef names for the same address —
+// function with TWO call sites in two different dialogs: ModDialog (Apply →
+// in-game reload, moddialog.cpp) and ScenarioDialog (scenariodialog.cpp), both
+// calling MainMenuDialog::LoadFromSave.
 //
-//   engine_funcs.h  fn_Game_ReloadWithSave  (self, savedState, param, nullRef)
-//                   called unguarded at moddialog.cpp (Apply → in-game reload)
-//   engine_funcs.h  fn_LoadScenarioFromSave (worldSetup, savedState,
-//                                            scenarioIdx, retvalPtr)
-//                   called unguarded at scenariodialog.cpp
-//
-// Both resolve `ResolveAddr(Module::Exe, 0x1400b49f0)` and both were NULL →
-// EXEC-of-0. The disassembly settles that they are the same function with the same
+// The disassembly settles that they are the same function with the same
 // ABI: retail does `puVar8 = (ulonglong)param_3 & 0xffffffff` then uses
 // `(int)param_3`, i.e. arg3 is an INT widened to a pointer — ModDialog passes
 // (void*)-1 ("no scenario"), ScenarioDialog passes the scenario resource index. So
-// this must be registered EXACTLY ONCE, and neither dialog owns it; it is a
-// WorldSetup/loop-chain function. Registering it here fixes BOTH call sites with no
-// edit to scenariodialog.cpp.
+// neither dialog owns it; it is a WorldSetup/loop-chain function.
 //
 // Retail body (0x1400b49f0), verified against the decompile:
 //   1. MemAlloc(0x160) -> GameUpdateLoop, constructed by FUN_140098060 with
@@ -116,7 +108,7 @@ void MainMenuDialog::LoadFromSave(Save::SavedState* savedState, int32_t scenario
         RtSystem_Time_Ctor(&delayTime, 1.0f);
 
         System::String loadingName;
-        GetLoadingSoundString(&loadingName);   // FUN_140099130, inline in engine_funcs.h
+        GetLoadingSoundString(&loadingName);   // FUN_140099130, inline in Game/exe_bodies.h
 
         // ENDGAME B.3.8 LOOP: the real class; its ctor is the subclass field
         // init retail inlines here (colours, +0x190, Random, +0xB58, +0x40).
@@ -131,8 +123,8 @@ void MainMenuDialog::LoadFromSave(Save::SavedState* savedState, int32_t scenario
     if (outerLoop) {
         System::Time zeroTime;
         RtSystem_Time_Ctor(&zeroTime, 0.0f);
-        // ENDGAME B.3.8 LOOP: the real class (its ctor = the LoaderLoop door's
-        // body + the compiler's 0x1401588d0 stamp).
+        // ENDGAME B.3.8 LOOP: the real class (its ctor = Engine::LoaderLoop's
+        // ctor + the compiler's 0x1401588d0 stamp).
         pOuterLoop = ::new (outerLoop) GameLoaderLoop(
             pDlLoop,
             zeroTime);

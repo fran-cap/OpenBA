@@ -22,16 +22,12 @@
 //                        tick  f530 : once idle (back at the edge), destroy self
 //
 // "Idle" is CharacterComponent+0x60 == -1: the action-stack top index that
-// Pf_ActStackPush_54e0 / WorkBase_TaskListCleanup_c5400 maintain — the walk gate.
+// ActionStackPush / ActionStack::Clear maintain — the walk gate.
 //
 // Component layout (retail ctor 0x14004fdb0): NomadComponent.h.
 //
-// Opt-in with the town hall side: BANISHED_LIVE_IMMIGRATION. Faithful port of
-// 0x14004f420 .. 0x14004fb60 and 0x1400c49d0.
+// Faithful port of 0x14004f420 .. 0x14004fb60 and 0x1400c49d0.
 //
-// LEFT (B.4 COMP-d): GameUpdateLoop m_game / m_entityList are void* (W0 header); the
-// Map's cell record has no type (GAME-b); StateMachineComponent::controllerSelf is
-// void* (COMP-e); the action-stack bodies (WORK / ACT) take raw receivers.
 
 #include <new>
 #include "object/TypeInfo.h"
@@ -43,10 +39,10 @@
 #include "Component/StateMachineComponent.h"
 #include "Entity/ComponentEntity.h"
 #include "Entity/EntityList.h"
-#include "Action/exe_bodies.h"   // Pf_ActStackPush_54e0, Pf_MoveToCtor_9170, ActHunt_MarkEntityRemoval_c2ea0
-#include "Game/exe_bodies.h"     // Reimpl_MapGetTerrainPos
+#include "Action/exe_bodies.h"
+#include "Game/exe_bodies.h"
 #include "Game/exe_constants.h"  // kRdata_1401721cc
-#include "Work/exe_bodies.h"     // WorkBase_TaskListCleanup_c5400
+#include "Work/exe_bodies.h"
 #include "Object/factory_registration.h"
 #include "Component/controller_state_table.h"
 #include <cstdint>
@@ -71,10 +67,9 @@ constexpr float kMoveSpeed       = -1.0f;   // DAT_140172280 (MoveTo speed arg: 
 
 // Helpers, called by name (B3R):
 //   0x140003ea0 FindComponent<StateMachineComponent>
-//   0x1400c5400 WorkBase_TaskListCleanup_c5400   0x1400c54e0 Pf_ActStackPush_54e0
-//   0x1400c9170 Pf_MoveToCtor_9170               0x1400c2ea0 ActHunt_MarkEntityRemoval_c2ea0
-//               (ComponentEntity::MarkForRemoval)
-//   0x14009f3e0 Reimpl_MapGetTerrainPos
+//   0x1400c5400 ActionStack::Clear               0x1400c54e0 ActionStackPush
+//   0x1400c9170 MoveTo (ctor)                    0x1400c2ea0 ComponentEntity::MarkForRemoval
+//   0x14009f3e0 Map::GetTerrainPos
 
 // The .rdata float constants (Game/exe_constants.h) that are stored as bit patterns.
 inline float RdataF(uint32_t bits) { float f; std::memcpy(&f, &bits, sizeof f); return f; }

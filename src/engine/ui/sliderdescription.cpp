@@ -5,7 +5,7 @@
 // Vtable batch 2. Derives straight from UI::ElementDescription.
 //
 // ??_7SliderDescription@UI@@6B@ (retail 0x1801575e0), ten slots:
-//   0  deleting dtor      0x180049c60  deleting_dtor.cpp row (sizeof 0xb8)
+//   0  deleting dtor      0x180049c60  the compiler's (sizeof 0xb8)
 //   1  TypeName           0x180049750  here
 //   2  Type               0x180049730  here
 //   3  GetFileVersion     0x1800d79f0  here  (returns 0x304)
@@ -22,8 +22,8 @@
 // this file's offsets there under the retail name).
 //
 // ENDGAME B.3.6 block C5: every slot body MOVED into the members of the real
-// `UI::SliderDescription`; each registered door is a one-line QUALIFIED
-// delegation. The ctor / dtor stay doors (B4b-2).
+// `UI::SliderDescription`. The ctor is inline in SliderDescription.h; the dtor
+// is below.
 //
 // THE DESTRUCTOR RELEASES THE FIVE STRINGS IN REVERSE ORDER (+0x98, +0x90,
 // +0x88, +0x80, +0x78) under THIS class's vtable, then restamps the base vtable
@@ -33,10 +33,9 @@
 // Every helper is already ported: 0x180038f90 and 0x180004590
 // (external_ptr_serialize.cpp), 0x1800c9930 (string.cpp), 0x180116b00,
 // 0x180115ad0, 0x180112ed0, 0x180076900, and
-// ?GetSpriteIndexFromName@SpriteSheet@UI@@ (0x1800031f0), reached by its export
-// name the way imagedescription.cpp reaches it.
+// ?GetSpriteIndexFromName@SpriteSheet@UI@@ (0x1800031f0), called directly.
 // ??0SliderElement@UI@@QEAA@XZ (0x1800d7570) is NOT ported here — the *Element
-// constructors belong to the Element files; it is reached through ResolveAddr.
+// constructors belong to the Element files; it is SliderElement.h's inline ctor.
 // ============================================================================
 #include <cstddef>
 #include <cstdint>
@@ -162,7 +161,7 @@ Object::InternalPtr<Element>* SliderDescription::CreateInstance(
     UI::ElementDescription::CreateInstance(                   // 1800d76bb
         &slot);
 
-    {   // the single child, from +0x68. UI::Dialog::CreateElement — block B's door.
+    {   // the single child, from +0x68. UI::Dialog::CreateElement.
         // ?CreateElement@Dialog@UI@@ 0x180112ed0: RETSLOT, the member's prvalue
         // placed in the caller's slot.                          // 1800d76cb
         Object::InternalPtr<Element>* made = &slot;

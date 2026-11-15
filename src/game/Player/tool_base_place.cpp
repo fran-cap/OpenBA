@@ -1,20 +1,11 @@
 // src/game/Player/tool_base_place.cpp
-// Player wave (batch "place") — shared PlacementTool sub-helpers resolved via
-// ResolveAddr(Module::Exe, 0xADDR) from src/game/Player/placementtool.cpp.
-//
-// These resolve to 0 (silently skipped) unless registered. This file provides
-// faithful 1:1 reimplementations and a single registration point
-// (RegisterPlayerPlaceBatch in standalone/reg_player_place.cpp) so the call
-// sites fire real logic.
-//
-// Closure-safety: only functions whose ENTIRE exe sub-callee closure is also
-// satisfied (registered exe code / registered dispatch slot / Runtime export)
-// are reimplemented + registered here. The rest are documented as DEFER in
-// reg_player_place.cpp with the exact unregistered sub-callee.
+// The shared PlacementTool sub-helper PlacementTool::FlipVariant, a faithful 1:1
+// reimplementation called by name from PlacementTool::OnKey (placementtool.cpp)
+// and PlacementTool::CreateAt (tool_base_tile.cpp).
 
 // The runtime type headers come FIRST: they pull src/engine/volume/Volume.h,
 // whose global-scope `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()`
-// once <windows.h> has been seen through resolve.h.  ENDGAME B.3.5 batch I2.
+// once <windows.h> has been seen.  ENDGAME B.3.5 batch I2.
 #include "graphics/Scene.h"
 #include "graphics/Mesh.h"
 #include "object/External.h"

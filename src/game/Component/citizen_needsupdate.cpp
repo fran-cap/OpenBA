@@ -8,25 +8,22 @@
 //   0x1401121e0  CitizenComponent_helper_21e0   — msg 0: if the target entity has
 //                a ResidenceComponent (finder 0x140008090, type DAT_1401c7cf0)
 //                that passes the warm-house check FUN_14012ac30, zero the
-//                citizen's thirst (+0x48).
+//                citizen's coldness (+0x48).
 //
-// msg 2 (EAT) delegates to CitizenComp_ReleaseWorkplace (0x1401152e0) in
+// msg 2 (EAT) delegates to CitizenComponent::EatFrom (0x1401152e0) in
 // citizencomponent.cpp — NOTE the retail Ghidra label "ReleaseWorkplace" is a
 // MISNOMER: the function is EatFromStorage (drains hunger +0x44 against the
-// target's StorageComponent, one unit per g_fUVScale). A named alias
-// CitizenComp_EatFromStorage is provided below.
+// target's StorageComponent, one unit per g_fUVScale).
 //
-// Ported here + registered by standalone/reg_citizen_25.cpp (openfuncs step 2.5c):
-//   0x14010fde0  CitizenComp_helper_fde0 (msg 1: happiness credit)
-//   0x1401117a0  CitizenComp_helper_17a0 (msg 4: attendance/schedule budget)
-//   0x140111540  CitizenComp_helper_1540 (msg 5: countdown decay)
-//   The dispatcher resolves each via ResolveAddr (now non-NULL) and calls it like
-//   every other msg; the msg-1 inline duplicate was retired in favour of the port.
-// Already ported/registered elsewhere (NOT duplicated):
-//   0x1401152e0  CitizenComp_ReleaseWorkplace   (citizencomponent.cpp, reg_component_people)
-//   0x140088f90  GetResourceCategory            (action_base_rawmat.cpp, reg_action_rawmat)
-//   0x14012ac30  ResidenceCheck_2ac30           (citizenai_findhelpers.cpp, reg_citizenai_findhelpers)
-//   0x140008090  Entity_FindComponent_Residence (citizenaicomponent.cpp, reg_component_people)
+// Ported here, called by name from the dispatcher:
+//   0x14010fde0  CitizenComponent::AddHappiness     (msg 1: happiness credit)
+//   0x1401117a0  CitizenComponent::AdvanceSchooling (msg 4: attendance/schedule budget)
+//   0x140111540  CitizenComponent::ShortenDisease   (msg 5: countdown decay)
+// Ported elsewhere (NOT duplicated):
+//   0x1401152e0  CitizenComponent::EatFrom          (citizencomponent.cpp)
+//   0x140088f90  ResourceCategory                   (action_base_rawmat.cpp)
+//   0x14012ac30  ResidenceComponent::CheckHeating   (citizenai_findhelpers.cpp)
+//   0x140008090  ComponentEntity::FindComponent<ResidenceComponent>
 //
 // Disasm notes (0x140112260):
 //   - Signature: RCX=this, EDX=msg (0..8, JA out-of-range returns), R8=ptr to the
@@ -63,7 +60,7 @@ static inline float RdataF(uint32_t bits) {
 // ============================================================
 // CitizenComponent::AddHappiness (0x14010fde0) — msg 1: happiness credit.
 // Refresh the citizen's StatusIconComponent (+0x280, mode 4 = happiness icon) then
-// accumulate the credit: +0xac is the running happiness total, +0xa8 the last delta.
+// accumulate the credit: +0xac (toolUses) += it, +0xa8 (toolGrade) = it.
 // 0x14010fe01-0x14010fe0f: +0x280 handed to SetFlag with no test (B8 RES, row 310).
 // 0x14012c3f0 is StatusIconComponent::SetFlag.
 // ============================================================
@@ -116,7 +113,7 @@ void CitizenComponent::ShortenDisease() {
 // If the target entity has a ResidenceComponent (finder 0x140008090) whose heat
 // passes FUN_14012ac30 (warm-house check), zero the citizen's coldness (+0x48).
 // Faithful: the finder is called TWICE (retail re-runs it after the first
-// null-check). ResidenceCheck_2ac30 is ResidenceComponent's body (LEFT free).
+// null-check). FUN_14012ac30 is ResidenceComponent::CheckHeating.
 // ============================================================
 void CitizenComponent::WarmAt(ComponentEntity* target) {
     if (target == nullptr) return;

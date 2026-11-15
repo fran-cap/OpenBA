@@ -62,7 +62,7 @@
 // extension or host owns, never a UI object, and that state is not written during a frozen update.
 //
 // Standard C++ only: tests/unit/ext_savetail_test.cpp links this file with
-// registry.cpp (and state_codecs.cpp for the codec table) alone.
+// registry.cpp (and state_codecs.cpp / host_codecs.cpp for the codec tables).
 // ============================================================================
 #pragma once
 

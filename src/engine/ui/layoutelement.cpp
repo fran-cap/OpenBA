@@ -5,7 +5,7 @@
 // `??_7LayoutElement@UI@@6B@` (retail 0x180156c60), and the ctor/dtor that
 // stamp it. Vtable extent and per-slot targets from the batch survey:
 //
-//   0  vector deleting dtor  0x180043570  -> deleting_dtor.cpp row (this batch)
+//   0  vector deleting dtor  0x180043570  -> LayoutElement.h (the class's own)
 //   1  TypeName              0x180043290  here
 //   2  Type                  0x180043270  here
 //   3  Persist               0x180116870  UI::Element's own (not overridden)
@@ -18,9 +18,8 @@
 // ??1LayoutElement@UI@@UEAA@XZ (0x1800d32a0).
 //
 // NOT HERE: `?GetChildLayout@LayoutElement@UI@@AEAAXHHHHHH_N@Z` (0x1800d2dc0)
-// and its two helpers GetChildLayoutX/Y — the batch brief assigns the UI
-// non-slot callee list to the UI-text agent, so this file REACHES
-// GetChildLayout by address instead of porting a second copy.
+// and its two helpers GetChildLayoutX/Y — GetChildLayout is a member defined in
+// element_bodies_b5.cpp, called by name from the bodies below.
 //
 // ---------------------------------------------------------------------------
 // LAYOUT.  sizeof(LayoutElement) == 0xD0, and it is proven, not inferred: the
@@ -30,20 +29,19 @@
 // ~Element. UI::Element is 0xC0 (src/engine/ui/Element.h), so the class
 // adds exactly one 0x10-byte Array header:
 //
-//   +0xC0  _rows._data   the per-child layout record buffer, stride 0x44
-//   +0xC8  _rows._size / _capacity
+//   +0xC0  _childRecords._data   the per-child layout record buffer, stride 0x44
+//   +0xC8  _childRecords._size / _capacity
 //
 // The STRIDE is 0x44 and the record's fields are read at +0x18, +0x1c, +0x20,
-// +0x24, +0x28, +0x2c, +0x30, +0x34, +0x38, +0x3c, +0x40 by the three bodies
-// below; the record's own writer is GetChildLayout, which is not this file's.
-// The COUNT the loops use is UI::Element::_children._size (+0xA8), not the
-// array's own +0xC8 — the two are kept parallel by GetChildLayout's caller.
+// +0x24, +0x28, +0x2c, +0x30, +0x34, +0x38, +0x3c, +0x40 by ComputeSize and
+// ComputeLayout below; the record's own writer is GetChildLayout, which is not
+// this file's. The COUNT the loops use is UI::Element::_children._size (+0xA8),
+// not the array's own +0xC8 — the two are kept parallel by
+// LayoutDescription::CreateInstance.
 //
 // ENDGAME B.3.6 block C4: the layout above (and the 0x44-byte record) moved to
 // src/engine/ui/LayoutElement.h (the real class). Every slot body below is a
-// MEMBER; each registered door is a one-line QUALIFIED delegation; ctor/dtor
-// stay DOORS. RULE B6-5: the vtable and type-info record are cached in
-// namespace-scope std::atomic slots.
+// MEMBER.
 // ============================================================================
 
 #include <new>
@@ -56,11 +54,10 @@ using namespace rtui;
 namespace {
 
 // `?GetChildLayout@LayoutElement@UI@@AEAAXHHHHHH_N@Z` (0x1800d2dc0) — declared
-// on the class, body still element_bodies_b5.cpp's door (fragment pass).
+// on the class, body in element_bodies_b5.cpp.
 
 // Array<ChildRecord>::~Array — 0x180043cb0, one of the parameterless `~Array`
-// copies; registered from src/engine/collection/array.cpp, so ResolveAddr
-// hands back OUR body.
+// copies; its body is in src/engine/collection/array.cpp.
 void RowsDtor(void* hdr) { rtcoll::RtColl_ArrayDtor_180043cb0(hdr); }
 
 }  // namespace

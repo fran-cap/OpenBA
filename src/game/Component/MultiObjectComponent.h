@@ -5,8 +5,7 @@
 // `MultiObjectComponent` (a structure made of several entities: bridge segments,
 // tunnel mouths, a cemetery gate, fence posts) as a real C++ class with a
 // compiler-generated vtable and its state controller as an EMBEDDED MEMBER
-// (B38_RULES.md D1-D6, D9 #8: the tree had none). The engine/types POD is a
-// forwarder.
+// (B38_RULES.md D1-D6, D9 #8: the tree had none).
 //
 // RETAIL (B38_SLOTS.md §2 / §6, bytes read 2026-09-26):
 //   reflected "MultiObjectComponent", parent "ControllerComponent", ti 0x1401c7ac0

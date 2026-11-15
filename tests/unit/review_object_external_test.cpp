@@ -6,10 +6,10 @@
 // `Factory::CreateObject` (0x1800c0ae0) falls out of the descent with RAX = 0 and
 // loads [RAX+0x10]: a null dereference, which is undefined behaviour in C++. The
 // port returns null instead. External::Load (0x1800bc620) and
-// InternalFactory::PersistObject (0x1800bff10) open-code the same descent; neither
-// links into the unit build (External::Load stands on the file streams, and
-// PersistObject sits behind BANISHED_UNIT_TEST in internal_class.cpp), so the miss
-// arm is driven here through the one body that does link.
+// InternalFactory::PersistObject (0x1800bff10) open-code the same descent.
+// External::Load does not link into the unit build (it stands on the file
+// streams); PersistObject does (review_object_index_bounds_test.cpp), and the
+// miss arm is driven here through Factory::CreateObject.
 // ============================================================================
 #include "unit.h"
 

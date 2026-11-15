@@ -66,7 +66,7 @@
 
 // graphics/Geometry.h FIRST: it pulls src/engine/volume/Volume.h, whose
 // global-scope `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()` once
-// <windows.h> has been seen through resolve.h.  ENDGAME B.3.5 caller batch I2.
+// <windows.h> has been seen.  ENDGAME B.3.5 caller batch I2.
 #include "graphics/Geometry.h"
 #include "Component/controller_state_table.h"
 #include <new>
@@ -119,7 +119,7 @@ const float kDockRange  = kRdata_1401720fc;           // state 1 -> 2 range
 const float kApproach   = kRdata_1401721f4;           // state 0 -> 1 range (squared)
 
 // The boat's animation ids, as retail passes them to 0x14010a1f0.
-// (0x14010a1f0 is already ported as ActMv_SetAnimation_a1f0 in action_base_move.cpp.)
+// (0x14010a1f0 is already ported as CharacterComponent::SetAnimation in action_base_move.cpp.)
 
 // ── Small shared shapes ──────────────────────────────────────────────────────────
 
@@ -318,8 +318,8 @@ void CharacterComponent::DriveToward(const Math::Vector3* target, float heading,
         model2 ? model2->meshInstance._color[2] * speed : 0.0f;
 }
 
-// 0x14010a1f0 SetAnimation, already ported for the citizen mover (ActMv_SetAnimation_a1f0,
-// Action/exe_bodies.h).
+// 0x14010a1f0 SetAnimation, already ported for the citizen mover (CharacterComponent::SetAnimation,
+// Component/CharacterComponent.h).
 
 namespace {
 void SetAnim(BoatComponent* boat, uint32_t animId) {
@@ -621,7 +621,7 @@ char BoatState4Enter(BoatComponent* b, StateMachine* /*sm*/)               { ret
 char BoatState4Tick(BoatComponent* b, StateMachine* /*sm*/, const System::Time* /*time*/)                { return b->State4Tick(); }     // 4c40
 }  // namespace
 
-// Idempotent: the installer runs once per component instance.
+// Idempotent: called once, from a static initializer in boatcomponent.cpp.
 extern "C" void BoatCtrl_PopulateTable() {
     auto& t = BoatDispatch::table;
     if (t.count != 0) return;

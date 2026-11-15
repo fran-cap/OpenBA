@@ -50,14 +50,12 @@ UNIT_TEST(video_program_parents) {
     CHECK(!(std::is_convertible<Video::VideoProgram*, Object::CompiledExternal*>::value));
     CHECK(!(std::is_convertible<Video::VideoProgram*, Video::ShaderProgram*>::value));
 
-    // Every one of the five reaches Object::Base, which is what makes the minted
-    // `??_7` tables interchangeable with GCC's slot for slot.
+    // Every one of the five reaches Object::Base.
     CHECK((std::is_convertible<Video::ShaderProgram*, Object::Base*>::value));
     CHECK((std::is_convertible<Video::VideoProgram*,  Object::Base*>::value));
 
     // The base subobject is at offset 0 in all of them — single inheritance, no
-    // virtual bases — which is what licenses the `reinterpret_cast` bridges every
-    // door in this family uses.
+    // virtual bases.
     CHECK_EQ((size_t)reinterpret_cast<const char*>(
                  static_cast<const Object::External*>(
                      reinterpret_cast<const Video::VideoProgram*>(0x1000))) -
@@ -71,17 +69,15 @@ UNIT_TEST(video_program_parents) {
 }
 
 // ===========================================================================
-// PART C — `ShaderProgram::Parameter` MUST STAY TRIVIAL, and this is the test
-// that catches the double release.
+// PART C — `ShaderProgram::Parameter`'s array spec.
 //
-// `Parameter` is held by value inside `Collection::Array<Parameter>`. Retail
-// exports five special members for it (??0 x3, ??4, ??1) and block B declares
-// NONE of them, because declaring a destructor or a copy would flip
-// `rtcoll::SpecFor<Parameter>::destroy` from null to `&TDestroy<Parameter>` —
-// and then the compiler-emitted `~Array<Parameter>` would release every
-// parameter NAME a second time, after the registered array destructor
-// (0x18004fb00, `ReleaseStringsCounted`) already did. The spec is checked here
-// directly, not just the type traits, because the spec is what the array
+// `Parameter` is held by value inside `Collection::Array<Parameter>`. Its `name`
+// is a `System::String`, so the class is not trivially destructible, and the
+// arrays name retail's row `rtcoll::kSpec_ShaderParam`, whose `destroy` is the
+// String release (0x18004fed0). `~ShaderProgram` calls the registered array
+// destructor (0x18004fb00) on both arrays, which zeroes each header, so the
+// implicit `~Array<Parameter>` that follows releases nothing. The spec is checked
+// here directly, not just the type traits, because the spec is what the array
 // actually consults.
 // ===========================================================================
 UNIT_TEST(video_shader_parameter_trivial) {
@@ -124,8 +120,8 @@ UNIT_TEST(video_program_only_the_abstract_base_is_not_default_constructible) {
     CHECK((std::is_default_constructible<Video::VertexLayout>::value));
     CHECK((std::is_default_constructible<Video::VideoProgram>::value));
 
-    // Abstract, because slot 0 is `override = 0` — the `RT_DELDTOR` rows in
-    // deleting_dtor.cpp are the bodies and B35_RULES 11 keeps them.
+    // Abstract, because slots 3, 6 and 7 stay `= 0` from `Object::External`
+    // (src/engine/video/ShaderProgram.h).
     CHECK((std::is_abstract<Video::ShaderProgram>::value));
     CHECK(!(std::is_abstract<Video::VertexProgram>::value));   // B.3.9 VID: concrete
     CHECK(!(std::is_abstract<Video::PixelProgram>::value));   // B.3.9 VID: concrete

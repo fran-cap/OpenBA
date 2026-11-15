@@ -1,4 +1,4 @@
-// engine/src/ui/scenariodialog.cpp
+// src/game/Dialog/scenariodialog.cpp
 // Clean reimplementation of ScenarioDialog methods.
 //
 // ScenarioDialog (0xE8 bytes): Scenario selection screen.
@@ -45,7 +45,7 @@
 #include "Game/Scenario.h"   // X::TypeId() (B.3.9 CG2)
 #include "ui/ButtonElement.h"
 #include "io/Persistence.h"
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"   // System::MemoryAllocator
 
 // ============================================================
 // ScenarioDialog::Slot4 (vtable +0x20) — Setup
@@ -420,17 +420,16 @@ void ScenarioDialog::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*
 // null-safe ctor would have handed the dialog a null vtable. Both are ported here.
 //
 // vtable_ScenarioDialog layout, dumped straight from .rdata (tools/dump_vtable.py
-// 0x14015d2d0) — same 10-slot shape as AchievementDialog/GoalDialog
-// (menu_dialog_standalone_vtables.cpp):
+// 0x14015d2d0) — same 10-slot shape as AchievementDialog/GoalDialog:
 //   [0] 0x140013af0 ScalarDtor   (frees +0xD8 array, NOT a bare base thunk)
 //   [1] 0x140013960 static getter (returns DAT_1401c5560 — use GetTypeIdByName instead)
 //   [2] 0x140013950 GetTypeId     (returns DAT_1401c5558 — ditto)
 //   [3] 0x14003a948 Persist       (base thunk)
-//   [4] 0x140078010 Setup         -> ScenarioDialog_Slot4 (ported)
+//   [4] 0x140078010 Setup         -> ScenarioDialog::OnOpened (ported)
 //   [5] 0x14003a94e Shutdown      (base thunk)
-//   [6] 0x140077be0 OnUpdate      -> ScenarioDialog_Slot6 (ported)
-//   [7] 0x140078000 OnUpdateLayout-> ScenarioDialog_Slot7 (ported)
-//   [8] 0x140077f80 OnCommand     -> ScenarioDialog_Slot8 (ported)
+//   [6] 0x140077be0 OnUpdateLayout-> ScenarioDialog::OnUpdateLayout (ported)
+//   [7] 0x140078000 OnUpdate      -> ScenarioDialog::OnUpdate (ported)
+//   [8] 0x140077f80 OnCommand     -> ScenarioDialog::OnElementEvent (ported)
 //   [9] 0x14003a954 OnSerialize   (base thunk)
 
 ScenarioDialog::ScenarioDialog()

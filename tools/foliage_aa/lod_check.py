@@ -2,7 +2,7 @@
 transformed cutout programs. For every main-pass draw of a transformed program (a ps_4_1 blob),
 read sample 0 of the target after the draw where the draw changed it, and compare the formulas
 with the hardware's own `lod` (CalculateLevelOfDetailUnclamped).
-  python s6_lod.py <cap.rdc>
+  python lod_check.py <cap.rdc>
 """
 import os, sys, struct, collections
 # <repo>/tools/renderdoc_mcp/runtime, derived from this file; RENDERDOC_MODULE_PATH overrides.

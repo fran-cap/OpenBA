@@ -1,10 +1,7 @@
 // src/game/Dialog/townhall_helpers.cpp
 //
 // Faithful ports of the small exe helper functions the TownHallUI reimplementation
-// (townhallui.cpp) reaches through engine_funcs fn_* pointers. Those pointers
-// resolve NULL unless the address is registered, which left the town-hall panel's
-// setup/refresh dead. reg (standalone/reg_townhallui.cpp) maps each exe address to
-// these ports.
+// (townhallui.cpp) calls.
 //
 //   0x14006abf0  GroupRating_Init      — cache "whole"/"half" heart/star ImageElements
 //   0x14006aed0  GroupRating_Update    — show N whole + optional half icon from value/max
@@ -45,7 +42,7 @@
 #include "Dialog/exe_bodies.h"
 #include "Dialog/TownHallUI.h"   // TownHallInventoryEntry
 #include "Dialog/introsort24.h"  // the inventory sorts' introsort core
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc
 
 // B4 X-G1-2b / Y GAMEB: the entry points take their retail objects.
 

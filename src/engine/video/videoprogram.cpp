@@ -42,11 +42,7 @@
 // both do; `?_ParentTypeName@VideoProgram@Video@@` says "Object::External".
 //
 // Each body below is a member, defined in the `namespace Video` block at the
-// bottom (B34_BRIEFS A.2), and each registered DOOR is a one-line QUALIFIED
-// non-virtual delegation through a `reinterpret_cast` bridge — qualified because a
-// live VideoProgram wears the MINTED table whose slots resolve back to these very
-// doors (B34_BRIEFS A.1). Nothing is unregistered; the ctor door stays a ctor door
-// (B4b-2: it writes the MINTED vptr).
+// bottom (B34_BRIEFS A.2).
 //
 // One runtime-internal binding retires:
 // `RT_EXPORT_ONCE(ExtDtorFn, "??1External@Object@@UEAA@XZ")(self)` — the base
@@ -170,8 +166,6 @@ void VideoProgram::PlatformDestruct() {
 // are NOT interchangeable: each one loads its own `_typeInfo`, so swapping two
 // would look up a VertexProgram resource under VertexLayout's type id.
 bool VideoProgram::Serialize(IO::Stream& streamv) {
-    // LEFT (B.4 R-VIDEO): the slot is `Serialize(IO::Stream&)`; the override
-    // keeps `External`'s `void*` parameter (R-OBJ's declaration).
     IO::Stream& stream = streamv;
     IO::Serializer ser(stream, 0);
 

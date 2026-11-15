@@ -16,7 +16,7 @@
 //       quad strip (V = arc length along the flow, U = 0..1 across the channel).
 //   * helper f3e0 @ 0x14001f3e0 — vertex weld/dedup -> index (phase-2 weld).
 //   * helper sub_74a0 @ 0x1400074a0 — 16-byte vertex append (the growable-vector
-//       idiom, equivalent to engine_funcs' fn_Array_Resize_Stride16B).
+//       idiom, VecPush below).
 //
 // DATA FLOW (verified, this session):
 //   b260's param_2 == the worldgen heightfield scratch `hf` (the same struct
@@ -33,10 +33,10 @@
 //     vertex/index accumulators, all .rdata constants, and the final
 //     VertexBuffer/IndexBuffer::Create calls are byte/offset-faithful to the
 //     b260 disassembly.
-//   * fb00 STAGE A is now a FAITHFUL geometric port (fb00_BuildBody_Faithful),
-//     replacing the old per-node offset approximation (kept as fb00_BuildBody
-//     for A/B via env BANISHED_WATER_OLD_STAGEA, and as an auto-fallback for
-//     degenerate <3-point bodies). The faithful path reproduces retail's actual
+//   * fb00 STAGE A is a FAITHFUL geometric port (fb00_BuildBody_Faithful). The
+//     per-node offset approximation fb00_BuildBody is the auto-fallback for
+//     degenerate <3-point bodies that produce no geometry. The faithful path
+//     reproduces retail's actual
 //     Stage-A geometry, verified against the 0x1400cfb00 disassembly:
 //       - edge records: endpoints shifted (+0.5 x, -0.5 y) = DAT_140172114, unit
 //         dir, unit perp = (-dir.y, dir.x), length;
@@ -79,13 +79,10 @@
 //   DAT_14017228c = -16.0    streamwise V offset start
 //   g_fUVScale    = 1.0
 //
-// Gated behind BANISHED_WATER_CONTOUR (default OFF). When OFF the flat-water /
-// no-detail default is unchanged.
+// WorldGeometry::BuildWaterMesh runs unconditionally (worldgen.cpp step 7).
 
 // ENDGAME B.3.5 Video/Graphics caller batch: Video::{Vertex,Index}Buffer are
-// real classes. Ahead of "resolve.h" — resolve.h pulls <windows.h>, whose
-// <wingdi.h> declares a global `Rectangle` FUNCTION that hides
-// `Volume::Rectangle`'s class name inside Volume.h's own static_asserts.
+// real classes.
 #include "video/Buffers.h"
 #include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
 #include "Game/WorldGeometry.h"

@@ -28,9 +28,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         const size_t b = body * i / n;
         const size_t e = body * (i + 1) / n;
         chunks.emplace_back(data + 1 + b, data + 1 + e);
-        // MASK (finding: AddChunk reserves the raw u32 record count before any check, an OOM
-        // abort on a 16-byte chunk): a count no chunk of this size can hold is rejected here so
-        // the fuzzer reaches the record parser.
+        // MASK: a count no chunk of this size can hold is rejected here; AddChunk refuses such a
+        // count itself before its reserve (stream_record.cpp).
         if (ChunkRecordCount(chunks.back()) > chunks.back().size() / kRecordHeader)
             return 0;
     }

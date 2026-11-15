@@ -6,7 +6,7 @@
 //
 //   input[0] % 7
 //     0  Ext::SaveTail::Decode (src/ext/savetail.cpp) on input[1..], then the loader's pipeline on an Ok
-//        result (SplitKinds -> Validate -> ApplyState / ApplyHostState, as gameupdateloop_serialize.cpp:830-877
+//        result (SplitKinds -> Validate -> ApplyState / ApplyHostState, as gameupdateloop_serialize.cpp:858-912
 //        runs it), and the round-trip properties:
 //          * a version-2 chunk that decodes Ok re-encodes to exactly the input bytes;
 //          * Decode(Encode(records)) is Ok and gives the same records.
@@ -91,7 +91,7 @@ void FuzzManifest(const uint8_t* data, size_t size) {
             __builtin_trap();
         }
     }
-    // The loader's pipeline (gameupdateloop_serialize.cpp:830-877).
+    // The loader's pipeline (gameupdateloop_serialize.cpp:858-912).
     std::vector<Record> exts;
     std::vector<Record> hosts;
     std::vector<std::string> dropped;

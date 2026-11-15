@@ -45,9 +45,9 @@
 // were confirmed against disassemble_function.
 
 #include "object/TypeInfo.h"
-#include "Game/exe_bodies.h"      // Reimpl_MapGetTerrainPos (0x14009f3e0)
+#include "Game/exe_bodies.h"
 #include "Game/GameUpdateLoop.h"  // B3R STORAGE: GameUpdateLoop::_singleton
-#include "Game/Map.h"
+#include "Game/Map.h"             // Map::GetTerrainPos (0x14009f3e0)
 #include "Action/exe_bodies.h"    // B3R: the Pf_* helpers called by name
 #include "Game/exe_constants.h"   // B3R: kRdata_140172114
 #include <cstdint>
@@ -58,9 +58,9 @@
 #include "Component/WellComponent.h"
 
 // ---------------------------------------------------------------------------
-// Sub-helpers, called by name (B3R): 0x140122e20 Pf_EntityResolvePos_2e20,
-// 0x140123070 Pf_RecursiveChildSum_123070, 0x140087fb0 Pf_EntityAnchorCell_7fb0,
-// 0x1400a00f0 WorkBase_ValidateCell_a00f0, 0x14009f810 Pf_IsDstReachable_f810,
+// Sub-helpers, called by name (B3R): 0x140122e20 InteractComponent::NodePosition,
+// 0x140123070 InteractComponent::NodeCount, 0x140087fb0 EntityAnchorCell,
+// 0x1400a00f0 Map::ValidateCell, 0x14009f810 Map::PathDistance,
 // 0x140132010 WorkImpl_Sqrtf_132010; the InteractComponent lookups (0x140002ed0 and
 // the one 0x1400881d0 inlines) are ComponentEntity::FindComponent<InteractComponent>;
 // DAT_140172114 = kRdata_140172114 (0.5f).

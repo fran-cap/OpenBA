@@ -34,8 +34,9 @@
 // Colours come from the frame copy itself (the lit, fogged scene behind the water), so the foam and
 // the wet bed follow fog, seasons and snow without any constant of their own.
 //
-// Compiled offline by tools/water_shaders.py (fxc, ps_4_0) into shore_overlay_ps.h, twice: the river
-// program and, with WATER_LAKE, the lake program (their uv sets scroll differently). Every backend
+// Compiled offline by tools/water_shaders.py (fxc, ps_4_0), twice: the river program into
+// shore_overlay_river_ps.h and, with WATER_LAKE, the lake program into shore_overlay_lake_ps.h (their uv
+// sets scroll differently). Every backend
 // takes the DXBC (DX11 directly, Vulkan through dxbc-spirv, Metal through airconv).
 // ============================================================================
 

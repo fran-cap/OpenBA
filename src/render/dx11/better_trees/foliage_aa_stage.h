@@ -1,13 +1,13 @@
 #pragma once
 // ============================================================================
-// src/render/dx11/better_trees/foliage_aa_stage.h -- ext.foliage_aa's D3D side: the transformed
+// src/render/dx11/better_trees/foliage_aa_stage.h -- ext.better_trees' foliage_aa stage: the transformed
 // cutout programs and the alpha-to-coverage blend clones (docs/extensions/FOLIAGE_AA.md §3 / §6,
 // handins/FAA-CORE.md)
 // ============================================================================
 // NOT RETAIL.
 //
 // THE SEAM (DESIGN.md §3 rule 5): `VideoDX11::g_extFoliageAA`, null by default. With the row off it
-// is null for the whole run and the four retail bodies that test it pay one load + branch each:
+// is null for the whole run and the five retail bodies that test it pay one load + branch each:
 //   PixelProgramData::Bind            per pixel-program bind   (the stage binds the shader instead)
 //   RenderStateData::Bind             per render-state bind    (after retail's three calls)
 //   PixelProgramData::PlatformCreate  per program load         (make the copies when on)

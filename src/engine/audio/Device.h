@@ -34,7 +34,7 @@
 //       the TABLE's owner is this nested struct (a finding of block B4).
 //       ENDGAME B.3.9 ENG: it is a REAL polymorphic class now -- its seven
 //       virtuals are the IXAudio2VoiceCallback slots (bodies in
-//       audio_voice_callback.cpp), the Device ctor door placement-news all
+//       audio_voice_callback.cpp), `Ctor_AudioDevice` placement-news all
 //       64 records, and the minted unnamed row 0x180157c60 is retired.
 //
 // HOLDS THE POLYMORPHIC STREAM BY VALUE: `_stream` is the `Audio::Stream`
@@ -201,7 +201,7 @@ public:
     void Shutdown();                                                               // 0x1800de490
     // `??1Device@Audio@@QEAA@XZ` 0x1800de4f0 — not ported; `Engine::Shutdown`
     // (engine_lifecycle.cpp) faithfully does not call it and tears the Stream
-    // down through the `??1Stream` door instead.
+    // down through `_stream.~Stream()` instead.
     ~Device();
 
 private:
@@ -211,10 +211,10 @@ private:
     void PlatformDestruct();                                                       // 0x1800de5f0
 
 public:
-    // `??0Device@Audio@@QEAA@XZ` 0x1800de3a0 is the DOOR `Ctor_AudioDevice`
+    // `??0Device@Audio@@QEAA@XZ` 0x1800de3a0 is `rtengine::Ctor_AudioDevice`
     // (singleton_ctors.cpp); no C++ constructor is declared (B7-12).
 
-    // ---- the 0x1298 bytes, at retail's offsets (public: the doors reach them)
+    // ---- the 0x1298 bytes, at retail's offsets (public: code outside the class reaches them)
     AudioChannel     _channels[64];          // +0x000
     Audio::Stream    _stream;                // +0xa00  by value (`LEA RCX,[RBX+0xa00]; CALL ??0Stream`)
     Platform::AudioEngine _xaudio2;          // +0xa88  0 => no platform

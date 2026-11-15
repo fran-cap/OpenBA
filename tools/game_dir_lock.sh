@@ -90,11 +90,11 @@
 #
 # PREFER, and the reason it exists:
 #
-#   tools/game_dir_lock.sh run lane-FOO 900 -- make sa-run
+#   tools/game_dir_lock.sh run lane-FOO 900 -- tools/build.sh run
 #
 # READ YOUR LOGS FROM A SNAPSHOT, NOT FROM THE GAME DIR:
 #
-#   tools/game_dir_lock.sh run lane-FOO 900 --snapshot ./mylogs -- make sa-run
+#   tools/game_dir_lock.sh run lane-FOO 900 --snapshot ./mylogs -- tools/build.sh run
 #
 # The lock covers deploy+run. It does NOT cover the window in which you sit and
 # ANALYSE, and standalone_*.log is overwritten by whoever runs next. On
@@ -305,8 +305,8 @@ record_breach() {
 breach_field() { sed -n "s/^$1=//p" "$BREACH_FILE" 2>/dev/null | head -n 1; }
 
 # Loud, unmissable, and returns 0 only when there IS a breach naming $1. Called
-# from acquire (on grant), verify/assert-held, release and status -- i.e. from
-# every verb a wronged lane can plausibly run next.
+# from acquire (on grant), verify/assert-held, release, heartbeat and status --
+# i.e. from every verb a wronged lane can plausibly run next.
 breach_notice() {
     local who="$1" owner at age
     [ -f "$BREACH_FILE" ] || return 1
@@ -432,8 +432,8 @@ run_in_progress() {
 # 15-minute wait. It did not. That lane's `acquire` printed
 # `queued behind 'updateload'` and then `waiting for 'updateload'` -- both
 # naming a real lane -- and this script can only produce those two strings when
-# a live TICKET is ahead of you (line ~280) and when the lock is genuinely HELD
-# (line ~323). In the orphan case there is no lock directory, so `lock_owner`
+# a live TICKET is ahead of you (line ~651) and when the lock is genuinely HELD
+# (line ~701). In the orphan case there is no lock directory, so `lock_owner`
 # has nothing to read and the string would have been `(unknown)`. The message
 # the lane actually saw is therefore proof of ordinary, correct FIFO queueing
 # behind a lane that really did hold the lock and really was running.
@@ -829,7 +829,7 @@ cmd_status() {
 #
 # So `run` now samples the deployed exe's md5 for the whole life of the wrapped
 # command and reports what it saw. The DISCRIMINATOR matters: the exe changing
-# is NORMAL -- `make sa-run` deploys, that is the point. What is not normal is
+# is NORMAL -- `tools/build.sh run` deploys, that is the point. What is not normal is
 # the exe changing WHILE A RUN IS LIVE. `run_in_progress` already answers "is a
 # run live" by the one test that cannot go stale between the check and the
 # answer, so a change seen after a live sample is a clobber and a change seen
@@ -888,7 +888,7 @@ run_watch_summary() {
 # exit status checked HERE, where no caller's pipe can discard it. Anything the
 # caller wants to pipe is this command's output, not the acquire's.
 #
-#   tools/game_dir_lock.sh run lane-FOO 900 -- make sa-run
+#   tools/game_dir_lock.sh run lane-FOO 900 -- tools/build.sh run
 #
 cmd_run() {
     local who="${1:?lane name required}" timeout="${2:-900}" snapdir=""

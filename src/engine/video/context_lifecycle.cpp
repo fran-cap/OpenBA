@@ -6,55 +6,18 @@
 //
 // WHY THIS FILE EXISTS
 // --------------------
-// `??1Context@Video@@QEAA@XZ` and `?ClearResources@Context@Video@@QEAAXXZ` are
-// two of the 43 names `RT_STRICT` recorded unresolved on cutover boot
-// attempt 14 (docs/history/runtime_port/wave9_attempt14_unresolved.txt). Lane VID
-// classified both as RESOLVE-ONLY and left them, which was correct as far as it
-// went: `engine/funcs/engine_funcs.cpp` resolves both and nothing calls either.
+// `Engine::MainLoop::CreateVideoContext` (context_ctor.cpp) destroys and frees
+// the old Context through `RtVideo_Context_Dtor` and
+// `Video_Context_OperatorDelete` before it allocates the new one. This file
+// ports the DESTRUCTION half of that lifecycle. The construction half (the
+// 0x1800f1820 ctor, ~400 instructions building seven sub-objects) is
+// `RtVideo_Context_Ctor` in context_ctor.cpp.
 //
-// What that classification missed is the SHAPE OF THE NEIGHBOURHOOD, which the
-// integrator's address-door census (docs/history/runtime_port/wave9_unregistered_addr_doors.csv)
-// makes plain. The `Video::Context` lifecycle reaches the DLL through TWO
-// DIFFERENT DOORS:
+// `ClearResources` is a pure state transformation on the Context with no
+// allocation and no call.
 //
-//     0x1800f1820  the ctor                 (was engine_funcs's fn_VideoCtx_Ctor,
-//                                               resolved BY ADDRESS)
-//     ??1Context@Video@@QEAA@XZ  the dtor      (was fn_VideoCtx_Dtor, by name with
-//                                               a 0x1800f16e0 address fallback)
-//     0x180018500  ??3Context@Video@@           (was fn_VideoCtx_Delete, by address)
-//
-// The three `fn_VideoCtx_*` pointers this paragraph used to cite BY LINE NUMBER
-// no longer exist: all of them reached zero callers and ENDGAME B.3.5 batch
-// b35-K2 (41baab1c) deleted the whole Context lifecycle group from
-// engine/funcs/engine_funcs.{h,cpp}. THE ADDRESSES AND THE ARGUMENT ARE
-// UNCHANGED -- what is described below is the DLL's own lifecycle and the doors
-// this file registers, neither of which depended on those pointers.
-//
-// and `?CreateVideoContext@MainLoop@Engine@@AEAAXXZ` — which is on the LIVE
-// BOOT PATH, called from `RtEngine_MainLoop_Ctor` — drives the dtor, the
-// deleting operator and the ctor by direct near CALL. At cutover all three
-// doors are null. So the dtor is not "resolve-only" in any sense that survives
-// the DLL going away; it is one third of a live lifecycle.
-//
-// This file ports the DESTRUCTION half of that lifecycle and registers the
-// address door for the dtor alongside the name door. The construction half
-// (the 0x1800f1820 ctor, ~400 instructions building seven sub-objects) is NOT
-// here — see the "WHAT THIS FILE DOES NOT DO" section at the bottom, which
-// states the remaining gap precisely rather than implying it is closed.
-//
-// ORACLE, HONESTLY
-// ----------------
-// `ClearResources` has a FULL oracle and a probe that drives it: see
-// `RtVideoContextLifecycleProbe` below. It is a pure state transformation on
-// the Context with no allocation and no call, so snapshot / ours / restore /
-// theirs / compare is exact, and the probe supplies the callers the tree does
-// not have (reference_uncalled_port_is_not_verified.md).
-//
-// The DESTRUCTORS have NO ORACLE and this lane does not pretend otherwise.
-// Running ours and then theirs frees every sub-object twice; the second pass
-// operates on freed memory. That is Wave 6's argument for the same family and
-// it is unchanged. Their correctness rests on transcription from disassembly,
-// which is stated here rather than buried.
+// The DESTRUCTORS' correctness rests on transcription from disassembly, which
+// is stated here rather than buried.
 // ============================================================================
 
 #include <cstddef>
@@ -71,10 +34,9 @@
 #include "video/CompanionData.h"
 #include "video/ImageBuffer.h"
 
-// ENDGAME B.3.5 block D1. `?ClearResources@` MOVED onto `Video::Context`; its
-// door keeps its name and both its rows. THE TWO DESTRUCTORS DO NOT MOVE and
-// that is a rule, not a shortcut: `??1Context@Video@@` and
-// `??1ConstantBuffer@Video@@` stay registered DOORS over free functions, because
+// ENDGAME B.3.5 block D1. `?ClearResources@` is a member of `Video::Context`.
+// THE TWO DESTRUCTORS ARE NOT MEMBERS and that is a rule, not a shortcut:
+// `??1Context@Video@@` and `??1ConstantBuffer@Video@@` stay free functions, because
 // a user-provided destructor on either class would destroy
 // `std::is_trivially_copyable` — `Video::Context` holds seven ConstantBuffers by
 // value and nine files treat the 0x2168 bytes as a flat block (RULE B5-4, and
@@ -252,7 +214,7 @@ extern "C" void Video_Context_OperatorDelete(void* p) { System::MemoryAllocator:
 // 0x180006a10 — the tree's shared guarded object free (UNEXPORTED; not a
 // `Video::` member). `~Context` frees its three buffer sub-objects through it,
 // which is retail — retail's ~Context calls 0x180006a10 and NOT 0x180018500 for
-// them — and IO / Save / Input / Object / Engine reach it by name.
+// them — and Save / Input / Engine call it by name.
 // ============================================================================
 extern "C" void Rt_GuardedObjectFree(void* p) { System::MemoryAllocator::MemFree(p); }
 

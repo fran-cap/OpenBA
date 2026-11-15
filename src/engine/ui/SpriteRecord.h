@@ -8,7 +8,7 @@
 // SpriteRecord, SpriteContext::Flush appends every chunk it draws: the vertices it
 // wrote (final: scaled, rotated, snapped by ext.sharp_ui) and the context state
 // the chunk was drawn under. UserInterface::Draw adds the camera it set. Nothing
-// here draws; the extension replays the list (src/ext/render_pipe/ui_replay.cpp).
+// here draws; the extension replays the list (src/ext/render_pipe/ui_layer.cpp).
 //
 // Plain data, standard C++ only: the unit tests build one by hand.
 // ============================================================================

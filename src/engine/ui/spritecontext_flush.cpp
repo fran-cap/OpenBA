@@ -3,15 +3,8 @@
 //                                          UI::SpriteContext::Flush 0x18011ba40
 // ============================================================================
 //
-// Lane UIF closed three exported `SpriteContext` methods and, in doing so,
-// opened exactly one per-frame ADDRESS door: `Flush`. Its write-up
-// (docs/history/runtime_port/WAVE9_LANE_UIF2.md §1, §11.4) says so plainly, and says
-// the same object is also why ~11,400 live executions of the class carry no
-// differential evidence — `SetScissor`'s changed branch, `AddLine`'s
-// sheet-rebind and `FlushDeferred`'s drain all call `Flush`, and no replay
-// survives a call that maps the GPU vertex buffer and submits a draw.
-//
-// This file closes that door. The lane doc is docs/history/runtime_port/WAVE9_LANE_FLUSH.md.
+// The write-ups of this port are docs/history/runtime_port/WAVE9_LANE_UIF2.md (§1, §11.4)
+// and docs/history/runtime_port/WAVE9_LANE_FLUSH.md.
 //
 // ---------------------------------------------------------------------------
 // WHAT THE FUNCTION IS
@@ -48,7 +41,7 @@
 // THE HALF-PIXEL OFFSET IS 0.0f IN THIS PROCESS, AND THAT IS AN HONEST LIMIT
 // ---------------------------------------------------------------------------
 // DeviceData vtable slot 5 is `src/render/dx11/devicedata_stubs.cpp`'s
-// `DeviceData_Stub5_ZeroFloat` — the shipped DX11 backend returns 0.0f (a DX9
+// `DeviceData::Slot5` — the shipped DX11 backend returns 0.0f (a DX9
 // backend would return 0.5f). So every `- halfPixel` below subtracts zero on
 // every live call. See the lane doc's HONEST LIMITS.
 //
@@ -73,76 +66,10 @@
 //   0x1801617c0 = 0x80000000  the sign flip that makes -sin
 //
 // `sinf`/`cosf` (0x180127d90 / 0x180126d10) go through `RtLibm::Sin/Cos`,
-// which are the PORTED MSVC CRT bodies (Wave 9 lane L) — so this file opens no
-// door for them.
+// which are the PORTED MSVC CRT bodies (Wave 9 lane L).
 //
-// ---------------------------------------------------------------------------
-// THE ORACLE — AND WHY THIS ONE ACTUALLY WORKS
-// ---------------------------------------------------------------------------
-// Wave 7 lane F's hold-back, restated by lane UIF §2, was: `Flush` "submits
-// into the LIVE Video::Context / GPU vertex buffer ... a scratch copy of the
-// SpriteContext object does not isolate a replay", because the copy's
-// `_context` still points at the one live context. That is true, and this file
-// does not dispute it. It builds a scratch **Context** as well.
-//
-// The reason a scratch Context is possible at all — and the reason nobody had
-// checked — is that the only two things retail's `Flush` does to the context
-// that are not plain field writes are:
-//
-//   * `MaterialInstance::Setup` (0x180102c90), and
-//   * the two ContextData virtual calls at +0x2160 slots 0x70 / 0x78.
-//
-// `Setup` was READ rather than assumed
-// (reference_holdback_blockers_are_stale_check_them_first.md). Every one of its
-// writes — and every write of `VideoProgram::SetupShaders` (0x1800f4520), the
-// one function it calls — is guarded by "if the context's field differs from
-// the material's value, store it and set a dirty bit". There is no allocation,
-// no refcount, and no backend call anywhere in either body. So `Setup` on a
-// BYTE-COPY of the live context, taken before our body ran, writes nothing at
-// all: our body already ran the same `Setup` on the original, so every compare
-// finds the values equal. That makes the replay observable-free.
-//
-// The two virtual calls are removed by pointing the scratch context's +0x2160
-// at a fake ContextData whose vtable this file owns: slot 0x70 hands back a
-// private arena and returns true, slot 0x78 records the primitive type. So the
-// shipped body writes its vertices into OUR memory, and our body tees a copy of
-// its own vertices into a second arena. The verdict is a byte compare of the
-// two arenas plus the Begin/EndVertices argument log plus the four scissor
-// ints, the dirty mask, `_draws._size` and `_currentSheet`.
-//
-// FOUR THINGS THIS ORACLE DELIBERATELY DOES NOT COMPARE:
-//   * the whole 0x2168-byte context. Comparing bytes neither side writes is
-//     how an oracle reports 100% divergence on unrelated noise
-//     (reference_oracle_must_not_compare_unwritten_bytes.md). The context is
-//     compared only at +0x10 and +0x1e0..+0x1ec, the only fields `Flush`
-//     itself writes.
-//   * `_context->_dynamicVertexCursor`, because the two sides run against
-//     different buffers by construction. The ADVANCE is compared instead, as
-//     the arena byte count.
-//   * anything at all when the sheet is null or the batch is empty — there is
-//     nothing to compare, and the site declares those calls `worked=0`.
-//   * the record buffer. The scratch SpriteContext gets its OWN copy of the
-//     records, so the shipped `Array<SpriteDraw>::SetSize(0)` at the end
-//     cannot reach the live batch even if lane UIF's §6 proof that it never
-//     frees were wrong. The oracle checks that the data pointer survived and
-//     reports a HARNESS finding, not a divergence, if it did not.
-//
-// ---------------------------------------------------------------------------
-// THE DOOR ARITHMETIC THIS FILE PRODUCES
-// ---------------------------------------------------------------------------
-// CLOSES one address door: 0x18011ba40, lane UIF's only opened one.
-// OPENS none. Every callee is already satisfied:
-//   0x180102c90  MaterialInstance::Setup  — reached BY EXPORTED NAME
-//                (`?Setup@MaterialInstance@Graphics@@QEBAXAEAVContext@Video@@H@Z`),
-//                which src/game/Player/tool_base_tilerender.cpp:100 already
-//                opens, so the unsatisfied-EXPORT set does not grow either.
-//   0x180127d90 / 0x180126d10  sinf/cosf  — RtLibm, ported (lane L).
-//   0x1800783d0  Array<SpriteDraw>::SetSize(0) — ported (lane UIF), and this
-//                file reaches it through the same literal `ResolveAddr`
-//                spelling that file uses, so the audit sees one door, not two.
-//   0x18008a290  the DLL's `memcpy` — `std::memcpy`, no door.
-//   0x1801fe7a8  Device::_singleton — a DATA address, already minted.
-//   the ContextData vtable at +0x2160 — a virtual call, not a door.
+// The per-vertex copy of step 7 is the DLL's `memcpy` (0x18008a290); `Emit`
+// below spells it `std::memcpy`.
 // ============================================================================
 
 #include <cstddef>
@@ -162,8 +89,6 @@
 #include "ui/SpriteRecord.h"      // NOT RETAIL: ext.render_pipe's replayed frames (SpriteContext::_extRecord)
 #include "../collection/array_internal.h" // ENDGAME B.3.2 step 2 — kSpec_SpriteDraw
 
-// Same forward declarations, same spelling, as spritecontext.cpp — the linker
-// checks them. See that file's header for why resolve.h is not included.
 namespace {
 
 using UI::SpriteContext;
@@ -256,11 +181,8 @@ inline float TransformY(const FlushTransform2& m, float x, float y) {
 // Dependencies
 // ---------------------------------------------------------------------------
 // ENDGAME B.3.5 — `?Setup@MaterialInstance@Graphics@@QEBAXAEAVContext@Video@@H@Z`
-// 0x180102c90 was an RT_EXPORT_ONCE door here, with a `MaterialSetupFn` typedef
-// and a `kMaterialSetup` literal, because the member was only DECLARED. The body
-// is `Graphics::MaterialInstance::Setup` (src/engine/graphics/wave21_lane_gfxbody.cpp)
-// now, so step 6 below calls the member and the typedef/literal are gone with it.
-// The door stays registered for callers outside this file.
+// 0x180102c90 is `Graphics::MaterialInstance::Setup`
+// (src/engine/graphics/wave21_lane_gfxbody.cpp); step 5 below calls the member.
 
 // ENDGAME B.3.2 step 2 — the 0x1800783d0 forwarder that used to sit here is
 // GONE. `self->_draws` is a real `Collection::Array<SpriteDraw>` member, and
@@ -277,7 +199,7 @@ inline float TransformY(const FlushTransform2& m, float x, float y) {
 // ENDGAME B.3.5: the two ContextData byte offsets are gone. +0x70 and +0x78 are
 // slots 14 (`BeginVertices(int,int)`) and 15 (`EndVertices(int)`) of the real
 // abstract `Video::ContextData`, declared in retail order in CompanionData.h and
-// pinned there against dx11's own slot table (src/render/dx11/contextdata.cpp:37-38).
+// pinned there against dx11's own slot table (src/render/dx11/contextdata.cpp:44-45).
 // The receiver is PROVED: it is `Video::Context::_contextData` at +0x2160. The
 // CONCRETE `*Data` subclass and the 84-slot seam are a declared leave for step 5
 // (B35_RULES section 11); only the dispatch converts.
@@ -329,8 +251,7 @@ uint64_t g_records = 0, g_lines = 0, g_rotated = 0, g_mapFail = 0;
 // ============================================================================
 // 0x18011ba40  ?Flush@SpriteContext@UI@@AEAAXXZ — UI::SpriteContext::Flush
 // ============================================================================
-// ENDGAME B.3.6 block D: the body the door and its `FlushBody` helper carried
-// is the member now; the door below delegates.
+// ENDGAME B.3.6 block D: the body is the member below.
 namespace UI {
 
 // NOT RETAIL: ext.sharp_ui's engine-side seam (SpriteContext.h), null by default.
@@ -381,7 +302,7 @@ void SpriteContext::Flush() {
     const SharpSheetSwap* const swap = (sharp != nullptr) ? FindSwap(*sharp, current) : nullptr;
 
     // --- 0x18011bb37 -------------------------------------------------------
-    // `m_materialInstance` is spelt uint64_t (saveload_draw.cpp stores it as an integer).
+    // `m_materialInstance` is the sheet's Graphics::MaterialInstance* (+0x30).
     if (swap == nullptr)
         current->m_materialInstance
             ->Setup(*ctx, 0);

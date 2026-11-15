@@ -107,10 +107,9 @@
 // ============================================================================
 // ENDGAME B.3.5 BLOCK B — THE BODY MOVED INTO THE MEMBER
 // ============================================================================
-// `?SetupShaders@VideoProgram@Video@@` is now
-// `Video::VideoProgram::SetupShaders(void*)`, a member of the real class in the
-// new src/engine/video/VideoProgram.h, and the registered door is a one-line
-// QUALIFIED non-virtual delegation through a `reinterpret_cast` bridge.
+// `?SetupShaders@VideoProgram@Video@@` is
+// `Video::VideoProgram::SetupShaders(Context&)`, a member of the real class in
+// src/engine/video/VideoProgram.h.
 //
 // THE LOCAL `struct VideoProgramPartial` IS GONE. It pinned four offsets of a
 // class that had no header anywhere in the tree, with no `sizeof` assert because
@@ -120,16 +119,10 @@
 //
 // THE ORACLE SCAFFOLDING IS GONE TOO, and that is a warning fix, not a loss.
 // `Capture`, `Restore` and the unused `pre` were the restore-and-replay harness
-// described below; the replay call itself was removed when the port closed, leaving
+// described above; the replay call itself was removed when the port closed, leaving
 // three functions and a variable that nothing used — three warnings in both builds,
 // on a file this block touches. The METHOD stays written down here, which is the
 // part that has to survive.
-//
-// `Video::Context` is block D1's class and is still the 0x2168-byte POD
-// `RtVideo::Context` today, so the member takes a `void*` and casts. Inside
-// `namespace Video` the POD is spelled with its `RtVideo::` qualifier, as
-// B34_BRIEFS A.7 requires now that this file opens that namespace: a bare
-// `Context` there would bind to a class.
 // ============================================================================
 
 #include <cstdio>
@@ -152,10 +145,6 @@ inline void Apply(Video::Context* ctx, const T*& slot, const T* value, uint32_t 
     }
 }
 
-// ----------------------------------------------------------------------------
-// The registered door. Kept inside the anonymous namespace: nothing outside this
-// file needs the symbol -- the registry takes its ADDRESS, not its name.
-// ----------------------------------------------------------------------------
 }  // namespace
 
 // ============================================================================

@@ -119,7 +119,7 @@ bool CreatePlacedDescription::Serialize(IO::Stream& stream) {
     uint32_t* arr = _placeArray._data;
     if (count > 0 && !arr) {
         // No buffer yet: allocate directly instead of going through the shared resize.
-        // Reimpl_Array_Resize_Stride04 (our 0x1400021D0) reads the RECORDED count as
+        // Collection::Array<uint32_t>::SetSize (our 0x1400021D0) reads the RECORDED count as
         // `oldCount` and copies that many elements from the old pointer, so handing it a
         // null data pointer with a non-zero count makes it read from address 0. Retail
         // never sees that state; ours could, so keep the shared helper off this path.

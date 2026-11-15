@@ -12,7 +12,7 @@
 //
 // FIELDS (B.4 ACT-b): from the ctor 0x1400c9170, Persist 0x1400c8ec0 and the slot
 // bodies; the path setup 0x1400c8c10 and the waypoint facing 0x1400c8d20
-// (action_base_move.cpp, ACT-a's file) still read them at raw offsets.
+// (action_base_move.cpp) read them as members.
 // ============================================================================
 
 #include <cstdint>
@@ -46,7 +46,7 @@ public:
 
     void UpdateFacing();                                                   // 0x1400c8d20 (body in action_base_move.cpp)
     // Retail takes RCX / RDX only; the caller's R8 / R9 are stale registers (the Vector2 of the
-    // distance test, the ActionStack), modelled as two unread parameters (body in action_base_move.cpp).
+    // distance test, the ActionStack), not modelled as parameters (body in action_base_move.cpp).
     bool PathSetup(const float* worldPos);   // 0x1400c8c10 (retail returns AL = 1)
 
     // ---- fields, retail order (PUBLIC: 0x1400c8c10 / 0x1400c8d20 read them) ----
@@ -68,7 +68,7 @@ public:
     int32_t   stopAnimation;     // +0x46C played when the path ends / on Exit (Persist: int)
     int32_t   movementProfile;   // +0x470 SetMovementCosts' profile (0x1400c8c10; Persist: int)
     bool      isFollowing;       // +0x474 set by Enter when the nearest character faces our
-                                 //        way; Execute then walks at description->_f30
+                                 //        way; Execute then walks at description->_slowSpeed
     uint8_t   _pad475[3];        // +0x475 padding
     float     speedMultiplier;   // +0x478 walk speed
     uint8_t   _pad47C[4];        // +0x47C padding

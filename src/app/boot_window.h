@@ -48,7 +48,7 @@ namespace Video { class Configuration; }   // src/engine/video/Device.h
 
 namespace BootWindow {
 
-// Called from VideoDX11 CreateDevice just before step 6. Sets the engine's
+// Called from CreateDevice (DX11 and Vulkan) just before step 6. Sets the engine's
 // skipShow flag and records the window (the HWND on Win32, an opaque handle:
 // platform_window.h) so ShowNow can reveal it later.
 // Returns true if the deferral was armed; false means the shipped ShowWindow

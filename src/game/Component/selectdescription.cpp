@@ -20,7 +20,6 @@
 // Dtor (vtable +0x00, 0x14000bcc0): ~String(+0x38) + ~String(+0x28) +
 //   External::~External + free.
 //
-// Field knowledge harvested from engine/reimpl/selectdescription.cpp.
 // Decompiled from Application-x64.exe (READ-ONLY recon).
 //
 // ENDGAME B.3.8 K1: a REAL class (SelectDescription.h) with a compiler-generated vtable;

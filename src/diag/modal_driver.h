@@ -6,7 +6,7 @@
 // pump `UI::UserInterface::ShowDialog` (0x18011fd10) spins, and it is therefore
 // the only place from which an unattended driver can dismiss a modal dialog.
 //
-// Everything else in the harness ticks from `MenuDLT::Stub_Update` or from a
+// Everything else in the harness ticks from `MenuDialogLoopT::Update` or from a
 // GameUpdateLoop, both of which hang off `MainLoop::Update` — and the nested
 // pump calls `MainLoop::Frame(true)`, whose `param_1 == true` SKIPS
 // `MainLoop::Update` entirely (0x1800dd28e is inside `if (!param_1)`). That is
@@ -32,7 +32,7 @@
 
 namespace ModalDriver {
 
-// True when BANISHED_MODAL_DRIVER is set. Cheap; safe before Arm().
+// True when BANISHED_MODAL_DRIVER is set. Cheap; safe before Poll().
 bool Enabled();
 
 // Idempotent. Reads Engine::MainLoop::_singleton (0x1801fe750) and, once it is

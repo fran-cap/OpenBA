@@ -58,7 +58,7 @@ HerbalistComponent::HerbalistComponent() : ResourceProduceComponent() {}
 }
 
 void       HerbalistComponent::Persist(IO::Stream& stream) {
-    // Base ResourceProduceComponent::Shutdown (0x14012b4a0), a direct call in retail.
+    // Base ResourceProduceComponent::Persist (0x14012b4a0), a direct call in retail.
     ResourceProduceComponent::Persist(stream);
 
     // Empty serializer block (subclass compat)

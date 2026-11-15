@@ -17,8 +17,8 @@
 //   [10] 0x1400ea8b0 GetTarget  [11] 0x140029860 GetPriority (`+0x50 > 0`, shared
 //   by 13 tables)  [12] = Work (0x140006b10)
 //   FishingComponent's CreateWork (resourceproduce_creatework.cpp, block MI-B) builds
-//   the work BY HAND (retail ctor 0x1400eaac0) and stamps 0x140161320; that
-//   registration serves FishingWork::Vtable() (B38 D5). The default ctor here builds
+//   the work (retail ctor 0x1400eaac0) from the default ctor and Work::InitFromEntity, then
+//   sizes its two arrays. The default ctor here builds
 //   what the tree's factory built (Work_GenericCtor: base init, leaf fields zeroed).
 // ============================================================================
 

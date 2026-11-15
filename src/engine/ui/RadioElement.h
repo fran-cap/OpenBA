@@ -10,7 +10,7 @@
 //
 // PARENT `UI::GroupElement` — READ, not inferred (B36_SLOTS.md section 3):
 //     ?_ParentTypeName@RadioElement@UI@@CAPEBDXZ  @0x1800479d0 -> "GroupElement"
-// RULE B5-15 / B6-7 — the two literals, RECORDED, NOT USED:
+// RULE B5-15 / B6-7 — the two literals (DEFINE_TYPE in radioelement.cpp builds `_typeInfo` from them):
 //     ?_TypeName@RadioElement@UI@@CAPEBDXZ        @0x1800479c0 -> "RadioElement"
 //     ?_ParentTypeName@RadioElement@UI@@CAPEBDXZ  @0x1800479d0 -> "GroupElement"
 //
@@ -96,9 +96,7 @@ public:
     // ---- non-virtual ------------------------------------------------------
     // 0x1800d56e0 — `MOV EAX,[RCX+0xd0] ; RET`.
     int32_t GetActiveRadio() const { return _activeIndex; }
-    // PORTED; both DEFINED in widgets_input.cpp (fragment pass), where the
-    // registered doors `RtUi_RadioElement_SetActiveRadio` (0x1800d56f0) and
-    // `RtUi_RadioElement_FindCheckBoxes` (0x180047c00) delegate to them.
+    // PORTED; both DEFINED in widgets_input.cpp (fragment pass).
     void SetActiveRadio(int32_t index);                           // 0x1800d56f0
     void FindCheckBoxes();                                        // 0x180047c00
 
@@ -110,9 +108,9 @@ public:
     // `?FindCheckBoxes@RadioElement@UI@@AEAAXV?$InternalPtr@VElement@UI@@@Object@@@Z`
     // (0x1800d5750, `AEAA` = PRIVATE). The handle is by value in the source, so
     // retail passes the ADDRESS of the caller's copy (RULE B6-11) — declared as
-    // that pointer. PUBLIC here only because its registered door
-    // `RtUi_RadioElement_FindCheckBoxesPrivate` delegates to it (fragment pass
-    // F1; access is not part of the GCC ABI). Body: widgets_input.cpp.
+    // that pointer. PUBLIC here because RadioDescription::CreateInstance
+    // (radiodescription.cpp) calls it (access is not part of the GCC ABI).
+    // Body: widgets_input.cpp.
     void FindCheckBoxes(Object::InternalPtr<Element>* root);      // 0x1800d5750
 
 private:

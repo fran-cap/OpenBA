@@ -5,7 +5,7 @@
 // toolbar (and other) buttons that displays a button's keyboard shortcut. Each
 // time the dialog refreshes (Slot4 / "Serialize") it:
 //   1. reads the controlled button's shortcut id, _keyIndex (set by
-//      ToolbarDialog_Ctor_Impl when it auto-assigns Toolbar0..8 / Tool0..9 ids),
+//      ToolbarDialog::ToolbarDialog when it auto-assigns Toolbar0..8 / Tool0..9 ids),
 //   2. resolves that id to a (device, keyCode) pair via Input::KeyMap,
 //   3. formats "<deviceName><keyCode>" (e.g. "Keyboard1") and looks it up in the
 //      keyNames StringTable (Game container +0xD0) for a localized display
@@ -52,8 +52,7 @@ namespace Game {
 //   _dataSource = the controlled element (the button)
 
 // Live Input::KeyMap (maps shortcut id -> device/key): the Configuration's
-// first field. Proven path: SetStandaloneKeyMap publishes the Engine[+0x6d8]
-// keymap into this chain.
+// first field, allocated by Input::Configuration::Startup.
 static const Input::KeyMap* GetActualKeyMap() {
     if (Input::Configuration::_singleton == nullptr) return nullptr;
     return Input::Configuration::_singleton->_keyMap;
@@ -63,9 +62,8 @@ static const Input::KeyMap* GetActualKeyMap() {
 // formatting "<deviceName><keyIndex>" and resolving it against the keyNames
 // StringTable. retval must be 16 bytes (UI::String). device < 0 => "Unbound".
 //
-// Exported (2026-08-30, LANE1 row 36) so the two Tutorial call sites can share it
-// instead of resolving the raw address 0x140099c20, which is unregistered and so
-// left tutorial key names blank. Retail's param_1 is the KeyMap container whose
+// Shared with the two Tutorial call sites (tutorialimagehotkey.cpp and
+// tutorialimageinputkey.cpp). Retail's param_1 is the KeyMap container whose
 // +0xD0 is the keyNames StringTable; both tutorial callers pass
 // *g_pKeyMapSingleton, which is exactly the container this function looks up, so
 // the substitution is exact.
@@ -109,22 +107,17 @@ static void FillHotKeyText(HotKeyToolTipUI* self, const char* elemName, int para
 
 }  // namespace Game
 
-// ---- HotKeyToolTipUI: PROMOTED to the real reimpl (2026-06-28) ---------------
+// ---- HotKeyToolTipUI -----------------------------------------------------------
 // This controller is bound to the "textHotKey"/"textToolTip" TextElements of
-// every toolbar button. Its Slot4 (Serialize, +0x20) reads the button's
+// every toolbar button. Its Slot4 (OnCreated, +0x20) reads the button's
 // auto-assigned shortcut id (ButtonElement::_keyIndex), resolves it through
-// Input::KeyMap + the keyNames StringTable, and fills the hotkey text. The generic
-// stub left Slot4 a no-op, so the buttons showed the .rsc placeholder "[]" (empty
-// brackets). Wiring Slot4 to the real HotKeyToolTipUI_Slot4 restores the key
-// display. Construction stays the stub alloc+zero+vtable; the engine fills the
-// base fields (dialog +0x18, datasource +0x28) afterward. Same shape as the
-// BuildRequirementUI promotion above.
-// ENDGAME B.3.9: the reimpl unconditionally dereferences a type id for the button
-// element. That cell (exref 0x140151660) is UI::Element's own _typeInfo (Table 1 /
-// standalone/reg_element_typeids.cpp), NOT "Internal" as this file's old heal
-// guessed (Object::Internal has no ported TypeId() and the heal never actually ran:
-// the pointer is set at EngineFuncsInit before OnCreated's first call). UI::Element
-// now has a ported TypeId(), so the lazy-cache is dead.
+// Input::KeyMap + the keyNames StringTable, and fills the hotkey text over the
+// .rsc placeholder "[]" (empty brackets). Construction is the factory's alloc +
+// ctor (ui_dialog_stub_factories.cpp); the engine fills the base fields
+// (dialog +0x18, datasource +0x28) afterward.
+// ENDGAME B.3.9: the type id the body checks the controlled element against
+// (exref 0x140151660) is UI::Element's own _typeInfo; UI::Element has a ported
+// TypeId().
 
 // HotKeyToolTipUI::Serialize — Slot4 (+0x20). self = the controller.
 // [4] 0x14006a980.

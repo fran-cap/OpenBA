@@ -5,8 +5,8 @@
 // ============================================================================
 //
 // Six of lane VRES's seven rows. The seventh
-// (?SaveImageToFile@ImageBuffer@Video@@) is in buffers.cpp's holdback note and
-// stays there; docs/history/runtime_port/WAVE18_LANE_VRES.md carries its verdict.
+// (?SaveImageToFile@ImageBuffer@Video@@) is in save_image_to_file.cpp;
+// docs/history/runtime_port/WAVE18_LANE_VRES.md carries its verdict.
 //
 //   | Export                                   | Retail      | Ord  |
 //   |------------------------------------------|-------------|------|
@@ -22,14 +22,6 @@
 // written — reference_resolveexport_phantom_names.md. Every body below was
 // transcribed from `disassemble_function` at that address, not from Ghidra's
 // decompiled C (reference_ghidra_c_output_vs_disassembly.md).
-//
-// A CORRECTION TO THIS LANE'S OWN BRIEF, recorded here because it changed the
-// shape of the work: `src/render/dx11/contextdata.cpp` names `?Bind@RenderBuffer@` at
-// `0x180013448`, which is NOT this function — 0x180013448 is a displacement
-// inside an unrelated copy-assign body in Runtime-x64.dll. It is not a defect:
-// both DLLs prefer image base 0x180000000 and that constant is VideoDX11's own
-// IAT SLOT for the import, which is exactly what `Dx11ResolveRuntimeImport`
-// wants. The Runtime function is 0x1800f4300, and that is what is registered.
 //
 // ---------------------------------------------------------------------------
 // THE TWO DESTRUCTORS, AND WHAT EACH ONE DESTROYS VS MERELY FREES
@@ -69,7 +61,7 @@
 // ??1Configuration@Video@@ destroys NOTHING and frees NOTHING. Its entire body
 // is two instructions: store 0 over `?_singleton@Configuration@Video@@`. It
 // does not even read `this`. Engine::Shutdown does the MemFree separately
-// (src/engine/engine/engine_lifecycle.cpp:969).
+// (src/engine/engine/engine_lifecycle.cpp:845).
 //
 // ---------------------------------------------------------------------------
 // THREE HELPER ADDRESSES lane D2 DID NOT ENUMERATE
@@ -88,14 +80,7 @@
 //                  B{0x00}
 //
 // The two nested ones are the shape lane D2 called "the eleventh, 0x18005c550,
-// a RECURSIVE destroy that calls one of each body before freeing". They are
-// composed here out of `rtcoll::FreeInnerArraysCore` / `ReleaseStringsCore` /
-// `ArrayDtorImpl` rather than re-derived, so this lane inherits lane D2's
-// verification of those bodies instead of writing a fourth copy of them. They
-// are deliberately NOT registered at their own addresses, for the reason
-// array_destroy.cpp gives for the other eight: nothing in this tree resolves
-// them, and a registration with no caller dilutes the census's dead-port
-// signal (reference_uncalled_port_is_not_verified.md).
+// a RECURSIVE destroy that calls one of each body before freeing".
 //
 // PLATFORM. `??1Device` calls DeleteCriticalSection on the lock at Device+0x60.
 // PLAN §4.1 decision 1 keeps src/engine/ free of <windows.h>, so that one call
@@ -103,7 +88,7 @@
 // ============================================================================
 
 // B.4 (R-VIDEO): the three nested destroys are the typed helpers now. 0x180010cf0
-// is `RtVideo_ArrayModeElemDestroy` (device_startup.cpp) and 0x180010da0 is
+// is `RtVideo_ArrayModeElemDestroy` (device_enum_types.cpp) and 0x180010da0 is
 // `RtVideo_ArrayAdapterElemDestroy` (device_enum_types.cpp) -- the same retail
 // addresses, ported once each on the named fields, spelling B of the String
 // release included -- and 0x180010f00 is `RtVideo_ArrayInterfaceElemDestroy`,
@@ -127,7 +112,7 @@ using Video::RenderBuffer;
 
 namespace {
 
-// One `{data, size, capacity}` triple's `ArrayDtorImpl` (array.cpp:221):
+// One `{data, size, capacity}` triple's `ArrayDtorImpl` (collection/Collection.h):
 // MemFree the block (the allocator's own null test), then the three zero stores.
 template <class T>
 void FreeTriple(T*& data, int32_t& size, int32_t& capacity) {
@@ -147,16 +132,15 @@ void FreeTriple(T*& data, int32_t& size, int32_t& capacity) {
 //
 // Twelve instructions. Three qword zero stores covering +0x00..+0x17, a CALL to
 // PlatformConstruct, and `MOV RAX,RBX` — the ctor returns `this`, which MSVC
-// requires and which minimap_paint.cpp's `fn_RenderBuffer_Ctor_t` already
-// expects.
+// requires.
 //
 // `MOV qword ptr [RCX+0x10],RAX` is ONE eight-byte store covering `width` AND
 // `height`. Writing them as two ints is the same bytes; it is spelled as two
 // named fields because that is what Device.h pins.
 //
-// THIS CTOR STAYS A DOOR (no real `RenderBuffer::RenderBuffer()`): it publishes
-// `this` into the `_firstRenderBuffer` intrusive list, whose head is an
-// `RT_DATA_SLOT` read rather than a C++ static — see Device.h's banner.
+// No real `RenderBuffer::RenderBuffer()`: this free function is the ctor. Through
+// PlatformConstruct it publishes `this` into the `_firstRenderBuffer` intrusive
+// list (the class static in Device.h).
 RenderBuffer* Video_RenderBuffer_Ctor(RenderBuffer* self) {
     self->colorBuffer = nullptr;                       // MOV [RCX],RAX
     self->depthBuffer = nullptr;                       // MOV [RCX+8],RAX
@@ -175,8 +159,7 @@ RenderBuffer* Video_RenderBuffer_Ctor(RenderBuffer* self) {
 // nothing else. What the destination does is unlink `this` from the circular
 // `_firstRenderBuffer` list and release the RenderBufferData companion at +0x28
 // — and it does NOT null +0x28 afterwards (buffers.cpp's "ImageBuffer
-// asymmetry"). Still a DOOR and not a real `~RenderBuffer()` — the unlink it
-// delegates to is what a real destructor could not publish.
+// asymmetry"). A free function, not a real `~RenderBuffer()`.
 void Video_RenderBuffer_Dtor(RenderBuffer* self) {
     self->Video::RenderBuffer::PlatformDestruct();
 }
@@ -201,7 +184,7 @@ void Video::RenderBuffer::Bind(Context& context) const {
 // ============================================================================
 //
 // Device-lost / resize recovery for one ImageBuffer. Called from
-// src/engine/save/saveload_update.cpp:279.
+// src/engine/save/saveload_update.cpp:236.
 //
 //     dd = Video::Device::_singleton->deviceData        ; +0x100
 //     pd = dd ? dd->CreateImageBufferData(this) : null  ; slot 10, +0x50
@@ -285,18 +268,17 @@ void Video_Configuration_Dtor(void* self) {
 //      `CMP dword [RBX],ECX / CMOVZ RAX,RCX` — a CMOV, so the singleton slot is
 //      REWRITTEN EITHER WAY: with null when this is the type-0 device, with its
 //      own current value when it is not. Reproduced as an unconditional store.
-//   4. DeleteCriticalSection(&this->lock) — +0x60, via the _win twin.
+//   4. DeleteCriticalSection(&this->lock) — +0x60, via RtVideoDeleteDeviceLock.
 //   5..6. The three arrays, in retail's order 0x40, 0x30, 0x20. NOTE the order
 //      is NOT the offset order and is NOT reverse-declaration order; it is
 //      transcribed, not tidied.
 //
-// WHAT IT DOES NOT TOUCH: `dllSlots` at +0xB0 (the three LOADED renderer plugin
-// modules src/app/video_interface.cpp fills) is never read by this body — no
+// WHAT IT DOES NOT TOUCH: `dllSlots` at +0xB0 (the renderer interface slots
+// src/app/video_interface.cpp fills) is never read by this body — no
 // FreeLibrary, no clear.
 //
-// THIS STAYS A DOOR and not a real `~Device()` (B4_RULES B12: until the dx11
-// seam) — RULE B5-6, because `InitializeCriticalSection` is retail's
-// `Device::Startup`.
+// This is a free function and not a real `~Device()` — RULE B5-6, because
+// `InitializeCriticalSection` is retail's `Device::Startup`.
 void Video_Device_Dtor(Device* self) {
     // ---- 1 & 2: the DeviceData companion -----------------------------------
     DeviceData* const dd = self->deviceData;

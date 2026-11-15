@@ -4,39 +4,39 @@
 // State_ElderTransition handler trio. Faithful 1:1 ports transcribed from the Ghidra
 // decompile, offset-by-offset, of:
 //
-//   0x14012ac30  FUN_14012ac30            -> ResidenceCheck_2ac30      (residence has free
-//                                            capacity / is below cur-time threshold; bool)
-//   0x14010db20  CitizenAI_helper_db20    -> CitizenAI_helper_db20     (State_Work: workplace
-//                                            still valid for this citizen)
+//   0x14012ac30  FUN_14012ac30            -> ResidenceComponent::CheckHeating (cold threshold
+//                                            <= the current temperature, or heat time left; bool)
+//   0x14010db20  CitizenAI_helper_db20    -> CitizenAIComponent::CanReachHome (State_Work: the
+//                                            citizen can reach its home)
 //   0x1400170b0  CitizenAI_helper_70b0    -> CitizenAI_helper_70b0     (sum of an int field
 //                                            over a stride-0x10 record array; pure leaf)
-//   0x14008ec70  Entity_impl_ec70         -> Entity_impl_ec70          (ElderTransition:
+//   0x14008ec70  Entity_impl_ec70         -> CitizenBehavior::FindElderResidence (ElderTransition:
 //                                            pick nearest valid residence w/ an InteractComponent)
-//   0x14008e370  CitizenAI_helper_e370    -> CitizenAI_helper_e370     (AdultTransition:
+//   0x14008e370  CitizenAI_helper_e370    -> CitizenBehavior::FindAdultTarget (AdultTransition:
 //                                            find best work/storage/residence target — 4 phases)
 //
 // ADDRESS RE-VERIFICATION (this session, via get_function_callees on the real handler parents):
 //   State_Work (0x14010d790)           -> CitizenAI_helper_db20 @ 14010db20  ✓
 //   State_AdultTransition (0x14010cd80)-> CitizenAI_helper_e370 @ 14008e370  ✓ + FUN_14012ac30 @ 14012ac30 ✓
 //   State_ElderTransition (0x14010d2c0)-> Entity_impl_ec70 @ 14008ec70       ✓ + FUN_14012ac30 @ 14012ac30 ✓
-//   e370's only otherwise-UNregistered exe sub-callee = CitizenAI_helper_70b0 @ 1400170b0 (leaf).
+//   e370 also calls CitizenAI_helper_70b0 @ 1400170b0 (leaf, defined in this TU).
 //
-// CLOSURE (every exe sub-callee is now registered — verified by grep of standalone/*.cpp):
-//   0x1401158d0 CitizenComp_CheckWorkplaceValid (reg_component_gap_A.cpp)   [db20]
-//   0x14009f810 Pf_IsDstReachable_f810          (reg_pf_roots_route.cpp)    [ec70, e370]
-//   0x140008090 CitizenComp_Entity_FindComponent_Storage (reg_component_people.cpp) [ec70]
-//   0x140006270 WorkBase_FindComponent_6270     (reg_work_base.cpp)         [e370]
-//   0x140122e20 Pf_EntityResolvePos_2e20        (reg_pf_road.cpp)           [ec70, e370]
-//   0x1400a00f0 WorkBase_ValidateCell_a00f0     (reg_work_base.cpp)         [ec70, e370]
-//   0x140132010 WorkImpl_Sqrtf_132010           (reg_work_impl2.cpp)        [ec70, e370]
-//   0x140087fb0 Pf_EntityAnchorCell_7fb0        (reg_pf_road.cpp)           [e370]
-//   0x14008ef40 CitizenComp_Entity_impl_ef40    (reg_component_gap_A.cpp)   [e370]
-//   0x14004edb0 Pf_PickReachableCell_edb0       (reg_pf_road.cpp)           [e370]
-//   0x140008830 WorkBase_CalcDistance_8830      (reg_work_base.cpp)         [e370]
-//   0x14009c480 Pf_ZoneRefresh_9c480            (reg_pf_roots_road.cpp)     [e370]
-//   0x14012d5d0 Pf_FindBestAdjacentCell_d5d0    (reg_pf_roots_route.cpp)    [e370]
-//   0x1400178c0 CitizenAI_sub_78c0              (citizenai_findtarget.cpp)  [e370]
-//   ec70 -> ResidenceCheck_2ac30 and e370 -> CitizenAI_helper_70b0 are in THIS TU (direct call).
+// CLOSURE (every exe sub-callee, called by name):
+//   0x1401158d0 CitizenComponent::CanReach                              [db20]
+//   0x14009f810 Map::PathDistance                                       [ec70, e370]
+//   0x140008090 ComponentEntity::FindComponent<ResidenceComponent>      [ec70]
+//   0x140006270 ComponentEntity::FindComponent<StorageComponent>        [e370]
+//   0x140122e20 InteractComponent::NodePosition                         [ec70, e370]
+//   0x1400a00f0 Map::ValidateCell                                       [ec70, e370]
+//   0x140132010 WorkImpl_Sqrtf_132010 (Work/exe_bodies.h)               [ec70, e370]
+//   0x140087fb0 EntityAnchorCell (Action/exe_bodies.h)                  [e370]
+//   0x14008ef40 CitizenComp_Entity_impl_ef40 (citizencomponent.cpp)     [e370]
+//   0x14004edb0 Component::PickReachableCell                            [e370]
+//   0x140008830 Map::CalcDistance                                       [e370]
+//   0x14009c480 Map::FillZones                                          [e370]
+//   0x14012d5d0 Component::FindBestAdjacentCell                         [e370]
+//   0x1400178c0 ComponentEntity::FindComponent<MarketLocationComponent> [e370]
+//   ec70 -> ResidenceComponent::CheckHeating and e370 -> CitizenAI_helper_70b0 are in THIS TU (direct call).
 //
 // KEY ABI NOTE (Ghidra-verified): Entity_impl_ef40 (0x14008ef40) IGNORES its first argument.
 //   Its real signature is (ignoredArg1, int64_t* out, void* entityIBP, int category) — it only
@@ -88,7 +88,7 @@
 
 namespace {
 
-// --- type ids (self-contained via GetTypeIdByName; see header note) ---
+// --- type ids (each class's TypeId(); see header note) ---
 static uint32_t s_tid_ResidenceDescription = 0;  // DAT_1401c7d28
 static uint32_t s_tid_InteractComponent    = 0;  // DAT_1401c7900
 static uint32_t s_tid_RawMaterialDesc      = 0;  // DWORD_1401c7cb8
@@ -136,10 +136,10 @@ static Description* ScanCompList2(ComponentDescription* base, uint32_t tid) {
 } // namespace
 
 // ============================================================
-// FUN_14012ac30 (0x14012ac30) — ResidenceCheck.
-//   param_1 = a StorageComponent-ish object. obj = *(param_1+0x18) (its description holder).
-//   Returns true if the residence's threshold field (desc+0x28) is <= the gameworld's current
-//   value (gw+0x130 -> +0x18), OR there is still pending capacity (param_1+0x48 > 0).
+// FUN_14012ac30 (0x14012ac30) — ResidenceComponent::CheckHeating.
+//   obj = the component's description (+0x18). Returns true if the residence's cold threshold
+//   (desc+0x28) is <= the weather's current temperature (gw+0x130 -> +0x18), OR heat time is
+//   still left (heatRemaining, +0x48 > 0).
 // ============================================================
 //   (B4 P2 CAI-2: the receiver is the ResidenceComponent every caller passes.)
 bool ResidenceComponent::CheckHeating() {
@@ -212,10 +212,10 @@ static uint32_t WorldToCell(const Map* map, const float* vec) {
 }
 
 // ============================================================
-// Entity_impl_ec70 (0x14008ec70) — State_ElderTransition find-target.
+// CitizenBehavior::FindElderResidence (0x14008ec70) — State_ElderTransition find-target.
 //   Scan the entity list at (param_1+0x20 array, param_1+0x28 count); for each candidate find its
 //   InteractComponent, resolve its world position -> cell, rank by path cost to goal (param_3),
-//   keep the cheapest whose ValidateCell passes AND whose Storage passes ResidenceCheck_2ac30.
+//   keep the cheapest whose ValidateCell passes AND whose ResidenceComponent passes CheckHeating.
 //   Out: *param_2 = best entity, param_4 = best target vec3. Returns param_2.
 // ============================================================
 //   (B4 P2 CAI-2: param_1 is the CitizenBehavior every caller passes, GameUpdateLoop +0xF0;
@@ -262,13 +262,13 @@ ComponentEntity** CitizenBehavior::FindElderResidence(ComponentEntity** found, u
 }
 
 // ============================================================
-// CitizenAI_helper_e370 (0x14008e370) — State_AdultTransition find-best-target. 4 phases:
+// CitizenBehavior::FindAdultTarget (0x14008e370) — State_AdultTransition find-best-target. 4 phases:
 //   A) a preferred candidate (*param_7): if its anchor cell validates, take it (cost = CalcDistance).
 //   B) a MARKET candidate list (param_1[2] array / param_1[3] count): rank by path cost, then by
 //      MarketLocationComponent reachability (sub_78c0 + edb0).
 //   C) a RAW-MATERIAL/STORAGE candidate list (param_1[0]/[1]): match RawMaterialDescription on the
 //      ef40-picked production slot, StorageLocationComponent on the entity, flag-mask compatibility
-//      (RadiusDescription+0x5c & storage mask), then cost via FindBestAdjacentCell (d5d0).
+//      (RawMaterialDescription+0x5c & storage mask), then cost via FindBestAdjacentCell (d5d0).
 //   D) a RESIDENCE candidate list (param_1[4]/[5]): skip residences whose occupancy sum (70b0) >= 1,
 //      else use the InteractComponent position, refresh the zone (9c480) and check cell-flag
 //      compatibility before taking the entity (ef40 pick).
@@ -456,7 +456,7 @@ ComponentEntity** CitizenBehavior::FindAdultTarget(ComponentEntity** found, uint
                         if (proceed) {
                             ComponentEntity* entHolder[2] = {cand, nullptr};
                             ComponentDescription* outSlot = nullptr;
-                            CitizenComp_Entity_impl_ef40(reinterpret_cast<void*>(static_cast<uintptr_t>(flags)), &outSlot, entHolder, 0);   // LEFT: B6 register retail leaves unset: at this site (0x14008eb7a in 0x14008e370) retail loads RDX / R8 / R9D and never RCX (its low word still holds the zone compared at 0x14008eb5e); ef40 (exe_bodies.h:144) ignores param_1 and its nine other callers pass pointers through the const void*, so the tree's integer here has no declared type that fits all ten without a cast or a changed value  // CAST-OK: ptr_int (S4 ruling)
+                            CitizenComp_Entity_impl_ef40(reinterpret_cast<void*>(static_cast<uintptr_t>(flags)), &outSlot, entHolder, 0);   // LEFT: B6 register retail leaves unset: at this site (0x14008eb7a in 0x14008e370) retail loads RDX / R8 / R9D and never RCX (its low word still holds the zone compared at 0x14008eb5e); ef40 (Component/exe_bodies.h) ignores param_1 and its eight other callers pass pointers through the const void*, so the tree's integer here has no declared type that fits all nine without a cast or a changed value  // CAST-OK: ptr_int (S4 ruling)
                             if ((outSlot != nullptr) && (-1 < cost)) {
                                 *found = cand;
                                 param_5[0] = vec.v.x;

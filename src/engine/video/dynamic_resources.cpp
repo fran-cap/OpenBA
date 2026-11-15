@@ -5,32 +5,13 @@
 //   class-static list walkers they forward to, plus Video::RenderBuffer::Recreate.
 // ============================================================================
 //
-// WHY THIS FILE EXISTS, AND WHY IT IS NOT "THE DEVICE-LOST PATH"
-// -------------------------------------------------------------
+// WHY THIS FILE EXISTS
+// --------------------
 // `?ReleaseDynamic@Device@Video@@QEAAXXZ` and `?RecreateDynamic@Device@Video@@QEAAXXZ`
-// look like they matter only when the GPU device is lost. They do not. Both
-// names sit in the import tables of `src/render/dx11/contextdata.cpp` and
-// `src/render/dx11/devicedata.cpp`, and BOTH of those tables are ALL-OR-NOTHING:
-//
-//     const Imports* GetImports() { ... return g_imOk ? &g_im : nullptr; }
-//     void ContextData_Finish(ContextData* self) {
-//         const Imports* im = GetImports();
-//         if (!im) { Orig<void (*)(ContextData*)>(3)(self); return; }
-//
-// `g_imOk` is false if ANY ONE of the twenty entries resolved null. At cutover
-// `ResolveExport` misses the port registry for an unported name and falls
-// through to `the raw DLL door`, which has no module handle and returns
-// null — so ONE unported Runtime export in that table disables EVERY
-// `ContextData` slot, and there is no shipped body to fall back to:
-// VideoDX11-x64.dll is never loaded. That is a dead renderer on the first
-// draw, not on device loss.
-//
-// So these four `Video::Device` members are per-frame infrastructure. Their
-// Wave 6 hold-back reason ("running ours and theirs both releases twice and
-// recreates twice; there is nothing to compare") is a statement about the
-// ORACLE, and it is still true — but it was never a statement about whether
-// the port is needed, and at cutover there is no second implementation for the
-// double-execution hazard to arise from.
+// are called by `src/render/dx11/contextdata.cpp` (the device-lost path) and
+// `src/render/dx11/devicedata.cpp`, and also outside device loss:
+// src/game/Dialog/optionsdialog.cpp calls ReleaseDynamic before a full video
+// restart, and src/ext/render_backend/render_backend.cpp calls both.
 //
 // WHAT THE EIGHT STATICS ARE
 // --------------------------
@@ -54,10 +35,8 @@
 //
 //     ord 4787  0x1801fe790  ?_firstRenderBuffer@RenderBuffer@Video@@0PEAV12@EA
 //
-// read out of the shipped export directory with pefile. Lane C2 minted the
-// other three sibling heads (`_firstSurface`, and both `_firstBuffer`s) and
-// skipped this one, so the fourth head had no storage after cutover. This lane
-// adds the missing mint row rather than working around it.
+// read out of the shipped export directory with pefile. It is the class static
+// `Video::RenderBuffer::_firstRenderBuffer` below, beside the other three heads.
 //
 // EVERY MANGLED NAME BELOW WAS CHECKED AGAINST THE SHIPPED EXPORT DIRECTORY OF
 // C:\GOG Games\Banished\Runtime-x64.dll WITH pefile BEFORE ANY BODY WAS
@@ -78,30 +57,18 @@
 //   ?ReleaseDynamic@RenderBuffer@Video@@SAXXZ      0x1800f40c0  ord 3539
 //   ?Recreate@RenderBuffer@Video@@QEAAXXZ          0x1800f4170  ord 3521
 //
-// THERE IS NO ORACLE FOR ANY OF THE TWELVE WALKERS/FORWARDERS, AND THIS FILE
-// SAYS SO RATHER THAN PRETENDING OTHERWISE.
-// Wave 6's argument stands unchanged: running ours and then theirs releases
-// every live GPU companion twice and recreates it twice, and the second pass
-// operates on freed objects. A `the diff oracle` has nothing to assert either —
-// the observable effect is entirely inside `src/render/dx11/`. So no `the diff oracle`
-// appears below for those bodies. What IS verified:
+// What IS verified:
 //
 //   * `Device::Lock` / `Device::Unlock` are byte-identical in shape to the
-//     inline copies already living in `buffers_lock.cpp`, which Wave 9 lane W
-//     validated against retail through the empty-list probe. Their two new
+//     inline copies already living in `buffers_lock.cpp`. Their two
 //     `this`-taking twins are transcribed from 0x18000ca90 / 0x18000cac0
 //     instruction by instruction (the store ORDER differs from the inline copy
 //     and is preserved — see buffers_lock.cpp).
 //   * `RenderBuffer::Recreate`'s width/height arithmetic is not transcribed a
-//     second time. It is EXACTLY `ImageBuffer::Width()` / `Height()`, which are
-//     already ported AND carry a FULL scalar oracle
-//     (`Video_ImageBuffer_Width` / `_Height`, buffers.cpp:429/450). Calling
-//     them rather than re-deriving the bit8/bit9/bit6 ladder means the
-//     equivalence is enforced by the compiler instead of asserted in a comment,
-//     and it puts the one piece of real arithmetic in this file under an oracle
-//     that already runs. Retail inlines that ladder, so under
-//     `the diff-oracle flag` this shows up as extra `Video::ImageBuffer::Width`
-//     call counts; that is a measurement artefact, not a behaviour change.
+//     second time. It is EXACTLY `ImageBuffer::Width()` / `Height()`
+//     (buffers.cpp). Calling them rather than re-deriving the bit8/bit9/bit6
+//     ladder means the equivalence is enforced by the compiler instead of
+//     asserted in a comment. Retail inlines that ladder.
 //
 // PLATFORM. Nothing here includes <windows.h>. The Device lock lives in
 // buffers_lock.cpp per PLAN §4.1 decision 1.
@@ -292,7 +259,7 @@ void Video::ImageBuffer::ReleaseDynamic() {
                 // B5 RES (B5_RULES D10): ImageBufferData wears the compiler's
                 // table, so its slot-0 call with flags 1 is `delete` (virtual
                 // dtor, then the base's operator delete = MemFree); guarded on
-                // the companion and the field nulled, as ReleaseCompanion does.
+                // the companion and the field nulled.
                 if (ImageBufferData* companion = p->_data)
                     delete companion;
                 p->_data = nullptr;
@@ -456,7 +423,8 @@ void Video::RenderBuffer::Recreate() {
 // No per-element guard on either: every RenderBuffer on the list is swept.
 // Both re-read the head from memory on every iteration (0x1800f407c and
 // 0x1800f4120 compare against `[_firstRenderBuffer]`, not a cached register),
-// unlike the other three classes — so both loops below re-read it too.
+// unlike ImageBuffer::ReleaseDynamic and the Index/VertexBuffer walkers — so
+// both loops below re-read it too.
 // ============================================================================
 void Video::RenderBuffer::RecreateDynamic() {
     RtVideoDeviceLock(&Device::_singleton);
@@ -481,7 +449,7 @@ void Video::RenderBuffer::ReleaseDynamic() {
             // B5 PILOT (B5_RULES D10): RenderBufferData wears the compiler's
             // table, so its slot-0 call with flags 1 is `delete` (virtual dtor,
             // then the base's operator delete = MemFree); guarded on the
-            // companion and the field nulled, as ReleaseCompanion does.
+            // companion and the field nulled.
             if (RenderBufferData* companion = p->platformData)
                 delete companion;
             p->platformData = nullptr;

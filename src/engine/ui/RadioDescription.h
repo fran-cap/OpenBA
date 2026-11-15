@@ -9,7 +9,7 @@
 //
 // PARENT `UI::GroupDescription` — READ, not inferred (B36_SLOTS.md section 3):
 //     ?_ParentTypeName@RadioDescription@UI@@CAPEBDXZ  @0x180047640 -> "GroupDescription"
-// RULE B5-15 / B6-7 — the two literals, RECORDED, NOT USED:
+// RULE B5-15 / B6-7 — the two literals, which DEFINE_TYPE (radiodescription.cpp) carries:
 //     ?_TypeName@RadioDescription@UI@@CAPEBDXZ        @0x180047630 -> "RadioDescription"
 //     ?_ParentTypeName@RadioDescription@UI@@CAPEBDXZ  @0x180047640 -> "GroupDescription"
 // The derivation is also visible in the bytes: ~RadioDescription (0x1800d5b20)

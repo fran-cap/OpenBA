@@ -125,8 +125,7 @@ inline float AbsF(float v) {
 // `Camera SunLight::GetSunCamera(Renderer&) const` — the one line block E
 // recorded as a comment and left for this block, because a by-value return needs
 // the COMPLETE type and `Graphics::Camera` was still a POD. The body below is
-// that member; the registered door keeps its name, both registrations and
-// retail's `(this, ret, renderer)` ABI, and delegates.
+// that member.
 //
 // TWO THINGS THE CONVERSION MADE NAMEABLE that this file had to spell as raw
 // offsets before, and both are now `static_assert`ed in Camera.h:
@@ -172,7 +171,7 @@ Camera SunLight::GetSunCamera(Renderer& renderer) const {
 
     // The shadow basis: look from the origin towards the sun direction vector.
     const Vector3    origin = { kZero, kZero, kZero };
-    // `_dirX/_dirY/_dirZ` are three consecutive floats (+0xc0); FromLookAt
+    // `_direction` is three consecutive floats (+0xc0); FromLookAt
     // takes them as the Vector3 they are.
     const Vector3    sunDir(self->_direction.x, self->_direction.y, self->_direction.z);
     const Transform3 look = Transform3::FromLookAt(origin, sunDir);

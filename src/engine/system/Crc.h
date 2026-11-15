@@ -36,10 +36,11 @@
 // this class, which is why it is the one of the three with no redirect debt.
 //
 // *** WHAT `Compute` DOES NOT DO. *** It never complements the seed on entry.
-// A caller wanting a standard CRC-32 passes 0xFFFFFFFF itself; a caller
-// chaining chunks passes `~previousResult`, which is what
-// `src/engine/io/persistence_worker.cpp`'s `Crc32Chunked` does. It DOES
-// complement on exit (`NOT EAX` before the `RET`).
+// It DOES complement on exit (`NOT EAX` before the `RET`). A caller wanting a
+// standard CRC-32 passes 0xFFFFFFFF itself; a caller chaining chunks into one
+// standard CRC passes `~previousResult`. `src/engine/io/persistence_worker.cpp`'s
+// `Crc32Chunked` does not: it continues each chunk from the previous chunk's
+// complemented result.
 // ============================================================================
 
 #include <cstdint>

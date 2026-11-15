@@ -48,14 +48,8 @@
 //
 // All three callees (0x180009700 / 0x180008e80 / 0x180009560) are the SAME
 // eleven-instruction leaf, byte-for-byte: `MemFree(p); _data = 0; {_size,
-// _capacity} = 0`. None of the three is registered by Wave 9 lane Q's
-// Array<T>::~Array port (which covers 0x180004890, 0x180009460 and seventeen
-// others but not these three), so calling them would open three NEW address
-// doors. They are INLINED below instead — the same decision, and the same
-// argument, that src/engine/collection/array.cpp's own note makes when it says
-// "one C++ function serves all eleven": freeing a buffer does not need to know
-// what is in it. THIS DOES NOT PORT THOSE THREE ADDRESSES and this file does
-// not claim it does; it declines to open a door, which is the opposite.
+// _capacity} = 0`. Here they are the compiler-emitted member destructors of
+// the three arrays (`rtcoll::ArrayDtorImpl`, the note after the includes).
 //
 // ----------------------------------------------------------------------------
 // NO ADDED NULL GUARDS, NO ADDED BOUNDS CHECKS
@@ -75,10 +69,8 @@
 // <Documents>\Banished\settings.cfg). `ReadAchievements` reads it back.
 // achievement_manager.cpp's banner cites that as the reason Wave 5 lane B left
 // them alone. It is a reason to be careful with a probe, not a reason not to
-// port: the write is retail's, byte for byte, and `tools/ach_reset.sh` already
-// exists to undo it. NOTHING in this file runs a differential oracle against
-// the DLL for these two, precisely because the DLL's copy would perform the
-// registry write a SECOND time (the diff-oracle header's third bullet).
+// port: the write is retail's, byte for byte, and `tools/ach_reset.sh` exists
+// to undo it.
 // ============================================================================
 
 #include <cstdint>
@@ -136,9 +128,8 @@ AchievementManager::~AchievementManager() {
 //
 // For each slot (bound re-read every pass): if non-null, slot 0 with flag 1 —
 // the scalar DELETING destructor, i.e. `Object::Destroy` — then null it. Then
-// free the buffer and zero the header (`ArrayDtorImpl`, reached as `~Array` on
-// the member followed by its default construction — the same three stores the
-// old inline `FreeArrayBuffer` made).
+// free the buffer and zero the header (`rtcoll::MemFree`, then the three
+// stores the old inline `FreeArrayBuffer` made).
 // ============================================================================
 void AchievementManager::RemoveAll() {
     for (int32_t i = 0; i < _instances._size; ++i) {
@@ -206,7 +197,7 @@ bool AchievementManager::SetAchievementMet(int index) {
 //   Array<ExternalPtr<Goal>> temp = _goals           ; 0x180003970, deep
 //   p->_goalList.Initialize(temp)                    ; by value: callee destroys
 //
-// The allocation goes through the ONE allocator door (`rtcoll::MemAlloc`,
+// The allocation goes through the container allocator (`rtcoll::MemAlloc`,
 // Collection.h), the same allocator retail's `MemAlloc(0x28, 8)` reaches.
 // ============================================================================
 Object::InternalPtr<AchievementInstance> Achievement::CreateInstance() const {
@@ -219,7 +210,7 @@ Object::InternalPtr<AchievementInstance> Achievement::CreateInstance() const {
 
     // The by-value temporary. `GoalArray::Assign` IS retail's deep
     // `Array<ExternalPtr<Goal>>::operator=` (0x180003970, the J4
-    // `Array<T*>::operator=` array_destroy.cpp registers): a fresh buffer, one
+    // `Array<T*>::operator=` in array_destroy.cpp): a fresh buffer, one
     // 8-byte copy per element. Initialize consumes AND tears it down, so the
     // scope-exit ~Array is `MemFree(nullptr)`, a no-op.
     GoalArray temp;

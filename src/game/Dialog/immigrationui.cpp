@@ -1,4 +1,4 @@
-// engine/src/ui/immigrationui.cpp
+// src/game/Dialog/immigrationui.cpp
 // Clean reimplementation of ImmigrationUI game logic.
 //
 // ImmigrationUI (0x50 bytes) — immigration allow/deny panel.
@@ -37,9 +37,9 @@ static UI::Element* FindElemByName(UI::Element* root, const char* name) {
 // update — finds the ImmigrationComponent on the town-hall entity, enables the
 // buttons + shows the nomad-request text when a group is waiting), and Slot9
 // (+0x48 event — Allow=39000/Deny=0x9859 dispatch to the nomad camp's StateMachine)
-// makes the tab live. Construction stays the stub alloc+zero+vtable; the framework
-// fills the base fields (dialog +0x18, datasource entity +0x28) afterward — the
-// same shape as the ResourceLimitUI/StatusBarUI promotions. The ported Slot7/Slot9
+// makes the tab live. Construction is the factory's alloc + ctor
+// (ui_dialog_stub_factories.cpp); the framework fills the base fields (dialog +0x18,
+// datasource entity +0x28) afterward. The ported Slot7/Slot9
 // degrade to the "no nomads" state if the entity/component is unbound in standalone
 // (see immigrationui.cpp guards), so a missing ImmigrationComponent can't fault.
 namespace immigrationui_sa {

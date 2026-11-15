@@ -4,7 +4,7 @@
 // D9 #2)
 //
 // `ComponentEntity`, the ECS entity container, as a REAL C++ class whose vtable
-// the compiler generates. engine/types/ComponentEntity.h forwards here (B8-4).
+// the compiler generates.
 //
 // RETAIL (Application-x64.exe, B38_SLOTS.md §6):
 //   reflected "ComponentEntity", parent "Object::Internal", ti 0x1401c5d70

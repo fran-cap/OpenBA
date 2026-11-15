@@ -14,23 +14,17 @@
 //
 // WHAT IT PINS, AND WHY IT HAS TO EXIST
 // -------------------------------------
-// Nothing else in the build compiles a real `IO` stream vtable at all. Every
-// live stream wears a MINTED table out of `standalone/rt_data_mint_tables.inc`
-// and every registered door calls QUALIFIED, so a slot declared one line out of
-// place in src/engine/io/Stream.h or FileStream.h would stay invisible right
-// through B.3.4 and surface only when B.3 steps 5-8 retire the minted rows — as
-// a stream that reads through `Close` or seeks through `Open`, with no recent
-// change to blame.
+// A slot declared one line out of place in src/engine/io/Stream.h or FileStream.h
+// would surface as a stream that reads through `Close` or seeks through `Open`.
 //
 // The shape is block 3's section B.7 shape: a CONCRETE probe subclass of each
 // real class, every slot overridden with its own marker, then a raw slot call
 // at every retail byte offset asserting the marker equals offset/8.
 //
 // HOW SLOT 1 IS PINNED WITHOUT CALLING IT. `GetSource` returns a
-// `System::String` BY VALUE, so it carries a hidden return pointer, and the
-// registered door (`RtIo_Stream_GetSource`, iobase_vtables.cpp) spells that
-// slot in MSVC's argument order while a C++ member compiled here uses the
-// compiler's. Raw-calling it would be asserting a calling convention, not a
+// `System::String` BY VALUE, so it carries a hidden return pointer, whose place
+// among the arguments is the calling convention's choice. Raw-calling it would
+// be asserting a calling convention, not a
 // slot order. So slot 1 is pinned BY ELIMINATION: every OTHER slot is
 // raw-called and lands on its own marker, and all the table's entries are
 // asserted distinct. With n distinct entries and n-1 of them pinned, the
@@ -64,7 +58,7 @@ int         g_lastMark = 0;
 void Note(const void* self, int mark) { g_lastSelf = self; g_lastMark = mark; }
 void Reset() { g_lastSelf = nullptr; g_lastMark = 0; }
 
-// The one instruction every raw slot caller in runtime/src compiles to.
+// The one instruction a raw slot call compiles to.
 // `byteOffset` is RETAIL's; T (the object's class) decides the compiler's.
 // Every object here is read through its `IO::Stream` base, so T is IO::Stream
 // (a virtual destructor is inherited: the whole family shifts alike).
@@ -250,9 +244,8 @@ UNIT_TEST(the_two_compressed_subclasses_keep_the_9_slot_order) {
     CheckDistinctSlots(rawCfs, 9);
     CheckStreamDtorPair<CompressedFileStreamProbe>();
 
-    // `this` is unadjusted at every level of the chain, which every raw slot
-    // caller in runtime/src assumes when it hands the same pointer to any of
-    // the three types.
+    // `this` is unadjusted at every level of the chain, so the same pointer
+    // serves as any of the three types.
     CHECK(static_cast<void*>(static_cast<IO::Stream*>(&cms)) ==
           static_cast<void*>(static_cast<IO::CompressedStream*>(&cms)));
     CHECK(static_cast<void*>(static_cast<IO::CompressedStream*>(&cfs)) ==
@@ -387,8 +380,7 @@ UNIT_TEST(the_real_TextFileStream_has_10_slots_with_Open_at_7_and_OpenWithFormat
     static_assert(std::has_virtual_destructor<IO::TextFileStream>::value,
                   "IO::TextFileStream: retail slot 0 is a virtual destructor (B3X W1)");
 
-    // `this` is unadjusted through the three-level chain, which every raw slot
-    // caller in runtime/src assumes.
+    // `this` is unadjusted through the three-level chain.
     CHECK(static_cast<void*>(static_cast<IO::Stream*>(&p)) ==
           static_cast<void*>(static_cast<IO::FileStream*>(&p)));
     CHECK(static_cast<void*>(static_cast<IO::FileStream*>(&p)) ==
@@ -443,9 +435,7 @@ UNIT_TEST(TextFileStream_and_VisitorStream_are_layout_identical_to_their_PODs) {
              (int)sizeof(RtIo::TextFileStream::bufferSizeAndCursor));
 
     // A field write through the CLASS is visible through the POD at the same
-    // bytes — the property every reinterpret_cast in text_file_stream.cpp
-    // now relies on, including the two `RtIO::TextFileStream*` bridges the
-    // `Create` and `OpenWithFormat` members use to reach the FileStream doors.
+    // bytes.
     TextFileStreamProbe p;
     p._objectVersion   = 0x11;
     p._requestedFormat = IO::Text::Format::Detect;

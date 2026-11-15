@@ -1,5 +1,5 @@
 // ============================================================================
-// src/ext/background_save/background_save.cpp -- ext.background_save (class A, default OFF)
+// src/ext/background_save/background_save.cpp -- ext.background_save (class A, default ON)
 // ============================================================================
 // NOT RETAIL. background_save.h has the design; docs/extensions/handins/HITCH_SAVESNAP.md the
 // measurements it rests on:
@@ -75,7 +75,7 @@ struct Job {
     // UpdateCamera on it was undefined. Start copies in the fields UpdateCamera reads.
     PlayerToolManager shadowManager;
     PlayerToolManager* shadow = nullptr;
-    std::vector<uint8_t> verifyImage;   // g_verifyOn only
+    std::vector<uint8_t> verifyImage;   // verify only
 };
 
 Job* g_job = nullptr;

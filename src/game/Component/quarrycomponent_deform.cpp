@@ -24,15 +24,15 @@
 // Same shape as the tunnel TerraformComponent carve, and it reuses that wave's
 // heightmap idiom deliberately (see src/game/Component/terraformcomponent.cpp).
 //
-// Closure — every callee was already ported AND registered by an earlier wave:
-//   0x14000b630 FindComponent<Decal>   (reg_destroy_sm)
-//   0x14000b6f0 FindConsumeProduce     (reg_action_child_ctors2)
-//   0x140003f60 FindComponent<Model>   (reg_action_cnr)
-//   0x140004680 FindComponent<Map>     (reg_component_nature)
+// Closure — the callees, by retail address:
+//   0x14000b630 FindComponent<Decal>
+//   0x14000b6f0 FindConsumeProduce
+//   0x140003f60 FindComponent<Model>
+//   0x140004680 FindComponent<Map>
 //   0x14009f3e0 MapGetTerrainPos       (mapquery)
-//   0x1400aaa20 cell-quad ray          (reg_pf_road)   0x1400aa810 ray/tri (reg_pf_geom)
-//   0x1400ab150 region recalc          (reg_component_gap_D)
-//   0x1400a8c90 fine-cell dirty        (reg_pf_road)   0x1400a6fe0 pf cmd2 (reg_pf_astar)
+//   0x1400aaa20 cell-quad ray          0x1400aa810 ray/tri
+//   0x1400ab150 region recalc
+//   0x1400a8c90 fine-cell dirty        0x1400a6fe0 pf cmd2
 //
 // Decompiled from Application-x64.exe; the slope test and the cell-stamp tail are
 // pinned against the disassembly (see the notes at each site).
@@ -47,7 +47,7 @@
 #include "Game/terrain_sidecar.h"
 #include "Object/factory_registration.h"
 #include "picking/PickingMesh.h"   // ENDGAME B.3.7 callers (K2)
-#include "Action/exe_bodies.h"      // Pf_CellQuadRay_aa20
+#include "Action/exe_bodies.h"
 #include "Action/PathSearch.h"       // RegionGraph::MarkCellDirty
 #include "Game/PathfinderThread.h"   // PathfinderThread::SetCellTerrain
 #include "Component/ModelComponent.h"
@@ -176,7 +176,7 @@ void QuarryComponent::ApplyDepth(float depth) {
         // Transform::operator*(const Vector3&) — slot 0x140151470. LEFT: the picking
         // mesh's element is the global engine Vector3, Math::Vector3's layout twin.
         const Math::Vector3 world =
-            xform * data[i];   // ::Vector3 is Math::Vector3 (engine/types/common.h alias)
+            xform * data[i];   // ::Vector3 is Math::Vector3 (engine/global_types.h alias)
 
         float z = world.z;
         if (z < depth) z = depth;          // floor clamp — this IS the progressive dig

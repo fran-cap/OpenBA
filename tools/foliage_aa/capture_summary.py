@@ -2,7 +2,7 @@
 the DXBC checksum's first two dwords), the draws, PSInvocations and SamplesPassed GPU counters,
 the render target (size / samples) and the blend state's A2C / write mask.
 
-  python faa_summary.py <cap.rdc> [index.txt] [--events]
+  python capture_summary.py <cap.rdc> [index.txt] [--events]
 """
 import os, struct, sys, collections
 

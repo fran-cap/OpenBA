@@ -19,7 +19,7 @@
 // Stack trace:, === END CRASH ===) so triage reads both alike. What differs:
 //   * "Exception:" carries the signal number and name (there is no NTSTATUS), and
 //     "Fault:" READ / WRITE comes from the page-fault error code (REG_ERR bit 1);
-//     EXEC is RIP == fault address.
+//     EXEC is the instruction-fetch bit (bit 4) or RIP == 0.
 //   * The stack is glibc's backtrace() from inside the handler (libgcc unwinds
 //     through the kernel's signal frame), each frame resolved with dladdr to
 //     module + offset and, when the dynamic symbol table has it, the symbol name.

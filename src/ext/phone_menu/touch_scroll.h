@@ -46,7 +46,7 @@ namespace PhoneMenu {
 int32_t TouchScrollWrap(const UI::DialogInstance* dialog, bool on);
 
 // (b), after the size walk (the controls' touch size is part of the height that must fit). Returns the
-// number of lists changed.
+// number of lists and frames changed.
 int32_t TouchScrollCap(const UI::DialogInstance* dialog, bool on);
 
 // P11c (touch_size.h TouchForgetClosed): the cap decided for a window of `ui` that is no longer open is

@@ -2,8 +2,8 @@
 //
 // THE TRIAGE CONTRACT (tools/boot_state.sh, the triage-run skill): a second-chance fault
 // writes standalone_crash.log (write-through) and exits with code 3; a pure-virtual call
-// exits 4, std::terminate exits 5; a first-chance fail-fast is logged and passed on. A
-// POSIX twin (sigaction + backtrace) arrives with the first Linux exe (D4_RULES C10).
+// exits 4, std::terminate exits 5; a first-chance fail-fast is logged and passed on. The
+// POSIX twin (sigaction + backtrace) is src/diag/posix/crash_handler_posix.cpp (D4_RULES C10).
 #pragma once
 
 // SetUnhandledExceptionFilter(CrashHandler) and AddVectoredExceptionHandler(1,

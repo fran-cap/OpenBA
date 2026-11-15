@@ -44,7 +44,8 @@ System::CriticalSection::~CriticalSection() {
 // 0x1800ca590) that stamped it before running the shared body. Every Thread in
 // the build is now a C++ subclass built by `: System::Thread(stackSize)` and
 // torn down by its compiler-chained `~Thread()` (Engine::Loader, Audio::Stream,
-// IO::PersistenceWorker, the exe PathfinderThread), wearing compiler tables;
+// IO::PersistenceWorker, the exe PathfinderThread, the PoolThread of
+// src/ext/path_workers and the RenderThread of src/ext/render_pipe), wearing compiler tables;
 // no caller of either door was left (none by name, none by address, no exe
 // import slot registered). Retail's `ThreadFunc` handoff (`LEA R8,[0x1800ca440]`)
 // is `Thread::ThreadFunc` named directly in `InitFields`, with no first-use
@@ -58,11 +59,8 @@ System::CriticalSection::~CriticalSection() {
 // unported member of the class, so System::Thread is now COMPLETE (§4.1
 // decision 5).
 //
-// ENDGAME B.3.4b: THE BODY MOVED onto `System::Thread::ThreadFunc` at the
-// bottom of this file and what follows is the delegating door. This banner
-// stays here, with the door that carries the registered address, because it
-// documents the RETAIL bytes; the member body carries the note about why its
-// two slot calls stay raw.
+// ENDGAME B.3.4b: THE BODY is `System::Thread::ThreadFunc` at the bottom of
+// this file; this banner documents the RETAIL bytes.
 //
 // Its only callees are Win32: WaitForMultipleObjects through the DLL's IAT slot
 // 0x18014b358 and SetEvent through 0x18014b368, spelled Platform::EventWaitAny /
@@ -101,21 +99,11 @@ System::CriticalSection::~CriticalSection() {
 // ============================================================================
 
 // ============================================================================
-// System::Thread::OnCompleted()   retail 0x18000c590   (Wave 9 lane B3)
-// ?OnCompleted@Thread@System@@UEAAXXZ
-// ----------------------------------------------------------------------------
-
-// ============================================================================
 // ENDGAME B.3.4b — the member BODIES.
 // ============================================================================
 // They live in `namespace System` because C++ requires a member definition to
 // appear in a namespace ENCLOSING the class, and `RtSystem` is a SIBLING of
-// `System`, not a parent (B34_BRIEFS §A.2). Every body below is the one that
-// used to sit in the door directly above it: same control flow, same callees,
-// same order.
-//
-// ⚠ GREP HAZARD (B34_RULES §7.2): inside this block a bare `Thread` or
-// `CriticalSection` binds the CLASS. The PODs must be spelled `RtSystem::`.
+// `System`, not a parent (B34_BRIEFS §A.2).
 // ============================================================================
 
 namespace System {
@@ -132,7 +120,7 @@ void CriticalSection::Unlock() NO_THREAD_SAFETY_ANALYSIS {
 }
 
 // 0x1800ca4e0  ??0Thread@System@@QEAA@I@Z -- the body MINUS the vptr store
-// (the compiler's, in `Thread(unsigned)`; the minted one, in the door).
+// (the compiler's, in `Thread(unsigned)`).
 void Thread::InitFields(unsigned int stackSize) {
     _runFlags = 0;
 
@@ -183,10 +171,11 @@ void Thread::OnCompleted() {
 
 // 0x1800ca440  ?ThreadFunc@Thread@System@@CAIPEAX@Z
 //
-// `param` is the Thread-derived object `Start` handed to _beginthreadex — every
+// `param` is the Thread-derived object `InitFields` handed to ThreadCreateSuspended — every
 // one in the tree is a real C++ subclass wearing its compiler table
 // (`Engine::Loader`, `IO::PersistenceWorker`, `Audio::Stream`, the exe's
-// PathfinderThread), so slot 0 is `Run` and slot 1 `OnCompleted`, called by
+// PathfinderThread, the PoolThread of src/ext/path_workers and the RenderThread of
+// src/ext/render_pipe), so slot 0 is `Run` and slot 1 `OnCompleted`, called by
 // name. Retail's loop body is exactly two virtual calls: `MOV RAX,[RBX]; OR
 // [RBX+8],1; CALL [RAX]` then `MOV RAX,[RBX]; CALL [RAX+8]` — the vptr is
 // re-read for the second call, which a C++ virtual call after an opaque call
@@ -232,5 +221,3 @@ unsigned int Thread::ThreadFunc(void* param) {
 }
 
 }  // namespace System
-
-// ---- Registration ------------------------------------------------------------

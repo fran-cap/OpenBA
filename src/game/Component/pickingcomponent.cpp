@@ -4,9 +4,9 @@
 // PickingComponent (0x38 bytes) — manages 3D picking (mouse -> entity selection).
 // Fields: +0x28=pickingId (int32, -1=unregistered), +0x30=entity ref (IBP)
 //
-// Vtable at 0x140164040. Two hookable overrides:
-//   Shutdown (0x140128bb0) — Serialize IBP + IsDerivedFrom validation
-//   OnCreate (0x140128b50) — Remove picking mesh via Scene dispatch
+// Vtable at 0x140164040. Two of its overrides:
+//   Persist  (0x140128bb0) — Serialize IBP + IsDerivedFrom validation
+//   OnRemove (0x140128b50) — Remove picking mesh via Scene dispatch
 //
 
 #include "Component/pickingcomponent_funcs.h"

@@ -32,7 +32,7 @@
 //
 // Step 9 is the wall. `MainLoop::Frame(this, param_1=true)` skips
 // `MainLoop::Update` -- 0x1800dd28e sits inside `if (!param_1)` -- so every
-// existing harness tick (MenuDLT::Stub_Update, ToolHarness_Tick, AutoStart)
+// existing harness tick (MenuDialogLoopT::Update, ToolHarness_Tick, AutoStart)
 // stops running the moment a modal opens, and only resumes when it closes.
 // That is why `BANISHED_MODAL_ANSWER` had to substitute the answer and skip
 // ShowDialog altogether: it is a BYPASS, not a route.
@@ -80,11 +80,11 @@
 // HOW THE DISMISSAL IS DONE, AND WHY IT IS NOT AN INVENTION
 // ---------------------------------------------------------------------------
 // Every MessageDialog button in the ported exe does precisely this
-// (src/game/Dialog/messagedialog.cpp, Slot10/11/12/13, retail 0x14006CFF0
+// (src/game/Dialog/messagedialog.cpp, OnOk / OnCancel / OnYes / OnNo, retail 0x14006CFF0
 // /0x14006D030/0x14006CFB0/0x14006CF70):
 //
-//     *(uint32_t*)(self + 0x24) = <result>;
-//     fn_UI_CloseDialog(*(void**)(self + 0x10), InternalPtr(self));
+//     self->_result = <result>;                              // +0x24
+//     self->_ui->CloseDialog(InternalPtr(self));             // _ui at +0x10
 //
 // so this driver performs the same two operations on the front dialog of the
 // nested UI. It is a synthetic CLICK, not a synthetic dialog system: retail's
@@ -107,7 +107,7 @@
 #include <new>
 #include "ui/DialogInstance.h"
 #include "options.h"
-#include "Dialog/Dialogs.h"      // MessageDialogAddr::Vtable, for the self-test subject
+#include "Dialog/Dialogs.h"
 #include "object/Internal.h"   // ENDGAME B.3.3 step 6B
 #include "ui/UserInterface.h"   // ENDGAME B.3.6 UI callers (K4); UserInterface::UpdateStandAloneUI
 #include "system/MemoryAllocator.h"   // B3R: System::MemoryAllocator::MemAlloc / MemFree / _singleton
@@ -155,8 +155,8 @@ void ParseEnv() {
     return ::Engine::MainLoop::_singleton;   // the class static (ENDGAME B.3.9 SS2)
 }
 
-// Append `e` to the (array,count,cap) triple at `base+arrOff`. Reallocates
-// through the shipped allocator, the same one ShowDialog's inlined push uses,
+// Append `e` to `arr` ({data, count, cap}). Reallocates through
+// System::MemoryAllocator, the same one ShowDialog's inlined push uses,
 // and sets capacity == count so retail's own next push takes its grow path.
 template <class E> bool AppendEntry(Collection::Array<E>& arr, const E& e) {
     E* old   = arr._data;
@@ -188,9 +188,7 @@ void NoopDraw(Video::Context&, void*) {}
 //
 // Detection is by SIGNATURE, not by cooperation from our port: we scan
 // MainLoop+0x90 for an entry whose fn is `UpdateStandAloneUI`. That entry's
-// ctx is the nested UserInterface -- and this works identically whether the
-// ShowDialog that registered it was the shipped DLL's or ours, which is the
-// property the twin-subject differential depends on.
+// ctx is the nested UserInterface.
 UI::DialogInstance* FindModalDialog() {
     ::Engine::MainLoop* ml = MainLoopSingleton();
     if (!ml) return nullptr;
@@ -199,21 +197,7 @@ UI::DialogInstance* FindModalDialog() {
     int    count = ml->_postUpdate._size;
     if (!arr || count <= 0) return nullptr;
 
-    // MATCH EITHER POINTER, and note WHY there are two.
-    //
-    // This used to be a single `ResolveAddr(Module::Runtime, ...)` lookup, and
-    // the comment above -- "works identically whether the ShowDialog that
-    // registered it was the shipped DLL's or ours" -- held only while NOTHING
-    // was registered at 0x180120310. ResolveAddr consults the PORT REGISTRY
-    // FIRST (reference_resolveaddr_consults_port_registry_first.md), so the
-    // moment Wave 10C lane UIF6 registered its UpdateStandAloneUI port at that
-    // address, `wanted` became OUR function pointer while the DLL's own
-    // ShowDialog kept installing the DLL's. Nothing matched, FindModalDialog
-    // returned null forever, and the driver never dismissed the modal: the
-    // BANISHED_MODAL_DRIVER_TEST run HUNG to its timeout with no error line --
-    // an instrument confidently reporting nothing, about the wrong thing.
-    //
-    // B3R: OUR ShowDialog port (userinterface_showdialog.cpp) installs
+    // OUR ShowDialog port (userinterface_showdialog.cpp) installs
     // UI::UserInterface::UpdateStandAloneUI (retail 0x180120310) itself;
     // it is compared by name.
     const ::Engine::MainLoop::PostUpdateFunc wantedPort = &UI::UserInterface::UpdateStandAloneUI;
@@ -250,7 +234,7 @@ void Tick(const System::Time&, void*) {
         "(DeleteOnClose=%d) with result %d\n",
         dialog, (void*)ui, flags, (flags & 0x20) ? 0 : 1, s_answer);
 
-    // Exactly what MessageDialog::Slot10..13 do (see the header comment).
+    // Exactly what MessageDialog::OnOk / OnCancel / OnYes / OnNo do (see the header comment).
     d->_result = s_answer;
     Object::InternalPtr<UI::DialogInstance> ibp(d);
     ui->CloseDialog(&ibp);

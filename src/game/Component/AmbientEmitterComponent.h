@@ -3,7 +3,7 @@
 // src/game/Component/AmbientEmitterComponent.h — ENDGAME B.3.8 block CIT
 //
 // `AmbientEmitterComponent` as a real C++ class with a compiler-generated
-// vtable (B38_RULES.md D1-D4). The engine/types POD is a forwarder to this file.
+// vtable (B38_RULES.md D1-D4).
 //
 // RETAIL (Application-x64.exe, B38_SLOTS.md §6):
 //   reflected "AmbientEmitterComponent", parent "Component", ti 0x1401c3e60
@@ -66,13 +66,13 @@ public:
 
     // PUBLIC while the ported bodies read them (B38 decision 1). Persist
     // 0x140042f30: Vector3::Serialize, then the count and per slot the
-    // ExternalPtr<SoundEffect> (0x1400019a0), the uint and the float.
+    // ExternalPtr<SoundEffect> (0x1400019a0), the int and the float.
     Math::Vector3       position;      // +0x28 where the emitter sounds
     uint8_t             _pad34[4];     // +0x34
     // +0x38 Array<AmbientEmitterSlot> {data, count +0x40, capacity +0x44} (H5, typed: the
     // ctor 0x1400430c0 zeroes +0x38 / +0x40 as qwords, the dtor 0x1400016d0 MemFrees +0x38
     // and zeroes both qwords before ~Component; no element destroy). Resized by
-    // 0x140001770 (AmbientEmitterResize_Reimpl).
+    // 0x140001770 (Collection::Array<AmbientEmitterSlot>::SetSize).
     Collection::Array<AmbientEmitterSlot> slots;
 };
 

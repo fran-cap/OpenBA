@@ -4,8 +4,9 @@
 // ============================================================================
 // NOT RETAIL. The contract and the reuse rule: src/render/common/depth_copy/depth_copy_backend.h. The
 // readers: the AO pass (ao/assao_pass.cpp, a multisampled depth: a single-sampled one it reads itself),
-// the cloud shadow (better_clouds/cloud_shadow.cpp) and the water's scene depth
-// (better_water/scene_depth.cpp). Bodies: depth_copy.cpp.
+// the cloud shadow (better_clouds/cloud_shadow.cpp), the water's scene depth
+// (better_water/scene_depth.cpp), the terrain light (fancy_terrain/terrain_light.cpp) and the depth blur
+// (dof/dof_pass.cpp). Bodies: depth_copy.cpp.
 //
 // THE COPY is one fullscreen draw into a 1x R32F engine Video::ImageBuffer (a colour render buffer, so
 // the water binds it with Context::SetImageBuffer like any texture): sample 0 of a multisampled main

@@ -13,9 +13,8 @@
 //   - OptionsDialog reset-to-defaults action
 //   - FUN_140072740 (called from OptionsDialog accept)
 //
-// In standalone mode we invoke this from RunGameMain right after Engine::Startup
-// so the KeyMap is populated before any dialog (including OptionsDialog) opens
-// and ButtonElement::Update starts polling KeyMap::Pressed for hotkey hints.
+// In the tree GameContainer_Init (loader_loop_stubs.cpp) calls it last, from
+// InnerLoaderLoop::Load, and OptionsDialog calls it (optionsdialog.cpp).
 
 #include <cstdint>
 #include "system/EnumFlags.h"   // ToUnderlying (a GameKey as the KeyMap id)
@@ -84,8 +83,7 @@ namespace Game {
 // Populates the global Input::KeyMap with the 50 default Banished bindings,
 // then calls Input::KeyMap::Load to merge any user-saved overrides.
 //
-// No-op (with a printf) if g_pInputConfigSingletonExref or any of fn_KeyMap_* is
-// unresolved — never crashes if engine fns aren't ready.
+// No-op (with a printf) if Input::Configuration::_singleton or its _keyMap is null.
 void RegisterDefaultInputBindings();
 
 } // namespace Game

@@ -1,9 +1,9 @@
 #pragma once
 // ============================================================================
-// src/ext/map_overlays/overlay_core.h -- ext.map_overlays (class C, default OFF): the data model
+// src/ext/map_overlays/overlay_core.h -- ext.map_overlays (class C, default ON): the data model
 // ============================================================================
 // NOT RETAIL. docs/extensions/handins/MAPOVERLAYS.md. Standard C++ only: tests/unit/ext_map_overlays_test.cpp
-// links overlay_core.cpp, overlay_math.cpp and save_state.cpp on their own.
+// tests overlay_core.cpp and save_state.cpp on their own, ext_map_overlays_math_test.cpp overlay_math.cpp.
 //
 // THE HISTORY (the saved state). What was produced and consumed where, and where citizens walked, over the
 // last game year:
@@ -21,8 +21,8 @@
 //     of saturating 16-bit counts (one step = a citizen entering a new tile), one set per Trip: the walk
 //     the step belongs to (to the walker's workplace, to its home, anything else).
 //
-// THE VIEW (not saved). A Selection picks what the map shows; BuildTiles fills a size*size float grid for
-// it (history views here, the instant views -- stock, services, citizens, natural -- game side in
+// THE VIEW (not saved). A Selection picks what the map shows; BuildGrid (overlay_view.cpp) fills a size*size
+// float grid for it (history views here, the instant views -- stock, services, citizens, natural -- game side in
 // overlay_views.cpp). overlay_math.h blurs it by the scale slider and maps it to colours.
 // ============================================================================
 #include <cstddef>
@@ -79,9 +79,9 @@ enum class LandClass : uint8_t {
     Count
 };
 
-// What one view shows. `filter` is per view:
-//   Production / Consumption / Stock: a resource set (resourceMask over the history's table, built from a
-//     category flag mask or a single path by the UI);
+// What one view shows. The filter is per view:
+//   Production / Consumption / Stock: a resource set (categoryFlags, a category flag mask, or resourcePath, a
+//     single path, picked by the UI; BuildResourceMask makes the mask over the history's table);
 //   Services: a service kind (ServiceKind); Citizens: a measure (CitizenMeasure); Natural: a NaturalKind;
 //   Traffic: a TrafficFilter.
 enum class ServiceKind : uint8_t { Market, Well, Herbalist, Chapel, School, Tavern, TownHall, Count };

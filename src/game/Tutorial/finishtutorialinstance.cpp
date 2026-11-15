@@ -1,4 +1,4 @@
-// src/game/Goal/finishtutorialinstance.cpp
+// src/game/Tutorial/finishtutorialinstance.cpp
 // Clean reimplementation of FinishTutorialInstance vtable methods.
 //
 // FinishTutorialInstance (0x28 bytes) — goal instance for tutorial completion.
@@ -21,7 +21,7 @@
 #include "Object/factory_registration.h"
 #include "system/Value.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
-#include "Tutorial/exe_bodies.h"   // 0x1401001f0 / 0x1400e1db0
+#include "Tutorial/exe_bodies.h"
 #include <cstdint>
 #include "object/Internal.h"   // ENDGAME B.3.3 step 6B
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch D
@@ -35,8 +35,8 @@
 #include "Component/ComponentDescription.h"
 #include "Entity/ComponentEntity.h"   // B4 S4 RT2: InternalPtr<ComponentEntity>::Get() needs the class complete
 
-// Startup/Update call TutWave_TutorialTreeInsert / TutWave_StepExecute by name.
-// ENDGAME B.3.8 (B6-5): the one-shot diagnostic counters are namespace-scope
+// Startup/Update call PlayerToolManager::TutorialTreeInsert / TutorialInstance::StepExecute by name.
+// ENDGAME B.3.8 (B6-5): the capped diagnostic counters are namespace-scope
 // atomics, not function-local statics — goal instances are built on the loader
 // thread (GameUpdateLoop::Load) and ticked on the main thread.
 namespace {
@@ -102,7 +102,7 @@ void FinishTutorialInstance::Persist(IO::Stream& stream) {
 //   8. OR gameWorld+0xd0 flags with 0x5f0
 // Retail passes R8 through to 0x1401001f0 untouched (Startup takes no
 // argument; `?Startup@GoalInstance@Achievement@@UEAAXXZ`); the tree's
-// TutWave_TutorialTreeInsert ignores that parameter, so null is passed.
+// PlayerToolManager::TutorialTreeInsert ignores that parameter, so null is passed.
 void FinishTutorialInstance::Startup() {
     FinishTutorialInstance* self = this;
     void* p3 = nullptr;

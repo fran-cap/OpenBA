@@ -10,17 +10,15 @@
 // Built to the contract of ui_resources_abi_test.cpp (step 6, block D); only
 // what differs is spelled out.
 //
-// PART A — LAYOUT: sizeof / alignof / every offset the headers claim, the
-//   parent edge `_ParentTypeName` proves, abstract, no public default ctor.
-// PART B — SLOT ORDER: a probe subclass of the REAL class; each own slot is
-//   raw-called by byte offset and the marker that runs names the member.
+// PART A — LAYOUT: alignof, the field offsets the tests name, the parent edge
+//   `_ParentTypeName` proves, concrete, a public virtual destructor.
+// PART B — SLOT ORDER: read off the REAL class's pointers-to-virtual-member
+//   (CHECK_SLOT / CHECK_DTOR_SLOT); IPathInfo's two pure slots are raw-called by byte offset.
 //   Slot 4 `Compile` is the class's OWN body (B7-1.7), a different pointer from
 //   Object::External's, answering retail's 1 in EAX (no hidden slot).
-// PART C — THE QUALIFIED DOOR CALL: a minted-table slot pointing at a door that
-//   delegates `->Ns::C::M()` enters the door once and lands in the member.
 //
 // The classes' out-of-line members are defined HERE as markers
-// (src/engine/pathfinding and src/engine/picking do not link into a host test).
+// (src/engine/pathfinding/pointlist.cpp and src/engine/picking/pickingmesh.cpp are not in the unit build).
 //
 // ENDGAME B.3 step 9 PILOT (B39_RULES D1/D2): Picking::PickingMesh is CONCRETE
 // now -- PART A says so, and the b39_* tests construct the REAL class (its
@@ -286,8 +284,8 @@ struct PickingMeshProbe final : Picking::PickingMesh {
 };
 
 // B7-5 pin: `Object::ExternalPtr<T>` BY VALUE travels as the bare pointer in
-// the next integer register — what `Scene::AddMesh`'s door hands the member,
-// and what the exe's `CALL [AddMesh]` puts in RDX.
+// the next integer register — what `Scene::AddMesh` receives, and what the
+// exe's `CALL [AddMesh]` puts in RDX.
 void* g_seenMesh = nullptr;
 uint32_t TakesMeshByValue(void* self, Object::ExternalPtr<Picking::PickingMesh> mesh) {
     g_seenMesh = mesh.Get();
@@ -427,7 +425,7 @@ UNIT_TEST(picking_scene_layout_and_value_shape) {
 
 // GetUserData (0x1800722d0) is one load from entries[id]+0x30.
 UNIT_TEST(picking_scene_getuserdata_reads_entry_plus_0x30) {
-    // Raw storage, as the exe holders are: the class has no C++ default ctor.
+    // Raw storage, as the exe holders are: no constructor runs.
     alignas(8) uint8_t storage[sizeof(Picking::Scene)] = {};
     Picking::Scene& scene = *reinterpret_cast<Picking::Scene*>(storage);
     alignas(8) uint8_t entries[3 * 0x48] = {};

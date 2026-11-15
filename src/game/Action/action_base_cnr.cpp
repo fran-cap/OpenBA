@@ -3,9 +3,9 @@
 // shared exe sub-helpers (Wave 3, Action).
 //
 // The per-class Action .cpp files (createnaturalresource.cpp, animatenaturalresource.cpp,
-// removenaturalresource.cpp) call these by name through Action/exe_bodies.h (B3R); the
-// registration (RegisterActionCnrBatch in standalone/reg_action_cnr.cpp) stays for
-// readers other blocks still have.
+// removenaturalresource.cpp) call these by name: they are members declared in their classes'
+// headers (Game/Map.h, Component/GrowthComponent.h, Component/ModelComponent.h,
+// Component/NaturalResourceComponent.h).
 //
 // Each function is a literal port of the decompiled exe helper — no behavior is
 // invented or "improved". Every exe sub-call is a call of its body by name.
@@ -14,20 +14,20 @@
 
 // The runtime type headers come FIRST: they pull src/engine/volume/Volume.h,
 // whose global-scope `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()`
-// once <windows.h> has been seen through resolve.h.  ENDGAME B.3.5 batch I2.
+// once <windows.h> has been seen.  ENDGAME B.3.5 batch I2.
 #include "graphics/Geometry.h"
-#include "graphics/Mesh.h"      // ENDGAME B.3.5 batch K1: reaches Volume.h, so BEFORE resolve.h
+#include "graphics/Mesh.h"      // ENDGAME B.3.5 batch K1: reaches Volume.h, so FIRST
 #include <new>
 #include "object/External.h"
 #include "object/TypeInfo.h"
 #include "graphics/Camera.h"
 #include "Entity/exe_bodies.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
-#include "Work/exe_bodies.h"              // WorkBase_FindComponent_3050, WorkAcc_FindComponent_*
-#include "Component/exe_bodies.h"         // FloorComponent_FindResData, ModelComponentNotify_Reimpl
+#include "Work/exe_bodies.h"
+#include "Component/exe_bodies.h"
 #include "Game/WorkScheduler.h"           // WorkScheduler::FindWorkAtCell (0x1400f8d50)
 #include "Work/Work.h"
-#include "Game/exe_bodies.h"              // Reimpl_MapGetTerrainPos
+#include "Game/exe_bodies.h"
 #include "Entity/ComponentEntity.h"   // ComponentEntity(ComponentDescription*) (0x1400c3720)
 #include "Entity/EntityList.h"        // EntityList::RegisterEntity (0x1400c48a0)
 #include "Game/exe_constants.h"           // kRdata_*
@@ -62,19 +62,20 @@
 
 // ============================================================
 // Exe sub-helpers and constants (shared by this batch), called by name (B3R).
-//   0x140003f60 ActCNR_FindComponent_3f60 (this file)   0x140003050 WorkBase_FindComponent_3050
-//   0x140004680 FloorComponent_FindResData               0x1400c2b70 ModelComponentNotify_Reimpl
-//   0x1400c3470 ActHunt_NotifyEntityChanged_c3470        0x140006330 WorkAcc_FindComponent_6330
+//   0x140003f60 FindComponent<ModelComponent>              0x140003050 FindComponent<WorkComponent>
+//   0x140004680 FindComponent<MapComponent>                0x1400c2b70 ComponentEntity::SendEvent
+//   0x1400c3470 ComponentEntity::RefreshEntityFlags
+//   0x140006330 FindDescription<RawMaterialDescription>
 // 0x1401260f0 closure sub-helpers:
-//   0x1400c2ea0 ActHunt_MarkEntityRemoval_c2ea0          0x140003110 ActHunt_DynArraySetCount_3110
-//   0x1400f8d50 RemovalCalc_helper_8d50 (RemovalTool_helper_8d50)
-//   0x1400c3720 ComponentEntity_CtorFromDescription (ComponentEntity_CopyCtor)
-//   0x1400223c0 ActRm_FindComponent_223c0                0x140129760 ActRm_PositionEntity_9760
+//   0x1400c2ea0 ComponentEntity::MarkForRemoval            0x140003110 removalList.SetSize
+//   0x1400f8d50 WorkScheduler::FindWorkAtCell (RemovalTool_helper_8d50)
+//   0x1400c3720 ComponentEntity(ComponentDescription*) (ComponentEntity_CopyCtor)
+//   0x1400223c0 FindComponent<RawMaterialComponent>        0x140129760 Component::PositionRawMaterial
 //   0x140022480 FindDescription<WorkPlaceDescription> (template, result discarded)
-//   0x140088ef0 ActRm_RegisterRawMaterial_88ef0          0x1400c48a0 EntityList_RegisterEntity_Impl
-//   0x140022520 WorkAcc_FindComponent_22520              0x140044810 ActRm_DynArrayPush4_44810
-// 0x140126540 closure: 0x14009f3e0 Reimpl_MapGetTerrainPos (CharacterComponent_impl_f3e0)
-// 0x140126440 closure: 0x1401250f0 ActMvDep_AnimHelper_50f0 (AnimalComponent_helper_50f0)
+//   0x140088ef0 CitizenBehavior::CountProducedMaterial     0x1400c48a0 EntityList::RegisterEntity
+//   0x140022520 FindComponent<AutoPickupComponent>         0x140044810 AutoPickupComponent::Append
+// 0x140126540 closure: 0x14009f3e0 Map::GetTerrainPos (CharacterComponent_impl_f3e0)
+// 0x140126440 closure: 0x1401250f0 ModelComponent::PlayAnimation (AnimalComponent_helper_50f0)
 // Import slots: 0x140152958 Math::Vector4::Vector4(const Scalar&), 0x140152b00
 // System::Time::Time(float) = RtSystem_Time_Ctor.
 // Float constants (Game/exe_constants.h): 0x1401720f4 (divisor in FUN_140120db0, a bit

@@ -14,7 +14,7 @@
 #include "ui/DialogInstance.h"
 #include "object/TypeInfo.h"
 #include "Dialog/exe_bodies.h"
-#include "Player/exe_bodies.h"   // B3R: RemovalCalc_StateMachine_dfa0
+#include "Player/exe_bodies.h"
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -146,7 +146,7 @@ void UpgradeUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::Ev
 
     // Start the upgrade: pump the BuildState state machine. 0x14011dfa0 is the
     // generic driver ("StartUpgrade" was a misnomer); the disasm-verified port
-    // is RemovalCalc_StateMachine_dfa0 (keystone_a_removalcalcpath.cpp).
+    // is DestroyComponent::RunStateMachine (keystone_a_removalcalcpath.cpp).
     std::fprintf(stderr, "[UpgradeUI] OnRemove: target=%p written to "
                  "destroyComp=%p +0x60, pumping SM\n",
                  upgradeConfig->_target, static_cast<void*>(destroyComp));

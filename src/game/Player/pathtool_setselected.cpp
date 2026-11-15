@@ -47,17 +47,17 @@
 namespace {
 
 // ---- exe sub-callees, called by name ----
-//   0x14004c4a0 HighlightRepaint_Impl (Player/exe_bodies.h) -- highlight refresh
+//   0x14004c4a0 HighlightComponent::Repaint (Component/HighlightComponent.h) -- highlight refresh
 //   0x140002e10 FindComponent<WorkPlaceComponent>, 0x140008090
 //               FindComponent<ResidenceComponent> (Ghidra mislabels it
 //               "FindComponent_Storage"), 0x140004740 FindComponent<MultiObjectComponent>
 //               (the related-entity list), 0x140009790 FindComponent<CitizenComponent>
-//   0x140087fb0 EntityAnchorCell, 0x14009cfb0 Map::RequestPath,
+//   0x140087fb0 EntityAnchorCell (Action/exe_bodies.h), 0x14009cfb0 Map::RequestPath,
 //   0x140014c70 / 0x140014da0 AvlRotateLeft / AvlRotateRight<PathSegmentNode>,
-//   0x140122e20 InteractNodePosition (Action/exe_bodies.h)
+//   0x140122e20 InteractComponent::NodePosition (Component/InteractComponent.h)
 //   0x1400021d0 Collection::Array<int32_t>::SetSize -- resize to 0 frees nothing,
 //               it empties the result slot's cell list
-//   0x140014c30 WorkBase_TreeNodeFree_14c30 (Work/exe_bodies.h)
+//   0x140014c30 WorkBase_TreeNodeFree (Work/exe_bodies.h)
 
 // Allocate + init a fresh 0x28-byte AVL node with the given 8-byte element and
 // parent (the point tree's element is {cell, 0}: its key zero-extended).
@@ -211,13 +211,12 @@ int HomeDoorCell(CitizenComponent* const* citizen) {
     Map* map = GameUpdateLoop::_singleton->m_game;
     // 🐞 MISNAMED-FINDER TRAP (6th instance). The disasm at 0x1400de629 calls
     // 0x140002ed0 = FindComponent<InteractComponent> (type DWORD_1401c7900),
-    // NOT the inline fn_FindComponent_Position in engine_funcs.h, which is
-    // 0x14000d6c0 -> BuildComponent (DWORD_1401c7008). Both were spelled
+    // NOT 0x14000d6c0 -> BuildComponent (DWORD_1401c7008). Both finders were spelled
     // "..._Position" and both return an IBP, so the wrong one compiled and ran.
     // It matters because 0x140122e20 casts the component's +0x18 description to
     // InteractDescription: an InteractComponent carries one, a BuildComponent
     // carries a BuildDescription (a SIBLING of InteractDescription, not a base —
-    // factory_registrations.csv:232/273 both list parent "Description"). The cast
+    // builddescription.cpp / interactdescription.cpp both name parent "Description"). The cast
     // failed, our SA-GUARD returned a zero vector, and e5d0 mapped (0,0,0) to
     // cell (w>>1, w>>1) = the dead CENTRE of the map. Every route therefore started
     // at the map centre instead of the door -- and because the centre is the same
@@ -446,7 +445,7 @@ void PathTool::BuildRoutes() {
         points.SetSize(points._size + 1, n->seg.minCell);
     }
     for (PathSegmentNode* n = InorderFirst(segTree); n; n = InorderNext(n)) {
-        segments.SetSize(segments._size + 1, n->seg);   // LEFT: POD AvlNode28: the tree reads AvlNode28's element as the 8-byte segment (AvlNodeAlloc in this file)
+        segments.SetSize(segments._size + 1, n->seg);   // the node's 8-byte element is the segment (PathSegmentNode::seg)
     }
 
 

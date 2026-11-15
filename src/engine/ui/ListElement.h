@@ -7,8 +7,8 @@
 // PARENT `UI::Element` — READ, not inferred:
 //     ?_ParentTypeName@ListElement@UI@@CAPEBDXZ @0x180044f60 -> "Element"
 //
-// RULE B5-15 / B6-7 — THE TWO NAME LITERALS, RECORDED, NOT USED (slots 1/2 keep
-// reading the minted `?_typeInfo@ListElement@UI@@…`, 0x1801fa120):
+// RULE B5-15 / B6-7 — THE TWO NAME LITERALS (retail's `?_typeInfo@ListElement@UI@@…`,
+// 0x1801fa120); slots 1/2 read the class's own DEFINE_TYPE record, which carries them:
 //     ?_TypeName@ListElement@UI@@CAPEBDXZ       @0x180044f50 -> "ListElement"
 //     ?_ParentTypeName@ListElement@UI@@CAPEBDXZ @0x180044f60 -> "Element"
 //
@@ -25,8 +25,7 @@
 // own slot 0 (the vector deleting dtor), a virtual ~ListElement holding
 // the retired ??1 door's body, and the factory pair as the class's own statics;
 // every live one wears the COMPILER's table. The minted `??_7ListElement@UI@@6B@`,
-// its RT_DELDTOR row 0x180045320 and the ctor / dtor / slot doors are retired
-// (tools/rt_mint_retired/ui-b.txt).
+// its RT_DELDTOR row 0x180045320 and the ctor / dtor / slot doors are retired.
 // ABSTRACT (slot 0 pure), no real ctor: every live one is built by the
 // `??0ListElement` DOOR (listelement.cpp) and wears the MINTED table.
 //

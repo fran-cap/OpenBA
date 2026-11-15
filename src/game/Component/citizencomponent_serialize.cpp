@@ -19,8 +19,8 @@
 //   +0x90  Time
 //   +0x98/+0xa0  ExternalPtr<ComponentDescription>[count]  action-stack-like array,
 //                load-side resize via FUN_140001bb0 (ported below as
-//                ResizeCitizenExternalArray), elements via the ALREADY-PORTED
-//                Reimpl_ExternalPtrArray_Serialize (serialize_externals_array.cpp;
+//                ResizeCitizenExternalArray), elements via
+//                ::Object::SerializeExternalArray<ComponentDescription> (object/External.h;
 //                same exe address FUN_1400049c0, validated ComponentDescription).
 //   +0x1f0 ExternalPtr<Profession?>  helper_140018020 (called twice; same body,
 //                validated TypeInfo_Profession 0x1401c5a98)
@@ -30,10 +30,9 @@
 //   +0x1e4 int
 //   +0x1e8 Time
 //   +0x1e0 int                       (version > 1)
-//   +0xb0  MeshInstance              via the Encoding-object virtual call retail
-//                emits inline; equivalent to the already-resolved
-//                Graphics::MeshInstance::Serialize dispatch slot 0x140152990
-//                (see modelcomponent.cpp) called as (self+0xb0, ser).
+//   +0xb0  uint                      lastErrand (Encoding slot 0x98, Serialize(uint&));
+//                not a MeshInstance: that sub-object starts at +0xB8 and this
+//                stream never touches it.
 //   +0x30  int
 //   +0x238 IBP<ComponentEntity>      validated 0x1401c5d70
 //   +0x240 int
@@ -42,10 +41,8 @@
 //                see project_citid_graduated memory)
 //   +0x248 IBP<ComponentEntity>      validated 0x1401c5d70
 //   +0x1f8 ExternalPtr<Profession?>  helper_140018020 again
-//   +0x208 IBP                      validated 0x1401c3f40 (same raw cell used for
-//                +0x228/+0x230 below — Ghidra emits the identical dword for all
-//                three sites; resolved once, used generically per the house
-//                pattern rather than guessing a C++ name for it)
+//   +0x208 IBP<AttendanceComponent> validated 0x1401c3f40 (the same cell as
+//                +0x228/+0x230 below: AttendanceComponent::TypeId())
 //   +0x210 int
 //   +0x218 Time                     (version > 2)
 //   +0x220 bool
@@ -58,23 +55,16 @@
 //
 // Sub-callees:
 //   * Component::Persist               — called qualified (component.cpp)
-//   * ExternalPtrSerializeGeneric       — already ported (Game/serialize_externals.cpp),
-//                                          reused for helper_0790/helper_0990/helper_140018020
-//                                          (all three are the SAME ExternalPtr<T>::Serialize
-//                                          template body, differing only by validation type)
-//   * Reimpl_ExternalPtrArray_Serialize — already ported (serialize_externals_array.cpp),
-//                                          exact match for FUN_1400049c0
-//   * FUN_140001bb0 (array-header resize) — ported below (ResizeCitizenExternalArray);
-//                                          not previously registered anywhere in the repo.
-//   * Graphics::MeshInstance::Serialize — dispatch slot 0x140152990, already resolved
-//                                          in modelcomponent.cpp; resolved again locally
-//                                          here (same house pattern as elsewhere).
-// All scalar/Time/Bool/IBP primitives come from the shared engine_funcs.h globals
-// already initialized at startup.
+//   * ::Object::SerializeExternal<T>    — object/External.h, for helper_0790/helper_0990/
+//                                          helper_140018020 (all three are the SAME
+//                                          ExternalPtr<T>::Serialize template body,
+//                                          differing only by validation type)
+//   * ::Object::SerializeExternalArray<ComponentDescription> — object/External.h, FUN_1400049c0
+//   * FUN_140001bb0 (array-header resize) — ported below (ResizeCitizenExternalArray).
+// The scalar / bool primitives are IO::Serializer members, the Time and String members
+// serialize themselves, and the IBPs go through Object::InternalBasePtr::Serialize
+// (SerializeValidatedIBP below).
 
-// graphics/*.h FIRST: they pull src/engine/volume/Volume.h, whose global-scope
-// `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()` once <windows.h> has
-// been seen through resolve.h.  ENDGAME B.3.5 caller batch I2.
 #include "graphics/Mesh.h"
 #include "object/External.h"
 #include "object/TypeInfo.h"
@@ -96,7 +86,7 @@
 #include "Component/CharacterComponent.h"       // ENDGAME B.3.9 C1: 0x1401c7078 cell class
 #include "Component/CitizenDescription.h"       // ENDGAME B.3.9 C1: 0x1401c7190 cell class
 #include "Component/StatusIconComponent.h"      // ENDGAME B.3.9 C1: 0x1401c7e08 cell class
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"   // B3R: System::MemoryAllocator
 #include "Component/ComponentDescription.h"   // B8 RT2: ::Object::SerializeExternalArray<ComponentDescription> (the downcast needs it complete)
 
 
@@ -106,8 +96,7 @@ namespace {
 // capacity@0xc(int)} header (here the citizen's consumedTypes triple), preserving
 // existing elements and zero-filling new ones. Byte-faithful port (retail grows by
 // 3x on a +1 append, matching the std::vector-ish growth policy used throughout
-// this codebase's other resize helpers). Not previously ported/registered anywhere
-// else in the repo.
+// this codebase's other resize helpers).
 void ResizeCitizenExternalArray(ComponentDescription**& data, int32_t& count,
                                 int32_t& capacity, int newCount) {
     int oldCount = count;

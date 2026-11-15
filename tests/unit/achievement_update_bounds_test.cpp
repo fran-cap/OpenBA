@@ -14,9 +14,9 @@
 //     past its end and calls through what it finds there (F-094).
 // Each test builds the manager's fields by hand over buffers wider than the
 // sizes it claims, so a write past the logical end lands on a canary the test
-// reads back instead of on the heap. The manager is raw storage: its ctor is a
-// door defined nowhere, and the buffers are the test's own, never freed by an
-// Array dtor.
+// reads back instead of on the heap. The manager is raw storage: its ctor is
+// declared but defined nowhere, and the buffers are the test's own, never freed
+// by an Array dtor.
 // ============================================================================
 #include "unit.h"
 

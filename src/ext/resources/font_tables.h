@@ -64,8 +64,9 @@ struct GlyphRow { int32_t preAdvance, postKern, postAdvance, offsetY; };
 int32_t MeasureRun(const GlyphRow* rows, int32_t count);
 
 // The sheet tools/ext_fonts.py asked the kit for: the smallest of 128x128,
-// 256x128, 256x256, 512x256, 512x512 holding 64 * px^2 texels. Returns false
-// above 512x512. A builder may pack tighter; this is the kit's size.
+// 256x128, 256x256, 512x256, 512x512 holding 64 * px^2 texels; past those,
+// 1024x512 and 1024x1024 (the Retina variants, px > 64). Returns false
+// above 1024x1024. A builder may pack tighter; this is the kit's size.
 bool KitSheetSize(int32_t px, int32_t& width, int32_t& height);
 
 }  // namespace Resources

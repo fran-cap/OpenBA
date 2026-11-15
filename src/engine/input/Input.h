@@ -161,7 +161,7 @@ public:
     ~KeyMap();                                                      // 0x180022970  not ported
     KeyMap& operator=(const KeyMap& other);                         // 0x180022a40  not ported
     // The unexported deleting destructor 0x180053440 is the free function
-    // `RtInput_KeyMap_DeletingDtor` (keymap_save.cpp), registered by address.
+    // `RtInput_KeyMap_DeletingDtor` (keymap_save.cpp), called by name.
 
     // ---- the 0x18 bytes -----------------------------------------------------
     // +0x00 — was `_disableKeyboardCount`, named for its observed effect: when
@@ -194,8 +194,8 @@ static_assert(offsetof(KeyMap, _pad14) == 0x14, "KeyMap::_pad14");
 // Load (0x1800e0c80) and Save (0x1800e0c00), which agree on all three offsets
 // and the registry key names.
 //
-// `?_singleton@Configuration@Input@@0PEAV12@EA` (0x1801fe768) STAYS a data slot
-// read through RT_DATA_SLOT until the end of B.3 (carry-over 5).
+// `?_singleton@Configuration@Input@@0PEAV12@EA` (0x1801fe768) is the class static
+// `Configuration::_singleton` (below), defined in input.cpp.
 // ============================================================================
 class Configuration {
 public:
@@ -214,10 +214,8 @@ public:
     void SetMouseDisplay(bool enable);               // 0x18000d860  not ported
     Configuration& operator=(const Configuration& other);  // 0x18000d870  not ported
     static Configuration* Get();                     // 0x18000d890  not ported
-    // ?_singleton@Configuration@Input@@0PEAV12@EA (0x1801fe768) — the class static (ENDGAME B.3.9 ENG, B39_RULES D7).
-    // The namespace's *PortInit redirects the minted storage row onto it, so
-    // the name door, the address door and this member are the same bytes.
-    // PUBLIC while foreign readers still reach the row through the doors.
+    // ?_singleton@Configuration@Input@@0PEAV12@EA (0x1801fe768) — the class static (ENDGAME B.3.9 ENG, B39_RULES D7),
+    // defined in input.cpp and set by Ctor_InputConfiguration (singleton_ctors.cpp).
     static Configuration* _singleton;
     void Shutdown();                                 // 0x1800e0d00  not ported
 

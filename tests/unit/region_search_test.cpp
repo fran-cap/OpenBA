@@ -186,7 +186,7 @@ struct Tally {
     long long tiePops = 0, rekeys = 0, reopens = 0, fDrops = 0;
 };
 
-// One graph, `queries` queries on one persistent state; returns the mismatches.
+// One graph, `queries` queries on one persistent state; adds the mismatches to t.
 void RunGraph(Graph& g, Rng& r, int queries, Tally& t, const char* label) {
     Production prod(g);
     RefSearch ref;

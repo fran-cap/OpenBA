@@ -3,8 +3,8 @@
 // engine: neither Runtime-x64.dll nor VideoDX11-x64.dll is ever loaded, and
 // the game loop runs entirely on our reimplemented code.
 //
-// Build with: make standalone
-// Deploy to: C:/GOG Games/Banished/Application-x64.exe (rename original first!)
+// Build with: tools/build.sh build
+// Deploy to the game dir (BANISHED_DIR) with: tools/build.sh deploy
 //
 
 
@@ -43,10 +43,6 @@
 #include "game_data_check.h"   // issue #72: WinData present before the loader mounts anything
 #include "platform_settings.h" // Platform::SetUserDirOverride (BANISHED_USER_DIR, tools/game_dirs.sh)
 #include "engine/MainLoop.h"   // ENDGAME B.3.9 SS2: Engine::MainLoop::_singleton
-// WAVE 11 follow-up 5 (lane TINFO): the BaseTypeInfo::factoryFn dispatch census.
-
-// Wave 9 lane N's work-scheduler probe tally (src/game/Action/action_base_complete.cpp).
-// Declared here rather than in a header: it has exactly one caller, the crash handler.
 #include <cstdio>
 #include <cstdlib>
 #include "clamped_atoi.h"   // ClampedAtoi (the harness guard; review F-087)
@@ -59,7 +55,8 @@
 #include <dbghelp.h>
 #else
 // Phase D.4 LINUX-1: dladdr for the active vtable's module (DumpVideoState). The swap-chain
-// probes stay Windows-only (plans/RENDER.md C.5), so no Windows or DXGI header is read here.
+// probes stay Windows-only (docs/runtime_port/phase_d/plans/RENDER.md C.5), so no Windows or
+// DXGI header is read here.
 #include <dlfcn.h>
 #include <string>
 #endif
@@ -74,7 +71,6 @@
 #include <SDL3/SDL_messagebox.h>
 #include "rt_crt.h"   // rtcrt::StrICmp, retail's _stricmp (D.4 Q9)
 
-// WAVE 14 LANE SAVEMETA -- src/engine/save/saveload_meta.cpp.
 // ============================================================
 // GPU preference exports (match original exe)
 // ============================================================
@@ -86,21 +82,6 @@ extern "C" {
 #endif  // the two exports are read by the NVIDIA / AMD Windows drivers only
 
 
-// ============================================================
-// Reset Video* settings to known-safe values BEFORE Engine::Startup.
-//
-// Retail stored all settings under HKCU\Software\Shining Rock Software LLC
-// \Banished; this exe stores them in <Documents>\Banished\settings.cfg
-// (Phase D.4 SETTINGS). The standalone's incomplete shutdown path writes garbage back —
-// VideoWindowWidth/Height end up as 0, VideoSettings flips to "true" — which
-// makes ValidateConfiguration override the swap-chain dims to 120x0 on the
-// next boot. DX11 then fails to create a B8G8R8A8 color buffer of that size,
-// Engine::Startup returns 0, and we never reach the loader thread.
-//
-// Resetting WindowWidth/Height/X/Y to -1 ("skip override") and VideoSettings
-// to "false" each boot breaks the cycle without touching Persistence::Save.
-// Once standalone has a real shutdown path, this can go away.
-// ============================================================
 // Log the show-state the process was launched with. Video::Device::PlatformStartup
 // (VideoDX11 slot 2) calls ShowWindow(hwnd, SW_SHOWDEFAULT), and SW_SHOWDEFAULT
 // means "use STARTUPINFO.wShowWindow from whoever called CreateProcess". So the
@@ -209,8 +190,8 @@ static void DumpVideoSettings(const char* tag) {
 //
 // The one case it does not survive is ours: during development we kill the
 // process constantly, which looks exactly like a crash and leaves the bit set.
-// An automated run (make sa-run / sa-run-menu) would then block forever on a
-// modal Win32 dialog nobody is there to click.
+// An automated run (tools/build.sh run) would then boot down Half B's
+// ValidateConfiguration instead of Half A.
 //
 // So when — and only when — a harness env var says this run is unattended, we
 // assert what we already know ("the previous run was ended deliberately") by
@@ -308,8 +289,7 @@ static void HarnessGuardUnattendedBoot() {
         printf("[Standalone] HarnessGuard: FAILED to write %s\n", path.c_str());
 }
 
-// Forward decl — defined alongside the focus-event message hook, used from
-// RunStartupSelfTests and CallWndProcHook.
+// Forward decls — defined below, used from RunStartupSelfTests.
 static void DumpSwapChainState(const char* tag);
 static void CaptureBootFullscreenMode();
 
@@ -417,9 +397,8 @@ static bool RunFactorySelfTest(const char* typeName,
 //   - Device::_singleton[+0x100]:    active DeviceData pointer (read by ImageBuffer::PlatformConstruct)
 //   - Device plugin slots (HMODULEs) at +0xb0, +0xc8, +0xe0
 //
-// The active DeviceData's vtable will reveal the actual renderer in use:
-// pointers in VideoDX11-x64.dll vs. VideoDX9-x64.dll. This pins down the
-// "DX9 or DX11" question that drives the +0x267E crash.
+// The active DeviceData's vtable names the module the renderer lives in;
+// it must be this exe (OpenBA.exe, or OpenBA on POSIX).
 // ============================================================
 static void DumpVideoState() {
     ::Video::Device* device = ::Video::Device::_singleton;
@@ -492,14 +471,6 @@ static void DumpVideoState() {
                 printf("[VideoProbe]   active vtable lives in: %s\n", nm);
 
                 // The active vtable must be one of ours, i.e. in this exe.
-                //
-                // The failure this catches: if Video::Device cannot bring up the
-                // configured interface it falls back to interface 0 and loads
-                // VideoDX9-x64.dll, and the game then renders correctly on a
-                // completely original DX9 plugin. Verified 2026-07-24; the only
-                // sign in a 10k-line log was one "seam not installed" line,
-                // which is not enough to stop someone A/B-ing our port against
-                // a run that never used it.
                 const char* expected = "OpenBA.exe";
                 if (rtcrt::StrICmp(nm, expected) != 0) {
                     fprintf(stderr,
@@ -540,7 +511,7 @@ static void DumpVideoState() {
 }
 
 // Called from game_main.cpp after Engine::Startup completes (so that the
-// MemoryAllocator singleton is populated). Linked via the extern decl below.
+// MemoryAllocator singleton is populated). Linked via the extern decl in game_main.cpp.
 extern "C" void RunStartupSelfTests() {
     printf("\n[Standalone] === Running factory self-tests ===\n");
 
@@ -798,9 +769,9 @@ static bool Init() {
     Sampler_Init();   // BANISHED_SAMPLE=<hz>: sim-thread sampling profiler
 
     // 1a. Open the dedicated crash log NOW (before any pure-virtual /
-    //     terminate handler can be hit). Re-opens are no-ops because
-    //     CREATE_ALWAYS truncates and CrashHandler_OpenLog is also called below
-    //     for normal flow — explicit early call here so the pure-virtual
+    //     terminate handler can be hit). WinMain / main already called
+    //     CrashHandler_OpenLog before Init(), and a re-open is a no-op (OpenCrashLog
+    //     returns when the log is open) — explicit call here so the pure-virtual
     //     override has somewhere to write if it fires during init.
     CrashHandler_OpenLog();
 
@@ -854,7 +825,7 @@ static bool Init() {
     StallDebug::Mark("dx11 plugin");
 
     // 4a. Optional heap-overflow detector (BANISHED_REDZONE env var). Wraps
-    //     fn_MemAlloc/fn_MemFreeStatic with tail-canary redzones so an OOB
+    //     RtAllocInstrument_MemAlloc / _MemFree with tail-canary redzones so an OOB
     //     write in the menu/geometry deserialize is caught at the source via
     //     RedzoneAlloc_ValidateAll() checkpoints, instead of crashing later in
     //     the allocator free-list. No-op unless the env var is set.
@@ -870,7 +841,7 @@ static bool Init() {
     // 4d. THE MENU CRASH FIX (session 5) used to install here as a pair of DLL
     //     byte patches. It now lives in the ported bodies themselves: the
     //     recursive CS is src/app/res_load_lock.cpp, taken by
-    //     ExternalFactory::FindOrLoad and External::Load directly. See the
+    //     RtObject_ExternalFactory_ExpandRelativePath (src/engine/io/external_path.cpp). See the
     //     banner in src/app/res_load_lock.h for why an install site was the
     //     wrong home for it.
     StallDebug::Mark("redzone/alloc-lock/diagnostic installers");
@@ -887,9 +858,9 @@ static bool Init() {
     //    VideoSettings is false, which a clean Engine::Shutdown now stores —
     //    see HarnessGuardUnattendedBoot for the whole mechanism.
 
-    // 8. Install thread-local CALLWNDPROC hook so we can see WM_ACTIVATE /
-    //    WM_KILLFOCUS / WM_SETFOCUS messages reaching the engine WindowProc.
-    //    Diagnoses fullscreen focus-loss black-screen issue.
+    // 8. Install the window-message observer (Platform::Window::SetMessageObserver)
+    //    so we can see WM_ACTIVATE / WM_KILLFOCUS / WM_SETFOCUS messages reaching
+    //    the engine WindowProc. Diagnoses fullscreen focus-loss black-screen issue.
     InstallWndMsgHook();
 
     // 9. Latch the BANISHED_AUTOSTART env var. When set, the menu update loop
@@ -1006,7 +977,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR lpCmdLine, int) {
     LoadTime::Stamp("main");   // NOT RETAIL: print-only (the logs are open)
 
     // ENDGAME C.3: the ONE read of the environment. Every BANISHED_* flag lands
-    // in the Options struct here and nothing else in standalone/ calls getenv.
+    // in the Options struct here and nothing else in the tree calls getenv.
     // It also expands BANISHED_STRESS=1 into its bundle (autostart, medium map,
     // uncapped, pinned camera, demo buildings, in-game quit), which is why it
     // must come before every other reader — HarnessGuardUnattendedBoot below
@@ -1149,8 +1120,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR lpCmdLine, int) {
 // ============================================================
 // Entry point, POSIX (Phase D.4 LINUX-1): WinMain's sequence for a process that has no
 // HINSTANCE, no command line string and no console to lose. What it keeps, in WinMain's
-// order: the two log files in the working directory (unbuffered), the crash log opened
-// first, the ONE read of the environment (OptionsInit), the stress / stall / RenderDoc
+// order: the two log files in the working directory (unbuffered), the ONE read of the
+// environment (OptionsInit), Cpu::Boot, the crash log, the stress / stall / RenderDoc
 // set-up, SDL_SetMainReady + SDL's video subsystem with the same hints, Init(), GameMain,
 // the exit summaries, SDL_Quit.
 //

@@ -56,8 +56,8 @@ public:
     // reads the element's +0x278): the assigned citizens. A real member: the ctor (0x1400f2d80)
     // zeroes root (qword) and count (dword) under an EH state, the dtor 0x1400f2ce0 runs its
     // inlined Clear before the AutoPickupWork / Work stamps. `_citizens._count` (+0x50) is
-    // the assigned count (0x140029860 `CMP [RCX+0x50],EAX; SETG`). The Set ctor also zeroes
-    // its +0x0c pad (+0x54), which retail leaves (known_port_issues row 640).
+    // the assigned count (0x140029860 `CMP [RCX+0x50],EAX; SETG`). The Set ctor leaves
+    // its +0x0c pad (+0x54) as found, as retail does (known_port_issues row 640).
     using CitizenSet     = Collection::Set<CitizenComponent*>;
     using AssignmentNode = CitizenSet::Node;
     CitizenSet _citizens;

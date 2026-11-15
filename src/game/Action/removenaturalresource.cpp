@@ -8,8 +8,8 @@
 //
 // Vtable (10 slots):
 //   [0] +0x00 ScalarDtor    = 0x140022fe0
-//   [1] +0x08 VectorDtor    = 0x140022f60 (returns type ptr, unhookable)
-//   [2] +0x10 BaseDtor      = 0x140022f50 (returns TypeInfo, unhookable)
+//   [1] +0x08 TypeName      = 0x140022f60
+//   [2] +0x10 Type          = 0x140022f50
 //   [3] +0x18 Serialize     = 0x1400cac50
 //   [4] +0x20 AbstractImpl  = 0x1400cab10
 //   [5] +0x28 Execute       = 0x1400c4a90 (base Action, returns 0)
@@ -29,7 +29,7 @@
 #include "RemoveNaturalResource.h"
 #include "object/TypeInfo.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
-#include "Action/exe_bodies.h"   // RemoveNaturalResourceCore
+#include "Action/exe_bodies.h"
 #include "Component/Description.h"
 #include "Component/CitizenDescription.h"
 #include "Component/NaturalResourceComponent.h"

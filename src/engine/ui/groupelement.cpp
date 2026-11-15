@@ -9,8 +9,8 @@
 //   slot  method                retail       where
 //   ----  --------------------  -----------  ---------------------------------
 //    0    vector deleting dtor  0x180046e10  GroupElement.h (the class's own)
-//    1    TypeName              0x180046bb0  here
-//    2    Type                  0x180046b90  here
+//    1    TypeName              0x180046bb0  GroupElement.h (DECLARE_TYPE)
+//    2    Type                  0x180046b90  GroupElement.h (DECLARE_TYPE)
 //    4    ComputeSize           0x180117f00  here
 //    5    ComputeLayout         0x180118050  here
 //    6    Draw                  0x1801181c0  here
@@ -20,16 +20,15 @@
 // door is retired).
 //
 // Slots 4/5/6 are ALSO PageElement's and RadioElement's — both repeat these
-// three addresses in their own tables. Registered once, here; in C++ the two
+// three addresses in their own tables. Defined once, here; in C++ the two
 // subclasses simply do not override them.
 //
 // LAYOUT: src/engine/ui/GroupElement.h — 0xc0 bytes, exactly
 // `sizeof(UI::Element)`.
 //
-// ENDGAME B.3.6 block C2: every slot body is a MEMBER of `UI::GroupElement`;
-// the registered doors are one-line QUALIFIED delegations. The raw slot reads
-// on the border and the children (`VSlot<…>(p, kSlot…)`) are VIRTUAL member
-// calls now — they must dispatch, since each child is its own class.
+// ENDGAME B.3.6 block C2: every slot body is a MEMBER of `UI::GroupElement`.
+// The calls on the border and the children are VIRTUAL member calls — they
+// must dispatch, since each child is its own class.
 //
 // ENDGAME B.3.9 block UI-A: the class is CONCRETE; the slot doors (4/5/6 were
 // also Page's and Radio's) and the three ctor/dtor doors, read only by the

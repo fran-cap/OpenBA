@@ -21,8 +21,8 @@
 //   RCX = the owner stored at node+0x18 and RDX = sm, exactly as the retail
 //   dispatcher's `MOV RCX,[RCX+0x18]; JMP handler`.
 //
-// NOT PROVEN HERE: the bodies of WellComponent / WellDescription (they stand
-// on the address registry and cannot link into a host test) — the real run
+// NOT PROVEN HERE: the bodies of WellComponent / WellDescription (the unit
+// suite does not link them: tests/unit/sources.cmake) — the real run
 // and the resave gate verify those.
 // ============================================================================
 #include "unit.h"

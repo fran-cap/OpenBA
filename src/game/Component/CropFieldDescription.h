@@ -36,7 +36,7 @@ public:
     virtual Object::External* Construct();                                 // [9] 0x140032f90
 
     // ---- fields (PUBLIC: the components read them at raw offsets today) ----
-    uint32_t _type;                             // +0x20 enum (serialized through the uint door)
+    uint32_t _type;                             // +0x20 enum (serialized as an unsigned int)
     float _growthPercentOnTend;                                 // +0x24
 };
 

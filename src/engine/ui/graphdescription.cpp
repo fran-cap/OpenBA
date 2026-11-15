@@ -3,9 +3,9 @@
 // ============================================================================
 //
 // ??_7GraphDescription@UI@@6B@ (retail 0x180156a30), ten slots:
-//   0  deleting dtor      0x1800403a0  src/engine/object/deleting_dtor.cpp row
-//   1  TypeName           0x180040090  here
-//   2  Type               0x180040070  here
+//   0  deleting dtor      0x1800403a0  GraphDescription.h (the class's own)
+//   1  TypeName           0x180040090  GraphDescription.h (DECLARE_TYPE)
+//   2  Type               0x180040070  GraphDescription.h (DECLARE_TYPE)
 //   3  GetFileVersion     0x1800d1b20  here  (returns 0x104)
 //   4  External::Compile  0x1800066e0  already ported
 //   5  Serialize          0x1800d1a30  here
@@ -15,13 +15,12 @@
 //   9  Construct          0x180040230  here
 // plus ??1GraphDescription@UI@@UEAA@XZ (0x1800d1b30).
 //
-// The constructor is OUT OF LINE (`??0GraphDescription@UI@@QEAA@XZ`,
-// 0x1800d1bd0) and is ALREADY ported by src/engine/ui/factory_ui1.cpp.
+// The constructor is OUT OF LINE in retail (`??0GraphDescription@UI@@QEAA@XZ`,
+// 0x1800d1bd0); here it is the class's ctor in src/engine/ui/GraphDescription.h.
 //
 // ENDGAME B.3.6 block C5: every slot body MOVED into the members of the real
-// `UI::GraphDescription` (src/engine/ui/GraphDescription.h, cross-asserted
-// against DescriptionsBatch1.h's POD); each registered door is a one-line
-// QUALIFIED delegation. The dtor stays a door (B4b-2).
+// `UI::GraphDescription` (src/engine/ui/GraphDescription.h); the dtor is a
+// member too (below).
 // ============================================================================
 #include <new>
 
@@ -83,9 +82,9 @@ bool GraphDescription::Serialize(IO::Stream& streamArg) {
 // ============================================================================
 // [8] ?CreateInstance@GraphDescription@UI@@...   retail 0x1800d1920
 // ============================================================================
-// GraphElement is 0x100 and its constructor is OUT OF LINE
-// (`??0GraphElement@UI@@QEAA@XZ`, 0x1800d1880, already ported by
-// src/engine/ui/factory_ui1.cpp).
+// GraphElement is 0x100 and its constructor is OUT OF LINE in retail
+// (`??0GraphElement@UI@@QEAA@XZ`, 0x1800d1880); here it is the class's ctor in
+// src/engine/ui/GraphElement.h.
 //
 // THE FOUR DWORD COPIES ARE NOT IN OFFSET ORDER: +0x68 -> +0xc0, +0x6c -> +0xc4,
 // then +0x74 -> +0xcc, and only THEN +0x70 -> +0xc8. Read off

@@ -17,12 +17,12 @@
 //   * sizeof 0xb0 — `MOV EDX,0xb0` in the slot-0 vector deleting dtor
 //     0x180077c80 (B36_SLOTS.md section 1).
 //
-// PARENT, read (B36_SLOTS.md section 3), recorded not used (RULE B6-7):
+// PARENT, read (B36_SLOTS.md section 3), recorded (RULE B6-7); DEFINE_TYPE (progressdescription.cpp) returns both:
 //     ?_TypeName@ProgressDescription@UI@@CAPEBDXZ       @0x180077730 -> "ProgressDescription"
 //     ?_ParentTypeName@ProgressDescription@UI@@CAPEBDXZ @0x180077740 -> "ElementDescription"
 //
 // `??_7ProgressDescription@UI@@6B@` @ 0x1801591e0, TEN slots:
-//   [0] 0x180077c80 deleting dtor (RT_DELDTOR row)  [1] 0x180077770 TypeName
+//   [0] 0x180077c80 deleting dtor                   [1] 0x180077770 TypeName
 //   [2] 0x180077750 Type            [3] 0x18011a070 GetFileVersion (0x204)
 //   [4] External::Compile (inherited, NOT declared — B6-1.5)
 //   [5] 0x180119f60 Serialize       [6] 0x1800778f0 Reconstruct
@@ -34,8 +34,7 @@
 // own slot 0 (the vector deleting dtor), a virtual ~ProgressDescription holding
 // the retired ??1 door's body, and the factory pair as the class's own statics;
 // every live one wears the COMPILER's table. The minted `??_7ProgressDescription@UI@@6B@`,
-// its RT_DELDTOR row 0x180077c80 and the ctor / dtor / slot doors are retired
-// (tools/rt_mint_retired/ui-b.txt).
+// its RT_DELDTOR row 0x180077c80 and the ctor / dtor / slot doors are retired.
 // ABSTRACT (slot 0 `= 0`), NO real ctor (the `??0` door builds every live one
 // and it wears the MINTED table). The destructor is declared only: `??1` is the
 // registered door (0x18011a080).

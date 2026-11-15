@@ -33,7 +33,7 @@ public:
     void CheckEntity() override;                               // [8] 0x1400c5ac0
     bool GetTarget(ComponentEntity** param) override;                      // [9] 0x1400c5a50
 
-    // ---- fields, retail order (PUBLIC: the slot bodies are C functions) ----
+    // ---- fields, retail order (PUBLIC) ----
     Object::InternalPtr<CitizenComponent> workEntity;   // +0x20 the working citizen (Persist checks CitizenComponent)
     Object::InternalPtr<ComponentEntity>  targetEntity; // +0x28 target entity ref (Persist checks ComponentEntity)
     int32_t   taskIndex;         // +0x30 task index (0x7FFFFFFF = unresolved)

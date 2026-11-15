@@ -18,7 +18,7 @@
 //     would have created synchronously. DeviceData::Shutdown drains first.
 // Vulkan object creation is free-threaded and the backend's allocator and upload batch take their own
 // locks (resources.h), so every device has the worker path (no DriverConcurrentCreates question).
-// Off (the row, any thread outside the bracket): the synchronous path, plus one relaxed load per use.
+// Off (the row, any thread outside the bracket): the synchronous path, plus one acquire load per use.
 // ============================================================================
 #include <atomic>
 #include <cstdint>

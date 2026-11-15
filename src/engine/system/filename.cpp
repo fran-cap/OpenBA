@@ -15,19 +15,12 @@
 // string.cpp. GetPathFilename and GetPathIdentifer both return a Filename BY
 // MEMORY, so their signature is (this in RCX, ret in RDX, args from R8).
 //
-// DIFFABILITY: the ctors, the dtor, the two operator= overloads and
-// AdjustDelimiters all mutate a live object and a shared refcount, so running
-// the original as an oracle would mutate twice and, at refcount 1, double
-// free. They are undiffed. operator<, GetPathFilename and GetPathIdentifer are
-// const on `this` and produce independent results, so they are diffed.
 // ============================================================================
 
 // ============================================================================
 // ENDGAME B.3.1 step 1: the bodies below now live on `System::Filename`
 // (src/engine/system/Filename.h), together with GetPathDirectory, whose body
 // moved here out of setupdir_helpers.cpp. They MOVED — they were not rewritten.
-// The `RtSystem_Filename_*` free functions are one-line shims at the end of the
-// file and die in step 2 (B31_RULES.md).
 // ============================================================================
 
 #include <cstdio>
@@ -44,8 +37,8 @@
 // ############################################################################
 // System::Filename — the class (ENDGAME B.3.1 step 1)
 // ############################################################################
-// `Filename::GetPathExtension`'s body lives in external_path.cpp; see the
-// comment on that member below.
+// `Filename::GetPathExtension`'s body lives in src/engine/io/filename_extension.cpp;
+// see the comment on that member below.
 namespace RtObject {
 System::Filename* RtSystem_Filename_GetPathExtension(const System::Filename* self,
                                                      System::Filename* ret);
@@ -78,8 +71,7 @@ Filename::Filename(const char* src) : String() {
 
 // ??0Filename@System@@QEAA@AEBV01@@Z  retail 0x1800067d0
 // Not in this lane's assigned list, but GetPathIdentifer calls it, so it is
-// ported (and registered — it is a Filename ctor, and leaving one of the four
-// on the DLL is exactly the half-ported class PLAN.md §4.1.5 warns about).
+// ported.
 // Retail zeroes, then inlines operator=(const Filename&) — which already ends
 // in AdjustDelimiters — and then calls AdjustDelimiters a SECOND time. The
 // second call is idempotent, but it is transcribed rather than folded away.
@@ -137,7 +129,7 @@ Filename& Filename::operator=(Filename&& rhs) noexcept {
 }
 
 // ============================================================
-// operator< — diffable
+// operator<
 // ============================================================
 
 // ??MFilename@System@@QEBA_NAEBV01@@Z  retail 0x180026cb0
@@ -149,7 +141,7 @@ Filename& Filename::operator=(Filename&& rhs) noexcept {
 // Retail calls the CRT's _stricmp. That is locale-sensitive in MSVC; the DLL
 // never calls setlocale, so it runs in the "C" locale where _stricmp is plain
 // ASCII case folding. Spelled out here rather than calling _stricmp so that
-// runtime/src stays free of a CRT whose locale behaviour differs between
+// the engine stays free of a CRT whose locale behaviour differs between
 // toolchains (PLAN.md §4.1: the portability seam). Only the SIGN is used.
 static int StriCmpAscii(const char* a, const char* b) {
     for (;;) {
@@ -177,14 +169,14 @@ bool Filename::operator<(const Filename& other) const {
 }
 
 // ============================================================
-// AdjustDelimiters — NOT DIFFED (rewrites the shared buffer in place)
+// AdjustDelimiters (rewrites the shared buffer in place)
 // ============================================================
 
 // ?AdjustDelimiters@Filename@System@@AEAAXXZ  retail 0x1800c6970
 //
 // PRIVATE (AEAA), not QEAA — the `...@QEAAXXZ` spelling in circulation is not
-// an export and resolves to null forever (the failure mode of WAVE1 defect 3).
-// It is exported anyway, as everything in this DLL is, so it is registered.
+// an export (the failure mode of WAVE1 defect 3). It is exported anyway, as
+// everything in this DLL is.
 //
 // Two phases:
 //   1. Every '/' becomes '\\', IN PLACE, through the shared buffer.
@@ -314,7 +306,7 @@ void Filename::AdjustDelimiters() {
 }
 
 // ============================================================
-// Path decomposition — diffable
+// Path decomposition
 // ============================================================
 
 // Both of these produce a fresh Filename with its own buffer and touch nothing
@@ -433,9 +425,7 @@ Filename Filename::GetPathIdentifer() const {
 // ============================================================================
 // MOVED HERE from src/engine/system/setupdir_helpers.cpp (ENDGAME B.3.1 step 1
 // — that file kept it out of filename.cpp only because Wave 2 lane A owned this
-// file and two lanes must not edit one source; that reason is gone). The
-// `RtSystem_Filename_GetPathDirectory` name and its registry rows stay there,
-// now as a shim.
+// file and two lanes must not edit one source; that reason is gone).
 //
 // "Everything up to and INCLUDING the last delimiter", or the null Filename if
 // there is no delimiter (and for a null or empty `this`).
@@ -475,12 +465,10 @@ Filename Filename::GetPathDirectory() const {
 
 // ?GetPathExtension@Filename@System@@QEBA?AV12@XZ          retail 0x1800c64f0
 //
-// THE BODY IS STILL IN src/engine/io/external_path.cpp and this is a
+// THE BODY IS IN src/engine/io/filename_extension.cpp and this is a
 // forward to it, not a second transcription (a duplicate would be a silently
 // dead body — reference_grep_for_the_port_before_writing_it.md). That file
-// wraps the body in the `g_pc` path-counter instrumentation its own lane
-// reports, and it is not this batch's file; the body comes here when
-// `Object::ExternalFactory` is converted.
+// counts the body's arms into `RtObject::g_pc` (external_path.h).
 Filename Filename::GetPathExtension() const {
     // `out` is born null and the C body CONSTRUCTS into it (its hidden return
     // slot), so nothing is leaked and no refcount is touched.
@@ -491,14 +479,6 @@ Filename Filename::GetPathExtension() const {
 
 }  // namespace System
 
-// ############################################################################
-// ENDGAME B.3.1 step 1 — THE SHIMS. THEY DIE IN STEP 2.
-// ############################################################################
-// Same contract as string.cpp's shim block: the pre-conversion signature is
-// kept exactly (hidden return slot included), the registry rows below register
-// THESE, and a shim that produces a value constructs into the caller's raw
-// `ret` slot with placement new rather than assigning to it.
-// ############################################################################
 namespace RtSystem {
 
 // (B.4 Z LAST IO: `RtSystem_Filename_CtorCopy` and

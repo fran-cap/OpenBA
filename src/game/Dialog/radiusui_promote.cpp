@@ -21,8 +21,8 @@
 //
 // So RadiusUI overrides exactly two slots, and radiusui.cpp's header comments
 // (idx5 = +0x28 = 0x140077650, idx6 = +0x30 = 0x140077600) are CORRECT — unlike
-// the CropUI ones. Base slots stay StubNop, matching orchardui.cpp / eventlogui.cpp:
-// they are Runtime DialogController methods with no exe body to port.
+// the CropUI ones. Base slots are UI::DialogController's (inherited), matching orchardui.cpp /
+// eventlogui.cpp: they are Runtime DialogController methods with no exe body to port.
 //
 // DialogController slot semantics (see the verified map at the top of
 // eventlogui.cpp): idx5 = setup on show, idx6 = teardown, idx7 = per-frame sync.

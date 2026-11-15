@@ -17,8 +17,8 @@
 // ??_7GroupDescription@UI@@6B@ (retail 0x180157190), ten slots:
 //
 //   0  deleting dtor       0x180046af0  GroupDescription.h (the class's own)
-//   1  TypeName            0x180046660  here
-//   2  Type                0x180046640  here
+//   1  TypeName            0x180046660  GroupDescription.h (DECLARE_TYPE)
+//   2  Type                0x180046640  GroupDescription.h (DECLARE_TYPE)
 //   3  GetFileVersion      0x180117cf0  here  (returns 0x104)
 //   4  External::Compile   0x1800066e0  already ported
 //   5  Serialize           0x180117d00  here
@@ -34,10 +34,7 @@
 // Layout: src/engine/ui/GroupDescription.h. `ElementDescription` + one
 // `Array<ExternalPtr<ElementDescription>>` at +0x68; sizeof 0x78.
 //
-// ENDGAME B.3.6 block C2: every slot body is a MEMBER of `UI::GroupDescription`;
-// the registered doors are one-line QUALIFIED delegations (a live description
-// wears the MINTED table, whose slots resolve back to these doors — B34_BRIEFS
-// A.1). The destructor stays a door (B4b-2).
+// ENDGAME B.3.6 block C2: every slot body is a MEMBER of `UI::GroupDescription`.
 //
 // ENDGAME B.3.9 block UI-A (B39_RULES D1/D2): the class is CONCRETE and every
 // live GroupDescription wears the COMPILER's table; the slot doors and the ??1
@@ -160,7 +157,7 @@ bool GroupDescription::Serialize(IO::Stream& streamv) {
 // `ElementDescription::CreateInstance` (0x180115ad0) is a QUALIFIED member
 // call since fragment pass F2 defined it (dialog.cpp); the inlined
 // GroupElement ctor is the real one since B.3.9. `Dialog::CreateElement` is
-// still reached through its door.
+// a plain member call.
 //
 // The parent-chain walk at the end of each iteration is retail's: set
 // `kElementFlagNeedsSizeCalc` on the group and on every ancestor through

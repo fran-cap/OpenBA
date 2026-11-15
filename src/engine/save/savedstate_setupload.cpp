@@ -6,7 +6,7 @@
 //
 // One of the last seven unported rows in the Save namespace. Its close sibling
 // ?GetSaveBlock@SavedState@Save@@QEBA?AUSaveBlock@Persistence@IO@@XZ
-// (0x1800c0d50) is READ here as a cross-reference and deliberately NOT ported:
+// (0x1800c0d50) is defined at the bottom of this file:
 // its eight instructions are byte for byte SetupLoad's tail, which is what
 // pins the SaveBlock field order independently of UpdateSave.
 //
@@ -26,10 +26,9 @@
 //   1800c0c84  MOV RCX,[RCX+0x8]    ;              (_data), written at [RSI+4]
 //
 // and the CALLER agrees (UpdateList 0x1800c221f: `ADD RCX,0x28` = the embedded
-// SavedState, `LEA RDX,[RBP-0x61]` = the block). `tools/abi_retslot_audit.py`'s
-// own docstring states the same rule ("RDX for a member, after `this` in RCX"),
-// and `saveload_update.cpp`'s existing `SetupLoadFn` typedef already had it
-// right. So: `SaveBlock* SetupLoad(SavedState* self, SaveBlock* ret)`, RAX =
+// SavedState, `LEA RDX,[RBP-0x61]` = the block), and `RtSaveDetail::SetupLoadFn`
+// (saveload_internal.h) spells the same order.
+// So: `SaveBlock* SetupLoad(SavedState* self, SaveBlock* ret)`, RAX =
 // ret. Getting this backwards would have written 16 bytes through a stale RCX.
 //
 // ----------------------------------------------------------------------------
@@ -78,7 +77,7 @@
 //   5. Fill the return slot: `ret->data = this->_data; ret->size = this->_size;
 //      ret->id = this->_id;` (0x1800c0d1a..0x1800c0d26) and return it in RAX.
 //      Note retail RE-READS `this->_size` from memory at 0x1800c0d1d rather
-//      than reusing EBX, which is why the port reads it back through the sink.
+//      than reusing EBX, which is why the port reads `_size` back from `this`.
 //
 // ----------------------------------------------------------------------------
 // VERIFICATION — TWO SCREENS, SCORED SEPARATELY
@@ -86,7 +85,7 @@
 // The body below was written against the live sink (retired, B.4 R-IO).
 // Ghidra lists three callers (UpdateList 0x1800c2227, UpdateLoadFromFile
 // 0x1800c25d4, UpdateLoad 0x1800c29a6); our own ported copies of those three
-// reach us by name through RT_EXPORT_ONCE.
+// call the member directly.
 // ============================================================================
 
 #include <cstdint>
@@ -118,12 +117,10 @@ using RtSaveDetail::SetupLoadFn;
 // `RtIo::BlockDesc` (Persistence.h); +0x4 is never read here.
 
 // ---------------------------------------------------------------------------
-// Step 2 on its own, because both the body and screen A's driver need it and a
-// second transcription is a second thing to drift.
+// Step 2 on its own.
 //
 // `found` is an OUT parameter and not a sentinel: a row whose size is genuinely
-// 0 and a missing row both yield 0, and the driver has to be able to tell them
-// apart to choose its absent-id probes.
+// 0 and a missing row both yield 0. The body passes null.
 // ---------------------------------------------------------------------------
 uint32_t LookupSlotSize(const ::IO::Persistence* persistence, uint32_t id, bool* found) {
     if (found) *found = false;
@@ -147,8 +144,8 @@ uint32_t LookupSlotSize(const ::IO::Persistence* persistence, uint32_t id, bool*
 // The body (plain stores: the live sink is retired, B.4 R-IO).
 // ============================================================================
 // ENDGAME B.3.7 B2: the body is the member. `ret` is the member's own return
-// value (NRVO), so the five stores into the SaveBlock land where retail's do:
-// in the caller's hidden slot, via the door below.
+// value (NRVO), so the stores into the SaveBlock land where retail's do:
+// in the caller's hidden slot.
 SaveBlock Save::SavedState::SetupLoad() {
     SaveBlock result;
 

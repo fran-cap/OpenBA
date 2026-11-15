@@ -5,7 +5,7 @@
 // Vtable batch 2. Derives straight from UI::ElementDescription.
 //
 // ??_7ListDescription@UI@@6B@ (retail 0x180156e20), ten slots:
-//   0  deleting dtor      0x180044ed0  deleting_dtor.cpp row (sizeof 0x90)
+//   0  deleting dtor      0x180044ed0  the compiler's, from ~ListDescription (sizeof 0x90)
 //   1  TypeName           0x180044ba0  here
 //   2  Type               0x180044b80  here
 //   3  GetFileVersion     0x1800d4900  here  (returns 0x104)
@@ -26,16 +26,14 @@
 //     +0x80  System::String                        0x1800c9930  the sprite name
 //     +0x88  uint32   kScalarUInt   \ the ctor writes ONE QWORD of -0x7f7f80 at
 //     +0x8c  uint32   kScalarUInt   / +0x88 (0x1800d4a40), i.e. +0x88 starts at
-//                                     0xff808080 and +0x8c at 0xffffffff. The
-//                                     low half looks like an ARGB grey and the
-//                                     high half like a -1 sentinel; nothing in
-//                                     this class's ten slots reads either, so
-//                                     the file records the VALUES and not a
-//                                     meaning.
+//                                     0xff808080 and +0x8c at 0xffffffff:
+//                                     `_hoverColor` and `_selectColor`, which
+//                                     Serialize reads and writes and
+//                                     CreateInstance copies into the
+//                                     ListElement's own two fields.
 //
 // Every helper is already ported, including ??0ListElement@UI@@ (0x1800d4570,
-// ui_factory_wave28.cpp) and ?IsDerivedFrom@Base@Object@@ (0x1800c0390, reached
-// by its export name).
+// ListElement.h) and ?IsDerivedFrom@Base@Object@@ (0x1800c0390, a member call).
 // ============================================================================
 #include <new>
 #include <cstddef>
@@ -55,9 +53,8 @@
 #include "collection/Collection.h"
 
 // ENDGAME B.3.6 block C4: the layout moved to src/engine/ui/
-// ListDescription.h (the real class). Every slot body below is a MEMBER; each
-// registered door is a one-line QUALIFIED delegation. The ctor and dtor stay
-// DOORS (B4b-2). B3R RT-UI: every export the members reach is a direct call.
+// ListDescription.h (the real class). Every slot body below is a MEMBER.
+// B3R RT-UI: every export the members reach is a direct call.
 
 namespace {
 
@@ -131,7 +128,7 @@ bool ListDescription::Serialize(IO::Stream& streamv) {
 // ?CreateInstance@ListDescription@UI@@...   retail 0x1800d45f0
 // ============================================================================
 // ListElement is 0x100 bytes (`MOV EDX,0x100` at 0x1800d4634); its ctor is
-// CALLED out of line (0x1800d4570, the listelement.cpp door). TWO children,
+// CALLED out of line (0x1800d4570, the real ctor in ListElement.h). TWO children,
 // one sprite lookup, and then the part that makes this class unusual:
 //
 // *** THE TAIL WALKS INTO THE CHILDREN IT JUST BUILT AND CACHES TWO POINTERS

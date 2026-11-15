@@ -16,7 +16,7 @@
 
 // graphics/*.h FIRST: they pull src/engine/volume/Volume.h, whose global-scope
 // `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()` once <windows.h> has
-// been seen through resolve.h.  ENDGAME B.3.5 caller batch I2.
+// been seen.  ENDGAME B.3.5 caller batch I2.
 #include "graphics/Scene.h"
 #include "graphics/Geometry.h"
 #include "Component/StatusIconComponent.h"
@@ -43,12 +43,12 @@
 #include <new>
 #include "ui/SpriteSheet.h"   // ENDGAME B.3.6 UI callers (K4)
 #include "Component/exe_bodies.h"
-#include "Action/exe_bodies.h"   // ActHunt_NotifyEntityChanged_c3470
+#include "Action/exe_bodies.h"
 
 // Exe helpers, by retail address: 0x1400aa440 StatusIconGeometry::Setup (below),
-// 0x1400c3470 ActHunt_NotifyEntityChanged_c3470 (entity notification), 0x140152b00
+// 0x1400c3470 ComponentEntity::RefreshEntityFlags (entity notification), 0x140152b00
 // ??0Time@System@@QEAA@M@Z (RtSystem_Time_Ctor), 0x140004680 FindComponent<MapComponent>,
-// 0x14009f3e0 Reimpl_MapGetTerrainPos (grid cell -> world position).
+// 0x14009f3e0 Map::GetTerrainPos (grid cell -> world position).
 
 // B6: SI_Initialised (a test of the billboard geometry's vptr, "[STANDALONE GUARD D4]") is gone.
 // The real ctor (StatusIconComponent::StatusIconComponent, retail 0x14012c0c0) builds the
@@ -191,12 +191,11 @@ void StatusIconComponent::ShowAfterLoad() {
 }
 
 // ============================================================
-// StatusIconComponent::SetFlag (0x14012c3f0; the tree's CitizenComp_FUN_14012c3f0,
-// moved from citizencomponent.cpp)
+// StatusIconComponent::SetFlag (0x14012c3f0)
 // ============================================================
 // Set/clear bit `flagIndex` in the status mask (+0xF0); when the mask becomes
 // empty/non-empty, add/remove the geometry from the scene and toggle the +0x100
-// scene id and the +0x20 flag bit 4, then notify the owning entity.
+// scene id and the +0x20 flag bit 2 (0x04), then notify the owning entity.
 //
 // FIX icon_slide (docs/retail_bugs.md section 1): retail 0x14012c3f0 has slot 11's shape --
 // AddObject, then Tick (slot 8) positions -- and it is the path a running game's icons ("work
@@ -212,16 +211,10 @@ void StatusIconComponent::SetFlag(uint8_t flagIndex, char value) {
         }
         uint32_t changed;
         if (static_cast<int32_t>(_geometry.activeMask) == 0) {
-            // [STANDALONE GUARD] A StatusIconComponent that never ran StartupInit still
-            // carries the inert factory's zero-fill: the embedded geometry's vtable
-            // (+0x28) is 0 and the scene id (+0x100) is 0. That 0 means "never
-            // registered", NOT scene object 0 — and Scene::RemoveObject(scene, 0)
-            // removes whichever object genuinely owns id 0, after which the engine's list
-            // walk spins: an in-world FREEZE, not a crash (the failure mode fixed at source
-            // for HighlightComponent in 0f97d16). Repair the sentinel instead of removing.
-            // Reachable on the default path since the pause port graduated: SetAccepting's
-            // accepting=false branch CLEARS icon flags 2/3/4, and clearing the last flag on
-            // an uninitialised icon lands exactly here.
+            // The ctor (StatusIconComponent::StatusIconComponent) sets the scene id (+0x100)
+            // to -1, so an icon that was never registered fails the `-1 < iconId` test below.
+            // A 0 there would make Scene::RemoveObject remove whichever object genuinely owns
+            // id 0, after which the engine's list walk spins: an in-world FREEZE, not a crash.
             //
             // WARNING: the old note here claimed "the AddObject side below needs no guard -
             // an uninitialised +0x100 == 0 fails its `< 0` test". That was FALSE, and it was
@@ -271,18 +264,19 @@ void StatusIconComponent::SetFlag(uint8_t flagIndex, char value) {
 // StatusIconComponent::ClearAllFlags (0x14012c2a0)
 // ============================================================
 // Retail walks the 32 bits of the mask from bit 0 and, for each one that is set, clears it with the body of SetFlag(bit, 0) inlined
-// (remove the geometry from the scene when the mask reaches 0, notify the entity when the flag word changed). Its one caller is
-// DestroyComponent state 3 enter, which strips every icon of a building that is about to be demolished, then sets flag 5.
+// (remove the geometry from the scene when the mask reaches 0, notify the entity when the flag word changed). Its callers are
+// DestroyComponent state 3 enter, which strips every icon of a building that is about to be demolished, then sets flag 5, and
+// OnRemove (slot 7) below.
 void StatusIconComponent::ClearAllFlags() {
     for (uint32_t bit = 0; bit < 32; ++bit) {
         if ((_geometry.activeMask & (1u << bit)) != 0) SetFlag(static_cast<uint8_t>(bit), 0);
     }
 }
 
-// B4 FORWARD: outside callers in 16 files (Component: attendancecomponent*, buildcomponent_state8,
-// citizenai_gather, citizen_needsupdate, destroycomponent_states, workcomponent,
-// workplacecomponent; Work: consumeproduce, fishingwork, foresterwork, harvestarea,
-// harvestorchard, herbalistwork, huntwork, pasturework)
+// B4 FORWARD: outside callers in 19 files (Component: attendancecomponent*, buildcomponent_state8,
+// citizenai_gather, citizencomponent, citizen_needsupdate, destroycomponent_states,
+// residence_heattick, residencecomponent, workcomponent, workplacecomponent; Work: consumeproduce,
+// fishingwork, foresterwork, harvestarea, harvestorchard, herbalistwork, huntwork, pasturework)
 
 // ============================================================
 // Standalone bring-up (Phase A): faithful construction + diagnostics
@@ -300,13 +294,12 @@ void StatusIconComponent::ClearAllFlags() {
 // Graphics::Geometry::SetTransform (Runtime export) — used by Tick positioning.
 
 // Entity component finders: 0x140003f60 ModelComponent (type 0x1401c7a50) and
-// 0x140004740 MultiObjectComponent (type 0x1401c7ac0) are replaced by the by-name
+// 0x140004740 MultiObjectComponent (type 0x1401c7ac0) are replaced by the TypeId()
 // lookup below; 0x140004680 -> MapComponent (type 0x1401c79e0).
-// CharacterComponent_impl_f3e0 (0x14009f3e0, Reimpl_MapGetTerrainPos) — grid cell ->
-// world position.
+// Map::GetTerrainPos (0x14009f3e0) — grid cell -> world position.
 
 // ============================================================
-// [STANDALONE GUARD] component-array entry sanity (2 deviations, kept deliberately)
+// [STANDALONE GUARD] component-array entry sanity (1 deviation, kept deliberately)
 // ============================================================
 // Retail's component walks (0x140003f60, 0x140004740, 0x140004680 ...) dereference every
 // entry of the owner entity's component array with NO validation, because in retail the
@@ -407,12 +400,9 @@ void StatusIconComponent::OnRemove() {
 
 
 
-// Resolve a component on the owner entity BY NAME (Object::GetTypeIdByName), mirroring
-// CharacterComponent's CharComp_FindSiblingByName. This is the standalone-safe equivalent
-// of the exe finders 0x140003f60 (ModelComponent) / 0x140004740 (MultiObjectComponent):
-// those compare the .rdata type-id globals DWORD_1401c7a50 / c7ac0, which are 0xFFFFFFFF
-// (UNFILLED) in standalone, so they return null for EVERY entity. Resolving the type id by
-// name at runtime matches the established brick pattern and has no shared-global dependency.
+// Resolve a component on the owner entity by its class's TypeId() (the caller passes it).
+// This replaces the exe finders 0x140003f60 (ModelComponent) / 0x140004740
+// (MultiObjectComponent), which compare the .rdata type-id globals DWORD_1401c7a50 / c7ac0.
 //
 // The scan itself is 1:1 with the exe finders (8-byte stride over entity+0x30, compare
 // vtable+0x10 GetTypeId, IsDerivedFrom on the first match). The one deviation is
@@ -459,11 +449,11 @@ static Component* StatusIcon_FindCompByName(const ComponentEntity* entity, uint3
 
 // NOTE (2026-07-08): the per-frame occupancy poll `StatusIcon_DrainForceShow` and its
 // deferred drive-list were removed. The building "no workers" warning (bit 4 / 0x10) is
-// now raised by the genuine faithful event — WorkPlaceComponent_SetAccepting
+// now raised by the genuine faithful event — WorkPlaceComponent::SetAccepting
 // (workplacecomponent.cpp, port of Entity_impl_fc00) at the lodge-activation point — and
-// cleared by WorkplaceComponent_Attach when a worker is seated. Citizen health icons are
+// cleared by WorkPlaceComponent::Attach when a worker is seated. Citizen health icons are
 // driven by CitizenComponent::Update. The status-icon user setting (settings byte +0xc)
-// is already initialised to 1 at settings creation (game_main.cpp: settings[3]=1), so no
+// is already initialised to 1 at settings creation (game_main.cpp: statusIconEnable = true), so no
 // per-frame poke is needed.
 
 // ============================================================================
@@ -508,8 +498,7 @@ void StatusIconComponent::Persist(IO::Stream& stream) {
 }
 
 // ============================================================
-// StatusIconComponent::Startup (vtable slot [4], 0x14012bed0; the tree's
-// StatusIconComponent_Serialize)
+// StatusIconComponent::Startup (vtable slot [4], 0x14012bed0)
 // ============================================================
 // Reads sprite data from the StatusIconDescription, initializes the geometry:
 // the SpriteSheet's sprite count, then Setup (0x1400aa440) with the icon size,
@@ -517,8 +506,8 @@ void StatusIconComponent::Persist(IO::Stream& stream) {
 // ⚠ A LOAD never dispatches this slot — anything that must hold for a stream-restored
 // component belongs in the ctor (StatusIconComponent::StatusIconComponent), not here.
 // The icon's warning bits are raised/cleared by genuine events
-// (WorkPlaceComponent_SetAccepting / _Attach for building warnings; CitizenComponent
-// Update for citizen health icons) — no per-frame occupancy poll.
+// (WorkPlaceComponent::SetAccepting / ::Attach for building warnings;
+// CitizenComponent::Update for citizen health icons) — no per-frame occupancy poll.
 void StatusIconComponent::Startup() {
     StatusIconDescription* desc = GetStatusIconDescription(this);
     if (!desc) return;
@@ -575,12 +564,11 @@ void StatusIconComponent::Tick(const System::Time* /*time*/) {
 
     ComponentEntity* entity = _entity.Get();
 
-    // Resolve Model + MultiObject by NAME (the exe finders key off unfilled .rdata globals
-    // c7a50/c7ac0 → null for every entity in standalone; see StatusIcon_FindCompByName).
+    // Resolve Model + MultiObject by TypeId() (StatusIcon_FindCompByName).
     // The MODEL-BOUNDS path then resolves for citizens (model = CharacterComponent's sibling
     // ModelComponent, +0x158 = live move-tick position) AND faithfully preserves the original's
-    // branch for buildings that carry a MultiObjectComponent (→ map-cell). Map fallback below
-    // still uses the exe finder (its c79e0 global IS filled, so it works).
+    // branch for buildings that carry a MultiObjectComponent (→ map-cell). The map fallback
+    // uses entity->FindComponent<MapComponent>().
     // [ext.render_culling ICON_LASTONLY -- NON-RETAIL] the positioning below is pure presentation
     // (Geometry::SetTransform on the icon sprite); on intermediate speed iterations the
     // result is overwritten before anything draws it, so only the last iteration runs it.
@@ -635,8 +623,7 @@ static void StatusIcon_SetIconTransform(StatusIconComponent* c, ComponentEntity*
         if (mc) {
             Map* widthPtr = GameUpdateLoop::_singleton->m_game;
             int w = widthPtr->size;
-            // The footprint is read as int16 (the tree's width; MapComponent.h declares
-            // uint16 -- COMP-d's header, LISTED).
+            // The footprint is read as int16 (MapComponent.h declares int16_t).
             int idx = ((int)static_cast<int16_t>(mc->tileY0) + ((int)static_cast<int16_t>(mc->tileY1) >> 1)) * w
                       + ((int)static_cast<int16_t>(mc->tileX1) >> 1) + (int)static_cast<int16_t>(mc->tileX0);
             float f = (float)(w >> 1) - 0.5f;

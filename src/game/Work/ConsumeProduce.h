@@ -19,8 +19,8 @@
 //   [10] 0x1400e8fb0 GetTarget  [11] 0x14002a0f0 GetPriority (`+0x60 > 0`, shared
 //   with ClearStorage)  [12] 0x1400e9010 its OWN `RET 0` (not Work's 0x140006b10)
 //   The component's CreateWork (resourceproduce_creatework.cpp, block MI-B) builds a
-//   ConsumeProduce BY HAND (retail 0x1400e9200) and stamps 0x140161220; that
-//   registration serves ConsumeProduce::Vtable() (B38 D5).
+//   ConsumeProduce through ConsumeProduceAction_Ctor (retail 0x1400e9200): the default
+//   ctor, Work::InitFromEntity, then the recipe fields and the two arrays sized.
 // ============================================================================
 
 #include <cstdint>
