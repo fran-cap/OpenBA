@@ -465,7 +465,7 @@ const Entry kEntries[] = {
 
     // BETTERWATER (docs/extensions/handins/BETTERWATER.md): a shore edge on the water -- a shallow tint and
     // a thin broken foam line at the bank, drawn as a second pass over each water range with our own
-    // pixel program. Class A: drawing only, nothing saved, live; ON by default as class A is (DESIGN.md ง2).
+    // pixel program. Class A: drawing only, nothing saved, live; ON by default as class A is (DESIGN.md ยง2).
     { "better_water", Tier::Extension, Class::A, true,
       "Better water",
       "A soft shore edge on rivers and lakes: shallow water at the bank and a thin line of foam at the "
@@ -1092,7 +1092,7 @@ const ValueKey kValueKeys[] = {
     { "touch_mode_zoom_min", "touch_mode", 6, 20, 10,
       [](State& s) -> int32_t& { return s.val.touch_mode_zoom_min; }, nullptr, 0 },
     // P11 TOUCHPOINTER: the aim point's height above the finger in device pixels while ext.touch_pointer aims a
-    // tool (0 = at the finger); 160 is the default, to be tuned on the phone (TOUCH_PLACEMENT_IDEAS.md ง5).
+    // tool (0 = at the finger); 160 is the default, to be tuned on the phone (TOUCH_PLACEMENT_IDEAS.md ยง5).
     { "touch_pointer_lift", "touch_pointer", 0, 240, 160,
       [](State& s) -> int32_t& { return s.val.touch_pointer_lift; }, kTouchPointerLifts, 6 },
     // The pick snap's radius in device pixels (0 = retail's single ray at the finger); ruled about 50.
@@ -1143,6 +1143,10 @@ const ValueKey kValueKeys[] = {
       [](State& s) -> int32_t& { return s.val.staggered_passes_shadow; }, kStaggerShadowEvery, 4 },
     { "staggered_passes_reflection", "staggered_passes", 1, 8, 2,
       [](State& s) -> int32_t& { return s.val.staggered_passes_reflection; }, kStaggerReflectionEvery, 4 },
+    // SMOOTHREPLAY.md: the render thread's replayed frames during a long sim step, with the display
+    // clock (0 = off, the default until the look is ruled; settings.cfg only). Read at each Frame tail.
+    { "render_pipe_replay", "render_pipe", 0, 1, 0,
+      [](State& s) -> int32_t& { return s.val.render_pipe_replay; }, nullptr, 0 },
 };
 
 constexpr int kValueKeyCount = static_cast<int>(sizeof(kValueKeys) / sizeof(kValueKeys[0]));

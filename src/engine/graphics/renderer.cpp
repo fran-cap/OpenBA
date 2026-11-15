@@ -350,7 +350,12 @@ Renderer::~Renderer() {}
 // the ??1 door in deleting_dtor_leaves.cpp are gone.
 // ============================================================================
 namespace Graphics {
+// NOT RETAIL: ext.render_pipe's replayed frames (Material.h), null by default.
+void (*MaterialInstance::_extBeforeDestroy)(const MaterialInstance* instance) = nullptr;
+
 MaterialInstance::~MaterialInstance() {
+    // EXT SEAM (NOT RETAIL, Material.h _extBeforeDestroy): a recorded sprite batch may name this instance.
+    if (_extBeforeDestroy != nullptr) _extBeforeDestroy(this);
     rtcoll::RtColl_ArrayDtorElem_180004d60(&_textures);     // +0x50
     rtcoll::RtColl_ArrayDtorElem_180004c80(&_constants);    // +0x40
     rtcoll::RtColl_ArrayDtorElem_180004b70(&_parameters);   // +0x30

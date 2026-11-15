@@ -72,9 +72,22 @@
 // passed as a slot pointer and not as an already-loaded `Device*`.
 // The four bodies are the lock's primitives: Device.h declares what each acquires / releases, and
 // clang's thread-safety analysis takes them on trust (it cannot equate the re-read `d` with the slot).
+// EXT SEAM (NOT RETAIL, Device.h _extLockWaiters): the acquire, counted as a waiter while it
+// blocks when the extension asked for the count. Null (the faithful profile): retail's one call.
+static inline void AcquireCounted(Video::Device* d) NO_THREAD_SAFETY_ANALYSIS {
+    std::atomic<int32_t>* const waiters = Video::Device::_extLockWaiters;
+    if (waiters == nullptr) {
+        Platform::MutexLock(&d->lock);                // EnterCriticalSection
+        return;
+    }
+    waiters->fetch_add(1, std::memory_order_relaxed);
+    Platform::MutexLock(&d->lock);
+    waiters->fetch_sub(1, std::memory_order_relaxed);
+}
+
 void RtVideoDeviceLock(Video::Device** deviceSingleton) NO_THREAD_SAFETY_ANALYSIS {
     Video::Device* d = *deviceSingleton;
-    Platform::MutexLock(&d->lock);                    // EnterCriticalSection
+    AcquireCounted(d);                                // EnterCriticalSection
     d->lockOwnerThreadId = Platform::CurrentThreadId();   // GetCurrentThreadId
     d->lockRecursionCount += 1;
 }
@@ -123,7 +136,7 @@ void RtVideoDeviceUnlock(Video::Device** deviceSingleton) NO_THREAD_SAFETY_ANALY
 // the same as comparing the decremented value with zero. Reproduced as such.
 // ============================================================================
 void RtVideoDeviceLockThis(Video::Device* d) NO_THREAD_SAFETY_ANALYSIS {
-    Platform::MutexLock(&d->lock);                    // EnterCriticalSection
+    AcquireCounted(d);                                // EnterCriticalSection
     uint32_t tid = Platform::CurrentThreadId();       // GetCurrentThreadId
     d->lockRecursionCount += 1;
     d->lockOwnerThreadId = tid;

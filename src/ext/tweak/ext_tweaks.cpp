@@ -19,6 +19,7 @@ Ice        g_ice;
 BetterClouds::Look g_clouds;
 FancyTerrain::Look g_terrain;
 DepthOfField::Look g_dof;
+RenderPipe::ReplayLook g_replay;
 LeafLod::Look g_leafLod;
 }  // namespace
 
@@ -90,6 +91,16 @@ FancyTerrain::Look TerrainValues() {
 void SetTerrain(const FancyTerrain::Look& v) {
     std::lock_guard<std::mutex> lock(g_mu);
     g_terrain = v;
+}
+
+RenderPipe::ReplayLook ReplayValues() {
+    std::lock_guard<std::mutex> lock(g_mu);
+    return g_replay;
+}
+
+void SetReplay(const RenderPipe::ReplayLook& v) {
+    std::lock_guard<std::mutex> lock(g_mu);
+    g_replay = v;
 }
 
 DepthOfField::Look DofValues() {

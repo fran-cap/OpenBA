@@ -146,6 +146,7 @@ void LeavesGeometry::Draw(Video::Context& context, const Graphics::Camera& /*cam
 struct State {
     Graphics::Scene* scene = nullptr;
     LeavesGeometry* geometry = nullptr;
+    bool inScene = false;   // the geometry is in the scene's global list (it outlives its autumns)
     Ext::Resources::SheetObjects atlas;
     bool atlasFailed = false;
     const void* map = nullptr;
@@ -247,12 +248,19 @@ void ScanSlice(Map* map) {
 
 // The material: our atlas in AlphaTestMaterial's "diffuse" slot (the herbs' one texture).
 bool EnsureGeometry(GameUpdateLoop& game) {
-    if (g.geometry != nullptr && g.scene == game.m_graphicsScene) return true;
+    if (g.geometry != nullptr && g.scene == game.m_graphicsScene) {
+        if (!g.inScene) {   // the next autumn: back into the list (LeaveScene)
+            g.scene->AddGlobalObject(g.geometry);
+            g.inScene = true;
+        }
+        return true;
+    }
     if (g.geometry != nullptr) {
         // a scene that is gone (its list went with it): only the geometry is left to free
         delete g.geometry;
         g.geometry = nullptr;
         g.scene = nullptr;
+        g.inScene = false;
     }
     if (g.atlasFailed || game.m_graphicsScene == nullptr) return false;
     if (g.atlas.material == nullptr) {
@@ -279,16 +287,33 @@ bool EnsureGeometry(GameUpdateLoop& game) {
     g.geometry = ::new (mem) LeavesGeometry(g.atlas.material);
     g.scene = game.m_graphicsScene;
     g.scene->AddGlobalObject(g.geometry);
+    g.inScene = true;
     return true;
 }
 
+// The autumn is over (or the part went off) while the game runs: the geometry leaves the scene's
+// list and its cards are emptied, but it stays allocated. ext.render_pipe's packet in flight may
+// still hold a draw item of it (its emit runs beside this main half), and that Draw must find the
+// object: it then draws nothing.
+void LeaveScene() {
+    if (g.geometry != nullptr && g.inScene) {
+        if (g.scene != nullptr) g.scene->RemoveGlobalObject(g.geometry);
+        g.inScene = false;
+        std::lock_guard<std::mutex> lock(g.geometry->shared.mutex);
+        g.geometry->shared.cards.clear();
+    }
+    g.field.Clear();
+}
+
+// GameUpdateLoop::Shutdown (nothing of a frame is in flight): out of the list and freed.
 void DropGeometry() {
     if (g.geometry != nullptr) {
-        if (g.scene != nullptr) g.scene->RemoveGlobalObject(g.geometry);
+        if (g.scene != nullptr && g.inScene) g.scene->RemoveGlobalObject(g.geometry);
         delete g.geometry;
     }
     g.geometry = nullptr;
     g.scene = nullptr;
+    g.inScene = false;
     g.field.Clear();
 }
 
@@ -297,7 +322,7 @@ void DropGeometry() {
 void LeavesFrame(GameUpdateLoop& game) {
     if (!NaturalGrowthOn() || game.m_dayCounter == nullptr || game.m_game == nullptr ||
         game.m_playerController == nullptr) {
-        if (g.geometry != nullptr) DropGeometry();
+        LeaveScene();
         return;
     }
     const float months = game.m_dayCounter->yearTime.AsSeconds() / 300.0f;   // NgRewrite::kMonthSeconds
@@ -309,7 +334,7 @@ void LeavesFrame(GameUpdateLoop& game) {
     // nothing to do outside the autumn (the first tree starts at fallStart - autumnSpread * 0.8): the
     // geometry leaves the scene, so the rest of the year draws exactly as without the part
     if (months < 6.0f || months > 9.5f) {
-        if (g.geometry != nullptr) DropGeometry();
+        LeaveScene();
         return;
     }
     if (!EnsureGeometry(game)) return;
@@ -364,6 +389,10 @@ void LeavesFrame(GameUpdateLoop& game) {
     std::lock_guard<std::mutex> lock(g.geometry->shared.mutex);
     g.geometry->shared.cards.swap(g.cards);
     std::memcpy(g.geometry->shared.origin, origin, sizeof origin);
+}
+
+const Graphics::Geometry* LeavesLiveGeometry() {
+    return g.geometry;
 }
 
 void LeavesShutdown(Graphics::Scene* scene) {

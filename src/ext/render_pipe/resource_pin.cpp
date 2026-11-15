@@ -51,6 +51,10 @@ void PinReadsOver() {
     g_pinGate.ReadsOver();
 }
 
+bool PinFreeWaiting() {
+    return g_pinGate.FreeWaiting();
+}
+
 PinSet& SlotPins(int32_t slot) {
     return g_slotPins[slot & 1];
 }

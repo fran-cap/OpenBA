@@ -120,6 +120,7 @@ public:
         });
         if (_passed || !_busy.load(std::memory_order_acquire)) return false;
         _gate = false;
+        _claimUs = SteadyUs();
         return true;
     }
 
@@ -132,6 +133,7 @@ public:
             if (_gate) return 0;
             _gate  = true;
             parked = _parkedUs;
+            _lastStepUs = SteadyUs() - _claimUs;   // SMOOTHREPLAY: the next claim's replays plan with it
         }
         _work.notify_one();
         return parked;
@@ -195,6 +197,17 @@ public:
         return true;
     }
 
+    // SMOOTHREPLAY (docs/extensions/handins/SMOOTHREPLAY.md): the job, at a claimed gate, asks
+    // whether one more replayed frame of about `estimateUs` fits before the steps end: the gate
+    // still closed, and the claim's age plus the estimate under 95% of the last claimed steps'
+    // span (no span known yet: it fits). It orders nothing: WaitGate still does.
+    bool ReplayFits(int64_t estimateUs) {
+        Sys::MutexLock lk(_m);
+        if (_gate || _stop) return false;
+        if (_lastStepUs <= 0) return true;
+        return (SteadyUs() - _claimUs) + estimateUs < (_lastStepUs * 95) / 100;
+    }
+
     // P13_OVERLAP: park while the main thread's steps run (ClaimSteps .. OpenGate); from here on
     // no step runs beside the job.
     void WaitGate() {
@@ -236,6 +249,11 @@ public:
     }
 
 private:
+    static int64_t SteadyUs() {
+        return std::chrono::duration_cast<std::chrono::microseconds>(
+                   std::chrono::steady_clock::now().time_since_epoch()).count();
+    }
+
     // The main thread's wait on _idle until `done` (lk held): see SENT MESSAGES in the banner.
     // The lock is dropped while the window procedures run (review F-224), so the analysis is off here.
     template <class Done>
@@ -265,6 +283,8 @@ private:
     bool                    _gate GUARDED_BY(_m)  = true;     // P13_OVERLAP: false from ClaimSteps to OpenGate
     bool                    _passed GUARDED_BY(_m) = false;   // P13_OVERLAP: the job is past its gate
     int64_t                 _parkedUs GUARDED_BY(_m) = 0;     // P13_OVERLAP: when it parked at the gate (0: not)
+    int64_t                 _claimUs GUARDED_BY(_m) = 0;      // SMOOTHREPLAY: when the steps claimed the gate
+    int64_t                 _lastStepUs GUARDED_BY(_m) = 0;   // SMOOTHREPLAY: the last claim .. OpenGate span
     std::atomic<bool>       _busy{false};
     std::atomic<bool>       _released{true};   // RENDERPIPE_FENCE: false from Publish to Release / Done
     std::atomic<int64_t>    _begunUs{0};        // P13_OVERLAP: when BeginCommands returned (NoteBegun)

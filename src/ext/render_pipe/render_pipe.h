@@ -72,6 +72,13 @@ struct Counters {
     uint64_t pinWaitUs   = 0;   //   their wait, us
     uint64_t pinMaxUs    = 0;   //   the longest
     uint64_t pinTimeouts = 0;   //   of which gave up at the bound (the free ran beside pass 2)
+    // SMOOTHREPLAY (render_pipe_replay; the render thread's, read here)
+    uint64_t replayClaims  = 0;   // emits that found their gate claimed with the display clock on
+    uint64_t replayFrames  = 0;   // replayed frames presented
+    uint64_t replayNoLayer = 0;   // claims with no usable interface record (a tool or the save-load screen drew)
+    uint64_t replayStopped = 0;   // claims whose replays ended on a lost device or a refused begin
+    uint64_t replayYielded = 0;   // claims whose replays ended because a step waited for the device lock
+    uint64_t replayTool    = 0;   // real frames whose record carries the tool's overlay
 };
 
 // True while the packet runs on the render thread (installed, >= 3 physical cores).

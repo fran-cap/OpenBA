@@ -81,7 +81,12 @@
 #include "ext/render_pipe/finish_split.h"
 #include "ext/render_pipe/snapshot.h"
 #include "ext/render_pipe/resource_pin.h"   // P13_OVERLAP 2.8: the EdgeMeshes a snapshot shares
+#include "ext/render_pipe/display_clock.h"  // SMOOTHREPLAY: the alpha a frame is drawn at
+#include "ext/render_pipe/ui_layer.h"       // SMOOTHREPLAY: the recorded interface
+#include "ext/render_pipe/replay_params.h"  // SMOOTHREPLAY: the display delay (ReplayLook)
+#include "ext/tweak/ext_tweaks.h"           // the debug tweak overlay's copy of it (empty without the overlay)
 
+#include <atomic>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -140,6 +145,43 @@ Graphics::Renderer* SlotRenderer(GameUpdateLoop& g, int32_t slot) {
 }
 
 inline uint32_t Bits(float f) { uint32_t u; std::memcpy(&u, &f, 4); return u; }
+
+// ===========================================================================
+// SMOOTHREPLAY (docs/extensions/handins/SMOOTHREPLAY.md): the replayed frames.
+// While the claimed steps run, the emit parked at its gate presents the frame it
+// has drawn (pass 2, with the last real frame's interface over it: ui_layer.h)
+// and draws pass 2 again at the display clock's alpha (display_clock.h), for as
+// long as one more is predicted to fit before the steps end. The last pass 2 is
+// the one the real interface is drawn over once the gate opens.
+// ===========================================================================
+struct ReplayCounters {
+    std::atomic<uint64_t> claims{0};    // emits that found their gate claimed, the replay asked for
+    std::atomic<uint64_t> frames{0};    // replayed frames presented
+    std::atomic<uint64_t> noLayer{0};   // claims with no usable interface record (a tool or the save-load screen drew)
+    std::atomic<uint64_t> stopped{0};   // claims whose replays ended on a lost device or a refused begin
+    std::atomic<uint64_t> yielded{0};   // claims whose replays ended because a step waited for the device lock
+    std::atomic<uint64_t> tool{0};      // real frames whose record carries the tool's overlay
+};
+ReplayCounters g_replay;
+std::atomic<int32_t> g_lockWaiters{0};   // Video::Device::_extLockWaiters while the render thread is up
+int64_t g_replayEstimateUs = 2500;   // the render thread only: one replayed frame's span, smoothed
+bool    g_replaySaid = false;        // the render thread only: the first replayed frame was logged
+
+// The replayed frames' tunables: the defaults, or the debug tweak overlay's copy.
+ReplayLook CurrentReplayLook() {
+#if BANISHED_TWEAK_OVERLAY
+    return Ext::Tweak::ReplayValues();
+#else
+    return ReplayLook{};
+#endif
+}
+
+// The display delay in System::Timer ticks.
+int64_t DelayTicks() {
+    const double spt = System::Timer::_secondsPerTick;
+    if (spt <= 0.0) return 0;
+    return static_cast<int64_t>(static_cast<double>(CurrentReplayLook().delayUs) * 1e-6 / spt + 0.5);
+}
 
 // weather_sun.cpp's UnpackColor (anonymous there), copied: one packed colour to
 // {r, g, b, alpha} with each channel / 255.
@@ -223,6 +265,7 @@ void MainHalf(::Engine::MainLoop& loop, GameUpdateLoop& g, Graphics::Renderer& r
     const bool entityUIPaused = g.m_toolManager->paused;
     if (paused || entityUIPaused) alpha = kRdata_14017214c;
     p.alpha = alpha;
+    p.alphaFixed = paused || entityUIPaused;   // SMOOTHREPLAY: a paused frame keeps its alpha (display_clock.h)
 
     // Step 2: SetTime's game time. The emit adds the frame time (it reads
     // MainLoop::_frameUpdateTime, which the previous emit wrote, as retail's
@@ -335,6 +378,13 @@ struct EngineOps {
     bool                failed = false;
     int32_t             hr     = 0;        // threaded: FinishPresent's result (0 = presented)
     uint64_t            post   = 0;        // the RenderPipe shadow's hash at the release
+    // SMOOTHREPLAY
+    bool                clocked    = false;   // this packet is drawn at the display clock's alpha
+    float               shownAlpha = 0.0f;    // the alpha of the pass 2 drawn last
+    int32_t             replayHr   = 0;       // a replayed frame's failed Present (the device is lost)
+    bool                saveLoadDrew = false; // this frame's save-load screen drew (the record is not replayable)
+    bool                toolDrew     = false; // this frame's tool drew
+    bool                layerRecorded = false; // this frame's interface draw was recorded to its end
 
     void FrameTailTime(const Packet& p) {
         ctx->_time.x = p.frameTime;
@@ -378,13 +428,28 @@ struct EngineOps {
     }
     void PacketBegin() { StressHarness_PipePacketBegin(); }
     void RenderDocFrame() { RenderDocIntegration::OnFrame(); }
+    // SMOOTHREPLAY: the display clock applies to a packet with frozen copies on the render thread,
+    // not paused, while the replay is asked for. Every such packet is drawn at the clock's alpha,
+    // replayed or not, so the motion keeps one pace. Read here, after BeginCommands (the display's
+    // pace is behind it), and used by SetTime and pass 2 alike. COMPPROF=4 checks the packet's own
+    // alpha (RenderPipeFrame, the frame hashes): the clock is off under it.
     void SetTime(const Packet& p) {
+        clocked = handoff != nullptr && p.replay && p.overlap && !p.alphaFixed && p.stepTicks > 0 &&
+                  g_verifyOn == 0;
+        shownAlpha = clocked ? ClockAlpha(p) : p.alpha;
+        SetTimeAt(p, shownAlpha);
+    }
+    float ClockAlpha(const Packet& p) {
+        return DisplayAlpha(p.alpha, p.frameStartTicks, p.stepTicks, DelayTicks(),
+                            System::Timer::CurrentTimeTicks());
+    }
+    void SetTimeAt(const Packet& p, float alpha) {
         ::Engine::MainLoop* engine = ::Engine::MainLoop::_singleton;
         System::Time gameTime;        gameTime._ticks = p.gameTimeTicks;
         System::Time engineFrameTime; engineFrameTime._ticks = engine->_frameUpdateTime;
         const float gameSeconds  = gameTime.AsSeconds();
         const float frameSeconds = engineFrameTime.AsSeconds();
-        ctx->SetTime(gameSeconds + frameSeconds * p.alpha);
+        ctx->SetTime(gameSeconds + frameSeconds * alpha);
         if (p.seasonStamp > 0.0f) ctx->_time.y = p.seasonStamp;   // NATURAL_GROWTH.md (GameUpdateLoop::Draw step 2)
     }
     void WeatherContext(const Packet& p) {
@@ -418,24 +483,107 @@ struct EngineOps {
                                  (static_cast<long long>(r._frameIndex) << 32) |
                                      static_cast<long long>(static_cast<uint32_t>(ctx->_frameIndex)));
         }
+        if (clocked) p.renderer->_alphaT = shownAlpha;   // SMOOTHREPLAY: the display clock (the packet's own slot)
         Ext::RenderPipe::Pass2(*p.renderer, *ctx, p.aoOn ? &p.ao : nullptr, p.groundDraw, p.shadowHeld,
                                p.sceneDraw);
     }
     // P13_OVERLAP: when the next Frame's steps claimed the gate, wait until they are over, the
     // device lock dropped meanwhile (a step that uploads takes it: P13_OVERLAP 2.5).
+    // SMOOTHREPLAY: before it parks, the replayed frames. False: one of them lost the device
+    // (reported as Finish's would be, `hr`) or could not begin the next frame (retail's failed
+    // BeginCommands, run once the steps are over); nothing is begun and the device lock is not held.
     // Not analysed (clang -Wthread-safety): it drops and re-takes the device lock BeginCommands took
     // for this job, a hold that spans calls (and threads) the analysis cannot follow.
-    void Gate(const Packet& p) NO_THREAD_SAFETY_ANALYSIS {
-        PinReadsOver();   // P13_OVERLAP 2.8: pass 2 drew the pinned EdgeMeshes; a step may free them now
-        if (handoff == nullptr || !p.overlap || handoff->PassGate()) return;
+    bool Gate(const Packet& p) NO_THREAD_SAFETY_ANALYSIS {
+        if (handoff == nullptr || !p.overlap || handoff->PassGate()) {
+            PinReadsOver();   // P13_OVERLAP 2.8: pass 2 drew the pinned EdgeMeshes; a step may free them now
+            return true;
+        }
         Video::Device* const device = ctx->_device;
-        device->Unlock();
+        bool begun = true;
+        if (clocked) {
+            g_replay.claims.fetch_add(1, std::memory_order_relaxed);
+            if (UiLayerReady(p.game))
+                begun = Replays(p);
+            else
+                g_replay.noLayer.fetch_add(1, std::memory_order_relaxed);
+        }
+        PinReadsOver();   // the last pass 2 is drawn
+        if (begun) device->Unlock();
         handoff->WaitGate();
+        if (replayHr != 0) {
+            hr = replayHr;
+            return false;
+        }
+        if (!begun) {
+            BeginFailed();
+            return false;
+        }
         device->Lock();
+        return true;
     }
+    // The replayed frames (the banner above ReplayCounters). In with a frame begun, pass 2 drawn and
+    // the device lock held; true: out the same way. False: no frame is begun and the lock is not held.
+    // The frame index is not advanced (fix 2 counts packets) and _frameUpdateTime is the real frame's.
+    bool Replays(const Packet& p) NO_THREAD_SAFETY_ANALYSIS {
+        Video::Device* const device = ctx->_device;
+        int64_t estimateUs = g_replayEstimateUs;
+        // A step's free of a pinned EdgeMesh waits for pass 2's reads (resource_pin.h): no more of them.
+        while (handoff->ReplayFits(estimateUs) && !PinFreeWaiting()) {
+            // A step asked for a resize: the next begin would refuse (Device::_extReplayBegin).
+            if (device->settingsChanged != 0) return true;
+            // A step waits for the device lock this loop holds almost without a gap (an unfair
+            // critical section, Device::_extLockWaiters): the gate's wait drops it, as before the
+            // replayed frames. No more of them for these steps: a step that locked once locks again.
+            if (g_lockWaiters.load(std::memory_order_relaxed) != 0) {
+                g_replay.yielded.fetch_add(1, std::memory_order_relaxed);
+                return true;
+            }
+            const int64_t t0 = NowUs();
+            // The last real frame's interface over the world. False: a step freed a material the
+            // record names (ui_layer.cpp); this frame stays as it is for the real interface draw.
+            if (!UiLayerDraw(*ctx)) return true;
+            ctx->_contextData->EndCommands();
+            const int32_t r = FinishPresent(*ctx);   // Present + Unlock
+            if (r != 0) {
+                replayHr = r;
+                g_replay.stopped.fetch_add(1, std::memory_order_relaxed);
+                return false;
+            }
+            if (g_replay.frames.fetch_add(1, std::memory_order_relaxed) == 0 && !g_replaySaid) {
+                g_replaySaid = true;   // once a run: the row's replay is doing something
+                std::fprintf(stderr, "[RenderPipe] replayed frames on (display delay %d us)\n",
+                             CurrentReplayLook().delayUs);
+                std::fflush(stderr);
+            }
+            Video::Device::_extReplayBegin = true;
+            const bool begun = ctx->_contextData->BeginCommands();
+            Video::Device::_extReplayBegin = false;
+            if (!begun) {
+                g_replay.stopped.fetch_add(1, std::memory_order_relaxed);
+                return false;
+            }
+            shownAlpha = ClockAlpha(p);
+            p.renderer->_alphaT = shownAlpha;
+            ViewportReconcile();
+            FrameTailTime(p);
+            SetTimeAt(p, shownAlpha);
+            WeatherContext(p);
+            ForceSnow(p);
+            Ext::RenderPipe::Pass2(*p.renderer, *ctx, p.aoOn ? &p.ao : nullptr, p.groundDraw, p.shadowHeld,
+                                   p.sceneDraw);
+            estimateUs = (estimateUs * 3 + (NowUs() - t0)) / 4;
+            g_replayEstimateUs = estimateUs;
+        }
+        return true;
+    }
+    // SMOOTHREPLAY: the save-load and interface draws are recorded on the render thread (ui_layer.h);
+    // so are the tool's overlay streams (ToolDraw). A frame whose save-load screen drew leaves no usable record.
     void SaveLoadDraw(const Packet& p) {
+        if (handoff != nullptr && p.replay) UiLayerBegin();
         if (p.saveLoad != nullptr)
             p.saveLoad->Draw(*ctx, Object::ExternalPtr<Graphics::Material>(p.uiMaterial));
+        if (handoff != nullptr && p.replay) saveLoadDrew = UiLayerTakeSaveLoad();
     }
     void SetCamera(const Packet& p) {
         Math::Matrix viewMatrix;
@@ -459,13 +607,26 @@ struct EngineOps {
         if (hasInput && Ext::Ext().touch_pointer && Ext::TouchPointer::ToolAimHeld(tool))
             hasInput = false;
         const char toolFlag = (hasInput || pauseCheck) ? 1 : 0;
+        // SMOOTHREPLAY: the tool's overlay streams are recorded between the save-load screen's batches
+        // and the interface's (ui_layer.h). A draw it submitted that was not such a stream leaves the
+        // frame's record unusable, as before the overlay was recorded.
+        const bool record = handoff != nullptr && p.replay;
+        const int32_t drawsBefore = ctx->_drawsSubmitted;
+        if (record) UiLayerToolBegin(p.view, p.proj);
         if (tool != nullptr) tool->Draw(ctx, toolFlag);
+        const int32_t recorded = record ? UiLayerToolEnd() : 0;
+        toolDrew = ctx->_drawsSubmitted - drawsBefore != recorded;
+        if (recorded > 0 && !toolDrew) g_replay.tool.fetch_add(1, std::memory_order_relaxed);
     }
     void UIDraw(const Packet& p) {
         if (p.sharpUi)
             Ext::SharpUI::Draw(*p.game->m_userInterface, *ctx);
         else
             p.game->m_userInterface->Draw(*ctx);
+        if (handoff != nullptr && p.replay) {
+            UiLayerEnd(*ctx, p.game, !saveLoadDrew && !toolDrew);
+            layerRecorded = true;
+        }
     }
     void PacketEnd() { StressHarness_PipePacketEnd(); }
     void PostDraw() {
@@ -548,6 +709,7 @@ struct EngineHost {
         next.renderer        = r;
         next.frameTime       = time;
         next.frameStartTicks = loop->_frameStartTicks;   // this Frame's start (threaded FrameUpdateTime)
+        next.stepTicks       = loop->_deltaTime._ticks;  // SMOOTHREPLAY: the display clock's unit
         Ext::RenderPipe::MainHalf(*loop, g, *r, alpha, plan.renderIdle, verify, next);
         next.idleUs = FrameLimiter::LastWaitUs();   // the frame cap's sleep in it (the governor's idle)
         if (verify) {
@@ -607,6 +769,8 @@ struct EngineHost {
         if (threaded) Platform::PerfHint::WorkBegin(Platform::PerfHint::Role::Render);
         Ext::RenderPipe::Emit(ops, p);
         PinReadsOver();   // P13_OVERLAP 2.8: an emit that never reached its gate (a failed BeginCommands)
+        // SMOOTHREPLAY: only the frame drawn last may be replayed; an emit that recorded none drops it.
+        if (!ops.layerRecorded) UiLayerDrop();
         if (threaded) Platform::PerfHint::WorkEnd(Platform::PerfHint::Role::Render);
         StressHarness_PipeEmitEnd();
 
@@ -658,7 +822,10 @@ struct EngineHost {
         std::fflush(stderr);
     }
 
-    void FaithfulTail() { Ext::RenderPipe::FaithfulTail(*loop, alpha, time); }
+    void FaithfulTail() {
+        UiLayerDrop();   // SMOOTHREPLAY: the render thread is idle; this frame's interface is not recorded
+        Ext::RenderPipe::FaithfulTail(*loop, alpha, time);
+    }
 };
 
 EngineHost          g_host;
@@ -699,6 +866,7 @@ TailInputs Inputs(::Engine::MainLoop& loop, GameUpdateLoop* g) {
     in.eyeCamera = in.gameLoop && Ext::Ext().eye_camera && Ext::EyeCamera::Active();
     const char* cap = Opt().captureIngame;   // BANISHED_CAPTURE_INGAME counts sequential frames
     in.diagnostic = cap != nullptr && cap[0] != '\0';
+    in.replay = Ext::Val().render_pipe_replay != 0;   // SMOOTHREPLAY: the row's replayed frames
     return in;
 }
 
@@ -719,6 +887,8 @@ void Uninstall() {
     ::Engine::MainLoop::_extFrame = nullptr;
     StopThread();
     RemovePin();   // P13_OVERLAP 2.8: ~EdgeMesh runs retail's body alone again
+    UiLayerRemove(); // SMOOTHREPLAY: the render thread is joined; the record and its two seams are gone
+    Video::Device::_extLockWaiters = nullptr;   // SMOOTHREPLAY: Device::Lock is retail's alone again
     Graphics::MeshInstance::_extInstancedState = nullptr;
     FreeSnapshots();
     delete g_second;
@@ -738,6 +908,7 @@ void Hook(::Engine::MainLoop& loop, int32_t point, float alpha, float time) {
     }
     if (point == ::Engine::MainLoop::kExtBeforeTransition) {
         g_driver.BeforeTransition(g_host);   // P13_OVERLAP: nothing in flight while the loop ends
+        UiLayerDrop();   // SMOOTHREPLAY: the loop the recorded interface was drawn for ends (render thread idle)
         return;
     }
     if (point == ::Engine::MainLoop::kExtBeforeActivate) {
@@ -768,6 +939,8 @@ void Sync() {
             g_thread = new RenderThread();
             g_thread->Start();
             InstallPin();   // P13_OVERLAP 2.8: only the render thread's emit overlaps a step
+            UiLayerInstall();   // SMOOTHREPLAY: a material's free drops the recorded interface that names it
+            Video::Device::_extLockWaiters = &g_lockWaiters;   // SMOOTHREPLAY: the replayed frames yield the device lock
             std::fprintf(stderr, "[RenderPipe] render thread up (%d physical cores)\n", physical);
             std::fflush(stderr);
         } else {
@@ -813,6 +986,12 @@ Counters TakeWindow() {
         c.pinTimeouts = pin.timeouts;
     }
     g_snapshot = SnapshotCounters{};
+    c.replayClaims  = g_replay.claims.exchange(0, std::memory_order_relaxed);
+    c.replayFrames  = g_replay.frames.exchange(0, std::memory_order_relaxed);
+    c.replayNoLayer = g_replay.noLayer.exchange(0, std::memory_order_relaxed);
+    c.replayStopped = g_replay.stopped.exchange(0, std::memory_order_relaxed);
+    c.replayYielded = g_replay.yielded.exchange(0, std::memory_order_relaxed);
+    c.replayTool    = g_replay.tool.exchange(0, std::memory_order_relaxed);
     return c;
 }
 

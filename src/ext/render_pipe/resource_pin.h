@@ -103,6 +103,7 @@ public:
         ++_stats.checks;
         if (_over || _set == nullptr || !_set->Holds(p)) return;
         ++_stats.waits;
+        _waiting = true;
         const auto t0 = std::chrono::steady_clock::now();
         const auto limit = t0 + std::chrono::microseconds(boundUs);
         bool over = false;
@@ -122,6 +123,14 @@ public:
         _stats.waitUs += waited;
         if (waited > _stats.maxUs) _stats.maxUs = waited;
         if (!over) ++_stats.timeouts;
+        _waiting = false;
+    }
+
+    // The emitting thread (SMOOTHREPLAY): a step's free is waiting for the reads to be over. The
+    // replayed frames, which read the pins again, stop when they see it.
+    bool FreeWaiting() {
+        std::lock_guard<std::mutex> lk(_m);
+        return _waiting;
     }
 
     // Main thread: the window's counts, reset.
@@ -143,6 +152,7 @@ private:
     std::condition_variable _cv;
     const PinSet*           _set  = nullptr;   // the in-flight packet's (main thread writes it, render idle)
     bool                    _over = true;      // its reads are over (or nothing is pinned)
+    bool                    _waiting = false;  // a BeforeFree is waiting for them
     PinStats                _stats;
 };
 
@@ -154,6 +164,8 @@ void RemovePin();
 void PublishPins(bool overlap, int32_t slot);
 // The emitting thread: the packet's reads of its pins are over.
 void PinReadsOver();
+// The emitting thread (SMOOTHREPLAY): a step's free waits for the reads; stop replaying.
+bool PinFreeWaiting();
 // The snapshot (main thread): slot `slot`'s set, cleared and refilled by each build.
 PinSet& SlotPins(int32_t slot);
 PinStats TakePinStats();
