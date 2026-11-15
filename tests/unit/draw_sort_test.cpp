@@ -443,6 +443,7 @@ UNIT_TEST(draw_sort_plain_refusal_leaves_data_and_keys) {
 
 UNIT_TEST(draw_sort_census_runs_and_instancing) {
     Rng r{31337};
+    DrawSort::MemoClear();
     DrawSort::g_profOn = 1;
     DrawSort::TakeCounters();
     // Distinct keys (one geometry each), presorted: one ascending run.
@@ -463,20 +464,13 @@ UNIT_TEST(draw_sort_census_runs_and_instancing) {
     DrawSort::Sort(work.data(), 400);
     c = DrawSort::TakeCounters();
     CHECK_EQ(c.runs, 400ull);
-    // The repeat census: the same buffer sorted again with the same key array is a hit
-    // (the buffer `work` was last sorted holding `in`'s keys).
+    CHECK_EQ(c.keyable, 1ull);
+    // A memo hit sorts nothing: no runs counted.
     work = in;
     DrawSort::Sort(work.data(), 400);
     c = DrawSort::TakeCounters();
-    CHECK_EQ(c.repeatChecks, 1ull);
-    CHECK_EQ(c.repeatHits, 1ull);
-    // ...and a different key array in that buffer is a miss.
-    std::swap(in[0], in[1]);
-    work = in;
-    DrawSort::Sort(work.data(), 400);
-    c = DrawSort::TakeCounters();
-    CHECK_EQ(c.repeatChecks, 1ull);
-    CHECK_EQ(c.repeatHits, 0ull);
+    CHECK_EQ(c.memoHits, DrawSort::kSortMemo ? 1ull : 0ull);
+    CHECK_EQ(c.keyable, DrawSort::kSortMemo ? 0ull : 1ull);
     DrawSort::g_profOn = 0;
 }
 
@@ -601,6 +595,10 @@ UNIT_TEST(draw_sort_memo_one_byte_forces_a_miss) {
     const int n = 300;
     int misses = 0, padHits = 0;
     for (int list = 0; list < 2; ++list) {
+        // Each list starts on an empty memo: list 1's `buf` may get list 0's freed address
+        // (glibc and macOS malloc often hand it back), and that entry's miss streak would
+        // carry over into MEMOBACKOFF's back-off.
+        DrawSort::MemoClear();
         std::vector<RendererDrawItem> in;
         if (list == 0) {
             in = GatherLike(r, n, 25);
@@ -627,10 +625,14 @@ UNIT_TEST(draw_sort_memo_one_byte_forces_a_miss) {
                 CHECK_EQ(c.memoHits, 0ull);
                 if (pad) { CHECK_EQ(c.memoPadHits, 1ull); padHits += static_cast<int>(c.memoPadHits); }
                 else     { CHECK_EQ(c.memoMisses, 1ull); misses += static_cast<int>(c.memoMisses); }
-                // Restore the entry to `in` (a pad hit left it there already).
+                // Restore the entry to `in` (a pad hit left it there already), then
+                // once more: a hit, which ends the miss streak before MEMOBACKOFF's
+                // threshold (kMemoBackoffAfter misses in a row).
                 Refill(buf, in);
                 DrawSort::Sort(buf.data(), n);
-                DrawSort::TakeCounters();
+                Refill(buf, in);
+                DrawSort::Sort(buf.data(), n);
+                CHECK_EQ(DrawSort::TakeCounters().memoHits, pad ? 2ull : 1ull);
             }
         }
         // A shorter list in the same buffer (count differs): a miss.
@@ -759,5 +761,141 @@ UNIT_TEST(draw_sort_memo_shadow_catches_a_corrupt_entry) {
     DrawSort::g_verify = 0;
     DrawSort::g_profOn = 0;
     DrawSort::g_report = nullptr;
+    DrawSort::MemoClear();
+}
+
+// ============================================================================
+// RADIXPLAIN: the plain path's radix placement against its per-segment
+// comparison sort, on the same keyed lists: the same verdict and the same bytes.
+// ============================================================================
+UNIT_TEST(draw_sort_radix_equals_segment_sort) {
+    Rng r{0x8ADC0FFEEull};
+    int lists = 0, refusals = 0, wide = 0;
+    long long items = 0;
+    for (int round = 0; round < 600; ++round) {
+        int n;
+        switch (r.Below(5)) {
+        case 0:  n = DrawSort::kRadixMinCount + r.Below(200); break;
+        case 1:  n = 256 + r.Below(3000); break;
+        case 2:  n = 3000 + r.Below(20000); break;
+        case 3:  n = DrawSort::kRadixMinCount - 1 - r.Below(32); break;   // below the threshold
+        default: n = r.Below(8) == 0 ? DrawSort::kPlainMaxCount - r.Below(4) : 1000 + r.Below(6000); break;
+        }
+        std::vector<RendererDrawItem> in;
+        const int shape = r.Below(6);
+        if (shape <= 2) {
+            // Gather-shaped: few prefixes, one geometry each; sometimes one prefix only.
+            in = GatherLike(r, n, shape == 0 ? 1 : 1 + r.Below(r.Below(2) ? 20 : 2000));
+        } else {
+            const int pool = 1 + r.Below(r.Below(3) ? 6 : 200);
+            in.resize(static_cast<size_t>(n));
+            for (int i = 0; i < n; ++i) in[static_cast<size_t>(i)] = RandomItem(r, pool, false, false);
+        }
+        if (shape == 1) {
+            // Geometry addresses spread over the whole 48 bits: the packed word may not fit.
+            for (RendererDrawItem& it : in) SetPtr(it._geometry, r.Next() & 0x0000FFFFFFFFFFFFull);
+        }
+        if (shape == 2) {
+            // Few geometries: many full ties, harmless (same _maxInstances) unless planted.
+            for (RendererDrawItem& it : in) SetPtr(it._geometry, 0x00000200A0000000ull + static_cast<uint64_t>(r.Below(3)) * 0x120);
+        }
+        // Shape 2 (and the random pools) make full ties of their own: keep their
+        // _maxInstances equal so most lists are not refused, except in a quarter of them.
+        const bool plantRefusal = r.Below(4) == 0;
+        if (!plantRefusal)
+            for (RendererDrawItem& it : in) it._maxInstances = 1;
+        const int dups = r.Below(n / 3 + 1);
+        for (int d = 0; d < dups; ++d) {
+            RendererDrawItem c = in[static_cast<size_t>(r.Below(n))];
+            if (plantRefusal && r.Below(30) == 0) c._maxInstances = r.Below(64);
+            c._pad24 = static_cast<int32_t>(r.U32());
+            c._pad34 = static_cast<int32_t>(r.U32());
+            in[static_cast<size_t>(r.Below(n))] = c;
+        }
+        if (r.Below(10) == 0) DrawSort::SortReference(in.data(), n);
+        std::vector<DrawSort::Key> keys(static_cast<size_t>(n));
+        bool nan = false, ptr = false;
+        if (!DrawSort::BuildKeys(in.data(), n, keys.data(), &nan, &ptr)) continue;
+        std::vector<RendererDrawItem> seg = in, rad = in;
+        uint64_t cmp = 0;
+        uint32_t groupsSeg = 0, groupsRad = 0;
+        const bool okSeg = DrawSort::SortPlainSegments(seg.data(), n, keys.data(), &cmp, &groupsSeg);
+        const bool okRad = DrawSort::SortPlain(rad.data(), n, keys.data(), &cmp, &groupsRad);
+        if (okSeg != okRad || groupsSeg != groupsRad || !SameBytes(seg, rad)) {
+            std::printf("  mismatch: round %d n %d shape %d verdicts %d/%d\n", round, n, shape, okSeg, okRad);
+            CHECK(false);
+            break;
+        }
+        // On a refusal both left the list as it was.
+        if (!okSeg) CHECK(SameBytes(seg, in));
+        refusals += !okSeg;
+        wide += shape == 1;
+        ++lists;
+        items += n;
+    }
+    std::printf("  lists %d (refusals %d, wide geometry %d), items %lld: radix == segment sort\n",
+                lists, refusals, wide, items);
+    CHECK(refusals > 0);
+    CHECK(lists > 400);
+}
+
+// ============================================================================
+// MEMOBACKOFF: a buffer whose list changes every sort backs off the memo; every
+// output is still a fresh sort's bytes, and the memo hits again soon after the
+// list stops changing.
+// ============================================================================
+UNIT_TEST(draw_sort_memo_backoff_is_a_fresh_sort) {
+    if constexpr (!DrawSort::kSortMemo) UNIT_SKIP("kSortMemo off");
+    Rng r{0xBAC0FFull};
+    DrawSort::MemoClear();
+    DrawSort::g_profOn = 1;
+    DrawSort::TakeCounters();
+    const int n = 700;
+    std::vector<RendererDrawItem> buf(static_cast<size_t>(n));
+    std::vector<RendererDrawItem> in = GatherLike(r, n, 60);
+    bool ok = true;
+    // (1) a change every sort (one item moved, or a pad, or an inline-path NaN list now and then).
+    const int changing = 300;
+    for (int k = 0; k < changing && ok; ++k) {
+        const int what = r.Below(8);
+        if (what == 0) {
+            RandomPads(r, in, 3);
+        } else if (what == 1) {
+            in[static_cast<size_t>(r.Below(n))]._sortKey = std::numeric_limits<float>::quiet_NaN();
+        } else {
+            std::swap(in[static_cast<size_t>(r.Below(n))], in[static_cast<size_t>(r.Below(n))]);
+            in[static_cast<size_t>(r.Below(n))]._sortKey = 0.0f;
+            SetPtr(in[static_cast<size_t>(r.Below(n))]._geometry, 0x00000300A0000000ull + static_cast<uint64_t>(k) * 0x40);
+        }
+        Refill(buf, in);
+        DrawSort::Sort(buf.data(), n);
+        ok = SameBytes(buf, Fresh(in));
+    }
+    DrawSort::Counters c = DrawSort::TakeCounters();
+    CHECK(ok);
+    std::printf("  changing: hits %llu pad-hits %llu misses %llu skips %llu refreshes %llu stores %llu\n",
+                (unsigned long long)c.memoHits, (unsigned long long)c.memoPadHits,
+                (unsigned long long)c.memoMisses, (unsigned long long)c.memoSkips,
+                (unsigned long long)c.memoRefreshes, (unsigned long long)c.memoStores);
+    CHECK_EQ(c.memoHits + c.memoPadHits + c.memoMisses + c.memoNew + c.memoSkips + c.memoRefreshes,
+             static_cast<uint64_t>(changing));
+    CHECK(c.memoSkips > static_cast<uint64_t>(changing) / 2);
+    CHECK(c.memoStores < static_cast<uint64_t>(changing) / 8);
+    // (2) the list stops changing: within one full back-off plus two sorts the memo
+    // hits, and from then on every sort is a hit.
+    int firstHit = -1;
+    for (int k = 0; k < 200 && ok; ++k) {
+        Refill(buf, in);
+        DrawSort::Sort(buf.data(), n);
+        ok = SameBytes(buf, Fresh(in));
+        c = DrawSort::TakeCounters();
+        const bool hit = c.memoHits + c.memoPadHits == 1u;
+        if (hit && firstHit < 0) firstHit = k;
+        if (firstHit >= 0 && !hit) ok = false;
+    }
+    CHECK(ok);
+    CHECK(firstHit >= 0 && firstHit <= static_cast<int>(DrawSort::kMemoBackoffMax) + 2);
+    std::printf("  static again: first hit after %d sorts\n", firstHit);
+    DrawSort::g_profOn = 0;
     DrawSort::MemoClear();
 }
