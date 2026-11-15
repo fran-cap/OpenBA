@@ -79,6 +79,18 @@ UNIT_TEST(ext_render_culling_flags_for_each_extension_state) {
     CHECK(Ext::RenderCulling::kParticleMargin > Ext::RenderCulling::kCullMargin);
 }
 
+UNIT_TEST(ext_render_culling_keeps_the_main_view_frustum_only) {
+    // The terrain's collect pass hands a frustum over once per draw group. Only the main view's
+    // (Graphics::MaterialPass::Normal = 0) is the sim's off-screen test: the shadow map's (1), the
+    // reflection's (2) and a spot light's (3) cull cameras see other parts of the map, and taking
+    // them left a falling tree in the view with a stale pose.
+    CHECK(Ext::RenderCulling::IsMainViewEntry(0));
+    CHECK(!Ext::RenderCulling::IsMainViewEntry(1));
+    CHECK(!Ext::RenderCulling::IsMainViewEntry(2));
+    CHECK(!Ext::RenderCulling::IsMainViewEntry(3));
+    CHECK(!Ext::RenderCulling::IsMainViewEntry(-1));
+}
+
 UNIT_TEST(ext_render_culling_particle_rule_matches_the_tick) {
     // RetailStopsEmitter is the tick's own decision, over a grid that includes the
     // boundaries (0, the UV scale, a fade that lands exactly on 0).
@@ -109,7 +121,7 @@ UNIT_TEST(ext_render_culling_particle_rule_matches_the_tick) {
     // A fade-out that reaches exactly 0 stops (the `<= 0` arm).
     CHECK(Ext::RenderCulling::RetailStopsEmitter(-2.0f, 0.5f, 0.25f, 1.0f));
 }
-
+
 UNIT_TEST(ext_render_culling_registry_rows) {
     const Ext::Entry& cull = E("render_culling");
     CHECK(cull.tier == Ext::Tier::Extension);

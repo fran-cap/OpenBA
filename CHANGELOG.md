@@ -21,6 +21,7 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 3. Map data views: the terrain overlay no longer floats off near hillsides and ridges when the view reaches far (`ext.map_overlays`).
 4. After loading a save, the Increase Priority tool ranks ahead of work prioritized before the save (retail bug, `fix.priority_after_load`).
 5. Better water: no wedge of squeezed ripples on the inside of a sharp river bend, and no band across the channel where a river runs through a lake (`ext.better_water`).
+6. A tree that dies in view falls once instead of flickering between upright and fallen: the off-screen animation skip tested against the shadow or reflection camera instead of the view (`ext.render_culling`).
 
 ## v1.0.3 (2026-11-10)
 
