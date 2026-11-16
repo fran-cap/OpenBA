@@ -476,13 +476,6 @@ void WorkPlaceUI::OnUpdateLayout() {
     jobCountDown->Enable(wpMaxCount != jobMinCount && wpMaxCount > jobMinCount);
 }
 
-// [8] STANDALONE DEVIATION (retail inherits the base slot) — the tree's wiring, kept.
-// The framework dispatches only slot 8 each frame, so the refresh is driven
-// here and stays live as buildings complete.
-void WorkPlaceUI::OnUpdate(const System::Time& /*time*/) {
-    WorkPlaceUI::OnUpdateLayout();
-}
-
 // ============================================================
 // WorkPlaceUI::OnElementEvent (0x1400877e0)
 // ============================================================
