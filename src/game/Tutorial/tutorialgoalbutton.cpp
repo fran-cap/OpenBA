@@ -11,8 +11,9 @@
 //
 // Check logic (Slot8):
 //   Finds UI element via FUN_1400e1870 path lookup.
-//   If found, wraps in InternalBasePtr, checks IsDerivedFrom(Object::Internal).
-//   Reads flags at element+0x34:
+//   If found, keeps it only if it IsDerivedFrom(UI::ButtonElement) (IAT 0x1401514f8 =
+//   ButtonElement::_typeInfo, IAT 0x140152a98 = Base::IsDerivedFrom); any other element
+//   leaves the goal incomplete. Reads flags at element+0x34:
 //     invertCheck=true:  returns ~(flags >> 23) & 1  (bit 23 NOT set = success)
 //     invertCheck=false: returns (flags >> 22) & 1   (bit 22 set = success)
 //
@@ -26,6 +27,7 @@
 #include "Object/factory_registration.h"
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch D
 #include "ui/Element.h"
+#include "ui/ButtonElement.h"   // UI::ButtonElement::TypeId (IAT 0x1401514f8)
 #include "object/TypeInfo.h"
 #include "Tutorial/exe_bodies.h"   // 0x1400e1870 FindUIElementByPath_Impl
 #include <cstdint>
@@ -92,8 +94,9 @@ bool TutorialGoalButton::IsComplete(const System::Time* /*time*/, void* /*instan
         return false;
     }
 
-    // Check the element IsDerivedFrom UI::Element
-    bool isDerived = Object::IsDerivedFromNullSafe(element, UI::Element::TypeId());
+    // 0x1400ded1a..0x1400ded3e: IsDerivedFrom(ButtonElement::_typeInfo id); CMOVNZ keeps the
+    // element only when it is a button, else the new InternalBasePtr is null and the goal fails.
+    bool isDerived = Object::IsDerivedFromNullSafe(element, UI::ButtonElement::TypeId());
     UI::Element* validElement = isDerived ? element : nullptr;
     if (validElement == nullptr) {
         return false;
