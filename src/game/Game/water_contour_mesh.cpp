@@ -88,6 +88,7 @@
 #include "Game/WorldGeometry.h"
 #include "Game/WorldGeometryElements.h"
 #include "Game/TerrainHeightfield.h"
+#include "ext/custom_maps/custom_maps.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/CUSTOMMAPS.md)
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -673,6 +674,12 @@ void WorldGeometry::BuildWaterShores(const TerrainHeightfield* hf) {
         re.values[3]  = 0;                // idxCount  (filled after)
 
         int zFeat = (int)((float)f - kZBaseP2);   // z = featureIdx - 191
+        // EXT SEAM (NOT RETAIL, docs/extensions/handins/CUSTOMMAPS.md): a custom map's coverage features
+        // share one z and a full weight, so neighbouring tiles meet without a seam.
+        const bool coverage = Ext::CustomMaps::IsCoverageFeature(f);
+        if (coverage) {
+            zFeat = Ext::CustomMaps::CoverageZ();
+        }
 
         // Per-feature local weld set (matches the b260 per-feature local_1c8).
         int est = (xmax - xmin + 1) * (ymax - ymin + 1) * 4;
@@ -731,8 +738,9 @@ void WorldGeometry::BuildWaterShores(const TerrainHeightfield* hf) {
                     gv.uv[0] = (int16_t)(int)(corner[k][0] * kPosScale);  // planar UV = pos.xy
                     gv.uv[1] = (int16_t)(int)(corner[k][1] * kPosScale);
                     gv.normal[0] = 0x7f; gv.normal[1] = 0x7f;
-                    gv.normal[2] = (uint8_t)(int64_t)(weight[k] * kAOScale);
-                    gv.normal[3] = 0x00;
+                    gv.normal[2] = coverage ? (uint8_t)0xff : (uint8_t)(int64_t)(weight[k] * kAOScale);
+                    // EXT SEAM (NOT RETAIL, docs/extensions/handins/CUSTOMMAPS.md): retail writes 0 here
+                    gv.normal[3] = Ext::CustomMaps::CoverageWaterOrigin(coverage);
                     ci[k] = WeldAdd(&weld, &gv);
                 }
                 uint16_t quad[6] = { ci[0], ci[1], ci[2], ci[0], ci[2], ci[3] };

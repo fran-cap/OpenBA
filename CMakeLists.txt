@@ -334,7 +334,9 @@ set(EXT_RSC_SOURCES
   ${CMAKE_SOURCE_DIR}/src/ext/ui/Dialog/FavoritesWindow.rsc
   ${CMAKE_SOURCE_DIR}/src/ext/ui/Dialog/FullscreenMode.rsc
   ${CMAKE_SOURCE_DIR}/src/ext/ui/Dialog/MapOverlays.rsc
-  ${CMAKE_SOURCE_DIR}/src/ext/ui/Dialog/ProfessionsWindow.rsc)
+  ${CMAKE_SOURCE_DIR}/src/ext/ui/Dialog/ProfessionsWindow.rsc
+  ${CMAKE_SOURCE_DIR}/src/ext/ui/Dialog/NewGameMap.rsc
+  ${CMAKE_SOURCE_DIR}/src/ext/ui/Dialog/CustomMapLoad.rsc)
 set(EXT_RSC_GEN_DIR ${CMAKE_BINARY_DIR}/gen)
 set(EXT_RSC_GEN ${EXT_RSC_GEN_DIR}/ext_rsc_text.h)
 find_package(Python3 COMPONENTS Interpreter QUIET)
@@ -577,7 +579,8 @@ target_link_options(OpenBA PRIVATE ${FLAVOUR_FLAGS} ${PGO_LINK_FLAGS} ${LTO_FLAG
 # shell32: SHGetFolderPathW (Platform::DocumentsDir). No ole32 of ours since Phase D.4 SDL-5 D2;
 # SDL3's own system libraries still bring it.
 # gdi32: the run-time font rasteriser (src/platform/win/font_raster_win.cpp, KITFREE RSCFONT).
-target_link_libraries(OpenBA PRIVATE user32 dbghelp shell32 gdi32)
+# comdlg32: GetOpenFileNameW (ext.custom_maps: the New Game dialog's Load custom map button).
+target_link_libraries(OpenBA PRIVATE user32 dbghelp shell32 gdi32 comdlg32)
 # SDL3 static: the target carries its include directory and its system libraries
 target_link_libraries(OpenBA PRIVATE SDL3::SDL3-static)
 # The backend's own link libraries (dx11: none; vulkan: dxbc_spv, the loader is opened by SDL).

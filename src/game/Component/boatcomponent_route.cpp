@@ -54,6 +54,7 @@
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "system/String.h"
 #include "math/Math.h"
+#include "ext/custom_maps/bmap.h"   // NOT RETAIL: BoatRouteExists (MerchantRouteExists below)
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -306,7 +307,44 @@ inline bool TileInMap(float x, float y, int mapSize) {
     return ix >= 0 && ix < mapSize && iy >= 0 && iy < mapSize;
 }
 
+// MerchantRouteExists' answer for the world of the lock epoch it was worked out in. The boat polyline is
+// built with the world (a new game or a load) and never changes after, so the scan runs once per world and
+// not at every trading post's tick. The "no boat route" line is printed with it, once per world.
+bool g_routeKnown = false;
+bool g_routeExists = true;
+uint32_t g_routeEpoch = 0;
+
 }  // namespace
+
+// NOT RETAIL: see BoatComponent.h. The same polyline SetDestination reads below ([[wgeo+0x1e0]], record 0),
+// tested the way its own loops test a point (TileInMap's truncation). Worked out once per world: the answer
+// is kept for the lock epoch it was read in (a new game and a load both move it), so every later call of
+// that world, one per trading post tick, is a compare of two integers. A world that cannot be read yet is
+// not kept: the next call looks again.
+bool MerchantRouteExists() {
+    const uint32_t epoch = Ext::LockEpoch();
+    if (g_routeKnown && g_routeEpoch == epoch) {
+        return g_routeExists;
+    }
+    GameUpdateLoop* gw = GameUpdateLoop::_singleton;
+    if (gw == nullptr || gw->m_game == nullptr || gw->m_worldGeometry == nullptr) {
+        return true;
+    }
+    const RawArray<Math::Vector2>* poly =
+        gw->m_worldGeometry->_contourOutlines.size > 0 ? gw->m_worldGeometry->_contourOutlines.data : nullptr;
+    const bool exists = poly != nullptr && Ext::CustomMaps::BoatRouteExists(
+        poly->data != nullptr ? &poly->data[0].x : nullptr, poly->data != nullptr
+            ? static_cast<size_t>(poly->size > 0 ? poly->size : 0) : 0,
+        sizeof(Math::Vector2) / sizeof(float), static_cast<uint32_t>(gw->m_game->size));
+    g_routeKnown = true;
+    g_routeExists = exists;
+    g_routeEpoch = epoch;
+    if (!exists) {
+        std::fprintf(stderr, "[CustomMaps] this world has no boat route (no water path crosses the play "
+                             "area): trading posts will not send merchants\n");
+    }
+    return exists;
+}
 
 // Row 350 (B7 RES): 0x1400456e0 tests only the destination (0x1400456ff `lVar20 == 0`);
 // the argument, the release path's StateMachineComponent and owner node, the world, the

@@ -29,6 +29,8 @@
 #include "Game/exe_bodies.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "ext/registry.h"            // Ext::Fix().start_barn_height, Ext::Fix().rock_seat, Ext::Fix().terrain_resort
+#include "ext/custom_maps/custom_maps.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/CUSTOMMAPS.md)
+#include <unordered_map>
 #include "ext/rock_seat/rock_seat.h"   // fix.rock_seat (docs/extensions/handins/ROCKSEAT.md)
 #include "ext/terrain_resort/terrain_resort_rule.h"   // fix.terrain_resort (docs/extensions/handins/TERRAINRESORT.md)
 #include "Component/ClearResourceComponent.h"   // fix.terrain_resort: the Remove tool's marker
@@ -366,10 +368,31 @@ static bool StartTown_FindSpawnTile(const Map* game, int size, int* outX, int* o
     const int step   = (size * 3) >> 2;        // floor(size*3/4); size > 0
     const float fullCircle = 360.0f;           // DAT_140172238
 
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/CUSTOMMAPS.md): a custom map's own start cell is
+    // used as is. Everything marked here runs only when a custom map is active (custom != nullptr); with
+    // none, this function is retail's body line for line.
+    const Ext::CustomMaps::Map* custom = ::Ext::Ext().custom_maps ? Ext::CustomMaps::Active() : nullptr;
+    if (custom != nullptr && custom->hasStart && custom->startX < dim && custom->startY < dim) {
+        *outX = custom->startX;
+        *outY = custom->startY;
+        return true;
+    }
+
     float radius = 0.0f;
     int   points = 4;
     const int kMaxRings = 4096;                // defensive cap (original loops forever)
     for (int ring = 0; ring < kMaxRings; ++ring) {
+        // EXT SEAM (NOT RETAIL, docs/extensions/handins/CUSTOMMAPS.md), custom map only: no disk can fit once
+        // the ring is past the map, and the doubling point count grows without bound (a custom map with no
+        // buildable disk made this loop run for minutes). A generated map never runs these two lines.
+        if (custom != nullptr) {
+            if (radius > (float)dim) {
+                break;
+            }
+            if (points > (1 << 14)) {
+                points = 1 << 14;
+            }
+        }
         for (int i = 0; i < points; ++i) {
             // Math::Scalar::SinCos takes degrees and applies pi/180 itself (0x180078790).
             const Math::Scalar ang((float)i * (fullCircle / (float)points));
@@ -4991,8 +5014,188 @@ static void SeedInitialSpawn(ComponentEntity* ent, uint32_t tidSpawnComp,
 }
 
 
+// ============================================================================
+// EXT SEAM (NOT RETAIL, docs/extensions/handins/CUSTOMMAPS.md): a custom map's own resources. A map file that
+// lists resources (bmap.h) replaces the scatter below: each entry names a template, a play-area cell, a model
+// group and a growth value, and is placed the way the scatter places one (the cell's entity, the model's
+// group and sub-variant, the growth, the registration, and the tree's first sub-resources). An entry is
+// skipped, with a count in the log, when its cell is outside the play area, taken, claimed by a building or
+// under water, or when its template does not resolve or is not a natural resource. The template's height and
+// slope limits are NOT applied: the map's author chose the cell (the editor warns about them). The start
+// town's exclusion disk IS applied, as the scatter applies it (see StartTown_SpawnCustomResources): an entry
+// inside it is skipped and counted.
+// ============================================================================
+static void StartTown_GrowthSetProgress(ComponentEntity* entity, uint32_t tidGrowth, float progress) {
+    if (!entity) return;
+    GrowthComponent* gComp = FindComponentOnEntity<GrowthComponent>(entity, tidGrowth);
+    if (!gComp) return;
+    ::Object::InternalPtr<GrowthComponent> gIBP(gComp);
+    GrowthComponent* s = gIBP.Get();
+    // the same test as StartTown_GrowthInitResource
+    if (!s || !s->resource.Get() || !s->model.Get() || !s->config) return;
+    s->SetProgress(progress);
+}
+
+static int StartTown_SpawnCustomResources(const Ext::CustomMaps::Map& cm, GameUpdateLoop* world, int spawnX,
+                                          int spawnY, int sizeSq) {
+    Map* game = world->m_game;
+    if (!game) return 0;
+    const int dim = game->size;
+    MapCell* cells = game->cells.GetData();
+    System::Random* rng = world->m_random;
+    EntityList* entityList = world->m_entityList;
+    if (dim <= 0 || !cells || !rng || !entityList) return 0;
+    if (static_cast<int>(cm.mapSize) != dim) {
+        fprintf(stderr, "[CustomMaps] resources: the map is %u cells, the game %d: none placed\n",
+                static_cast<unsigned>(cm.mapSize), dim);
+        fflush(stderr);
+        return 0;
+    }
+
+    const uint32_t tidNatRes = NaturalResourceDescription::TypeId();
+    const uint32_t tidModel  = ModelComponent::TypeId();
+    const uint32_t tidNRComp = NaturalResourceComponent::TypeId();
+    const uint32_t tidMapComp = MapComponent::TypeId();
+    const uint32_t tidGrowth = GrowthComponent::TypeId();
+    const uint32_t tidSpawnComp = SpawnComponent::TypeId();
+    const float waterTop = Ext::CustomMaps::HeightOf(Ext::CustomMaps::kWaterLevel);
+    const float center = (float)(dim >> 1) - kCenterBias;
+
+    std::unordered_map<std::string, ComponentDescription*> templates;
+    int townCleared = 0;
+    int placed = 0;
+    int outside = 0;
+    int taken = 0;
+    int wet = 0;
+    int unresolved = 0;
+    int notNatural = 0;
+    int withSpawnComp = 0;
+    int withSpawnEntries = 0;
+    for (const Ext::CustomMaps::Resource& r : cm.resources) {
+        const int x = r.cellX;
+        const int y = r.cellY;
+        if (x >= dim || y >= dim) {
+            ++outside;
+            continue;
+        }
+        const int idx = dim * y + x;
+        if (cells[idx].occupant || cells[idx].blocker) {
+            ++taken;
+            continue;
+        }
+        // The scatter's town exclusion (StartTown_SpawnResources): the disk of the start area's radius around
+        // the start spot stays clear, so a custom start has the room the default one has, whatever the map's
+        // list holds there.
+        const int dy = y - spawnY;
+        const int dx = x - spawnX;
+        if (dy * dy + dx * dx < sizeSq) {
+            ++townCleared;
+            continue;
+        }
+
+        auto it = templates.find(r.templatePath);
+        if (it == templates.end()) {
+            std::string name = r.templatePath;
+            for (char& ch : name) {
+                if (ch == '/') {
+                    ch = '\\';
+                }
+            }
+            ::Object::ExternalFactory* efactory = ::Object::ExternalFactory::_singleton;
+            ComponentDescription* t = nullptr;
+            if (efactory != nullptr) {
+                t = efactory->FindOrLoadAs<ComponentDescription>(System::Filename(name.c_str()));
+            }
+            if (t == nullptr) {
+                fprintf(stderr, "[CustomMaps] resources: %s does not resolve (is the mod loaded?)\n",
+                        r.templatePath.c_str());
+            }
+            it = templates.emplace(r.templatePath, t).first;
+        }
+        ComponentDescription* tmpl = it->second;
+        if (!tmpl) {
+            ++unresolved;
+            continue;
+        }
+        NaturalResourceDescription* desc =
+            FindDescriptionOnTemplate<NaturalResourceDescription>(tmpl, tidNatRes);
+        if (!desc) {
+            ++notNatural;
+            continue;
+        }
+
+        float in[3] = { (float)(idx % dim) - center, (float)(idx / dim) - center, 0.0f };
+        float pos[3] = {0, 0, 0};
+        float tri[3] = {0, 0, 0};
+        game->GetTerrainPos(pos, in, 0, tri);
+        if (pos[2] <= waterTop) {
+            ++wet;
+            continue;
+        }
+
+        void* raw = System::MemoryAllocator::MemAlloc(ENTITY_SIZE, 8);
+        ComponentEntity* mem = static_cast<ComponentEntity*>(raw);
+        ComponentEntity* ent = mem ? ::new (mem) ComponentEntity(tmpl) : nullptr;
+        if (!ent) continue;
+        ::Object::InternalPtr<ComponentEntity> entIBP(ent);
+        StartTown_PlaceResourceCell(ent, idx, game, rng, tidNRComp, tidMapComp, tidModel);
+
+        // Model group: the map's, or (255) the game's own choice. The scatter picks a group by noise only for
+        // templates that group their models (_groupModels); a template that does not keeps its default model,
+        // unless the map names a group.
+        ModelDescription* modelDesc =
+            FindDescriptionOnTemplate<ModelDescription>(tmpl, ModelDescription::TypeId());
+        const int groupCount = modelDesc ? modelDesc->_meshGroupCount : 0;
+        if (modelDesc && groupCount > 0 && modelDesc->_meshGroups) {
+            int group = -1;
+            if (r.variant != 255) {
+                group = r.variant < groupCount ? r.variant : groupCount - 1;
+            } else if (desc->_groupModels != 0) {
+                group = (int)rng->Rand((uint32_t)groupCount);
+            }
+            if (group >= 0) {
+                const int subCount = modelDesc->_meshGroups[group].meshCount;
+                const int sub = subCount > 0 ? (int)rng->Rand((uint32_t)subCount) : 0;
+                ApplyResourceModelVariant(ent, tidModel, (int16_t)group, (int16_t)sub);
+            }
+        }
+
+        // Growth: the map's progress (value / 250, 250 and above is fully grown) or (255) a random one, as
+        // the scatter gives.
+        float progress = 1.0f;
+        if (r.growth == 255) {
+            progress = rng->RandFloat();
+        } else if (r.growth < 250) {
+            progress = (float)r.growth / 250.0f;
+        }
+        StartTown_GrowthSetProgress(ent, tidGrowth, progress);
+
+        entityList->RegisterEntity(&entIBP, static_cast<int32_t>(tmpl->_category));
+        // after RegisterEntity, as the scatter orders it
+        SeedInitialSpawn(ent, tidSpawnComp, withSpawnComp, withSpawnEntries);
+        ++placed;
+    }
+    fprintf(stderr,
+            "[CustomMaps] resources: %d of %zu placed (outside %d, taken %d, in the town's clear disk %d, "
+            "in water %d, template missing %d, not a natural resource %d); %d carry a SpawnComponent\n",
+            placed, cm.resources.size(), outside, taken, townCleared, wet, unresolved, notNatural,
+            withSpawnComp);
+    fflush(stderr);
+    SpawnComponent_ReportDoSpawnCensus("custom-map");
+    MapComponent_ReportDc20Evictions("custom-map");
+    return placed;
+}
+
 static int StartTown_SpawnResources(MapGenerator* startConfig, GameUpdateLoop* world,
                                     int spawnX, int spawnY, int sizeSq) {
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/CUSTOMMAPS.md): a custom map that lists resources
+    // replaces the scatter.
+    if (::Ext::Ext().custom_maps) {
+        const Ext::CustomMaps::Map* custom = Ext::CustomMaps::Active();
+        if (custom != nullptr && custom->hasResources) {
+            return StartTown_SpawnCustomResources(*custom, world, spawnX, spawnY, sizeSq);
+        }
+    }
     const int count = startConfig->naturalResources._size;
     MapGenerator::ExternalRef* pool = startConfig->naturalResources._data;
     if (count <= 0 || !pool) return 0;

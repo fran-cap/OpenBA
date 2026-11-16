@@ -145,6 +145,7 @@ SpriteSheet resource
 		{ String _name = "ExtensionsEntry_fps_cap";	String _source = "Sprite/Extensions/Entry_fps_cap.png"; }
 		{ String _name = "ExtensionsEntry_touch_mode";	String _source = "Sprite/Extensions/Entry_touch_mode.png"; }
 		{ String _name = "ExtensionsEntry_touch_pointer";	String _source = "Sprite/Extensions/Entry_touch_pointer.png"; }
+		{ String _name = "ExtensionsEntry_custom_maps";	String _source = "Sprite/Extensions/Entry_custom_maps.png"; }
 		{ String _name = "TreeLink1";	String _source = "Sprite/Extensions/TreeLink1.png"; }
 		{ String _name = "TreeLink2";	String _source = "Sprite/Extensions/TreeLink2.png"; }
 		{ String _name = "TreeLink3";	String _source = "Sprite/Extensions/TreeLink3.png"; }

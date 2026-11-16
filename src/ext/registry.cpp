@@ -943,6 +943,15 @@ const Entry kEntries[] = {
       "two fingers move, zoom and turn the view, and a tap selects the nearest person or building. For "
       "phones and touch screens.",
       0, [](State& s) -> bool& { return s.ext.touch_pointer; } },
+    // CUSTOMMAPS (docs/extensions/handins/CUSTOMMAPS.md): a new game can start on a map file (.bmap) instead
+    // of a generated map. Class A: the terrain stage runs only for a new game and the save carries its own
+    // terrain, so nothing is stored and there is no lock. OFF by default: what the map is like is the
+    // player's choice (like no_fog).
+    { "custom_maps", Tier::Extension, Class::A, false,
+      "Custom maps",
+      "A new game can start on a map file made in a map editor instead of a generated map. Takes effect at "
+      "the next new game.",
+      0, [](State& s) -> bool& { return s.ext.custom_maps; } },
     // Issue #253 (graphics/stagger_hold.h): the sun's shadow map and the water's reflection may each keep
     // last frame's image on a near-still view, rendering at least every ext.staggered_passes_shadow /
     // _reflection frames (2: one frame held at most, the two passes on alternate frames) and at once on a

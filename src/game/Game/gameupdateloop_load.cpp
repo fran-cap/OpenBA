@@ -45,6 +45,7 @@
 #include "MapGenerator.h"            // m_mapConfig's class (B.4 GAME-a)
 #include "Game/TerrainGenerator.h"     // m_terrainConfig->_field80
 #include "Game/TerrainHeightfield.h"  // TerrainSizeRow
+#include "ext/custom_maps/world_seam.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/CUSTOMMAPS.md)
 #include <type_traits>
 #include <new>
 #include "Game/game.h"   // B3R STORAGE: g_gameContainer
@@ -1140,6 +1141,8 @@ void GameUpdateLoop::Load() {
             // Map dimension from the terrain size-table row (sizeRow[0]).
             const TerrainSizeRow* sizeTable = terrainGen->sizeRows._data;   // +0x80, 0x44-byte rows
             uint32_t dim = sizeTable ? sizeTable[sizeIdx].mapSize : 0;
+            // EXT SEAM (NOT RETAIL, docs/extensions/handins/CUSTOMMAPS.md): a picked map's own size
+            dim = Ext::CustomMaps::LoadedSize(dim);
 
             // Retail call site 0x1400975c7, immediately after the map dimension is
             // read and BEFORE the +0x148 tile arrays: size the TownManager's coarse

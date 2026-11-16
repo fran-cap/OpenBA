@@ -94,6 +94,10 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/ext/better_clouds/cloud_noise.cpp    #   the noise texture
   ${CMAKE_SOURCE_DIR}/src/ext/better_clouds/sky_fit.cpp        #   the program fit test
   ${CMAKE_SOURCE_DIR}/src/ext/high_limits/high_limits.cpp             # ext_high_limits_test.cpp (HIGHLIMITS)
+  ${CMAKE_SOURCE_DIR}/src/ext/custom_maps/bmap.cpp                # ext_custom_maps_test.cpp (CUSTOMMAPS)
+  ${CMAKE_SOURCE_DIR}/src/ext/custom_maps/custom_maps.cpp            #   its water coverage and state
+  ${CMAKE_SOURCE_DIR}/src/ext/custom_maps/png.cpp                    #   the thumbnail's PNG reader
+  ${CMAKE_SOURCE_DIR}/src/ext/custom_maps/map_list.cpp               #   the picker's list of the maps in a folder
   ${CMAKE_SOURCE_DIR}/src/ext/restricted_foods/restricted_foods.cpp            # ext_restricted_foods_test.cpp (RESTRICTEDFOODS)
   ${CMAKE_SOURCE_DIR}/src/ext/restricted_foods/save_state.cpp             #   its class C codec
   ${CMAKE_SOURCE_DIR}/src/ext/map_overlays/overlay_math.cpp               # ext_map_overlays_math_test.cpp (MAPOVERLAYS)

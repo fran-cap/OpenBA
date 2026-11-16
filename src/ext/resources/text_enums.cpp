@@ -42,6 +42,12 @@ const EnumValue kEnumValues[] = {
     { kLabelPosition, "TextBottom", 3 },
     { kLayoutH, "LeftToLeft", 1 }, { kLayoutH, "LeftToRight", 2 },
     { kLayoutV, "TopToTop", 1 },
+    // The rest of the layout modes, by what AlignAxis (element_bodies_b5.cpp) does with each value: 1 child
+    // edge at the reference's near edge, 2 at its far edge, 3 child's far edge at the reference's near edge,
+    // 4 child's far edge at the reference's far edge. NewGameMap.rsc uses them (the game's own NewGame.rsc
+    // spells them the same way).
+    { kLayoutH, "RightToLeft", 3 }, { kLayoutH, "RightToRight", 4 },
+    { kLayoutV, "TopToBottom", 2 }, { kLayoutV, "BottomToTop", 3 }, { kLayoutV, "BottomToBottom", 4 },
 };
 
 }  // namespace
