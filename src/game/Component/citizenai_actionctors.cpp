@@ -203,7 +203,7 @@ static RawMaterialDescription* FindLimitComponent(ComponentDescription* material
 // ============================================================
 // 0x1400c1070 — PerformWork_Action_Ctor4  (called by State_LongTermPlan)
 // The full "fetch axe / chop / drop raw / build" sequence. param_6 (the build flag) gates
-// the stack cleanup and the lead block. Pushes: SendComponentMessage(lead)+DropOffRaw(into +0x58); then
+// the stack cleanup and the lead block. Lead SendComponentMessage -> +0x58; pushes DropOffRaw; then
 // PerformWork(type 7) + ShowTool(~Axe=-? see note) + DropOffRaw + PerformWork(type 6) +
 // MoveTo + ShowTool. animIdx = HeadingToward(dest). The work-mask bit comes from the
 // terrain cell flag byte at grid+0x80 + param_4*0x30 + 0x29.
@@ -228,8 +228,8 @@ void CitizenAI_PerformWorkCtor4_c1070(CitizenComponent* const* citizenRef, Compo
         stack->Clear();
         // lead SendComponentMessage -> CharacterComponent+0x58
         InstallLeadMessage(citizenRef, ch);
-        // DropOffRaw action (also stored at +0x58, replacing the message) — faithful: the
-        // original re-derives local_68 and OVERWRITES char+0x58 with the drop-raw IBP.
+        // DropOffRaw action, pushed on the stack (0x1400c54e0); the lead message stays
+        // in char+0x58.
         void* mem = MemA(0x40);
         Action* act = nullptr;
         if (mem) {
@@ -706,7 +706,7 @@ void CitizenAI_Pathfinding_WalkTowards_bb490(CitizenComponent* const* citizenRef
 // ============================================================
 // 0x1400ba6b0 — PlayAnimation_Action_Ctor4  (sibling of the ported Ctor5 c26c0)
 // lead SendComponentMessage(70e8) -> +0x58 ; if param_5: SendComponentMessage(7158, a4=8) ;
-// if *param_2: SendComponentMessage(DAT_1401c42c0, dest=*param_2, a4=0) ; a raw inline
+// if *param_2: SendComponentMessage(DAT_1401c42c0, target=*param_2, a4=0) ; a raw inline
 // PlayAnimation action (vtable_PlayAnimation, +0x20=entity, +0x28=0, +0x30=Time(param_4)) ;
 // MoveTo(Slow, dest=param_3).
 //   param_1 = CitizenComponent IBP ; param_2 = &optionalTargetIBP ; param_3 = u32* dest(=float*) ;
@@ -730,7 +730,7 @@ void CitizenAI_PlayAnimationCtor4_ba6b0(CitizenComponent* const* citizenRef, Com
         }
         Push(stack, act);
     }
-    // optional SendComponentMessage(DAT_1401c42c0, dest=*param_2)
+    // optional SendComponentMessage(DAT_1401c42c0, target=*param_2)
     if (*targetRef != nullptr) {
         void* mem = MemA(0x40);
         Action* act = nullptr;

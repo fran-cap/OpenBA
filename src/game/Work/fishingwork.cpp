@@ -11,7 +11,7 @@
 //   +0x20: Slot4      (0x1400e9f20) — fishing work assignment
 //   +0x30: Slot6      (0x1400e9eb0) — clear citizen slot + mark spot done
 //   +0x38: Slot7      (0x1400e9e80) — delegates to Slot6 via vtable +0x30
-//   +0x40: Slot8      (0x1400ea830) — cancel all: clear citizens + cancel actions
+//   +0x40: Slot8      (0x1400ea830) — cancel all: cancel each citizen's actions
 //   +0x48: Slot9      (0x1400e9c30) — validate work assignments
 //   +0x50: Slot10     (0x1400ea8b0) — get the workplace's profession
 //
@@ -763,7 +763,6 @@ int FishingWork::OnCancel(CitizenComponent** param2, ComponentEntity** param3, i
 // Cancels all active fishing work:
 //   - Iterates citizen slots, for each non-null citizen:
 //     calls CancelPendingActions on their state machine action list
-//   - Then clears the citizen IBP slot
 // ============================================================
 int FishingWork::Cleanup() {
     if (citizenRefs._size <= 0) return 0;

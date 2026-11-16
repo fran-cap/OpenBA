@@ -142,9 +142,10 @@ std::vector<uint8_t> WrapStored(const uint8_t* plain, size_t n) {
 // ---- masks: input shapes whose crash site is already recorded -------------------------------
 // Walks the plaintext the way ReadPackfile does and rejects an input that would hit a recorded
 // site, so the fuzzer reaches what lies behind it. Each mask names its finding (summary of the
-// P4 packfile run):
+// P4 packfile run). Every site is retail's; the port's NOT RETAIL hardening fails or rejects each
+// shape (CompressedStream::Read's `chunk <= 0` exit, "THE HARDENING" in package_file_read.cpp):
 //   PK-A  CompressedStream::Read spins forever reading past the end of a short final block
-//         (compressed_stream_read.cpp:447, chunk = end - pos = 0): masked by zero-padding the
+//         (retail 0x1800aa780 has no exit for chunk = end - pos = 0): masked by zero-padding the
 //         plaintext to a whole number of 32 KB blocks in WrapStored's caller.
 //   PK-B  stack-buffer-overflow, Read(len) into buf60 / buf860 with len only checked > 0
 //         (package_file_read.cpp ReadStringRaw / ReadStringUtf16 / the entry loop).
@@ -248,7 +249,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         return 0;
     const bool meta = (data[0] & 1) != 0;
     // PK-A mask: pad to whole 32 KB blocks, so a read past the data ends at a block boundary
-    // (DecompressFromSource returns false) instead of spinning on a short final block.
+    // (DecompressFromSource returns false) instead of in a short final block, where retail
+    // spins and the port's Read fails on `chunk <= 0`.
     std::vector<uint8_t> plain(data + 1, data + size);
     plain.resize(((plain.size() + 0x7fff) / 0x8000) * 0x8000 + (plain.empty() ? 0x8000 : 0), 0);
     if (MaskedShape(plain.data(), plain.size(), meta))   // walk what ReadPackfile will read

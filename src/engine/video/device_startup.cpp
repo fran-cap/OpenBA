@@ -320,10 +320,10 @@ bool Video::Device::ValidateConfiguration() {
 // tested in the order +0xb0, +0xc0, +0xb8) and fails with an Error::SetText if
 // any is missing.
 //
-// The teardown of the previous `DeviceData` is vtable slot 0x18 (Destroy) then
+// The teardown of the previous `DeviceData` is vtable +0x18 (Shutdown) then
 // vtable slot 0 with flag 1 (the deleting dtor) — the same two-step every other
-// companion release in this tree uses — and the field is nulled between them so
-// a re-entrant read cannot see a half-destroyed object.
+// companion release in this tree uses — with the field re-read between them
+// (0x1800f7980) and nulled after the delete (0x1800f7996).
 //
 // It returns TRUE even when `createDeviceData` returns null (0x1800f79b7 sets
 // AL unconditionally). PlatformStartup catches that separately at 0x1800f838f

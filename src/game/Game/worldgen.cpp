@@ -261,7 +261,8 @@ static uint8_t* wg_BlendTexture_cf440_stub(const TerrainHeightfield* hf) {
 //   G (byte1) = GRASS weight  — slope band on the cell normal.z: full (0xff) on
 //               slopes (nz ≤ 0.85), feathering to 0 toward flat (nz → 0.999),
 //               plus a height ramp where height > 7.0.
-//   B (byte2) = AMBIENT-OCCLUSION — 21×21 circular normal kernel: 1 − mean of
+//   B (byte2) = AMBIENT-OCCLUSION — r² ≤ 100 circular normal kernel over dx -10..10,
+//               dz -10..9 (the dz = +10 row is never visited): 1 − mean of
 //               max(dot(centerNormal, dirToNeighbour), 0), scaled by a 3×3
 //               smoothed normal.z.
 //   A (byte3) = 0 (matches the original — it never writes byte3).

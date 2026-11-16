@@ -396,15 +396,10 @@ void WorkPlaceComponent::ApplyOccupiedVisual() {
         _entity->SendEvent(2);   // 0x1400c2b70
     }
 
-    // The StatusIconComponent mesh-flag toggle (FUN_14012c3f0) is DELIBERATELY NOT driven
-    // here. It clears the icon flag → flags==0 → Graphics::Scene::RemoveObject(sceneObjId).
-    // In standalone the inert StatusIconComponent was never scene-registered, so its mesh
-    // sceneObjId (+0x20) holds an uninitialised non-negative value; RemoveObject then SPINS
-    // forever on a scene-object id that isn't in the scene (verified by gdb stack-sampling a
-    // hung run, even at gameplay frame 3). The original is safe only because the icon is a
-    // real registered scene object. Re-enable once StatusIconComponent::OnAdded scene-
-    // registers the icon (a rendering follow-up) — the icon is already invisible while inert,
-    // so skipping its "hide" toggle changes nothing observable.
+    // The StatusIconComponent mesh-flag toggle (FUN_14012c3f0) is not driven here. Its clear
+    // arm (mask +0xf0 == 0) calls Graphics::Scene::RemoveObject only when the scene id
+    // (+0x100) is >= 0, and the ctor (0x14012c0c0) sets that id to -1, so an icon that was
+    // never scene-registered skips the removal.
 }
 
 // 0x14012ee60 — release every seated worker: detach each from its current workplace

@@ -88,14 +88,14 @@
 
 #include "scene_grid.h"
 
-// B7 RT (B6 C8): `Entry::_userValue2` is retail's unwritten window on the stack
-// Entry both insert paths build (`Entry tmp;`): the copy into the array moves
-// the qword as is, and no reader tests it. With the String / Array release
-// family inline, GCC's -O2 inliner sees the temporary and reports the copy as
-// a use of an uninitialised value, attributing it to the copy's line while
-// ignoring a pragma at that line or around either caller; the whole-file
-// pragma is the only region that silences it. Nothing is zeroed: it is
-// retail's byte.
+// B7 RT (B6 C8): the stack Entry both insert arms build (`Entry tmp;`, 0x18007b210)
+// leaves +0x14..+0x17 (`_pad14`) unwritten as retail does; every named field,
+// `_userValue2` included, is filled from the descriptor. With the String / Array
+// release family inline, GCC's -O2 inliner sees the temporary and reports the
+// copy as a use of an uninitialised value, attributing it to the copy's line
+// while ignoring a pragma at that line or around either caller; the whole-file
+// pragma is the only region that silences it. The slack is not zeroed: it is
+// retail's bytes.
 #pragma GCC diagnostic ignored "-Wuninitialized"
 
 // Wave 9 lane Q's allocator boundary. These two ARE the Enter/Allocate/Leave
@@ -853,9 +853,9 @@ void GridReindex(Scene* scene, uint32_t id) {
 // ============================================================================
 // (*) 0x180072950 — unthread an entry from every cell of its rectangle
 // ============================================================================
-// `cellXY` points at `entry->_cellX` and the y is read from `cellXY[1]`. Both
-// the x START and the y START are re-read from it per row exactly as retail
-// does, while the two LIMITS are computed once from the values at entry.
+// `cellXY` points at `entry->_cellX` and the y is read from `cellXY[1]`. The
+// x START is re-read from it per row exactly as retail does; the y START is
+// read once and stepped, and the two LIMITS are computed once at entry.
 //
 // The bucket hash is carried INCREMENTALLY (`SUB EBP,0x72594cbd` per column,
 // `SUB R14D,0x27e9c7bf` per row) rather than recomputed. That is identical

@@ -151,9 +151,9 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             }
             line.clear();
         };
-        // MASK (finding: Filename(const char*)'s AdjustDelimiters loops forever on some "\.."
-        // names, e.g. 5c 2e 2e 5c 5c 2e 2e 08 2e; package_cache2_fuzz.cpp isolates it): names with
-        // ".." are not made here.
+        // MASK (finding: retail Filename(const char*)'s AdjustDelimiters loops forever on some
+        // "\.." names, e.g. 5c 2e 2e 5c 5c 2e 2e 08 2e; package_cache2_fuzz.cpp isolates it; the
+        // port refuses that splice, NOT RETAIL F-078): names with ".." are not made here.
         for (size_t i = 0; i + 1 < namesLen; ++i) {
             if (data[3 + i] == '.' && data[4 + i] == '.')
                 return 0;

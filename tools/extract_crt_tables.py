@@ -144,7 +144,7 @@ emit_u64("kAtanTable", 0x18016f1a0, 241, 2, "atan(k/256) reference table, k=16..
 
 print("// ---- powf ----")
 emit_u32("kPowIntConst", 0x1801700a0, 26, 4, "powf integer/float special-case constants (0x1801700a0..)")
-scalar("kPowLog2E_hi",  0x180170170, "log2(e)-ish leading term")
+scalar("kPowLog2E_hi",  0x180170170, "ln(2), scales the exponent")
 scalar("kPowHalfMask",  0x1801701a0, "0.5 (also used as an OR mask)")
 scalar("kPowLg1",       0x1801701b0)
 scalar("kPowLg2",       0x1801701c0)

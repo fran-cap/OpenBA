@@ -1091,8 +1091,9 @@ int ConsumeProduce::GetPriority() {
     return _slotCitizens._size > 0 ? 1 : 0;
 }
 
-// Slot12 (+0x60) — retail 0x1400e9010, this class's own `RET 0` (every other Work
-// table shares 0x140006b10). The same behaviour; declared so the table matches.
+// Slot12 (+0x60) — retail 0x1400e9010, this class's own `RET 0` (LocationWork and Pickup
+// have their own [12] too; the other Work tables share 0x140006b10). The same behaviour;
+// declared so the table matches.
 void ConsumeProduce::Slot12(int /*version*/) {}
 
 // ============================================================

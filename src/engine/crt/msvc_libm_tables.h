@@ -208,7 +208,7 @@ static const uint32_t kPowIntConst[26] = {
     0x00800000u, 0x00000000u,
 };
 
-static const uint64_t kPowLog2E_hi   = 0x3fe62e42fefa39efull;  // 0x180170170 = 0.6931471805599453 log2(e)-ish leading term
+static const uint64_t kPowLog2E_hi   = 0x3fe62e42fefa39efull;  // 0x180170170 = 0.6931471805599453 ln(2), scales the exponent
 static const uint64_t kPowHalfMask   = 0x3fe0000000000000ull;  // 0x1801701a0 = 0.5 0.5 (also used as an OR mask)
 static const uint64_t kPowLg1        = 0x3ff0000000000000ull;  // 0x1801701b0 = 1.0 
 static const uint64_t kPowLg2        = 0x3fe0000000000000ull;  // 0x1801701c0 = 0.5 

@@ -44,9 +44,10 @@
 // [-2, 15] — but it reads the value to clamp from `pts[i].z`, NOT
 // `pts[2i+1].z`. In the disassembly the store cursor is RBX (stride 0x18) and
 // the clamp source is `[RBP + RDI - 0x58]` with RDI = i*12, i.e. a stride-12
-// walk over the same array. For i == 0 the two coincide; for i >= 1 the clamp
-// takes the PREVIOUS iteration's already-clamped Z. It is a `p[i]` where the
-// source clearly meant `p[i*2+1]`.
+// walk over the same array. Point i is never the point just stored: at i == 0
+// it is this iteration's near point (pts[0]), at i == 1 and 3 the far points
+// stored by iterations 0 and 1, at i == 2 the near point of iteration 1, which
+// is never clamped. It is a `p[i]` where the source clearly meant `p[i*2+1]`.
 //
 // It is deterministic, it is what every shipped frame of the game has done,
 // and "fixing" it here would move shadow frusta relative to retail. Ported as

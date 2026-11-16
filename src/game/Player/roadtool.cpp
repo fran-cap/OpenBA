@@ -101,8 +101,8 @@ char RoadTool::OnKey(char key) {
 //
 // Flow:
 //   1. Sort cells (ensure start <= end)
-//   2. Initialize outputs: *outCostA=0, *outCostB=0, *outValid=2, param_7=1
-//   3. Validate cells >= 0
+//   2. Initialize outputs: *outCostA=0, *outCostB=0, *outValid=2
+//   3. Validate cells >= 0, then *outLength=1
 //   4. Check the owner's path constraint (+0x80 / +0x98 / +0x9c)
 //   5. Check terrain flags (mask 0x5e0), blocker occupancy
 //   6. Run the road A* (0x14009ce00)

@@ -991,9 +991,6 @@ void EntityList::UpdateWalkBatchGrid(const System::Time* time) {
     UpdateImpl<Ext::WalkBatch::kWalkNoPlace>(time);
 }
 
-// The retail step-5 body (0x1400c4090 tail), relocated so it drains the PRIOR
-// frame's removalList. Faithful otherwise: PreUpdate + PostUpdateStaging then
-// RemoveEntity per pending IBP, then clear the list.
 // Close any still-open info dialog whose data-source entity is marked-for-removal
 // (0x400) this drain, BEFORE the entity is freed below. A PINNED info panel is driven
 // by the UI pump, NOT by EditTool, so EditTool's close-on-death (EditTool::Update, edittool.cpp) can
@@ -1181,6 +1178,9 @@ static void AuditDyingEntity(ComponentEntity* entity) {
     }
 }
 
+// The retail step-5 body (0x1400c4090 tail), relocated so it drains the PRIOR
+// frame's removalList. Faithful otherwise: PreUpdate + PostUpdateStaging then
+// RemoveEntity per pending IBP, then clear the list.
 void EntityList::DrainRemovals() {
     int32_t removalCount = removalList._size;
     if (removalCount <= 0) return;

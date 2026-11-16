@@ -315,13 +315,11 @@ char ClearAreaComponent::State0Enter(StateMachine* sm) {
 //   When the footprint is finally clear, request the 0 -> 1 transition.
 // ============================================================
 //   Faithful to 78f0: the ONLY done-test is the grid-emptiness IsDone (0x140118440), as
-//   in State0Enter. A CountRemaining==0 short-circuit must NOT appear in either.
-//   CountRemaining only counts natural-resource occupants, so it drops to 0 the moment
-//   the tree is felled — finishing the job (and stopping the citizen's work slot) before
-//   ClearArea::Execute Phase 3 can gather the harvest pile the felling just spawned. That
-//   is what stranded piles on the ground. The pile registers itself into its cell+0x08
-//   (see the grid claim in action_base_cnr.cpp), so Map::IsAreaEmpty stays false while it
-//   lies there, holding the job open until a citizen hauls it away — exactly as retail.
+//   in State0Enter. A CountRemaining==0 short-circuit must NOT appear in either: State0Enter
+//   only stores CountRemaining into +0x48. The harvest pile the felling spawns registers
+//   itself into its cell+0x08 (see the grid claim in action_base_cnr.cpp), so
+//   Map::IsAreaEmpty stays false while it lies there, holding the job open until a
+//   citizen hauls it away — exactly as retail.
 //
 //   RETURNS 0, on both exits (0x140117952: `xor al,al`, reached from the not-done branch and after the request).
 //   StateMachine::Tick walks to the parent node whenever a node's per-frame handler returns 0, so a controller

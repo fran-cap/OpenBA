@@ -517,14 +517,16 @@ const char* RtVideoShaderConstantLiteral(int index) {
 //
 // HOW THE TABLE BELOW WAS RECOVERED, AND WHY IT IS NOT A TRANSCRIPTION
 // --------------------------------------------------------------------
-// **Eleven of the thirty-one rows are INLINED.** MSVC inlined three whole
-// `BeginConstants` bodies (the two String assignments, the five scalar stores
-// and the entry-array clear appear in line, with only the array clear left as a
-// call to 0x18001cab0) and eight whole `AddConstant` bodies (the element built
-// on the stack and handed straight to 0x180053510). A port written from "the 20
-// AddConstant calls" would therefore have declared 20 of 31 constants and three
-// of seven buffers would have had no name at all — and nothing would have said
-// so, because the resulting Context is perfectly well-formed.
+// **Eleven of the thirty-one rows are INLINED.** MSVC inlined eleven whole
+// `AddConstant` bodies (the element built on the stack and handed straight to
+// 0x180053510): all five of pc_'s, all four of mc_'s and gc_'s two float4x4s. It
+// also inlined three whole `BeginConstants` bodies, pc_'s, mc_'s and gc_'s (the
+// two String assignments, the five scalar stores and the entry-array clear
+// appear in line, with only the array clear left as a call to 0x18001cab0). A
+// port written from "the 20 AddConstant calls" would therefore have declared 20
+// of 31 constants and three of seven buffers would have had no name at all — and
+// nothing would have said so, because the resulting Context is perfectly
+// well-formed.
 //
 // So the table is machine-extracted, twice over, from the shipped bytes:
 //   * tools/extract_shader_constants.py lifts the 45 LITERALS with their RVAs
@@ -561,7 +563,7 @@ const char* RtVideoShaderConstantLiteral(int index) {
 //      them in one run of 22 MemFrees at the end; we free each pair right after
 //      its call. Same refcounts, same final object — a different transient heap
 //      peak and free order, which nothing observes.
-//   2. The three inlined BeginConstants and eight inlined AddConstants are
+//   2. The three inlined BeginConstants and eleven inlined AddConstants are
 //      emitted here as calls to the ported out-of-line bodies. That is exact,
 //      not an approximation: the inlined code is the same body, and the only
 //      textual difference (`INC [buf+0x1c]` where the out-of-line does

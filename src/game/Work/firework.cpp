@@ -17,7 +17,7 @@
 // Slot9 (0x1400e93c0): BST validation pass.
 //   Traverses BST at +0x50, calls validation on each entity. Removes
 //   entries where the fire has been extinguished.
-//   Returns: 1 if BST is empty after cleanup, 0 otherwise.
+//   Returns: 1 if no entry was removed (every citizen still valid), 0 otherwise.
 //
 // Decompiled from Application-x64.exe using Ghidra.
 
@@ -224,7 +224,7 @@ int FireWork::Execute(CitizenComponent** citizenIBP, System::Time* time) {
 // 3. Collect invalid entities in a dynamic array
 // 4. Remove all invalid entries from BST using CitizenAI_impl_a6e0
 // 5. Free the dynamic array
-// Returns: 1 if BST is now empty, 0 otherwise.
+// Returns: 1 if no entry was removed, 0 otherwise.
 // ============================================================
 int FireWork::Validate() {
     // BST root is at +0x50
@@ -353,7 +353,7 @@ int FireWork::Validate() {
     // Free the removal array
     System::MemoryAllocator::MemFree(removeArr);
 
-    // Return 1 if BST is now empty, 0 otherwise
+    // Return 1 if no entry was removed, 0 otherwise
     return (removeCount == 0) ? 1 : 0;
 }
 

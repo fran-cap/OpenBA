@@ -76,7 +76,7 @@
 // the three derived tables, which override the same slots in the same order
 // (retail order; the class is src/engine/engine/UpdateLoop.h's
 // Engine::UpdateLoop, every slot called by name):
-//   [0] +0x00 scalar deleting dtor   [1] +0x08 Startup   [2] +0x10 Shutdown
+//   [0] +0x00 vector deleting dtor   [1] +0x08 Startup   [2] +0x10 Shutdown
 //   [3] +0x18 Update(const Time&)    [4] +0x20 Draw(float)
 //   [5] +0x28 DrawFailed 0x180031740 [6] +0x30 Load
 //   [7] +0x38 SaveRestore 0x180031750 [8] +0x40 OnVideoError 0x180031760

@@ -2,8 +2,8 @@
 // Pickup "does the town want this resource?" gate — faithful 1:1 ports of
 // 0x14008d3c0 + its two helpers 0x14012d990 and 0x14012d560.
 //
-// 0x14008d3c0 is called from Pickup::Execute (0x1400f2f00) BEFORE anything else
-// happens; if it answers false the whole pickup is abandoned ("no work available").
+// 0x14008d3c0 is called from Pickup::Execute (0x1400f2f00) after the status test, the
+// carry-capacity check and the citizen-cell computation; if it answers false Execute returns 1.
 #include "Work/exe_bodies.h"
 // It walks the town manager's storage-location list and asks, for each entry:
 // "does this storage location accept this resource category, and can it physically

@@ -94,7 +94,7 @@ namespace {
 //   +0x10  GetTypeId() -> uint32
 //   +0x28  Serialize(IO::Stream&) -> bool
 //
-// SLOT +0x28 RETURNS A BOOL, and this is the body that says so: 0x1800bb115 is
+// SLOT +0x28 RETURNS A BOOL, and this is the body that says so: 0x1800bbb15 is
 // `MOVZX EDI,AL` on the result, and that byte is what SaveText returns.
 // external_add.cpp drives the same slot and DISCARDS the result, which is why
 // its local `ExternalSerialize` helper returns void — a difference in the call site,

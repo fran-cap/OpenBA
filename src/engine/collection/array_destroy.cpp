@@ -1166,7 +1166,7 @@ J4_ENTRY(180033f30, kAsgn_MetaEntry20, ArrayClearMetaEntry20)   // clear 0x18003
 //                No element ctor, no String adopt: a POD element.
 //   0x18001c620  Array<blob0x38>::Array(const Array&)   `_data = 0; _size =
 //                _capacity = 0;` then a CALL to 0x18001cd30 and `MOV RAX,RCX`.
-//   0x18001c650  Array<blob0x38>::~Array   the thirteenth copy of J1
+//   0x18001c650  Array<blob0x38>::~Array   a copy of J1
 //                (allocator lock, Free, zero the three fields) — the same body
 //                array.cpp's 0x1800638e0 row already named as the one ArrayDtorImpl IS.
 // The one caller of the copy ctor is the eh_vector copy iterator at

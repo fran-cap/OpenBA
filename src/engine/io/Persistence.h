@@ -115,12 +115,12 @@ static_assert(kBlockDescBytes == sizeof(BlockDesc), "the on-disk row is the stru
 //       //   command   0x1800b78b7 movl $3,0x4c(rbx) 0x1800b741e movl $2,0x3c(rdi)
 //       //
 //       // The `flags` bit-0 test is the FIRST instruction of all seven public
-//       // entry points this lane ports; retail treats it as "the worker is dead /
-//       // persistence unavailable" and refuses the request. It is NOT a
-//       // busy flag: BeginGetSaveGameList (0x1800b7b30) tests it too and issues
-//       // straight away.
+//       // entry points this lane ports, and a set bit refuses the request. It is
+//       // the worker's BUSY bit: Thread::ThreadFunc (0x1800ca440) sets it
+//       // (`OR [RBX+0x8],0x1`, 0x1800ca483) before the job and clears it
+//       // (`AND [RBX+0x8],0xfffffffe`, 0x1800ca499) after OnCompleted.
 //       void*            workerVtable;      // +0x10 — 0x180155860
-//       uint32_t         flags;             // +0x18 — bit 0 == unavailable
+//       uint32_t         flags;             // +0x18 — bit 0 == mid-job
 //       uint8_t          _pad1c[0x04];      // +0x1C — NOT pinned
 //       // +0x20 and +0x30 were `_pad` until the WAVE 19 lane PERSIST post-report
 //       // tranche, and what pinned them is the WORKER DESTRUCTOR, 0x1800b7740 —

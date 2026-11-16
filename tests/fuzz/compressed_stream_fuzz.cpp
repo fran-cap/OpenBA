@@ -96,9 +96,9 @@ bool DirectoryRejected(const uint8_t* blob, uint32_t len) {
         RtIo::CompressedStreamHeader h;
         std::memcpy(&h, blob + 4 + i * 8, 8);
 #ifdef FZ_MASK_STACK
-        // 0x8000 - 64, not 0x8000: F-001 (known, Decompress has no source-end bound) over-reads
-        // up to ~33 bytes past compressedSize, which past 0x7fc0 leaves the 0x8000 stack scratch
-        // and reads stale stack bytes (a non-reproducible stack-buffer-overflow READ).
+        // 0x8000 - 64, not 0x8000: retail's Decompress has no source-end bound (F-001) and
+        // over-reads up to ~33 bytes past compressedSize, which past 0x7fc0 leaves the 0x8000
+        // stack scratch; the port's Decompress returns 0 there instead (NOT RETAIL, F-001).
         if (h.compressedSize > 0x8000 - 64)
             return true;
 #endif

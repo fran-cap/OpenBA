@@ -1554,21 +1554,21 @@ void GameUpdateLoop::Draw(float alpha) {
     }
     TRACE("[GameUpdateLoop::Draw] Weather::DrawUpdate done\n");
 
-    // Step 6: Copy renderer shadow mode from engine.
-    // renderer+0x3c is the shadow mode: Renderer::AddScene (Runtime 0x180105700) stores it
-    // as the main draw group's +0xe8, and Renderer::Draw (0x180104bb0) reads it back into
-    // renderer+0x3c before dispatching each global object's vtable+0x48 (DrawShadowMap) /
-    // vtable+0x50 (Draw). SunLight::DrawShadowMap (0x180106bc0) is gated by
-    // `if (renderer+0x3c != 0)`; SunLight::Draw (0x1801067b0, main pass) is NOT — it always
+    // Step 6: Copy the video configuration's shader detail into the renderer.
+    // renderer+0x3c is the shader-detail level (Renderer::SetShaderDetail 0x180018050):
+    // Renderer::AddScene (Runtime 0x180105700) stores it as the main draw group's +0xe8, and
+    // Renderer::Draw (0x180104bb0) reads it back into renderer+0x3c before dispatching each global
+    // object's vtable+0x48 (DrawShadowMap) / vtable+0x50 (Draw). SunLight::DrawShadowMap (0x180106bc0)
+    // is gated by `if (renderer+0x3c != 0)`; SunLight::Draw (0x1801067b0, main pass) is NOT — it always
     // runs Context::SetLight + Renderer::DrawItemList to light and render the terrain.
     {
         uint32_t shadowMode = 0;
-        // The shadow-mode source field. The ORIGINAL GameUpdateLoop::Draw (exe 0x140096010)
-        // sets renderer+0x3c from *(*g_pVideoConfigSingleton + 0x30) — the shadow-QUALITY
-        // setting (index, 0=off, >0=on), NOT engine+0x30 (g_pMainLoopSingleton ==
-        // MainLoop, so engine+0x30 is garbage). Shadows are DEFAULT-ON: mirror the
-        // original and read VideoConfig+0x30 so SunLight::DrawShadowMap engages (verified
-        // crash-free; terrain + buildings cast/receive). The day cycle is driven by
+        // The source field. The ORIGINAL GameUpdateLoop::Draw (exe 0x140096010) sets
+        // renderer+0x3c from *(*g_pVideoConfigSingleton + 0x30) — Configuration::shaderDetail
+        // (Configuration::GetShaderDetail 0x18000d6a0 reads +0x30; 0 skips SunLight::DrawShadowMap),
+        // NOT engine+0x30 (g_pMainLoopSingleton == MainLoop, so engine+0x30 is garbage). Mirror
+        // the original and read VideoConfig+0x30 so SunLight::DrawShadowMap engages at a non-zero
+        // shader detail; terrain + buildings cast/receive. The day cycle is driven by
         // WeatherSimulation::DrawUpdate above.
         if (::Video::Configuration::_singleton) {
             shadowMode = ::Video::Configuration::_singleton->shaderDetail;   // +0x30

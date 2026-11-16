@@ -288,9 +288,9 @@ void WorkAct_PerformWorkCopyCtor_ba9f0(CitizenComponent* const* citizenRef, uint
 //   pos10      = float*                             param_10 -> Entity_impl_29a0 worldPos + MoveTo#2 dest
 //   srcRef11   = InternalPtr<ComponentEntity>*      param_11 -> pickup chain entity inner
 //
-// NOTE: param_3 is the home [RBP+0x57] (DWORD read as msg/road id) and ALSO reused as the
-// MoveTo#1 destination float* (passed via the RCX home pointer). param_7 = completeRoadP5
-// is the CompleteTask p5; in the disasm CompleteTask reads its p5 from [RBP+0x67] (param_7).
+// NOTE: [RBP+0x57] is param_5's home (the CompleteRoad p2). param_3 stays in R13 and is passed
+// as the MoveTo#1 destination float* ([RSP+0x20]). param_7 = completeTaskP7 is the CompleteTask
+// p5; in the disasm CompleteTask reads its p5 from [RBP+0x67] (param_7).
 void WorkAct_PerformWorkCtor_bffd0(CitizenComponent* const* citizenRef, uint32_t workId, float* destination,
                                    int roadP4, uint32_t completeRoadP5, uint8_t roadByte6,
                                    uint32_t completeTaskP7, ComponentDescription* consumeMaterial, int loopCount9,

@@ -96,7 +96,8 @@ void MapGenerator::Destruct() { this->~MapGenerator(); }
 // - ExternalPtr serialization (+0x20)
 // - String serialization (+0x28, +0x30, +0x48, +0x118, +0x138, +0x158)
 // - Bool/Int scalar serialization
-// - 7 dynamic array resize+serialize loops with different element sizes
+// - 8 dynamic array resize+serialize loops with different element sizes (the +0x80
+//   pool's element pass is the helper FUN_14001b6c0, the other 7 are inline loops)
 // - ExternalRef resolution callbacks (FUN_14001b1d0) on load
 // - Complex array resize helpers (FUN_14001b270, FUN_14001b340, FUN_14001b4e0)
 //

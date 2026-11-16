@@ -43,8 +43,8 @@
 // The limit read / write helpers below take the ledger entry explicitly:
 // townMgr(gw+0xf0)+0x170[idx*0x20+8] (CitizenBehavior::professionResources, 0x20 bytes an
 // entry). The index is the row's config index (resourcelimitui_sa::IdxFor). Entries 0..10
-// are the Town Hall's built-in limits (Log=0, Stone=1, Iron=2, Herbs=3, Tools=4, Fuel=5,
-// Food=6, Clothing=7, Alcohol=8, Coal=9, Textile=10); 11..20 are the custom limits
+// are the Town Hall's built-in limits (Log=0, Stone=1, Iron=2, Fuel=3, Tools=4, Food=5,
+// Herbs=6, Clothing=7, Alcohol=8, Coal=9, Textile=10); 11..20 are the custom limits
 // Custom0..Custom9.
 
 static int GetResourceLimitByIdx(int resourceIndex) {

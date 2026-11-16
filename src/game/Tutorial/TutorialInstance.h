@@ -50,7 +50,7 @@ public:
 
     // ---- non-virtual members (tutorial_wave.cpp / tutorial_next_scenario.cpp) ----
     // 0x1400e1db0: the per-tick step driver FinishTutorialInstance::Update calls.
-    void StepExecute(const System::Time* time, const Achievement::GoalList* goals, uint64_t param4);   // B4 X7-GAME-A: RDX / R8 of FinishTutorialInstance::Update(const Time&, const GoalList&) (0x1400d7b90 tail JMP)
+    void StepExecute(const System::Time* time, const Achievement::GoalList* goals, uint64_t param4);   // B4 X7-GAME-A: RDX / R8 of FinishTutorialInstance::Update(const Time&, const GoalList&) (0x1400d7a50, tail JMP at 0x1400d7a7a)
     void RefreshStepUI();        // 0x1400e1260: push the current step into the TutorialUI panel
     void LoadNextScenario();     // 0x1400e0d70: the tutorial finished, boot the next scenario
 

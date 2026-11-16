@@ -105,13 +105,14 @@ namespace IO { class Serializer; }
 // ----------------------------------------------------------------------------
 //
 // *** DO-NOT-DELETE NOTE — checked by tools/check_standing_notes.py. ***
-// A cleanup pass that removes this paragraph, or the `UNVERIFIED` marker on
-// _f10 below, fails that checker. It is here because the note has already been
+// A cleanup pass that removes this paragraph fails that checker. The field it is
+// about is `AnimationManager::_rngIndex` (AnimationManager.h), whose comment
+// carries the `UNVERIFIED` marker. It is here because the note has already been
 // re-opened once on a guess.
 //
-// +0x10 is a fourth dword no body this project has read touches: not the ctor,
-// not the dtor, and not Update (which reads only +0x00 and +0x08). Left
-// UNVERIFIED.
+// +0x10 is a fourth dword that the ctor only zeroes (`MOV dword ptr [RCX+0x10],EAX`
+// at 0x1800fc44f) and that no body this project has read reads: not the dtor,
+// and not Update (which reads only +0x00 and +0x08). Left UNVERIFIED.
 //
 // WAVE 23 lane GFXBODY's residual R4 asked whoever ported
 // `?Serialize@AnimationManager@Graphics@@` (0x1800fc190) to settle this field,

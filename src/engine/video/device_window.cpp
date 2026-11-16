@@ -151,9 +151,9 @@ int Video::Device::MoveWindow(void* hwnd, unsigned /*msg*/,
 // kept because removing an unreachable branch is how a transcription starts
 // drifting from the thing it transcribes.
 //
-// The stack DisplayMode temp and its `~Array` call (0x1800f75e2) are kept for
-// the reason device_startup.cpp gives for the same pattern in
-// ValidateConfiguration.
+// Retail also builds a stack DisplayMode temp {width, height, empty refresh
+// array} and runs `~Array` on its refresh array at 0x1800f75e2. The array is
+// never filled, so that call frees nothing, and the body here leaves the temp out.
 // ============================================================================
 int Video::Device::GetDefaultResolution(const Adapter& adapter) const {
     // The DEVMODEW set-up, the call and the two reads are Platform::Window's now.

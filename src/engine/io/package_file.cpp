@@ -379,7 +379,7 @@ int32_t  PackageFile::GetPlatform() const    { return _platform; }     // 0x1800
 int32_t  PackageFile::GetIconWidth() const   { return _iconWidth; }    // 0x180025510 +0x78
 int32_t  PackageFile::GetIconHeight() const  { return _iconHeight; }   // 0x180025520 +0x7c
 uint32_t PackageFile::GetCRC() const         { return _crc; }          // 0x180025500 +0xa8
-int32_t  PackageFile::GetFileCount() const   { return _entries._size; }   // 0x1800254d0 +0xb8
+int32_t  PackageFile::GetFileCount() const   { return _entries._size; }   // 0x180025440 +0xb8
 
 // 0x1800254f0 is `MOVZX EAX,byte ptr [RCX+0xac]` -- a ZERO extension of the
 // byte, not a sign extension and not a dword read. The field is the same one

@@ -13,7 +13,6 @@
 //                                  (EntityList_PostLoad_c4730) dispatches slot +0x58. See the
 //                                  long note at the factory below before touching it.
 //  [12] Message   = 0x14011F520 -- on message 1, place the floor (the path buildings use)
-//  [19]           = 0x14011F6E0
 //
 // Decompiled from Application-x64.exe using Ghidra.
 

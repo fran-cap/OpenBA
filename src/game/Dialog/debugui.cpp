@@ -856,7 +856,8 @@ void DebugUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::Even
     if (a != UI::EventId::Activated)
         return;
 
-    // Range check: element IDs 300 (0x12C) through 339 (0x153)
+    // Range check: element IDs 300 (0x12C) through 357 (0x165); only 300-339 have arms,
+    // 340-357 take the jump table's default (return)
     if ((unsigned)(b - 300) > 0x39)
         return;
 

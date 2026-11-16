@@ -122,7 +122,7 @@ void RtObject_ExternalFactory_ForceUnload(ExternalFactory* self, const System::F
     // ---- 0x1800beedc-0x1800bef29: `Filename key = path`, then adjust again --
     // ENDGAME B.3.1 step 2. Null-init + operator= + the redundant second
     // AdjustDelimiters IS the copy constructor (0x1800067d0), whose ported body
-    // normalises exactly twice for that reason: 0x1800bef20 and 0x1800bef25 are
+    // normalises exactly twice for that reason: 0x1800bef20 and 0x1800bef29 are
     // both still spent.
     System::Filename key(*path);                         // [RBP+0x28]
 

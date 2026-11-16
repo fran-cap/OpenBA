@@ -548,8 +548,8 @@ void WorkAct_PlayAnimationCtor_c2490(CitizenComponent* const* citizenRef, uint32
 //   param_3 = workEntity InternalBasePtr* (the entity)
 //   param_4 = unused (u32, used as SendComponentMessage msg id slot init)
 //   param_5 = float* targetPos (MoveTo destination)
-//   param_6 = float* srcPos (used to compute heading; the original calls Vector3 sub
-//             + Normalize + Heading but discards the result)
+//   param_6 = float* srcPos (heading = Vector3(srcPos - targetPos) -> Normalize -> Heading,
+//             passed to PerformWork_Ctor7 as XMM2)
 //   param_7 = typeId (u32, second SendComponentMessage msg id)
 //   param_8 = u32 (SendComponentMessage param_4)
 //   param_9 = u32 (SendComponentMessage param_6)

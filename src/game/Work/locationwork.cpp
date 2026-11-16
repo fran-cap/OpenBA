@@ -266,8 +266,9 @@ Profession** LocationWork::GetTarget(Profession** outPtr) {
 // Slot 5 is Work's (0x1400f7540, `XOR AL,AL; RET`): the old dead
 // LocationWork_Execute_Impl copy of it is gone.
 // ============================================================
-// Slot12 (+0x60) — retail 0x1400efae0, this class's own `RET 0` (every other Work
-// table shares 0x140006b10). The same behaviour; declared so the table matches.
+// Slot12 (+0x60) — retail 0x1400efae0, this class's own `RET 0` (ConsumeProduce and Pickup
+// have their own [12] too; the other Work tables share 0x140006b10). The same behaviour;
+// declared so the table matches.
 void LocationWork::Slot12(int /*version*/) {}
 
 

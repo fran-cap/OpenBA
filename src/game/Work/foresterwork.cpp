@@ -180,7 +180,7 @@ static void AssignWorkToEntity(ForesterWork* self, CitizenComponent** citizenIBP
 // Algorithm:
 // 1. Check if citizen already has auto-pickup assignments
 // 2. Find WorkComponent, ForesterComponent / ForesterDescription, RadiusDescription
-// 3. Check if material count has reached capacity (return 1 = done if so)
+// 3. Check if material count has reached capacity (sets status icon flag 2; no return)
 // 4. Calculate search radius from workplace radius
 // 5. Random iteration over grid cells in radius
 // 6. For each valid cell:
@@ -364,7 +364,7 @@ int ForesterWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
                 uint32_t combinedBits = testTerrainBit | entityTerrainBit;
                 uint32_t fullMask = combinedBits | Bits(PathBits::Walk);
 
-                // Both cells must be passable
+                // Retail's test (0x1400eb344): the mask holds both cells' own bits, so it never rejects
                 if ((fullMask & testTerrainBit) == 0) goto next_attempt;
                 if ((fullMask & entityTerrainBit) == 0) goto next_attempt;
 

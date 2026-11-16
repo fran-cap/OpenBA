@@ -24,7 +24,7 @@
 //
 //   GrowUp success epilogue (both branches): *self → +0x30=-1, +0x54|=4, +0xb0=0 (lastErrand None),
 //     stamp Time(DAT_1401721fc * desc_walktime) into citizen+0x60, return 1.
-//   GrowUp early/adult branch (age > _maxAge 15.0): tail-call LongTermPlan, set
+//   GrowUp carrying branch (own StorageComponent QueryCount > 0): call LongTermPlan, set
 //     param_1+0x2c = 4 (next-state), return 1.
 //   GrowUp food-shortage branch (QueryCount < 1): Time(DAT_1401721fc) → citizen+0x60,
 //     run dd30 find-best-food-source, scan its storage occupants for the right slot,

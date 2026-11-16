@@ -1314,15 +1314,6 @@ const ArraySpec kSpec_EffectSlot = {              // 0x180051390
     /*init   unwritten*/ 0x2c, 0x30,
     /*seed zero       */ 0x30, 0x40 };
 
-// NO WINDOW EITHER ARM: AssignStringExt writes both qwords of the 0x10-byte
-// element (+0x00 via the refcounted path, +0x08 verbatim), so the assign covers
-// the whole stride, and there is no init arm. Checked against 0x180061480's
-// inlined loop rather than assumed, because the two specs above both turned out
-// to have one.
-//
-// SEED ZEROS +0x00..+0x07: the String slot is dereferenced by the assign's
-// `INC [RAX-4]` and by 0x180005930's release. +0x08, the ExternalPtr, is copied
-// verbatim and never dereferenced by either, so it IS seeded non-zero.
 // 2026-09-12 -- Video::VertexLayout::Element, 0x180056240's SetSize (cutover
 // worklist, src/engine/video/vertexlayout.cpp). Read out of the body:
 //   stride 0x20  (`SHL RCX,5` on the capacity), align 8
@@ -1362,6 +1353,15 @@ const ArraySpec kSpec_VertexElement = {           // 0x180056240
     /*init   unwritten*/ 0x1c, 0x20,
     /*seed zero       */ 0x00, 0x08 };
 
+// NO WINDOW EITHER ARM: AssignStringExt writes both qwords of the 0x10-byte
+// element (+0x00 via the refcounted path, +0x08 verbatim), so the assign covers
+// the whole stride, and there is no init arm. Checked against 0x180061480's
+// inlined loop rather than assumed, because the two specs above both turned out
+// to have one.
+//
+// SEED ZEROS +0x00..+0x07: the String slot is dereferenced by the assign's
+// `INC [RAX-4]` and by 0x180005930's release. +0x08, the ExternalPtr, is copied
+// verbatim and never dereferenced by either, so it IS seeded non-zero.
 const ArraySpec kSpec_StringExt = {               // 0x180061480
     "Array<{String*,ExternalPtr}>", 0x10, 8, &AssignStringExt, nullptr,
     &DestroyStringExt, true,

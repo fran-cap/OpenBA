@@ -329,8 +329,9 @@ void Map::SortTilesByDistance(GridTileArray* arr, int refCell) const {
 // ============================================================
 // Scan the rectangle [x..x+w) x [y..y+h) of the grid, pushing tiles into the array
 // param_6. For every cell with an occupant push {cellIdx, 0, occupant}. If param_7
-// (collect-empty) is set, for cells whose terrain type lacks bits 0/1 AND whose
-// +0x2A byte == 0xFF AND that are not in the Map's +0xE8 set, push {cellIdx, 0, null}.
+// (collect-empty) is set, push {cellIdx, 0, null} for every cell whose terrain type has
+// bit 0 or 1, or whose +0x2A byte != 0xFF; a cell that lacks bits 0/1 AND has +0x2A ==
+// 0xFF gets one only if it is in the Map's +0xE8 set.
 // ABI: void fn(int* grid, int x, int y, int w, int h, longlong* outArr, char collectEmpty)
 // Closure: MemAlloc/MemFree/InternalBasePtr_Ctor (engine). SAFE.
 //

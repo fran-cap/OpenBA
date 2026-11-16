@@ -2,7 +2,7 @@
 // src/engine/system/timer.cpp — System::Timer (Wave 9, lane B3)
 // ============================================================================
 //
-// The whole class, nine exports, byte-faithful against the disassembly of
+// The whole class, ten exported functions, byte-faithful against the disassembly of
 // Runtime-x64.dll at the retail addresses named per function (read as
 // DISASSEMBLY, not decompiled C).
 //

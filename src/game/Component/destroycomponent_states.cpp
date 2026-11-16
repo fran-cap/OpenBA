@@ -56,9 +56,6 @@
 // repeated poll — so A = enter-once, D = per-frame tick in our dispatcher,
 // the same placement the in-game-proven ResidenceComponent heat tick uses.
 //
-// STANDALONE deviations (each logged once at runtime):
-//   * state-3 mesh/scene ops (Scene::RemoveObject, rubble-mesh swap) skipped —
-//     visual-only; mirrors residencecomponent.cpp's SetMeshFlag skip.
 // NOW PORTED: sub_c530 contents-scatter (0x14011c530) — reclaimed goods spill as
 // RawMaterial ground piles over the footprint (was: dropped). See below.
 //

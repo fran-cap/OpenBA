@@ -642,22 +642,21 @@ static constexpr int ROT_FULL        = 0x168;  // 360 (rotation modulus)
 // (Caller batch CB6: the by-name `TypeId(const char*)` wrapper went with its last
 // use; every lookup is the class's `X::TypeId()`.)
 
-// Faithful 1:1 port of FUN_1400c2ea0 — the ComponentEntity OnCreate pass. The
-// original game runs this on each entity during a deferred world-activation phase
-// (NOT in the CopyCtor / EntityList::RegisterEntity spawn flow, and NOT in the
-// structures spawn pass ComponentEntity_impl_1fc0). In standalone that activation
-// phase is not wired, so the start-town structures spawn invokes this directly,
-// right after RegisterEntity — at which point the entity is fully registered, the
-// exact precondition OnCreate expects.
+// Borrows the component walk of FUN_1400c2ea0, the ComponentEntity removal pass that
+// calls each flagged component's slot 7 (vtable +0x38). Its retail callers are removal
+// paths (EntityList::QueueDestroy, DestroyComponent, resource depletion, migration, the
+// removal tool, deaths); none is the start-town spawn. The start-town structures spawn
+// invokes this variant directly, right after RegisterEntity, to reach the
+// ResidenceComponent's slot 7 (see below).
 //
 // Disassembly (0x1400c2ea0):
-//   if (entity+0x40 & 2):                       // entity has OnCreate-capable components
+//   if (entity+0x40 & 2):                       // entity has OnRemove components
 //     for each component IBP (count @ entity+0x38, array @ entity+0x30):
-//       CheckPtr; if (comp+0x20 >> 1 & 1):      // component flag bit 1
-//         CheckPtr; CALL [comp_vtable + 0x38]   // OnCreate
-//   entity+0x40 |= 0x400                         // "OnCreate done" sentinel (always set)
+//       CheckPtr; if (comp+0x20 >> 1 & 1):      // component flag bit 1 (OnRemove)
+//         CheckPtr; CALL [comp_vtable + 0x38]   // slot 7
+//   entity+0x40 |= 0x400                         // "removed" marker (always set)
 //
-// SURGICAL standalone variant: the faithful FUN_1400c2ea0 fires OnCreate(+0x38) on
+// SURGICAL standalone variant: the faithful FUN_1400c2ea0 fires slot 7 (+0x38) on
 // EVERY bit-1 component, but several of those are only partially live in standalone
 // (notably the renderable ModelComponent, whose OnCreate re-initialises the mesh and
 // wipes the completed-build variant we hand-set in StartTown_SpawnStructures → the

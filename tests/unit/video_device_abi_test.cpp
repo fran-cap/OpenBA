@@ -14,7 +14,7 @@
 //                                      deviceData at +0x100
 //   Video::Device::{RefreshRate, DisplayMode, Adapter, GraphicsInterface,
 //                   InterfaceSlot}     8 / 0x18 / 0x38 / 0x18 / 0x18 strides
-//   Video::Configuration               0x44 INFERRED — see Device.h
+//   Video::Configuration               0x44 (allocated at 0x1800dbc1c) — see Device.h
 //   Video::RenderBuffer                0x30
 //   Video::{Index,Vertex}Buffer        0x20 each
 //

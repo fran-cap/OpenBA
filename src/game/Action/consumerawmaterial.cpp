@@ -4,7 +4,7 @@
 //
 // ConsumeRawMaterial -- 0x40 bytes. Consumes raw materials from entity's inventory.
 // Inherits: Object::Internal -> Action (0x20) -> ConsumeRawMaterial
-// Factory: 0x140022090, Vtable: 0x14015fc20
+// Factory: 0x1400220c0, Vtable: 0x14015fc20
 //
 // Vtable (10 slots):
 //   [0] +0x00 ScalarDtor    = (base Action)

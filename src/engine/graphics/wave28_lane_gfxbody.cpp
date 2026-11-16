@@ -26,7 +26,7 @@
 // written.
 //
 // EXTENTS: NOT quoted from a single `.pdata` row, which is a LOWER bound.
-// Five of these ten
+// Four of these ten
 // are assembled from CHAINED fragments and the first fragment understates them
 // badly — `UpdateNodes` by 17x (126 bytes of a 2191-byte body). The extents
 // above come from walking `.pdata` forward while `UNW_FLAG_CHAININFO` (0x4) is

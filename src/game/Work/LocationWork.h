@@ -15,8 +15,8 @@
 //   [5] = Work (0x1400f7540)  [6] 0x1400ef850 OnComplete  [7] 0x1400ef820 OnCancel
 //   [8] 0x1400efaf0 Cleanup  [9] 0x1400ef7c0 Validate  [10] 0x1400efb40 GetTarget
 //   [11] 0x1400295a0 GetPriority (`+0x48 != 0`, shared with BuildRoad)
-//   [12] 0x1400efae0 — this class's OWN `RET 0` (every other Work table shares
-//        0x140006b10)
+//   [12] 0x1400efae0 — this class's OWN `RET 0` (ConsumeProduce and Pickup also have
+//        their own; every other Work table shares 0x140006b10)
 //   ctor 0x1400efc60 (NOT transcribed — the tree built the object with
 //   Work_GenericCtor: the Work base init and the leaf field zeroed; that is kept).
 //   AttendanceComponent's state-2 enter (attendancecomponent_states.cpp, block MI-A)

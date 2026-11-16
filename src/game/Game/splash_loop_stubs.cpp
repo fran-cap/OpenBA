@@ -111,7 +111,8 @@ void SetRandomLoadingTip(GameLoadDialogLoopT* self) {
         return;
     }
 
-    // StringTable at element+0xD8; pick a random 1-based index in [1, count].
+    // StringTable at element+0xD8; retail draws Rand(count - 1) + 1, a 1-based index in
+    // [1, count - 1] (1 when count is 1): the last string is never picked.
     UI::TextElement* textElem = static_cast<UI::TextElement*>(elem);
     UI::StringTable* table = textElem->_text.GetStringTable().Get();
     if (!table) { TipBail("elem+0xD8 StringTable==null", elem); return; }

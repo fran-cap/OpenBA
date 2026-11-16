@@ -186,9 +186,9 @@ public:
     // [8] — PackageFile's OWN new virtual. See the banner for the four pieces
     // of evidence that it is declared HERE and not on an unmodelled class
     // between `Object::External` and this one. Its body is a bare
-    // `TEST RCX,RCX / JNZ ??0PackageFile` tail jump, so the null branch is
-    // real and not defensive: the factory calls it on whatever the allocator
-    // returned, including nullptr.
+    // `TEST RCX,RCX / JNZ ??0PackageFile` tail jump. Apart from its export entry,
+    // its only reference is this vtable slot (0x180155740); CreateNewObject
+    // (0x180025240) calls ??0PackageFile itself, so the null branch is never taken.
     virtual Object::External* Construct();                      // [8] 0x1800252f0
 
     // ---- the non-virtual exported members ---------------------------------
@@ -206,7 +206,7 @@ public:
     int32_t  GetIconWidth() const;    // 0x180025510  MOV EAX,[RCX+0x78]
     int32_t  GetIconHeight() const;   // 0x180025520  MOV EAX,[RCX+0x7c]
     uint32_t GetCRC() const;          // 0x180025500  MOV EAX,[RCX+0xa8]
-    int32_t  GetFileCount() const;    // 0x1800254d0  MOV EAX,[RCX+0xb8]
+    int32_t  GetFileCount() const;    // 0x180025440  MOV EAX,[RCX+0xb8]
 
     // 0x1800254f0 is `MOVZX EAX,byte ptr [RCX+0xac]` — a ZERO extension of the
     // byte. The field is the one LoadPackages' index pass tests, so a wrong

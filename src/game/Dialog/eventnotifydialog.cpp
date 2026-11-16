@@ -311,8 +311,8 @@ void EventNotifyDialog::OnUpdate(const System::Time& time) {
 // EventNotifyDialog::OnUpdateLayout (vtable +0x30) — 0x1400680c0
 // ============================================================
 // Each frame:
-//   1. Compute target Y for the ribbon: (parentRoot.y - selfRoot.y) + 44
-//      — positions the ribbon just below the parent dialog (toolbar).
+//   1. Compute target Y for the ribbon: (parentRoot._layoutWidth - selfRoot._layoutWidth) + 44
+//      — both roots' Element +0x60; steps 2-3 turn it into the root's top padding.
 //   2. Lerp smoothedY toward target: smoothedY = smoothedY*0.8 + targetY*0.2
 //   3. Apply smoothedY as top padding on the root element.
 //   4. Show the ribbonNotify container element.

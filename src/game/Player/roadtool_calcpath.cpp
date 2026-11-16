@@ -246,7 +246,7 @@ bool RoadTool::CalcPath(int startCell, int endCell) {
         }
     }
 
-    // Run the road A* over the span (same call CalcCost makes, mask 0xa17).
+    // Run the road A* (0x14009ce00) over the span with mask 0xa17 alone; CalcCost ORs in the endpoints' bits.
     int pathBuf[2048];
     int pathLen = 0;
     pathLen = mapGrid->FindRoadPath(PathBits::RoadRoute, sc, ec, nullptr, pathBuf, modifierFlag, 1);

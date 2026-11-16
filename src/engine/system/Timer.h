@@ -13,7 +13,7 @@
 // B.3.4a's `IO::TextCodec` came out the other way — four receiverless free
 // functions with no exported class-scoped names, and NOTHING landed for it,
 // which is a valid recorded outcome. `Timer` is not that shape. Every one of
-// its fourteen exported symbols carries `@Timer@System@@` and a
+// its fifteen exported symbols carries `@Timer@System@@` and a
 // member-function or static-data mangling:
 //
 //   `SA` = PUBLIC STATIC member function

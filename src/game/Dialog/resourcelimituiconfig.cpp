@@ -6,7 +6,7 @@
 // Vtable at 0x14015d250.
 //
 //   +0x20  int  RESOURCE INDEX for this row:
-//               Log=0 Stone=1 Iron=2 Herbs=3 Tools=4 Fuel=5 Food=6 Clothing=7
+//               Log=0 Stone=1 Iron=2 Fuel=3 Tools=4 Food=5 Herbs=6 Clothing=7
 //               Alcohol=8 Coal=9 Textile=10, then the custom limits Custom0..Custom9 = 11..20
 //               ->  townMgr(gw+0xf0)+0x170[idx*0x20+8]
 //

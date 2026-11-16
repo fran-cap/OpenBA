@@ -14,9 +14,10 @@
 // and slot 7 "OnCreate", and described FUN_140002cc0 as "add to component list".
 // Ghidra names them WildAnimalComponent_Serialize / WildAnimalComponent_OnRemove,
 // and FUN_140002cc0 is erase-by-value, not append (append is FUN_140003110). The
-// emitted code was already correct -- only the labels were wrong. The real
-// OnCreate is 0x14012e440 (a Stream overload that just brackets an IO::Serializer
-// and returns 1); it is NOT in this vtable, so nothing here should route to it.
+// emitted code was already correct -- only the labels were wrong. 0x14012e440 (a
+// Stream overload that just brackets an IO::Serializer and returns 1) is
+// WildAnimalDescription::Serialize, slot [5] of the 0x140164b70 table; it is NOT in
+// this vtable, so nothing here should route to it.
 //
 // Decompiled from Application-x64.exe using Ghidra.
 

@@ -39,8 +39,10 @@ namespace {
     return ::IO::Persistence::_singleton;
 }
 
-// The 16 keys in retail's order. Order matters only for log readability, but
-// keeping it identical makes a diff against the decompile trivial.
+// The 16 keys, ints and bools in separate tables. Retail (0x140098b60 / 0x140098970)
+// makes the calls in field order with the bools in between: +0x0, +0x4, +0x8, +0xC,
+// +0x10, +0x15, +0x14, +0x16, +0x17, +0x18, then +0x1C..+0x30. Each key is its own
+// Get / Set, so only the call order differs.
 struct IntKey  { const char* key; int32_t GameSettings::* field; };
 struct BoolKey { const char* key; bool GameSettings::* field; };   // retail's bool, Get(bool&) / Set(bool)
 

@@ -86,7 +86,7 @@ public:
     using AnimalList = Collection::Array<Object::InternalPtr<LivestockComponent>, Collection::DefaultAllocator,
                                          Collection::ExplicitSpec<&rtcoll::kSpec_PtrZero>>;
     AnimalList            animals;          // +0x30 Array<InternalPtr<LivestockComponent>> (count +0x38, capacity +0x3c)
-    int32_t               capacity;         // +0x40 ComputeCapacity (OnAdded); not written by the ctor
+    int32_t               capacity;         // +0x40 ComputeCapacity (OnAdded); retail's ctor leaves it unwritten
     int32_t               production;       // +0x44 credited by LivestockComponent::Update, spent by TickOperational
     StateController _controller;   // +0x48 the embedded controller (D6)
 };

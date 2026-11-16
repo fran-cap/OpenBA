@@ -381,7 +381,7 @@ Video::Device* Ctor_VideoDevice(Video::Device* self, int32_t type) {
 //   MOV byte  [RCX+0x42],0            ; hideWindow
 //   MOV qword ptr [0x1801fe7a0],RCX   ; _singleton
 //
-// Six of the thirteen stores are UNALIGNED qwords spanning two named fields.
+// Five of the thirteen stores are UNALIGNED qwords spanning two named fields.
 // Transcribing them as pairs of dword writes would produce the same bytes here,
 // but it would lose the fact — and this is the class where a "cleanup" to
 // member assignment is most tempting, because every field has a name.

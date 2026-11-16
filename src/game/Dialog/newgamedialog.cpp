@@ -478,25 +478,6 @@ void NewGameDialog::OnOpened() {
     UpdateDescription();
 }
 
-// ============================================================
-// OnUpdateLayout (0x140070650): sync OK button enabled state
-// ============================================================
-// Enables buttonOk if editName has content, disables if empty.
-
-// ============================================================
-// NewGameDialog::OnElementEvent (0x140070110)
-// ============================================================
-// Handles button clicks and combo changes in the New Game dialog.
-// eventType 0x12 = button click:
-//   eventData 0 = buttonNewName → generate random name
-//   eventData 1 = buttonNewSeed → generate random seed
-//   eventData 2 = buttonOk     → start new game
-//   eventData 3 = buttonCancel → close dialog
-// eventType 0x14 = combo change:
-//   eventData 4 = comboCondition → update description text
-//
-// Original: 0x140070110.
-
 void NewGameDialog::StartGame() {
     // Read combo selected items
     int condIdx = comboCondition->_currentItem;
@@ -737,6 +718,19 @@ void* MainMenuDialog::StartNewGame(const System::String& name, uint32_t seed, ui
     }
 }
 
+// ============================================================
+// NewGameDialog::OnElementEvent (0x140070110)
+// ============================================================
+// Handles button clicks and combo changes in the New Game dialog.
+// eventType 0x12 = button click:
+//   eventData 0 = buttonNewName → generate random name
+//   eventData 1 = buttonNewSeed → generate random seed
+//   eventData 2 = buttonOk     → start new game
+//   eventData 3 = buttonCancel → close dialog
+// eventType 0x14 = combo change:
+//   eventData 4 = comboCondition → update description text
+//
+// Original: 0x140070110.
 void NewGameDialog::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, UI::EventId eventType, int32_t eventData, int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
     fprintf(stderr, "[NewGameDialog::OnEvent] this=%p type=0x%x data=%d\n",
             (void*)this, eventType, eventData);
@@ -777,6 +771,10 @@ void NewGameDialog::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/
 // No-op shutdown; nothing to clean up.
 void NewGameDialog::OnClosed() {}
 
+// ============================================================
+// OnUpdateLayout (0x140070650): sync OK button enabled state
+// ============================================================
+// Enables buttonOk if editName has content, disables if empty.
 void NewGameDialog::OnUpdateLayout() {
     // The name edit box's text length (0 when empty).
     int len = editName->GetText().GetLength();
@@ -802,7 +800,8 @@ void NewGameDialog::OnUpdateLayout() {
 //   +0x48 Slot9 OnSerializeSettings — 0x14003a954 (runtime thunk)
 //
 // The real ctor is exe 0x140071040 (Ghidra mislabels it "NewGameDialog_CopyCtor";
-// it is the 5-arg ctor MainMenuDialog::OpenNewGame calls). 0x140071120 is the Dtor.
+// it is the 5-arg ctor MainMenuDialog::OpenNewGame calls). 0x140071120 is the default
+// ctor that create 0x140012c70 and createInPlace 0x140012cb0 run.
 
 #include "Object/factory_registration.h"
 

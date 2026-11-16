@@ -32,10 +32,10 @@
 // ---------------------------------------------------------------------------
 // 1. EVERY IMPORT NAME BELOW WAS READ OUT OF THE DLL'S IMPORT TABLE
 // ---------------------------------------------------------------------------
-// Frame reaches Win32 through seven of Runtime-x64.dll's own IAT slots.  Naming
-// one of them wrong would compile, link and look right, so all seven were
-// printed with `pefile` from the shipped Runtime-x64.dll rather than guessed
-// from the call shape:
+// Frame reaches Win32 through six of Runtime-x64.dll's own IAT slots (seven call
+// sites: PeekMessageW is called twice).  Naming one of them wrong would compile,
+// link and look right, so all six were printed with `pefile` from the shipped
+// Runtime-x64.dll rather than guessed from the call shape:
 //
 //     0x18014b1a8  KERNEL32!QueryPerformanceCounter
 //     0x18014b4b8  USER32!PostQuitMessage

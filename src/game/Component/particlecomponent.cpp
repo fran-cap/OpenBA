@@ -97,10 +97,9 @@ static ParticleDescription* GetParticleDesc(const ParticleComponent* self) {
 //   0x140053090  Event        — event 2 = fade-in start, 3 = fade-out (b2 set)
 // ============================================================
 
-// g_fUVScale is the retail .rdata constant 1.0f. In SA the ResolveAddr for
-// 0x140172234 lands inside an unrelated registered data blob (observed value
-// 300.0 → fade rate 300/s, opacity 15+ → permanently opaque smoke), so use
-// the known retail value directly.
+// g_fUVScale is the retail .rdata constant 1.0f at 0x14017214c, read by StartEmitterFade
+// (0x1400536be, the fade-rate numerator), OnEvent 0x1400530ef, OnAdded 0x140052fb5 and
+// Tick 0x140052b77. 0x140172234 is a different constant (300.0f).
 static float PC_UVScale() { return 1.0f; }
 
 // FindComponent (exe 0x140003f60 ModelComponent, 0x140004680 MapComponent) on the

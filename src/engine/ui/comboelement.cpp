@@ -84,9 +84,9 @@ namespace UI {
 //     `pLVar10` for the list (0x1801127fc reads `+0xe8` off it) and `pDVar` for
 //     each item. Retail relies on the descriptions being the right types. No
 //     guard is added.
-//  2. The item's text is written into `_parameters[i]` — the TextElement's
-//     parameter array at +0xc8 — and ONLY when that array is non-empty
-//     (`if (_paramCount > 0)`). An item description with no parameter slot
+//  2. Item i's text (`_strings[i]`) is written into slot 0 of `_params` — the
+//     TextElement's parameter array at +0xc8 — and ONLY when that array is
+//     non-empty (`_params._size > 0`, +0xd0). An item description with no parameter slot
 //     silently shows its own default text.
 //  3. The dirty walk around the text write happens BEFORE the assignment
 //     (0x180112750), not after it.

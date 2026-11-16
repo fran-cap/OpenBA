@@ -79,49 +79,21 @@
 //    0x180122183, and the element root `[[dialog+0x50]]` at 0x180121f52.
 //
 // ---------------------------------------------------------------------------
-// THE ORACLE, AND — SAID FIRST — WHAT IT DOES NOT COVER
+// THE STATE DRAW WRITES ITSELF, BESIDE THE GEOMETRY IT SUBMITS
 // ---------------------------------------------------------------------------
-// `Draw`'s PRODUCT is submitted geometry. A predictive oracle that suppresses
-// `AddSpriteDraw` / `Flush` / the element vtable Draw verifies NONE of it. What
-// it does verify is the function's entire PERSISTENT SCALAR write set, which is
-// exactly ten locations:
+// `Draw`'s product is submitted geometry. Three pieces of scalar state that its
+// own instructions write outside its frame:
 //
-//   PREDICTED AND COMPARED
-//     this+0x0fc..+0x10c  `_clipRegion` — determined by Video::Device + _uiScale
-//                          and written BEFORE the first call, so no suppressed
-//                          callee can move it.
-//     ctx +0x408..+0x417  `_color` = opaque white — also written before the
-//                          first call. `Flush` writes `_scissor`, never
-//                          `_color` (checked in spritecontext_flush.cpp).
-//
-//   PREDICTED BUT DECLARED UNVERIFIABLE (`Exclude`, so it counts as such)
-//     ctx +0x010          `_dirty`. We predict our own `|= 0x1000`, but
-//                          `SetCamera` ORs kDirtyGlobalConstants (0x800) and
-//                          `Flush` ORs kDirtyScissor (0x400) into the SAME word
-//                          while suppressed, so the final value is not ours.
-//
-//   ABSTAINED FROM ENTIRELY IN PREDICT MODE
-//     ctx +0x1e0..+0x1ef  `_scissor`. The tail's reset is GATED on the current
-//                          scissor, and `SpriteContext::Flush` overwrites it
-//                          (spritecontext_flush.cpp:502-508) on every batch.
-//                          With Flush suppressed the branch condition is
-//                          UNKNOWABLE, so the body abstains rather than guessing
-//                          — the same rule lane UI1 applied to `Update`'s
-//                          drag-drop block. A predictor that guesses turns a
-//                          coverage hole into a false red.
-//
-// EFFECTIVENESS IS THE HONEST WEAKNESS HERE AND IT IS STATED, NOT BURIED.
-// Both compared regions are IDEMPOTENT in a steady frame: once `_clipRegion`
-// matches the resolution and `_color` is white, every later frame predicts a
-// value that is already in memory and `changed=` stops moving. `wrong=0` over
-// a thousand such rounds is a weak statement. The lane doc reports `changed=`
-// beside `rounds=` for exactly that reason, and the negative control is scored
-// against the rounds that HAD an armable subject, never against the total.
-//
-// The complement for the geometry is a live in-game run with the DETOUR ON —
-// if the layer walk, the letterbox arithmetic or the batch drain were wrong the
-// UI would be visibly wrong or absent. That is a functional check, not an
-// oracle, and the lane doc says so in those words.
+//     this+0x0fc..+0x10b  `_clipRegion` = {0, 0, w-1, h-1}, from Video::Device
+//                          and _uiScale (0x1801219c0..0x1801219ce), written
+//                          BEFORE the function's first call.
+//     ctx +0x408..+0x417  `_color` = opaque white, only when it is not already,
+//                          with `_dirty` (+0x010) |= 0x1000
+//                          (0x18012198b..0x1801219af), also before the first call.
+//     ctx +0x1e0..+0x1ef  `_scissor` = {0, 0, backBufferWidth, backBufferHeight}
+//                          with `_dirty` |= 0x400 (0x180122219..0x180122231).
+//                          The reset is GATED on the scissor as the frame's
+//                          callees left it (0x1801221f7..0x180122217).
 //
 // ============================================================================
 

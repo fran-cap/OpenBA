@@ -50,7 +50,7 @@
 //     +0x20  void*   right
 //     +0x28  int16   balance         (right.height - left.height)
 //     +0x2a  int16   height          (max(childHeights)+1)
-//   7c90 secondary tiebreak compares (payload+0x20) int field; 8000 uses costKey only.
+//   7c90 and 8000 both tiebreak an equal costKey on the (payload+0x20) int field; equal on both = duplicate.
 //   7b60 reads (payload+0x2c) as a per-pass visit-stamp vs (helperCtx+0x8); dispatches the
 //   payload object's vtable: (+0x48)() [refresh], then (+0x20)(payload, &citizenIBP, ctx+0x130)
 //   returning int {0 skip, 1 mark-visited, 2 success-stop}.

@@ -318,8 +318,9 @@ void CropFieldComponent::Command(int command) {
 //           state 10. Without it a field plants and never progresses.
 //
 //   msg 1 — GROW TICK. Find the slot entity's growth component, then advance it by
-//           Time(growthComp+0x28 * 300.0f * CropFieldDescription+0x24) through that
-//           component's own vtable slot 9 (+0x48). 300.0f is 0x140172234.
+//           Time(growthComp+0x38->+0x28 (GrowthDescription::_growthInMonths) * 300.0f *
+//           CropFieldDescription+0x24) through that component's own vtable slot 9 (+0x48).
+//           300.0f is 0x140172234.
 //
 // Retail's profile build carries two assertion strings for this function — "message
 // send to planter harvester is wrong" and "map componment isn't initalized correctly!"

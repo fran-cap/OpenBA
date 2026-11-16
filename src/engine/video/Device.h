@@ -636,37 +636,24 @@ public:
 // which gives each field its default, and by Video::Configuration::Save
 // (0x1800f6d10), which gives each field its persisted NAME. The two agree.
 //
-// `sizeof` — B35_RULES §13 item 1 asked this block to close the gap by finding
-// "an allocation site or a MOV EDX in the retail DLL". MEASURED THIS PASS, and
-// the answer is that NO SUCH INSTRUMENT EXISTS:
-//   * `get_xrefs_to(0x1800f6f10)` — Ghidra's exhaustive index of direct
-//     CALL/JMP references — returns exactly two referencers and NEITHER is a
-//     call: the module entry point, and a 4-byte RVA `10 6F 0F 00` at
-//     `0x1801b0c0c`. That RVA is NOT a static-initializer table entry, which was
-//     this pass's first reading and is wrong: the 96 bytes around it
-//     (0x1801b0bf0..0x1801b0c4f) are an unbroken run of unrelated `.text` RVAs
-//     with no paired `this` column, i.e. a Control Flow Guard
-//     `__guard_fids_table`, which lists an address merely because something
-//     takes it as an indirect-call target. So there is NO `LEA RCX,[X]` + CALL
-//     thunk anywhere in `.text`, the constructor is only ever reached
-//     indirectly, and no static storage address X can be recovered statically to
-//     bound the size against the next symbol.
-//   * the ~60 referencers of the singleton cell 0x1801fe7a0 write it in exactly
-//     two places, `0x1800f6f6b` inside the ctor (`MOV [0x1801fe7a0],RCX` — the
-//     ctor storing its own `this`) and `0x1800f6f80` inside the dtor
-//     (`MOV [0x1801fe7a0],0`). Neither allocates.
+// `sizeof` is 0x44, read off its two allocation sites: Engine::Startup
+// (`MOV ECX,0x44` + `CALL 0x180011640` at 0x1800dbc1c) and
+// Engine::PlatformConfigure (the same pair at 0x1800a19b0). Each inlines the
+// ctor after the allocation: the same stores as 0x1800f6f10, ending with the
+// singleton store `MOV [0x1801fe7a0],RAX` (0x1800dbc87, 0x1800a1a1b).
+//   * the exported ctor 0x1800f6f10 has no CALL referencer: `get_xrefs_to`
+//     returns the module entry point and a 4-byte RVA `10 6F 0F 00` at
+//     `0x1801b0c0c`, neither a call.
+//   * the singleton cell 0x1801fe7a0 is also written by the ctor at
+//     `0x1800f6f6b` (`MOV [0x1801fe7a0],RCX` — the ctor storing its own
+//     `this`), by the dtor at `0x1800f6f80` (`MOV [0x1801fe7a0],0`), and at
+//     `0x18000f6c9`, `0x1800a19a4` and `0x1800db752`.
 //   * `?Shutdown@Configuration@Video@@` (0x1800f6670) is one instruction,
-//     `JMP 0x1800f6d10` — a tail jump into `Save`. It frees nothing, so there is
-//     no `operator delete` size either.
+//     `JMP 0x1800f6d10` — a tail jump into `Save`. It frees nothing.
 //   * the ctor's own last store is `MOV byte ptr [RCX+0x42],0x0` at
-//     `0x1800f6f64`, and no body anywhere in the DLL (`Save`,
-//     `ValidateConfiguration`, `ApplyChangedSettings` were all read) touches a
-//     byte above +0x42.
-// So the class is at least 0x43 bytes, 0x44 with natural 4-byte alignment, and
-// 0x44 stays an INFERENCE — a `static_assert(sizeof == 0x44)` here would be an
-// assertion that cannot fail for the right reason, which is exactly the shape
-// B35_RULES §1.3 calls a false witness. What IS asserted is every offset, that
-// the class is at least 0x43 bytes, and that it did not grow past 0x44.
+//     `0x1800f6f64`.
+// What is asserted is every offset, that the class is at least 0x43 bytes, and
+// that it did not grow past 0x44.
 // `tests/unit/video_device_abi_test.cpp` restates the bound at runtime.
 //
 // LIFECYCLE EXPORTS — DOORS, NOT MEMBERS (see the header banner):
@@ -977,8 +964,8 @@ static_assert(offsetof(Video::Device, activeInterface) == 0xF8, "Device::activeI
 static_assert(offsetof(Video::Device, deviceData) == 0x100, "Device::deviceData — must match src/render/dx11/buffers.cpp:209");
 
 // ---- Video::Configuration ----
-// NO `sizeof == 0x44` ASSERT: 0x44 is INFERRED, not measured — see the note at
-// the class. These two bracket it instead, from the ctor's last store.
+// The size is 0x44 (allocated at 0x1800dbc1c and 0x1800a19b0, see the note at
+// the class). These two bracket it, from the ctor's last store.
 static_assert(sizeof(Video::Configuration) >= 0x43,
               "Configuration must cover the ctor's last store at +0x42 (0x1800f6f64)");
 static_assert(offsetof(Video::Configuration, pad01) == 0x1, "Configuration::pad01");

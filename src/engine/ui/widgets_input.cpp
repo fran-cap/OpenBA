@@ -789,9 +789,8 @@ void SliderElement::SetParameter(int32_t index, const System::String& text) {
 // succeeded by dereferencing.
 //
 // This port REPRODUCES THAT, which means the load below is deliberately through
-// a possibly-null pointer. It is spelled as byte arithmetic on a `uint8_t*`
-// rather than `child->_params._size` so the compiler emits the load instead of
-// concluding the pointer cannot be null and deleting the branch around it.
+// a possibly-null pointer: `child->_params._size` (+0xd0) is read with no null
+// check between the cast and the load, as retail does.
 //
 // DO NOT "FIX" THIS WITH A NULL CHECK. Retail's unguarded deref is the
 // assertion that a ProgressElement's first child is a TextElement. If this

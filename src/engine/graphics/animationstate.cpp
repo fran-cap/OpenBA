@@ -224,9 +224,10 @@ extern "C" void* RtGraphics_AnimInstance_CopyCtor(void* dstv, const void* srcv) 
 // the sixth (0x180059820) takes `(Array*, Serializer*)` and does the count and
 // the resize itself. The asymmetry is retail's and is reproduced.
 //
-// Every one of them reads the DESTINATION sizes back out of the array header
-// AFTER the resize, never from the local it just deserialized — which is why
-// `count` is passed on rather than re-read.
+// Each resize-then-loop reads the array's `_data` back out of the header AFTER
+// the resize, but takes the count from the local it just deserialized, never from
+// the header (0x1800fe297 `MOV R8,[RSI+0x8]`, 0x1800fe29b `MOV EDX,[RSP+0x30]`) —
+// which is why `count` is passed on rather than re-read.
 //
 // B.4: each takes the element type retail's instantiation names, and reaches
 // the ReaderWriter's SerializeInt (+0xA0), SerializeFloat (+0x80),

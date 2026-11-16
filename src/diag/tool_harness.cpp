@@ -2057,9 +2057,8 @@ void FireClearFootprint() {
     if (totalMarked > 0) { s_mr_fired = true; s_mr_entity = 0; s_mr_tileSlot = 0; }
 }
 
-// Track A demonstration: prove the footprint sweep marks a real resource. SA placement
-// validity rejects resource cells (unlike retail, where the terrainMask permits placing
-// over clearable resources), so we can't anchor a house on a tree here. Instead we point
+// Track A demonstration: prove the footprint sweep marks a real resource. Rather than
+// anchor a house on a tree through the placement tool (FireClearPlaceOver tries that), we point
 // a founding house's BuildComponent footprint at a resource cell, sweep, then RESTORE the
 // footprint — a safe, deterministic proof that a building whose footprint contains a
 // resource marks it for removal via the ported helper_7d60 path.
@@ -2173,9 +2172,9 @@ void FireClearLive() {
 // Track A refinement #2: prove SA placement OVER a resource cell. Builds a WoodHouse
 // placement tool (as FirePlacementTool), finds a resource cell near centre, and drives
 // the real CREATE path (PlacementTool_HarnessPlaceAtCell -> helper_d650 -> d580 -> f5d0)
-// AT that resource cell. With BANISHED_CLEAR_PLACE_OVER=1 the footprint validity accepts
-// the clearable-resource cell and the building materialises; without it, placement is
-// rejected (placed=0), matching retail's clearable-terrain rule. (Tool/template
+// AT that resource cell. No switch changes the footprint validity: CreateAt passes retail's
+// arguments, and the per-cell test (0x14009f5d0) never reads a cell's occupant, so placed=1/0
+// follows the footprint cells' blocker, footprint count, terrain type and height. (Tool/template
 // accessors declared at the top of this file.)
 void FireClearPlaceOver() {
     GameUpdateLoop* gw = GetGW();

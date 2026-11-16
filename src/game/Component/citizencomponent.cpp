@@ -318,7 +318,7 @@ void CitizenComponent::Update(const System::Time* timeArg) {
         }
     }
 
-    // --- Thirst cap: clamp and check death ---
+    // --- Coldness cap: clamp and check death ---
     float thirstCap = desc->maxColdness;
     if (thirstCap <= coldness) {
         coldness = desc->maxColdness;
