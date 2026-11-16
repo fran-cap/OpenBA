@@ -870,31 +870,31 @@ void DialogInstance::Update(const System::Time& time, UserInterface* ui,
             _hoverTime = 0;
         }
 
-        // ---- timers: +0x08 is the LIVE countdown ----------------------------
-        if (_timers._size > 0) {
-            RtUI::DialogTimer* data = _timers._data;
-            int32_t i = 0;
-            while (i < _timers._size) {
-                RtUI::DialogTimer& t = data[i];
-                t._remaining -= timeTicks;
-                if (t._remaining <= 0) {
-                    PushEvent(EventId::Timer, t._id, 0, 0);
-                    for (int32_t k = i; k + 1 < _timers._size; ++k)
-                        data[k] = data[k + 1];                 // the 0x18-byte record
-                    --_timers._size;
-                    continue;   // retail does NOT re-visit the slot just filled
-                }
-                ++i;
-            }
-        }
-
         // ---- root Element::Update (slot 7, five arguments) -----------------
+        // 0x180113ac7..0x180113ade, BEFORE the timer loop.
         Element* const root = _root.Get();
         // Slot 7 takes the InternalPtr<DialogInstance> by the ADDRESS of the
         // caller's 8-byte handle and the UpdateState by reference (Element.h's
         // banner).
         Object::InternalPtr<DialogInstance> topDialog(this);
         root->Update(time, ui, &topDialog, state);
+
+        // ---- timers: +0x08 is the LIVE countdown ----------------------------
+        // 0x180113ae1..0x180113b82: each record is visited once (INC EDX / ADD
+        // RSI,0x18 every pass, the bound [RBX+0x70] re-read). SUB [rec+8],dt at
+        // 0x180113b12, then a signed compare with (int64)(0.0 / secondsPerTick),
+        // i.e. 0. On expiry it queues event 0x13 carrying the id (+0x10) and
+        // reloads the countdown from the duration (0x180113b6a/71: [rec+8] =
+        // [rec+0]): a timer repeats until StopTimer removes it or the dialog's
+        // dtor frees the array. Update never removes one.
+        for (int32_t i = 0; i < _timers._size; ++i) {
+            RtUI::DialogTimer& t = _timers._data[i];
+            t._remaining -= timeTicks;
+            if (t._remaining <= 0) {
+                PushEvent(EventId::Timer, t._id, 0, 0);
+                t._remaining = t._duration;
+            }
+        }
 
         const int32_t mx2 = state.mouseX;
         const int32_t my2 = state.mouseY;
