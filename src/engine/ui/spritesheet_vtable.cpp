@@ -253,8 +253,8 @@ void MaterialPtrSerialize(Graphics::MaterialInstance** field, IO::Serializer* se
 // It agrees with the field list this file's own door table at the top already
 // recorded — "name, group, x, y, width, height, reserved, u0, v0, u1, v1" —
 // an annotation that HELD when it was finally checked. Recorded because the
-// standing expectation in this project is the opposite
-// ([[reference_pdata_understates_by_24x_and_annotations_lie]]) and a warning
+// standing expectation in this project is the opposite (recorded annotations
+// are claims to re-derive, and often prove wrong) and a warning
 // that is always right is a warning nobody re-checks.
 //
 // `+0x34` IS NOT SERIALIZED. There is no eleventh scalar call. That agrees

@@ -8,8 +8,7 @@
 // via decompile_function + disassemble_function; the pinning function is
 // named next to each field. Nothing here is copied from the profile DLL --
 // this lane read the retail export table directly (tools/pe_exports.py-style
-// pefile query) before writing any body
-// (reference_resolveexport_phantom_names.md).
+// pefile query) before writing any body.
 // ============================================================================
 
 #include <cstdint>

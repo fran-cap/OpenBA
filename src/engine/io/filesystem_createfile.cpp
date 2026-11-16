@@ -32,8 +32,7 @@
 // Wave 18 lane VRES said about the rows that produced this lane.
 //
 // Two of the three are `AEAA` — PRIVATE, not unexported. This DLL exports its
-// private members and `?PlatformCreateFile@` is ordinal 3357
-// (`reference_aeaa_is_private_not_unexported.md`).
+// private members and `?PlatformCreateFile@` is ordinal 3357.
 //
 // ---------------------------------------------------------------------------
 // THE FACT THAT DECIDES ALL OF THIS: A WRITE GOES TO %TEMP% FIRST
@@ -419,8 +418,8 @@ void FileSystem::CloseFile(RtIO::FileInfo& infoRef) {
 // release the PackageFile* elements. That is retail: `ClosePackages` owns those
 // and has already run. A port that "helpfully" destroyed the elements here
 // would double-free every mounted package
-// (`reference_a_written_recipe_can_be_wrong.md` is exactly this shape — two
-// destructors that look interchangeable and are not).
+// (two destructors that look interchangeable and are not, so each is ported
+// from its own disassembly).
 // ============================================================================
 // STEP 5 IS THE COMPILER'S. The three directories are `System::Filename`
 // members (B4 X-R3): they are destroyed after this body, in reverse

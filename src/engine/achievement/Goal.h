@@ -9,8 +9,7 @@
 //
 // EVIDENCE RULE (PLAN §6): every offset below is read out of a disassembled
 // RETAIL Runtime-x64.dll body, and the address of that body is named next to
-// it. The profile build's NAMES win, its OFFSETS must not
-// (reference_encoding_vtable_offsets_differ_between_builds.md).
+// it. The profile build's NAMES win, its OFFSETS must not.
 //
 // THE THREE CLASSES, AND HOW THEY RELATE
 // --------------------------------------

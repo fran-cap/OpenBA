@@ -31,8 +31,7 @@
 //     ??1TextFileStream / ??1VisitorStream                    all UEAA, all exported
 //
 // (Run against the export table, not grepped. `AEAA`/`IEAA` mean PRIVATE and
-// PROTECTED, not unexported — this DLL exports both, and
-// reference_aeaa_is_private_not_unexported.md is the lane that learned it.)
+// PROTECTED, not unexported — this DLL exports both.)
 //
 // What a caller CANNOT do without this header is size a stack buffer or
 // reach the fields the caller itself reads — and all three callers read fields

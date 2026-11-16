@@ -43,7 +43,7 @@
 //
 // Every name above was checked against the shipped export directory of
 // C:\GOG Games\Banished\Runtime-x64.dll with pefile BEFORE any body was
-// written (reference_resolveexport_phantom_names.md). All 15 code exports and
+// written. All 15 code exports and
 // both data exports used internally (Object::External::~External, Graphics::
 // Geometry::Geometry/SetBounds) are present; addresses/ordinals above are
 // that query's output, not Ghidra's.
@@ -93,7 +93,7 @@
 // than full visual QA. Serialize is a save-path function serializing the same
 // unpinned AnimationState array -- Wave 5 held back every serializer-
 // constructing function for want of an oracle
-// (reference_slot3_wrapper_must_resolve_first.md: a serializer that consumes
+// (a serializer that consumes
 // the wrong byte count desyncs the stream and surfaces LATER on an innocent
 // record), and this lane applies the same standard. Both are ported outside
 // this file: Update in wave23_lane_gfxbody.cpp, Serialize in

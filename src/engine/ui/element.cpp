@@ -40,7 +40,7 @@
 //
 // All 23 mangled names were checked against the shipped export directory of
 // C:\GOG Games\Banished\Runtime-x64.dll with a pefile-style reader BEFORE any
-// body was written (reference_resolveexport_phantom_names.md: a name the DLL
+// body was written (a name the DLL
 // does not contain resolves to NULL in silence, the port still registers, and
 // the census still counts it). All 23 are present; the addresses and ordinals
 // above are that query's output, not Ghidra's guess. The six Wave 7 phantoms
@@ -74,7 +74,7 @@
 //       grep across code/, engine/, standalone/, runtime/ and src/render/dx11/ finds the
 //       declaration, the assignment and no call. A registered port on a path
 //       nothing executes reports `calls=0 divergences=0` forever, which READS
-//       as a pass (reference_uncalled_port_is_not_verified.md — a wrong
+//       as a pass (a wrong
 //       Quaternion::operator* survived all of Wave 1 exactly that way).
 //   (b) It is the most destructive function in the class and it has no oracle:
 //       it releases a System::String, destroys every child through vtable slot
@@ -169,7 +169,7 @@ void Element::SetNeedsSizeCalc() {
 // ============================================================================
 // Every body is byte-faithful to the retail disassembly — read as
 // DISASSEMBLY, not as Ghidra's C, because that C drops dereferences and prints
-// MOVSXD as a zero extension (reference_ghidra_c_output_vs_disassembly.md; three
+// MOVSXD as a zero extension (three
 // Wave 6 defects, one a crash, came from trusting it). Where retail derefs
 // without a null check, so do we: CLAUDE.md's rule is that retail's unguarded
 // derefs are load-bearing, and a guard skips the behaviour rather than
@@ -606,8 +606,7 @@ void Element::ReleaseFields() {
     UI::Element::RemoveChildren();
 
     // The border element, destroyed through ITS OWN slot 0 with flag 1 —
-    // scalar delete. Not `??1Element`: slot 0 is `??_E`
-    // (reference_phantom_dtor_mangling_qeaa_vs_ueaa.md).
+    // scalar delete. Not `??1Element`: slot 0 is `??_E`.
     if (_border != nullptr) {
         Element* border = _border;
         if (border != nullptr)             // retail's second, redundant test
@@ -688,9 +687,8 @@ void ContainerElement::SetOffsets(int32_t x, int32_t y) {
 // ============================================================================
 //
 // WHY THE WAVE 7 HOLD-BACK NO LONGER STANDS. It rested on two reasons, and
-// BOTH were re-read rather than assumed (reference_holdback_blockers_are_stale
-// _check_them_first.md — three stated blockers in one session turned out to be
-// facts the tree already had):
+// BOTH were re-read rather than assumed (three stated blockers in one session
+// turned out to be facts the tree already had):
 //
 //   (a) "NOTHING IN OUR TREE CALLS IT." That was true of DIRECT callers and is
 //       still true of them. It is no longer the whole picture, because it was
@@ -713,8 +711,7 @@ void ContainerElement::SetOffsets(int32_t x, int32_t y) {
 //       is worse than a hold-back assumed a working DLL underneath it. There
 //       is none after cutover.
 //
-// THE BODY, read from the disassembly at 0x1801161a0 and not from Ghidra's C
-// (reference_ghidra_c_output_vs_disassembly.md):
+// THE BODY, read from the disassembly at 0x1801161a0 and not from Ghidra's C:
 //
 //     this->_vtable = &??_7Element@UI@@6B@;         // 0x180156160
 //     RemoveChildren(this);                         // 0x180115570
@@ -745,14 +742,13 @@ void ContainerElement::SetOffsets(int32_t x, int32_t y) {
 // So this row closes rather than relocating.
 //
 // THE TAIL CALL TO ~Internal IS LOAD-BEARING AND IS NOT OPTIONAL. 0x1800bfdb0
-// is the InternalFactory swap-remove that
-// reference_internalfactory_swapremove_wild_write.md is about: an Element freed
+// is the InternalFactory swap-remove, which stores the moved entry's new index
+// at its +0x08: an Element freed
 // without it leaves a stale handle-table entry that a later swap-remove writes
 // through. It runs in the compiler's destructor chain, after ~Element's body.
 //
 // THE ORACLE QUESTION — THERE IS NO ORACLE, AND THIS PORT SHIPS WITHOUT ONE.
-// Stated plainly because a quiet site reads as a pass
-// (reference_uncalled_port_is_not_verified.md). A replay here would not be a
+// Stated plainly because a quiet site reads as a pass. A replay here would not be a
 // comparison but a SECOND DESTRUCTION: it would destroy every child again
 // through slot 0, decrement two String refcounts our body may already have
 // taken to zero and FREED, free the child array again, and run the handle

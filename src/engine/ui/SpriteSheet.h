@@ -140,8 +140,8 @@ struct SpriteInfo {
 // _pad34 correction above. Comparing the full 0x38 bytes of two entries that
 // live in UNRELATED allocations (this port's real array vs. a diff oracle's
 // scratch replica) reports a divergence on whatever garbage each allocation
-// happened to contain at +0x34, on every single call -- exactly the trap
-// reference_oracle_must_not_compare_unwritten_bytes.md describes, and exactly
+// happened to contain at +0x34, on every single call -- exactly the trap of an
+// oracle comparing bytes neither side writes, and exactly
 // what caught this (Wave 7 integration run, 100% divergence on
 // UI::SpriteSheet::AddSpriteInfo() until this constant was introduced).
 inline constexpr size_t kSpriteInfoWrittenBytes = 0x34;

@@ -65,7 +65,7 @@
 // to ResolveAddr inside Ensure3480() — so the crash presented as "a raw exe dispatch-slot
 // VA dereferenced as a pointer" and sent the investigation after an unregistered slot.
 // The fault address was stale-register garbage, not a resolve failure. (Same trap family
-// as reference_byvalue_return_hidden_rdx.)
+// as a by-value member return, which writes through a hidden RDX pointer.)
 // The slot is Tool [10] IsSelected(ComponentEntity* const* entityRef) (Player/Tool.h), called by name below.
 // 0x140102b60 is PlayerToolManager::SelectTool, 0x14002c690 Avl38SetFindRemove.
 // slot 0x140151768 -- member, non-trivial return AND a THIRD argument Ghidra hides.
@@ -74,7 +74,6 @@
 // trailing `I` is that uint32 type-id FILTER. Declared with two parameters, the call
 // passes whatever the previous call left in R8 as the filter, and GetController
 // returns nothing for a garbage id -- silently, with no crash and no log.
-// See reference_getcontroller_third_arg_is_a_type_filter.
 
 void PlayerToolManager::OnEntityRemoved(ComponentEntity* const* entity) {
     if (currentTool != nullptr) {

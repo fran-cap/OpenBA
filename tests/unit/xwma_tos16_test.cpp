@@ -3,7 +3,7 @@
 // original conversion (LOADPLAN block AUDIODEC, docs/extensions/handins/AUDIODEC.md)
 // ============================================================================
 // OldToS16 below is the decoder's per-sample body before AUDIODEC, verbatim; it
-// lives here only (feedback_no_off_switched_perf_bodies_in_main). Every check is
+// lives here only. Every check is
 // bit-exact: the new conversion must return the identical int16 for every input.
 //
 //   * xwma_tos16_float_classes   specials (+-0, denormals, FLT_MIN, FLT_MAX, +-inf,

@@ -7,8 +7,7 @@
 //
 // Every offset is pinned by a named instruction in RETAIL Runtime-x64.dll
 // (image base 0x180000000), read out of `objdump -d` over the shipped file —
-// never out of Ghidra's decompiled C
-// (reference_ghidra_c_output_vs_disassembly.md). The layout below is UNCHANGED
+// never out of Ghidra's decompiled C. The layout below is UNCHANGED
 // from the POD this header carried before B.3.5: the three asserted offsets and
 // the two sizes are the same numbers, now on a class with a base and a vtable.
 //
@@ -313,8 +312,8 @@ public:
     VertexProgram(const VertexProgram& other);                    // 0x18004e730 — not ported
     VertexProgram& operator=(const VertexProgram& other);         // 0x18004e780 — not ported
 
-    // The three platform halves. `AEAA` is PRIVATE IN RETAIL, not unexported
-    // (reference_aeaa_is_private_not_unexported.md); they are public here.
+    // The three platform halves. `AEAA` is PRIVATE IN RETAIL, not unexported;
+    // they are public here.
     void PlatformConstruct();    // 0x1800f65e0
     void PlatformDestruct();     // 0x1800f6620
     bool PlatformCreate();       // 0x1800f6640 — returns the companion's slot 1

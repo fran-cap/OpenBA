@@ -404,9 +404,7 @@ void ParticleComponent::Setup() {
 // fix 120 lines below -- and it was wrong in principle as well: a loader must
 // CONSUME the bytes the writer emitted regardless of whether the data can be
 // reconstructed. "Rebuilt by Startup" would justify DISCARDING a value after
-// reading it, never SKIPPING the read.
-// See [[reference_null_guard_on_a_serializer_call_is_a_desync]] and
-// [[reference_stub_comment_outlived_the_port_that_replaced_it]].)
+// reading it, never SKIPPING the read.)
 //
 // ENDGAME B.3.8 CIT: ParticleComponent is a REAL class now (ParticleComponent.h) —
 // the 48-slot ParticleComponent_LiveVtable, its per-create fills and

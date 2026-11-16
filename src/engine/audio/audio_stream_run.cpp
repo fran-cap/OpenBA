@@ -29,8 +29,7 @@
 // WHAT THE BODY ACTUALLY IS — and every offset in it has a named writer
 // ---------------------------------------------------------------------------
 // Read from Ghidra's `disassemble_function` over 0x1800a0f60..0x1800a1667
-// (Ghidra's C output drops arguments on indirect calls —
-// reference_ghidra_c_output_vs_disassembly.md — and this body is almost
+// (Ghidra's C output drops arguments on indirect calls, and this body is almost
 // entirely indirect calls).
 //
 //   dev       = *(Device**)0x1801fe760            ?_singleton@Device@Audio@@
@@ -142,7 +141,7 @@
 // Serialize (write-path replay), and a two-sided A/B would submit every packet
 // to the voice twice and consume the file handle twice. Attendance only —
 // counters below, and no RT_DIFF site that could only ever print
-// `divergences=0` (reference_shadow_marker_is_not_an_oracle.md).
+// `divergences=0`.
 // ============================================================================
 
 #include <cstdint>

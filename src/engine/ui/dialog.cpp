@@ -45,7 +45,7 @@
 //
 // All 28 mangled names were checked against the shipped export directory of
 // C:\GOG Games\Banished\Runtime-x64.dll with pefile BEFORE any body was
-// written (reference_resolveexport_phantom_names.md). TWO ARE NOT THERE — see
+// written. TWO ARE NOT THERE — see
 // the next block. The addresses and ordinals in the table are that query's
 // output, not Ghidra's.
 //
@@ -58,7 +58,7 @@
 //     is (uint, Base*, ExternalPtr<DialogControllerConfig>,
 //     ExternalPtr<ElementDescription>, String const&). The phantom spells
 //     arguments 2 and 3 as plain `int`s, which is the
-//     reference_hidden_retval_and_int_pointer_args.md failure exactly: the two
+//     int-typed pointer argument failure exactly: the two
 //     pointer arguments land in R8/R9 as 32-bit halves.
 //     docs/history/runtime_port/WAVE7_LANE_B.md §5 records it.
 //
@@ -226,8 +226,7 @@ inline void MemFreeStatic(void* p) {
 // ============================================================================
 // Four bodies read from the disassembly (not the decompiled C, which drops the
 // implicit RDX argument on the `OnUpdate` vtable call and mis-shapes
-// `ComputeLayout`'s tail-call jump table — reference_ghidra_c_output_vs_
-// disassembly.md). Raw Element offsets are spelled out at the use site, same
+// `ComputeLayout`'s tail-call jump table). Raw Element offsets are spelled out at the use site, same
 // convention src/engine/ui/UserInterface.h states for a foreign class this
 // file does not own.
 //
@@ -256,8 +255,7 @@ inline void MemFreeStatic(void* p) {
 //
 // The dialog lifecycle's teardown half, declined by lane UIF (row 6, "the one
 // genuinely close call") and again by lane UIC (§7). BOTH DECLINES RESTED ON
-// THREE STATED BLOCKERS AND ALL THREE DISSOLVED ON RE-CHECKING
-// (reference_holdback_blockers_are_stale_check_them_first.md). Each is answered
+// THREE STATED BLOCKERS AND ALL THREE DISSOLVED ON RE-CHECKING. Each is answered
 // from the bytes below rather than argued:
 //
 //  1. "0x18002fca0 (int)" — NOT unported. `Object::detail::ArrayPtrSetSize` in
@@ -343,8 +341,7 @@ inline void MemFreeStatic(void* p) {
 //
 // Three vtable stores in base-class order, then the field initialisers. The
 // two non-zero seeds are the interesting part and both are reproduced exactly:
-//   +0x3c = -1        (the element id; -1 means "unset", 0 is a REAL id —
-//                      reference_unresolved_lookup_leaves_a_valid_looking_zero.md)
+//   +0x3c = -1        (the element id; -1 means "unset", 0 is a REAL id)
 //   +0x40 = 3         (as a QWORD, so +0x44, the flags, is zeroed with it)
 //
 // Every byte of 0x00..0x67 is written.
@@ -431,7 +428,6 @@ inline void MemFreeStatic(void* p) {
 // the mangled name spells it by value — and the body proves it, dereferencing
 // RDX eleven times (`MOV RBX,[RDI]` at 0x180115b15 and ten re-reads). So the
 // second parameter is `void** elemPtr`, NOT `void* elem`.
-// reference_hidden_retval_and_int_pointer_args.md is the family this belongs to.
 //
 // THE BODY, from the disassembly at 0x180115ad0 (0x31a bytes):
 //
@@ -457,7 +453,6 @@ inline void MemFreeStatic(void* p) {
 //
 // ---------------------------------------------------------------------------
 // THREE FACTS THAT ONLY THE DISASSEMBLY SHOWS
-// (reference_ghidra_c_output_vs_disassembly.md)
 // ---------------------------------------------------------------------------
 //
 // (a) THE INLINED `UI::Dialog` TEMPORARY IS THE EXPORTED CTOR/DTOR, INSTRUCTION

@@ -100,8 +100,8 @@ static std::atomic<int> s_tornadoStruckTraced{0};
 // (declared in Game/EventLog.h). Reused rather than re-inlined: retail's Startup
 // builds the same 0x28-byte record by hand, and its literals (colour 0xffff6060,
 // icon 4, popup -1) are exactly what that port's severity/icon/popup tables produce
-// for type 0x1e / severity 3. Porting the same retail body a second time here is the
-// trap that reference_one_retail_fn_ported_twice_diverges records.
+// for type 0x1e / severity 3. Porting the same retail body a second time here would leave
+// two copies that drift apart, each wrong differently.
 
 // 0x140131c90 = sinf, 0x140131090 = cosf: the exe's MSVC CRT bodies, ported as
 // MsvcLibm::Sinf / Cosf (crt/msvc_libm.h).
@@ -578,8 +578,8 @@ void TornadoComponent::DamageTick(const System::Time* dt) {
 //
 // CROSS-LANE: this body and 0x140042960 below are LOAD-BEARING FOR THE FIRE LANE TOO.
 // Both lanes independently ported these two (my address grep was clean when I ran it —
-// the fire lane's files did not exist yet), which is how
-// reference_one_retail_fn_ported_twice_diverges lands. The fire lane deleted its copies
+// the fire lane's files did not exist yet), which is how two ports of one retail
+// function come to drift apart. The fire lane deleted its copies
 // and calls these two by name (firecomponent_ignite.cpp), so this is the single implementation.
 // The two copies differed: theirs guarded `duration == 0` before the divide. This one
 // divides unguarded, matching retail (`g_fUVScale / AsSeconds(...)` at 0x14005375e with

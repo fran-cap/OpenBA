@@ -215,7 +215,7 @@ char TradeComponent::EnterIdle() {
         // OUTCOME, not intent: report whether a TradeWork was really constructed and
         // whether the scheduler is holding one AFTER the post. "accepting was set" and
         // "a work object exists" are different claims, and only the readback proves the
-        // second. See reference_diagnostics_must_report_outcomes.
+        // second.
         TradeCtrlReport(this, true, work, sched2->IsWorkPosted());
     } else {
         TradeCtrlReport(this, false, nullptr, false);

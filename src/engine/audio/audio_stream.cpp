@@ -25,7 +25,7 @@
 //   ??1Stream@Audio@@QEAA@XZ -> src/engine/engine/engine_lifecycle.cpp:955
 //   0x1800a0e30 / 0x1800a0d90 -> no hits at all.
 // A body ported but never REGISTERED is indistinguishable from an absent one to
-// the census (reference_half_registered_port_reads_as_absent.md), which is why
+// the census, which is why
 // the grep was by address as well as by name.
 //
 // ---------------------------------------------------------------------------

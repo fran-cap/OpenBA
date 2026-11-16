@@ -97,8 +97,7 @@ constexpr int kSlotCount  = 3;
 //
 // RETURNS A `System::String` BY VALUE, so the Microsoft x64 ABI gives it a
 // HIDDEN RETURN SLOT in RDX and pushes `index` out to R8. Getting that wrong is
-// a wild write that still returns a plausible answer
-// (reference_hidden_retslot_wild_write.md), so it is spelled out here:
+// a wild write that still returns a plausible answer, so it is spelled out here:
 //
 //     RCX = this   (SPILLED AT ENTRY AND NEVER READ AGAIN — see below)
 //     RDX = String* ret        (the hidden slot)

@@ -6,8 +6,8 @@
 // ============================================================================
 //
 // Retail Runtime-x64.dll, image base 0x180000000. Every offset below was read
-// from the DISASSEMBLY (not Ghidra's decompiled C — see
-// reference_ghidra_c_output_vs_disassembly.md) of the KeyMap point-lookup
+// from the DISASSEMBLY (not Ghidra's decompiled C, which misreports derefs, sign
+// extension and arguments) of the KeyMap point-lookup
 // members, Device::GetValue/Pressed/Released/ResetState, and
 // Configuration::Load/Save (all listed with retail addresses in
 // docs/history/runtime_port/WAVE8_LANE_D.md sec. 1).

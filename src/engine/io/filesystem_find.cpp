@@ -64,7 +64,7 @@
 // 3. ?ExistsInPackfile@ — 0x1800ab180
 // ---------------------------------------------------------------------------
 // Read as disassembly, never as Ghidra's C (which drops dereferences and prints
-// MOVSXD as a zero extension — reference_ghidra_c_output_vs_disassembly.md).
+// MOVSXD as a zero extension).
 //
 //     bool FileSystem::ExistsInPackfile(const Filename& path) const
 //     {

@@ -44,7 +44,7 @@
 //               (citizenIBP, priority, position, flag1, fScale, flag2)
 //     ⚠ This read 0x1400f8620 until 2026-08-15 — a DIFFERENT function entirely
 //     (WorkGrid_TryAssignWorkplace). It never fired before because nothing had ever
-//     CONSTRUCTED a LocationWork (see reference_registered_but_never_executed).
+//     CONSTRUCTED a LocationWork.
 //   0x1400f7100 ValidateEntity                     Work::ValidateTask
 //   0x1400c5400 CancelAllWork                      ActionStack::Clear
 //   0x140002e10 FindWorkPlace                      ComponentEntity::FindComponent<WorkPlaceComponent>

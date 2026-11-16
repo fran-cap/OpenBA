@@ -174,10 +174,8 @@ void FireComponent::MarkDanger(short delta) {
 // audio emitters) are NOT ported here. The TORNADO lane ported both first
 // (ParticleComponent::FadeOutEmitter / AmbientEmitterComponent::MoveTo, tornadocomponent.cpp) and
 // its damage arm calls them for the same reason this lane does. Calling those
-// bodies keeps ONE body per retail function
-// (reference_one_retail_fn_ported_twice_diverges) — writing a second copy here
-// would have been exactly that failure mode, with each copy faithful in a
-// different half.
+// bodies keeps ONE body per retail function — writing a second copy here would let the
+// two ports drift apart, each copy faithful in a different half.
 
 // ============================================================
 // FireWork_Ctor (0x1400e9bd0) — the 3-arg ctor, the ONLY producer of a FireWork:

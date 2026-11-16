@@ -90,8 +90,7 @@ void InteractComponent::Persist(IO::Stream& stream) {
     ser.Serialize(count, nullptr);
 
     // "Am I loading?" is the STREAM's direction (IO::Serializer::GetDirection, retail
-    // 0x180006210), not the Serializer's own +8 (m_encoding): see
-    // reference_serializer_plus8_is_encoding_not_loading_flag -- the same trap, found
+    // 0x180006210), not the Serializer's own +8 (m_encoding) -- the same trap, found
     // here a second time. With the wrong field the resize below never ran on a real
     // load, so the array at +0x28 stayed NULL while `count` came back non-zero from
     // the stream, and the element loop dereferenced null.

@@ -60,7 +60,7 @@
 // that use it — the ref serializer (0x14000a230) and ValidateRefs (0x140051830) — read
 // `dword [0x1401c5d70]` = ComponentEntity, verified from the disassembly. The old global is
 // a real, registered, NON-ZERO id of the wrong class, so every null check passed and the
-// filter simply rejected everything: reference_wrong_but_nonzero_typeid. The slot the two
+// filter simply rejected everything. The slot the two
 // sites test is a tile record's +0x08, which holds the ENTITY standing on the tile (dc20
 // stores the owner IBP from MapComponent+0x10) — an entity is never a MapComponent.
 

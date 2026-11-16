@@ -16,7 +16,7 @@
 // FLOAT ASSOCIATION ORDER IS LOAD-BEARING. Wave 9 has already found one defect
 // where a translation term folded in FIRST instead of being added LAST — the
 // same value algebraically, a different value in bits, and visible in one call
-// in 23,654 (reference_moved_term_hides_where_terms_cancel.md). Every float
+// in 23,654. Every float
 // expression below is transcribed in the order the SUBSS/MULSS/ADDSS sequence
 // gives it and must not be "simplified".
 // ============================================================================
@@ -225,8 +225,7 @@ void DrawItemArrayResize(Collection::Array<RendererDrawItem>* self,
 // lane does not own.
 //
 // The two `_pad` fields (`_pad24`, `_pad34` in Camera.h) are retail's: it stores
-// uninitialised stack bytes at +0x24 and +0x34 on every append
-// (reference_oracle_must_not_compare_unwritten_bytes.md).
+// uninitialised stack bytes at +0x24 and +0x34 on every append.
 // ============================================================================
 
 // ############################################################################
@@ -301,8 +300,7 @@ void Renderer::AddDrawItem(const Geometry* geometry, const MaterialInstance* mat
                            uint16_t arg4, uint16_t arg5, float arg6, float arg7, int arg8,
                            const void* arg9, uint32_t arg10) {
     // MOVSXD, both of them — Ghidra's C prints these as zero extensions and
-    // that misreading produced three Wave 6 defects including a crash
-    // (reference_ghidra_c_output_vs_disassembly.md).
+    // that misreading produced three Wave 6 defects including a crash.
     const int64_t groupIdx = static_cast<int32_t>(_currentDrawGroup);          // +0x34
     const int64_t pass     = static_cast<int32_t>(material->_shaderClass);     // +0x20
 

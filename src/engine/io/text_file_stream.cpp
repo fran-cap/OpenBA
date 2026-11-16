@@ -106,8 +106,7 @@ using RtIo::TextFileStream;
 
 // ---------------------------------------------------------------------------
 // EFFECTIVENESS COUNTERS. `calls` alone cannot separate a body that ran from
-// one that did anything
-// (reference_calls_zero_can_mean_always_took_the_uncovered_branch.md), so every
+// one that did anything, so every
 // body here counts WHICH ARM it took. For the three that branch on `buffer` the
 // two arms are counted separately; a run where one arm reads 0 has exercised
 // the other arm only, and says so.
@@ -975,8 +974,7 @@ bool TextFileStream::OpenWithFormat(const System::Filename& path, Text::Format f
 //       premise to expire", and that was the correct reading: nothing expired,
 //       a later lane simply did the work. Note also that the `.pdata` figure
 //       quoted here is a LOWER bound — MSVC chains fragments through
-//       UNW_FLAG_CHAININFO — so "462 bytes" understated the job
-//       (reference_pdata_is_a_lower_bound_on_function_extent.md). Measured from
+//       UNW_FLAG_CHAININFO — so "462 bytes" understated the job. Measured from
 //       the instruction listing the body runs 0x1800ba9f0..0x1800babbd = 462,
 //       which here happens to agree.
 //   [8] +0x40  0x1800ba640  Open(Filename, Text::Format) — 666 bytes.

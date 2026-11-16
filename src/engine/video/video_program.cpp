@@ -6,7 +6,7 @@
 // The ONE body row in lane VIDVT's nineteen. It entered `called` in Wave 21:
 // lane GFXBODY's port of `?Setup@MaterialInstance@Graphics@@` calls it by name
 // (src/engine/graphics/wave21_lane_gfxbody.cpp), which grew the cutover
-// surface by one row (reference_porting_can_grow_the_cutover_surface.md).
+// surface by one row.
 // GFXBODY's own §6 left it as a residual in these words: "it is [safe to leave
 // on the DLL], today, because that is where it already was — but this lane made
 // our tree depend on it by name for the first time and did not read its body."
@@ -20,15 +20,14 @@
 // RUNTIME_FUNCTION belongs to `?PlatformDestruct@RenderBuffer@Video@@`
 // (0x1800f4400..0x1800f44de) and a tool that sizes by "the covering .pdata
 // entry" without checking containment would silently hand back a DIFFERENT
-// function's 222 bytes. (reference_pdata_is_a_lower_bound_on_function_extent.md
-// is the related trap in the other direction — chained fragments — and does not
-// arise here because there is no entry to chain.)
+// function's 222 bytes. (The related trap in the other direction — one .pdata
+// entry covering only the first of a chain of fragments — does not arise here
+// because there is no entry to chain.)
 //
 // The extent used is instead the ADJACENT-EXPORT upper bound (next export
 // 0x1800f45b0) NARROWED by the decode: a `repz ret` at 0x1800f459a followed by
 // 0x14 bytes of `int3` alignment padding. The upper bound and the decode agree
-// to the padding, so 122 is exact rather than an upper bound
-// (reference_adjacent_export_is_an_upper_bound.md).
+// to the padding, so 122 is exact rather than an upper bound.
 //
 // ---------------------------------------------------------------------------
 // THE BODY, read as disassembly and not as decompiled C
@@ -92,15 +91,15 @@
 // input state this function can observe. The live Context ends carrying
 // retail's values, which are the same values when the port is right.
 //
-// It is also NOT reading bytes neither side writes
-// (reference_oracle_must_not_compare_unwritten_bytes.md): all six compared
+// It is also NOT reading bytes neither side writes: all six compared
 // words are written by at least one arm of the function, and the dirty mask is
 // compared as a whole because retail ORs into whatever was already there.
 //
 // `self` is `const` to retail and is not snapshotted; nothing aliases it to
 // `ctx` (one is a VideoProgram, the other a 0x2168-byte Context, and the
 // caller in wave21_lane_gfxbody.cpp passes two distinct objects), so
-// reference_oracle_must_snapshot_aliased_inputs.md's trap does not arise. That
+// the aliased-input trap (one buffer passed as both input and output, so the
+// port's write, made first, destroys the original's input) does not arise. That
 // is asserted from the call site, not assumed from the types.
 // ============================================================================
 

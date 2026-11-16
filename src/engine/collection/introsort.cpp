@@ -351,8 +351,7 @@ void SortByKey70(IO::PackageFile**first, int32_t count) {
 // +0x2b and the nested Array starts at +0x30. array.cpp, above EffectSlotInit, records the same
 // hole from the `else` arm's side ("BYTES +0x2c .. +0x2f ARE NEVER WRITTEN"),
 // which is an independent second reading of it. Any oracle over this element
-// must exclude that window or it fails 100% of calls
-// (reference_oracle_must_not_compare_unwritten_bytes.md).
+// must exclude that window or it fails 100% of calls.
 //
 // The nested Array header is ZEROED BEFORE the operator= runs, and that is
 // load-bearing: on the realloc arm the destination is raw MemAlloc memory and

@@ -18,7 +18,7 @@
 // `this`, RDX is the slot, R8 is `path` (0x1800ae289 `MOV RBX,RDX` /
 // 0x1800ae28c `MOV RDX,R8`). Declaring it without that slot is a WILD WRITE
 // through a stale RDX — Wave 1's defect 1, which scribbled 0x30 bytes on every
-// menu scene load (reference_hidden_retslot_wild_write.md). The function
+// menu scene load. The function
 // returns the slot in RAX (0x1800ae334), and the port does too.
 //
 // `this` IS READ BY NOTHING. RCX is overwritten at 0x1800ae28f and never

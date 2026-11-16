@@ -20,7 +20,7 @@
 // translation term had been folded into a float sum FIRST instead of added
 // LAST. That is algebraically identical and bit-different only where the terms
 // nearly cancel — it presented at ONE CALL IN 23,654, so a clean re-run could
-// never have exonerated it (reference_moved_term_hides_where_terms_cancel.md).
+// never have exonerated it.
 //
 // A determinant IS a near-cancelling sum, and this body has sixteen more of
 // them in the adjugate. So every sum below is parenthesised to match the
@@ -44,8 +44,7 @@
 // spelling `-x`, so the transcription is checkable against the bytes without
 // an argument about what the compiler does to unary minus on a NaN.
 //
-// Constants LIFTED AS RAW BITS, never retyped as decimals
-// (reference_crt_coefficients_must_be_lifted_not_retyped.md):
+// Constants LIFTED AS RAW BITS, never retyped as decimals:
 //   0x18016169c = 0x3f800000  (1.0f, the reciprocal's numerator AND the
 //                              identity-matrix diagonal)
 //   0x1801617c0 = 80000000 80000000 80000000 80000000  (the -0.0f sign mask)

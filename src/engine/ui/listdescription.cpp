@@ -145,7 +145,7 @@ bool ListDescription::Serialize(IO::Stream& streamv) {
 // its own .rsc. Retail does not guard it and neither does this: a null here
 // means the description is not a list description, and the guard would
 // silently produce a List element with no ribbon and no clip region rather than
-// stopping at the real problem [[feedback_root_cause_not_null_guard]].
+// stopping at the real problem.
 //
 // Note the FIRST of the two chains is THREE levels deep and the SECOND is TWO;
 // they are not the same walk with an extra step appended, and the deeper one

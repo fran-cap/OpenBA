@@ -109,9 +109,8 @@
 //
 //     Algebraically `v == T + a`.  In float it is not: `a / d` then `* d` is
 //     two roundings that do not cancel.  Moving a term in a float sum is the
-//     documented way to make a correct-looking port diverge in the last bits
-//     (reference_moved_term_hides_where_terms_cancel.md), so the redundant
-//     round trip stays.
+//     documented way to make a correct-looking port diverge in the last bits,
+//     so the redundant round trip stays.
 //
 // (d) `MOVAPS XMM1,XMM4` AT 0x1800dd35e IS **NOT** A DEAD MOVE — IT IS
 //     `Draw`'s SECOND ARGUMENT.  This file's first draft called it dead and
@@ -127,11 +126,10 @@
 //
 //     Dropping it compiles, links, and passes `Draw` whatever the compiler
 //     happened to leave in XMM1 — the interpolation factor every frame is
-//     rendered with.  This is the same defect class as
-//     reference_ghidra_c_output_vs_disassembly.md's "drops whole arguments at a
-//     mistyped vtable call", arrived at by hand from correct disassembly rather
-//     than from a decompiler.  **Reading the callee's MANGLED SIGNATURE is what
-//     caught it, not reading more instructions.**
+//     rendered with.  This is the same defect class as Ghidra's C dropping
+//     whole arguments at a mistyped vtable call, arrived at by hand from correct
+//     disassembly rather than from a decompiler.  **Reading the callee's MANGLED
+//     SIGNATURE is what caught it, not reading more instructions.**
 //
 // ---------------------------------------------------------------------------
 // 3. A HEADER FACT THIS BODY ANSWERS
@@ -160,10 +158,11 @@
 // `(channelRecord, *(void**)(rec+0x10), *(uint32_t*)(rec+0x18))`.
 //
 // That stored pointer is a COMPLETION CALLBACK, and it is the same shape
-// `reference_audio_holdbacks_share_a_callback_root_cause.md` names as the ONE
-// root cause behind all six Wave 8 AUDIO holdbacks.  This body is the SITE that
-// invokes it.  Recorded here because the six holdbacks are still open and this
-// is the first ported function that drives them.
+// Audio's StopAll and Pause paths end on (free the voice, then fire the
+// channel's stored callback), the ONE root cause behind all six Wave 8 AUDIO
+// holdbacks.  This body is the SITE that invokes it.  Recorded here because
+// the six holdbacks are still open and this is the first ported function that
+// drives them.
 //
 // `?FreeChannelPlatform@Device@Audio@@` (0x1800de6f0) is PRIVATE; it is ported in
 // src/engine/audio/audio_device.cpp and called as a member — see §5.
@@ -179,7 +178,7 @@
 //   0x1800dcd40  MainLoop::Draw                 PORTED (loops.cpp)
 //
 // `?FreeChannelPlatform@` is spelled `AEAA` — PRIVATE.  **`AEAA` MEANS PRIVATE,
-// NOT UNEXPORTED** (reference_aeaa_is_private_not_unexported.md): Runtime-x64.dll
+// NOT UNEXPORTED**: Runtime-x64.dll
 // exports its private members, and this one is ordinal 2380 in the shipped
 // export directory.
 //

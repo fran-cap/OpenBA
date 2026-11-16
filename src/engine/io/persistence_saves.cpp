@@ -17,8 +17,7 @@
 //
 // Every address above was checked against the shipped export table before a
 // line was written (pefile over Runtime-x64.dll: ordinals 2884, 2888, 2887,
-// 1638, 1647, 647), so none is a phantom
-// (reference_resolveexport_phantom_names.md). Layout is pinned in
+// 1638, 1647, 647), so none is a phantom. Layout is pinned in
 // src/engine/io/Persistence.h, which this lane extended with the worker
 // fields at +0x10..+0x8f; the offsets there were each read twice, once
 // Persistence-relative and once worker-relative, and the two agree.
@@ -26,8 +25,7 @@
 // THE ASYNC MECHANISM — one finding, not three
 // --------------------------------------------
 // The lane was briefed to expect a stored completion callback, because that
-// single root cause held back all six Wave 8 Audio rows
-// (reference_audio_holdbacks_share_a_callback_root_cause.md). THERE IS NO
+// single root cause held back all six Wave 8 Audio rows. THERE IS NO
 // STORED CALLBACK ANYWHERE IN THIS CLUSTER. Reading all three Begin* bodies
 // and both private enqueue helpers (0x1800b7390, 0x1800b7460) as
 // disassembly: not one CALL RAX, not one indirect call through an object
@@ -55,7 +53,7 @@
 // The two enqueue helpers and the worker destructor are UNEXPORTED DLL
 // internals — checked, not assumed: absent from the export table by address.
 // That is the one case where "AEAA means PRIVATE, not unexported" does NOT
-// apply (reference_aeaa_is_private_not_unexported.md); these have no mangled
+// apply; these have no mangled
 // name at all. They are ported and called by name: the enqueue helpers in
 // persistence_worker.cpp, the worker destructor as `_worker`'s member destructor.
 // The set-diff of what this lane reached by address is in
@@ -99,8 +97,7 @@ const char kRtPersistSaveFilenameFormat[] = "%sSave\\%s.sav";
 // ----------------------------------------------------------------------------
 // RETURNED BY VALUE, so the real ABI is (this=RCX, hiddenSlot=RDX, index=R8D)
 // and RAX comes back holding the slot. Omitting that parameter from the
-// typedef would be a self-consistent wild write
-// (reference_hidden_retslot_wild_write.md) — Persistence.h's SaveGameInfo
+// typedef would be a self-consistent wild write — Persistence.h's SaveGameInfo
 // banner says the same thing, and 0x1800b7bd0's own first instruction
 // (`mov %rdx,0x10(%rsp)` — spilling the slot, not an int) is the proof.
 //
@@ -112,8 +109,7 @@ const char kRtPersistSaveFilenameFormat[] = "%sSave\\%s.sav";
 // ============================================================================
 // System::Filename IO::Persistence::GetSaveFilename(const String&) const
 // retail 0x1800b7c80 — PRIVATE (`AEBA`), and exported all the same: this DLL
-// exports its private members
-// (reference_aeaa_means_private_not_unexported.md). Also returns BY VALUE:
+// exports its private members. Also returns BY VALUE:
 // (this=RCX, hiddenSlot=RDX, const String& name=R8).
 // ============================================================================
 

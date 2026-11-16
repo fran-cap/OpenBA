@@ -10,7 +10,7 @@
 // EXTENT: 0x1800df6c0 .. 0x1800dfdd7 inclusive, `RET` then INT3 padding.
 // 0x718 = 1816 bytes. MEASURED with objdump against
 // C:\GOG Games\Banished\Runtime-x64.dll on disk, not from .pdata (which is only
-// a LOWER bound, reference_pdata_is_a_lower_bound_on_function_extent.md) and
+// a LOWER bound) and
 // not from Ghidra.
 //
 // ---------------------------------------------------------------------------
@@ -92,8 +92,7 @@
 // ---------------------------------------------------------------------------
 // `Audio::Device` is in Device.h and `Audio::SoundEffect` in SoundEffect.h. This body
 // reads both, and the offsets below are read out of THIS ONE FUNCTION -- a single
-// reader, the weakest kind of layout evidence there is
-// (reference_a_writer_beats_readers_agreeing_on_a_sign.md); each carries the
+// reader, the weakest kind of layout evidence there is; each carries the
 // instruction that produced it.
 //
 //   Audio::Device (the `?_singleton@Device@Audio@@` object)

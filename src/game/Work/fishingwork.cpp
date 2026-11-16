@@ -745,7 +745,7 @@ int FishingWork::OnComplete(CitizenComponent** param2, ComponentEntity** param3,
 // `spotStates[(R9 >> 4) & 0xf] = 2` and `citizenRefs[R9 & 0xf] = 0` landed up to
 // 60 bytes past two 4-entry arrays on every cancelled fishing action. The 4-byte
 // `2` that hit a neighbouring boundary tag was the crash in EntityList::Shutdown.
-// See [[feedback_ghidra_dropped_args]]: an indirect call's register args are not
+// An indirect call's register args are not
 // in the decompile; read the disassembly for every slot that forwards.
 int FishingWork::OnCancel(CitizenComponent** param2, ComponentEntity** param3, int arg3) {
     const uint32_t param4 = static_cast<uint32_t>(arg3);

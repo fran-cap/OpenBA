@@ -13,7 +13,7 @@
 //   0x140013AA0  Scenario::GetSaveName    -> String(scenario + 0x88)
 //   0x140099130  GetLoadingSoundString    -> already inline in Game/exe_bodies.h
 //   0x140098060  GameUpdateLoop ctor      -> the real class (Game/GameUpdateLoop.h)
-// (See reference_stub_comment_outlived_the_port_that_replaced_it: grep the
+// (A stub comment can outlive the port that replaced it: grep the
 // retail ADDRESS, not the stub's prose.)
 //
 // Retail body, verified against the decompile of 0x1400E0D70:

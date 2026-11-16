@@ -64,8 +64,7 @@
 //
 // The +0x98 / +0xA0 slot numbers are RETAIL's. In Runtime-x64-profile.dll the
 // same two live at +0xb0 and +0xb8, and copying them off a profile decompile
-// would emit the wrong record type into every save
-// ([[reference_encoding_vtable_offsets_differ_between_builds]]). They come from
+// would emit the wrong record type into every save. They come from
 // `rt::io::rw_vtbl`, which Wave 4 pinned twice against the shipped bytes.
 //
 // The third argument at every slot call is the record's NAME and retail passes

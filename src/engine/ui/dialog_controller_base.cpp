@@ -74,7 +74,7 @@
 //
 // *** AEAA / `0V…` MEANS PRIVATE, NOT UNEXPORTED. *** This DLL exports its
 // private members and `?_typeInfo@DialogController@UI@@0VBaseTypeInfo@Object@@A`
-// IS in the shipped export directory (reference_aeaa_is_private_not_unexported).
+// IS in the shipped export directory.
 // The port reads the class's own record (DEFINE_TYPE at the end of this file).
 //
 // Returning the string literal "DialogController" was rejected for `TypeName`,

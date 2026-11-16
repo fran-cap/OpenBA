@@ -94,7 +94,7 @@ inline int ScaleUp(int v, float scale) {
 // The ports — UI::SpriteContext's members (ENDGAME B.3.6 block D)
 // ============================================================================
 // Every body is byte-faithful to the retail DISASSEMBLY, not to Ghidra's
-// decompiled C (reference_ghidra_c_output_vs_disassembly.md). No null guard
+// decompiled C. No null guard
 // retail does not have.
 namespace UI {
 

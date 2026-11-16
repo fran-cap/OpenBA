@@ -25,15 +25,13 @@ namespace rtcoll {
 // on what each spec was read out of, and the per-field commentary that used to
 // sit on `ArraySpec` stays HERE, next to those rows:
 //
-//   * a written-extent constant belongs to a WRITER, not to a type
-//     (reference_never_written_needs_by_whom.md) — `assign` and `init` are two
+//   * a written-extent constant belongs to a WRITER, not to a type — `assign` and `init` are two
 //     code paths with two different written extents, so there are two windows
 //     and the oracle has to know which arm produced the element it is looking
 //     at. Each pair is a half-open byte range WITHIN one element that the arm
 //     does NOT write; equal (both 0) means the arm covers the whole stride.
 //     Comparing an unwritten byte fails 100% of cases and reads like a
-//     catastrophic port defect
-//     (reference_oracle_must_not_compare_unwritten_bytes.md).
+//     catastrophic port defect.
 //   * `seedZeroLo/Hi` is the range a seeded test buffer must leave ZERO because
 //     the element operations DEREFERENCE it (a String pointer whose refcount at
 //     `str-4` gets bumped); everything outside it can take a varying non-zero

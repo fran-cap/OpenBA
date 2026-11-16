@@ -19,8 +19,7 @@
 // ---------------------------------------------------------------------------
 // FACTS THE DECOMPILED C DROPS OR GETS WRONG
 // ---------------------------------------------------------------------------
-// Read off 0x180120f20..0x1801213b6, not off Ghidra's C
-// (reference_ghidra_c_output_vs_disassembly.md):
+// Read off 0x180120f20..0x1801213b6, not off Ghidra's C:
 //
 //  1. **A dead compare with a LIVE load**, 0x180120f8a:
 //         MOV RAX,[RCX+0x30] ; CMP RAX,RAX ; JNZ

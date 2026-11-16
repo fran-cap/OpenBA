@@ -38,7 +38,7 @@
 // ----------------------------------------------------------------------------
 // Left column: the retail address and export ordinal, read from the shipped
 // DLL's export directory with pefile on 2026-09-06 (all 22 names verified
-// present — reference_resolveexport_phantom_names.md).
+// present).
 // Right column: the tail-jump displacement decoded from that function's own
 // three instructions in the shipped binary.
 //
@@ -133,8 +133,7 @@ using rt::io::Stream;
 //
 // These functions MUTATE THE STREAM. There is no "call ours, call theirs,
 // compare" for them: running the original as an oracle would write the record
-// a second time and desync every record after it — precisely
-// reference_slot3_wrapper_must_resolve_first.md. So no site here calls an
+// a second time and desync every record after it. So no site here calls an
 // original, and none ever did. What proves the bytes is the save/load pass: a
 // wrong slot consumes or emits the wrong number of bytes and the damage shows
 // up later, on an innocent-looking record. That is what the resave gate is.

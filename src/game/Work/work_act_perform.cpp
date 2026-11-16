@@ -70,7 +70,7 @@
 //   0x140151ab8 ?DeletePtr@InternalBasePtr@Object@@QEAAXXZ -> Object::InternalBasePtr::DeletePtr
 //                                    (Runtime 0x1800c0150, object/Internal.h), by name
 // 0x1401512c0 Normalize / 0x1401512d8 Heading / 0x140152a30 Vector3 ctor are direct
-// Math::Vector3 calls (B.3.1 step 2; see reference_byvalue_return_hidden_rdx).
+// Math::Vector3 calls (B.3.1 step 2; a by-value member return writes through a hidden RDX pointer).
 // .rdata (src/game/Game/exe_constants.h): 0x140172124 = 0.75f (PerformWork Time #1),
 // 0x140172188 = 3.5f (ba9f0 MoveTo speed), 0x140172194 = 4.0f (bffd0 Ctor7 Time),
 // 0x140172280 = -1.0f (bffd0 MoveTo speed), 0x1401722a8 = -1000.0f (bffd0 Ctor7 heading).

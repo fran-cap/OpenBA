@@ -226,7 +226,6 @@ extern "C" int BoatRoute_NearestPointIndex(const BoatComponent* boat, const floa
 // length to decide whether either leg found anything. keystone_a_zone.cpp's port of 6e30
 // was declared void for the same reason and is widened to int alongside this file — its
 // own caller discards the value, so nothing else changes.
-// See reference_discarded_return_reenables_gated_branch.
 extern "C" int BoatRoute_FindWaterPath(Map* map, void* /*unused2*/, uint32_t fromCell,
                                        uint64_t toCell, void* /*unused5*/, int* outBuf) {
     PathfinderThread* pf = map->pathfinder;

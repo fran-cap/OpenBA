@@ -162,7 +162,7 @@ SaveLoad* RtSave_SaveLoad_Ctor(SaveLoad* self) {
 // Everything it does is a free. What backs it:
 //
 //   1. Byte-for-byte transcription of all five bodies, disassembled (not
-//      decompiled — reference_ghidra_c_output_vs_disassembly.md).
+//      decompiled).
 //   2. Every free routed through the SAME `MemFree()` accessor the rest of
 //      this file already uses, so the heap stays whole-ours
 //      (docs/history/runtime_port/WAVE9.md §3). Retail's array-buffer frees are written out as
@@ -330,7 +330,7 @@ void RtSave_SaveLoad_Dtor(SaveLoad* self) {
 // EAX with no hidden slot. Confirmed against the retail bytes — the whole
 // function is `MOV EAX,[RCX] ; RET`, RCX is `this` and RDX is untouched.
 // (A hidden slot would have made `this` arrive in RDX; getting that wrong is
-// the wild-write family of reference_hidden_retslot_wild_write.md.)
+// a wild write through a stale register that still reads back correctly.)
 // ============================================================================
 // ENDGAME B.3.7 B2: the body is the inline member (SaveLoad.h).
 

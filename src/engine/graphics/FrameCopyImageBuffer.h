@@ -147,7 +147,7 @@ public:
     // [10] 0x1800a3b20 — likewise a member in `wave23_lane_gfxbody.cpp` now.
     void Generate(void* context, int32_t generation) const override;
     // [11] 0x1800a3b10 — `RET`. One byte in the shipped build, ported as an
-    // empty body (reference_retail_ships_empty_bodies.md).
+    // empty body.
     void Render(Renderer& renderer, const Scene& scene, const Camera& camera,
                 int32_t generation) const override;
 

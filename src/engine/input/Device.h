@@ -107,8 +107,7 @@ public:
     static constexpr int kMouseInputCount    = 0x0D;   // 13
 
     // ---- the 31 exports (B37_SLOTS.md sec. 6) -------------------------------
-    // Access control is not ABI (reference_aeaa_is_private_not_unexported.md):
-    // retail's `AEAA`/`CA` (private) members are PUBLIC here.
+    // Access control is not ABI: retail's `AEAA`/`CA` (private) members are PUBLIC here.
 
     // 0x1800e1660 input.cpp. Joystick index is the first int (retail
     // `MOVSXD`s EDX and multiplies by 0x1b0 on the device-0 branch only).

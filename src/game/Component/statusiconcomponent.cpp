@@ -111,8 +111,7 @@ static StatusIconDescription* GetStatusIconDescription(const StatusIconComponent
 //   * slot 11 (0x14012bf40), on EVERY call, immediately before it adds the geometry
 //     to the Scene.
 // The second one is what makes icons work after a LOAD: a stream-restored component
-// never goes through CreateEntity, so it never runs slot 4 at construction (see
-// [[reference_ctor_scalars_in_startup_are_unset_after_load]]). Without the slot-11
+// never goes through CreateEntity, so it never runs slot 4 at construction. Without the slot-11
 // leg its geometry is added to the Scene with NO sprite and draws nothing — which is
 // exactly what a loaded world (the tutorial, any .sav) showed: zero icons, no error.
 //
@@ -395,8 +394,7 @@ void StatusIconComponent::OnRemove() {
 // StatusIconComponent() at the end of this file. It MUST run at construction:
 // retail's load path (ComponentEntity::Serialize 0x1400c3140) rebuilds a
 // stream-restored component through the factory ctor and then calls ONLY
-// RefreshEntityFlags — vtable +0x20 (Startup) is NEVER dispatched for it. See
-// [[reference_ctor_scalars_in_startup_are_unset_after_load]].
+// RefreshEntityFlags — vtable +0x20 (Startup) is NEVER dispatched for it.
 
 
 

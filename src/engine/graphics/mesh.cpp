@@ -261,8 +261,7 @@ const ::Graphics::InstancedAnimationState* RtInstancedPoolSlot(const ::Graphics:
 // and then reads the index out of `in_R8D`. Declaring this function without the
 // return slot would be the recorded WILD WRITE — a scribble through a stale RCX
 // that still returns the right answer, live on every scene load
-// (reference_hidden_retslot_wild_write.md, Wave 1's
-// fn_Math_Transform3_Identity).
+// (Wave 1's fn_Math_Transform3_Identity).
 //
 // Two branches:
 //  * NOT instanced (_animation._instanced == 0): copy _nodes[node]._state[0]
@@ -313,8 +312,7 @@ const ::Graphics::InstancedAnimationState* RtInstancedPoolSlot(const ::Graphics:
 //
 // *** THIS IS THE HOTTEST FUNCTION IN THIS LANE AND THIS PROJECT HAS PAID FOR
 // THIS PATH TWICE. *** `?_rootOnlyUpdates@MeshInstance@Graphics@@0_NA` being
-// unregistered cost 38% of sim time
-// (project_stress_perf_rootonly_and_libcalls.md), and
+// unregistered cost 38% of sim time, and
 // src/ext/render_culling/render_culling.cpp's default-on ANIM_BATCH path reads
 // MeshInstance state every frame. Two things this port does about that:
 //   * It resolves NOTHING per call: the rotation half is a direct
@@ -393,7 +391,7 @@ const ::Graphics::InstancedAnimationState* RtInstancedPoolSlot(const ::Graphics:
 // THE RISK HERE IS THE ABI, NOT THE LOGIC. `const Time&` is a POINTER argument
 // and this project's recorded trap is that a pointer parameter typed `int` only
 // goes wrong from the fifth argument onward, where the stack slot's high dword
-// is garbage (reference_hidden_retval_and_int_pointer_args.md). `blendTime` is
+// is garbage. `blendTime` is
 // this function's fifth argument and `weight` its sixth, so both live on the
 // stack and both are exactly where that trap bites. They are typed `const
 // System::Time*` and `float` here, counted against the mangled name, not guessed.
@@ -478,12 +476,11 @@ Graphics::MeshInstance::MeshInstance(const MeshInstance& other) : Geometry(other
 //
 // TWO MANGLING / LIFETIME NOTES, both recorded landmines:
 //  * `??1` and `UEAA`. This dtor is VIRTUAL, so it mangles `UEAA`, not `QEAA`.
-//    The non-virtual spelling is a name the DLL does not contain
-//    (reference_phantom_dtor_mangling_qeaa_vs_ueaa.md).
+//    The non-virtual spelling is a name the DLL does not contain.
 //  * `MeshInstance` is NOT an `Object::Internal` and does NOT live in the
 //    handle table, so the swap-remove that Wave 5 found missing from
-//    `~Goal` — and that
-//    reference_internalfactory_swapremove_wild_write.md describes — has no
+//    `~Goal` — and that writes 4 bytes through a stale handle-table entry
+//    when an object is freed without ~Internal — has no
 //    analogue here. The class derives from Graphics::Geometry, whose dtor is
 //    the only registry-like teardown, and it is called. (`EdgeMesh` DOES derive
 //    from Object::External; its dtor is in batchc_gfx_leaves.cpp.)
@@ -694,7 +691,7 @@ Graphics::EdgeMesh::EdgeMesh() {
 //
 // The 25-parameter signature is counted against the MANGLED NAME, not against
 // the decompiler's parameter list — the recorded rule for anything past the
-// fourth argument (reference_hidden_retval_and_int_pointer_args.md). Reading it
+// fourth argument. Reading it
 // out: (int, const TriangleList*, int, const TriangleList*, then four groups of
 // (int, ushort*, int, void*, int), then const Box&) — where `1` and `2`
 // are back-references to `PEAG` (ushort*) and `PEAX` (void*).
@@ -798,8 +795,8 @@ namespace {
 // `?GetNodeToWorld@MeshInstance@Graphics@@QEBA?AVTransform@Math@@HM@Z` (retail
 // 0x180016c20, ordinal 2814 — the (int, float) INTERPOLATED overload, a
 // DIFFERENT body from the (int) overload at 0x180016a40; the two mangled names
-// differ only in a trailing `M`, which is the pair
-// reference_resolveexport_phantom_names.md exists for).
+// differ only in a trailing `M`, the kind of pair where a guessed name fails
+// silently unless it is checked against the DLL's real export table).
 //
 // The old note said "it is NOT ported anywhere in this tree … until then it is
 // the DLL's" and named it in WAVE27_LANE_GFXMESH.md §6 as INHERITED CUTOVER
@@ -982,8 +979,8 @@ void RtLerpTransformPair(const Transform& cur, const Transform& prev, float t,
 //     SAR    R8,0xc          ; an ARITHMETIC shift of the SIGN-EXTENDED value
 //     AND    R8D,0xf         ; level   = (packed >> 12) & 0xf
 //     IMUL   R8,R8,0xb0      ; ... times the detail-level stride
-// The MOVSXD/SAR pair is the trap reference_ghidra_c_output_vs_disassembly.md
-// names and that this very file already hit once (the pool-id shift in
+// The MOVSXD/SAR pair is a trap of trusting Ghidra's C over the disassembly
+// and one this very file already hit once (the pool-id shift in
 // RtInstancedPoolSlot above): Ghidra prints the widening as `(ulonglong)`, which
 // reads as a zero extension, and a logical shift here would pick a different
 // detail level for any negative `packed`. The `AND 0xf` masks the result back
@@ -1049,16 +1046,15 @@ void RtLerpTransformPair(const Transform& cur, const Transform& prev, float t,
 //
 // *** THIS IS NOT THE FUNCTION 900 LINES ABOVE. *** That one is
 // `…?AVTransform@Math@@H@Z`, retail 0x180016a40, ordinal 2813. The two mangled
-// names differ only in a trailing `M` and BOTH are exported, which is the pair
-// reference_resolveexport_phantom_names.md exists for; both VAs were confirmed
+// names differ only in a trailing `M` and BOTH are exported, the kind of pair
+// where a guessed name fails silently; both VAs were confirmed
 // against the retail export directory with pefile. They are separate bodies:
 // 0x180016a40 reads a pose, 0x180016c20 INTERPOLATES between two.
 //
 // WHY IT IS HERE AND NOT IN THE NEXT LANE'S WORKLIST. It is not a vtable slot of
 // any of this lane's three tables, so strictly it is out of scope. It is ported
 // because `?GetInstanceTransform@EdgeMeshInstance@` above CALLS it, and porting
-// that body made this address newly `called`
-// (reference_porting_can_grow_the_cutover_surface.md): the census `called` column
+// that body made this address newly `called`: the census `called` column
 // went 1372 -> 1373 and the BODY gap 18 -> 19. A lane that opens a row and hands
 // it on has moved work, not done it — so this closes the one row this lane
 // opened, and closes it in the file that already holds the shared helper.
@@ -1072,7 +1068,7 @@ void RtLerpTransformPair(const Transform& cur, const Transform& prev, float t,
 // *** HIDDEN RETURN SLOT. *** RCX = this, RDX = the caller's Math::Transform
 // buffer, R8D = the node index, XMM3 = t, RAX = RDX on return. Declaring it
 // without the return slot is the recorded WILD WRITE that still returns the
-// right answer (reference_hidden_retslot_wild_write.md).
+// right answer.
 //
 // TWO ARMS:
 //
@@ -1227,7 +1223,7 @@ uint64_t g_addDrawItemsEdgeQ  = 0;
 //   `max` of the two boxes' maxima, `min` of the two minima, centre = (min+max)
 //   * 0.5f, then the squared distance from the current draw group's view
 //   position. Retail sums the terms as `(dy2 + dx2) + dz2` — the ORDER of a
-//   float sum is part of the body (reference_moved_term_hides_where_terms_cancel.md),
+//   float sum is part of the body,
 //   so it is reproduced rather than tidied.
 //   The level is then the FIRST whose `switchDistance²` EXCEEDS that distance;
 //   if none does, level 0 is used (the counter never advances past the loop

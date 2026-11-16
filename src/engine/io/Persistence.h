@@ -226,7 +226,7 @@ static_assert(offsetof(SaveBlock, data) == 0x0, "SaveBlock::data");
 // `GetSaveInfo(this, SaveGameInfo* hiddenSlot, int index)` with the index in
 // R8D, which is what 0x1800c1fe3..0x1800c1fed does register for register.
 // A typedef that omits that slot is a wild write that still returns the right
-// answer (reference_hidden_retslot_wild_write.md).
+// answer.
 //
 // BOTH FIELDS ARE PINNED BY ONE READER, ?UpdateList@SaveLoad@Save@@ state 1:
 //   +0x00  1800c1ff5  MOV RCX,[RAX]    -> copied into SaveInfo+0x30, which the

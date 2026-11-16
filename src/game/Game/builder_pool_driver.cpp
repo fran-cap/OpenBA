@@ -8,7 +8,7 @@
 // NO player-free path in the engine that seats the FIRST builder at a fresh construction
 // site: the periodic employment allocator (0x1400d43b0) only REBALANCES workplaces that
 // already have >=1 worker (its Phase-2 need-table skips any workplace whose live roster
-// count WPC+0x60 == 0 — Ghidra-verified). See reference_builder_profession_bst_flow.
+// count WPC+0x60 == 0 — Ghidra-verified).
 //
 // RE-VERIFIED 2026-08-09 from the decompile of 0x1400d43b0: the skip is RETAIL's, not ours.
 // Phase 1 (the citizen sweep) only *evicts* — for a citizen whose site profession

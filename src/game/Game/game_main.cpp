@@ -202,7 +202,7 @@ static void ShutdownEngineStaged(::Engine::Engine* engine) {
     if (Video::Device* vdev = engine->GetVideoDevice()) {   // +0x6c0
         // ?PlatformShutdown@Device@Video@@AEAAXXZ. `AEAA` is retail's PRIVATE, but
         // Device.h declares the member public (this DLL exports its private
-        // members — reference_aeaa_is_private_not_unexported).
+        // members).
         vdev->PlatformShutdown();
         for (Video::Device::InterfaceSlot& slot : vdev->dllSlots) {   // +0xb0, stride 24
             // The plugin module is the HMODULE held as void* (FreeLibrary).

@@ -144,7 +144,7 @@ inline const double* TimerSecondsPerTick() {
 // The ports
 // ============================================================================
 // Every body is byte-faithful to the retail disassembly (read, not only the
-// decompiled C — reference_ghidra_c_output_vs_disassembly.md). No null guard
+// decompiled C). No null guard
 // retail does not have; the CLAUDE.md rule holds even where a guard looks
 // free.
 
@@ -222,9 +222,8 @@ int32_t UI::UserInterface::GetAddDialogCount() const {
 //   MOV RAX,[RCX] / MOV [RDX],RAX / MOV RAX,RDX / RET
 // Returns a `LinkedList<…>::Iterator` by value. The iterator is EIGHT BYTES
 // and is just the node pointer (Collection.h), so the hidden return slot in
-// RDX gets one qword and the function hands the slot back in RAX —
-// reference_hidden_retval_and_int_pointer_args.md: forget the retval slot and
-// this becomes a wild write that still "works".
+// RDX gets one qword and the function hands the slot back in RAX; forget the
+// retval slot and this becomes a wild write that still "works".
 UI::UserInterface::Iterator UI::UserInterface::GetFirstDialog() {
     return _dialogs.GetFirst();          // the head node, one qword
 }
@@ -408,8 +407,7 @@ void UI::UserInterface::SetFullscreenFadeSprite(const Sprite* sprite) {
 // class with a non-trivial copy constructor means BY ADDRESS: RDX is a pointer
 // to the caller's 8-byte InternalPtr. Retail dereferences it once for the
 // vtable call and then hands the SAME pointer to the array push as the fill
-// source, which is why the parameter is a pointer to the InternalPtr
-// (reference_hidden_retval_and_int_pointer_args.md).
+// source, which is why the parameter is a pointer to the InternalPtr.
 //
 // NOTE what retail does NOT do: no null check on `*dlgPtr`. It relies on the
 // caller never passing an empty pointer, and CLAUDE.md is explicit that a guard
@@ -563,7 +561,7 @@ void UI::UserInterface::BringDialogToFront(Object::InternalPtr<DialogInstance>* 
 //        frees the surviving nodes and zeroes head/tail/count.
 //
 // TWO TRANSCRIPTION TRAPS, both taken from the DISASSEMBLY and not from the
-// decompiled C (reference_ghidra_c_output_vs_disassembly.md):
+// decompiled C:
 //
 //   (a) THE FLAG WORD IS READ BEFORE THE NULL TEST, in both loops:
 //           180120c78  MOV RAX,[RBX+R14]        ; the dialog
@@ -845,7 +843,8 @@ extern "C" void RtUi_UserInterface_Dtor(UserInterface* self) {
 // "Serialize every open dialog's settings into that dialog's OWN settings
 // buffer." It is a PURE SIDE EFFECT: it returns void, it touches no field of
 // the UserInterface, and everything it does lands in memory somebody else owns.
-// reference_port_must_reproduce_side_effects.md is the whole risk here.
+// The whole risk is publishing into the exact storage the consumers read: a port
+// that kept its own copy would look correct yet leave every reader seeing zero.
 //
 // WHY IT WAS BLOCKED AND WHY IT IS NOT NOW. Wave 7 lane C's one-line reason was
 // "Builds an IO::MemoryStream and serialises every dialog's settings.
@@ -855,8 +854,8 @@ extern "C" void RtUi_UserInterface_Dtor(UserInterface* self) {
 // thing that blocks it: nothing here reaches a file. `SaveAllSettings` writes
 // into `DialogInstance::_userData` (+0xa8), a caller-owned byte buffer whose
 // length is `+0xb0`. A buffer can be snapshotted, restored and re-written; a
-// file handle cannot. reference_write_path_serialize_is_replayable.md, for the
-// fifth time in this project.
+// file handle cannot. On the write path a Serialize is a pure read of the object,
+// so the port and retail can each emit into their own sink and be compared.
 //
 // ---------------------------------------------------------------------------
 // THE TWO FIELDS AT +0xa8/+0xb0 ARE NOT WHAT DialogInstance.h CALLS THEM

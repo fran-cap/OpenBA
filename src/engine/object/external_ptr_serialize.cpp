@@ -204,8 +204,7 @@ bool ExternalPtrSerializeBody(External* cur, IO::Serializer& ser,
         }
 
         // The record's NAME is the third argument, NULL at both sites. The
-        // slot numbers are RETAIL's (+0x98 / +0x78); the profile DLL's differ
-        // ([[reference_encoding_vtable_offsets_differ_between_builds]]).
+        // slot numbers are RETAIL's (+0x98 / +0x78); the profile DLL's differ.
         ser._readerWriter->SerializeUInt(refId, nullptr);        // 0x1800043ad
         if (refId == kNoReferenceId) {                           // 0x1800043b7
             return false;

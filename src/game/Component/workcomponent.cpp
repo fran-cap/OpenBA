@@ -62,7 +62,7 @@
 // WorkScheduler::TaskCleanup steps 1/2/4 in action_base_complete.cpp,
 // WorkComponent::CancelWork just below) documents it correctly as lesser@+0x18.
 // Left uncorrected in a family that has now paid THREE TIMES for a child-offset or
-// slot mix-up (reference_workarea_bst_bad_entry.md), a comment that contradicts its own
+// slot mix-up, a comment that contradicts its own
 // code and its four siblings is a defect waiting for the next reader.
 // The goals tree is WorkScheduler::trees[0] (m_tutorial +0x30); its nodes are
 // WorkSchedulerIdNode (Game/WorkSchedulerNodes.h).
@@ -222,7 +222,7 @@ void WorkComponent::OnAdded() {
 // slot 7, so EVERY Pickup ever posted stayed in the goals trees with a freed
 // target entity. The next save walked one and faulted in Work::Serialize
 // (0x1400f7400) dereferencing the dead target — measured as work ids 3..22,
-// one per haul, zero exceptions. See [[reference_ported_registered_but_unwired]].
+// one per haul, zero exceptions.
 
 void WorkComponent::OnRemove() {
     bool available = IsWorkPosted();   // 0x14012ead0

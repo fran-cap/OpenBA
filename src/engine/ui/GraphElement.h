@@ -55,8 +55,7 @@ constexpr int kGraphsCount = 0xF8;  // Collection::Array<GraphSeries> .size (int
 //   +0x04  (hole)    4 bytes  NEVER WRITTEN BY ANY ARM. Not padding this lane
 //                             chose -- padding retail leaves. It is declared as
 //                             kSpec_GraphSeries's assign-unwritten window so no
-//                             oracle compares it
-//                             (reference_oracle_must_not_compare_unwritten_bytes.md).
+//                             oracle compares it.
 //   +0x08  points    Collection::Array<int32_t>  data +0x08 / size +0x10 /
 //                             capacity +0x14. This is the array
 //                             GraphElement::AddGraphPoint appends into

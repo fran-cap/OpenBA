@@ -4,7 +4,7 @@
 //
 // The whole class, nine exports, byte-faithful against the disassembly of
 // Runtime-x64.dll at the retail addresses named per function (read as
-// DISASSEMBLY, not decompiled C — reference_ghidra_c_output_vs_disassembly.md).
+// DISASSEMBLY, not decompiled C).
 //
 // WHY THIS CLASS FIRST. `?SecondsToTicks@Timer@System@@SA_JM@Z` and
 // `?TicksToSeconds@Timer@System@@SAM_J@Z` are two of lane V's REAL DEPENDENCY

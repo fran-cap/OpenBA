@@ -336,13 +336,11 @@ System::String System::Configuration::GetCommandLineString(
 // The name was checked against the export directory with pefile before a line
 // was written: `??1` is the destructor and `QEAA` is the NON-VIRTUAL spelling,
 // and it is ordinal 556 at 0x1800c5170. `??1...UEAA@XZ` does not exist in this
-// DLL and would have resolved NULL in silence
-// (reference_phantom_dtor_mangling_qeaa_vs_ueaa.md).
+// DLL and would have resolved NULL in silence.
 //
-// NOT PRESCRIBED, READ. `reference_a_written_recipe_can_be_wrong.md` records a
-// wave that ported two dtors exactly as prescribed and swapped a body that
-// destroys EVERY element for one that destroys only the FIRST, so both callees
-// were opened rather than assumed:
+// NOT PRESCRIBED, READ. Look-alike destructor bodies can differ by one
+// element-destroy pass -- a body that destroys EVERY element versus one that
+// destroys only the FIRST -- so both callees were opened rather than assumed:
 //
 //   0x18000f7d0  loads [this]; on non-null it calls 0x18000f890 TWICE, once
 //                with [node+0x18] and once with [node+0x20] -- i.e. it recurses

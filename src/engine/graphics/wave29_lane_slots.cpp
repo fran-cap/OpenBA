@@ -84,8 +84,8 @@ uint64_t g_miSSIDskip = 0;       // ... early-outs on the non-negative flag
 // guards. Both were checked individually against the retail EXPORT DIRECTORY
 // with pefile and NEITHER has an entry, so they are genuinely address-only —
 // this is NOT the `AEAA`-means-private misreading that has produced three
-// silent address doors in this project
-// (reference_aeaa_is_private_not_unexported.md).
+// silent address doors in this project (`AEAA` marks a private member, and this
+// DLL exports its private members).
 //
 //   SYMBOL:      (unexported) MeshInstance::Update's static-init guard,
 //                retail 0x1801ff30c, `.data`. Bit 0 is the "initialised" bit.
@@ -316,8 +316,8 @@ void MeshInstance::Update(const System::Time& timeRef) {
 // `cmp DWORD PTR [rax+rdx*8+0x14],0` / `jge` (0x1801016a2) — a NON-NEGATIVE
 // dword at +0x14 of the list record means "already has shared data, nothing to
 // do", and the function returns 0. Only a NEGATIVE value falls through.
-// (reference_a_writer_beats_readers_agreeing_on_a_sign.md applies in reverse
-// here: this is a READER, so this comment does not claim to name the field —
+// (Readers testing a sign cannot name a field; its writer can. This is a
+// READER, so this comment does not claim to name the field —
 // it records the test it performs and nothing more.)
 //
 // THE ADDRESS ARITHMETIC, exactly as retail computes it:

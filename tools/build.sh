@@ -21,8 +21,8 @@
 #               Metal on Darwin.
 #   flavours: debug (default) | og | perf | release   -- CMakeLists.txt's BANISHED_FLAVOUR
 #
-# Jobs: --jobs N or BUILD_JOBS (default 8 since 2026-10-17, the user: no wide multi-agent builds any more; agents still use 2 -- memory
-# feedback_build_parallelism_low_memory). Extra cmake args: CMAKE_EXTRA (e.g. "-DBANISHED_USE_CCACHE=OFF").
+# Jobs: --jobs N or BUILD_JOBS (default 8 since 2026-10-17, the user: no wide multi-agent builds any more; agents use
+# jobs = 8 / agents building at once, minimum 2). Extra cmake args: CMAKE_EXTRA (e.g. "-DBANISHED_USE_CCACHE=OFF").
 # Toolchain: cmake + ninja from pip on PATH; on Windows the compiler is the PINNED WinLibs GCC
 # (tools/toolchain/install_winlibs.sh; docs/reference/environment.md), found through BANISHED_GCC_DIR
 # (default C:/winlibs-gcc16/mingw64/bin), put first on PATH here and handed to CMake explicitly; a build dir

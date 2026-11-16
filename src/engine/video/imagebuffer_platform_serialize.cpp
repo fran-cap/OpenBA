@@ -13,7 +13,7 @@
 // `AEAA` MEANS PRIVATE, NOT UNEXPORTED. Checked against the shipped export
 // directory before writing anything: ordinal 3387, address 0x1800f3130, sitting
 // in a run with its four siblings (GraphicsMesh, ShaderProgram, SoundBuffer,
-// VertexLayout) (`reference_aeaa_means_private_not_unexported.md`).
+// VertexLayout).
 //
 // Confirmed absent before writing: `PlatformSerialize` appears NOWHERE in
 // `code/ engine/ runtime/ standalone/ src/render/dx11/`. Not ported, not gated, not

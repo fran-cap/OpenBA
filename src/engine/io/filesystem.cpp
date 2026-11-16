@@ -19,7 +19,7 @@
 //
 // All six names were checked against the shipped DLL's export directory with
 // pefile BEFORE any code was written here (WAVE4_LANE_D.md §2) — none is a
-// reference_resolveexport_phantom_names.md case.
+// mangled name inferred from the signature rather than read from that table.
 //
 // HIDDEN RETURN SLOTS. GetDataDirectory, GetSourceDirectory and
 // GetSaveDirectory all return `System::Filename` BY VALUE (`?AV` in the

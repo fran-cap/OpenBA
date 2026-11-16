@@ -29,8 +29,7 @@
 // ALL SEVEN ARE EXPORTED BY NAME. Checked with `tools/pe_exports.py` against
 // the shipped `Runtime-x64.dll` before a line was written — every one resolves
 // at offset 0 of its own export, and none of the `AEAA`-means-unexported
-// confusion applies
-// (`reference_aeaa_is_private_not_unexported.md`).
+// confusion applies.
 //
 // ----------------------------------------------------------------------------
 // READ FROM THE DISASSEMBLY, NOT THE DECOMPILED C
@@ -178,7 +177,7 @@ int32_t ImageBuffer::GetFileVersion() const { return 7; }
 //
 // THREE instructions, and Ghidra's C prints the tail jump as an argument-less
 // call — the `XOR EDX,EDX` that selects "destroy without freeing" is exactly
-// the dropped argument `reference_ghidra_c_output_vs_disassembly.md` is about.
+// the kind of live register argument Ghidra's decompiled C drops.
 // Passing 1 here instead would free an object the caller still owns.
 //
 // `this->~ImageBuffer()` is that slot-0 call: a virtual destructor call, which

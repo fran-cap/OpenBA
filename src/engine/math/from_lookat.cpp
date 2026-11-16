@@ -15,8 +15,7 @@
 // `FromLookAt` is a STATIC member returning `Transform3` (0x30 bytes) BY VALUE,
 // so MSVC's x64 ABI passes the return slot in RCX and the two arguments in RDX
 // and R8. Ghidra drops the R8 argument on static struct-returning functions and
-// prints a TWO-parameter signature with an `in_R8` local
-// (reference_ghidra_drops_r8_static_lookat.md); a typedef copied from that C
+// prints a TWO-parameter signature with an `in_R8` local; a typedef copied from that C
 // output would pass the target vector where the ABI expects nothing and write
 // the 0x30-byte result over whatever the caller left in RCX. Verified against
 // the DISASSEMBLY here: `MOV RBX,RCX` (slot), `MOV RDI,RDX` (position) and
@@ -48,8 +47,7 @@
 //  * Every sum is parenthesised to match the ADDSS order in the retail
 //    schedule. Float addition is not associative and the two cross products
 //    below are near-cancelling sums, which is exactly the shape where a
-//    re-grouped term shows up in one call in tens of thousands
-//    (reference_moved_term_hides_where_terms_cancel.md).
+//    re-grouped term shows up in one call in tens of thousands.
 //  * The three "is it zero" tests are `UCOMISS` + `JP`/`JZ`, i.e. a NaN length
 //    takes the SCALE path, not the skip path. `if (!(len == 0.0f))` reproduces
 //    that; `if (len != 0.0f)` happens to as well, but the spelling below says
@@ -59,8 +57,7 @@
 //  * The up-axis selection keeps retail's literal `* 0.0f` terms in the dot
 //    product. They are not dead code to a strict-FP reader: `x * 0.0f` is -0.0
 //    for negative x and NaN for infinite x, and the sum order is observable.
-//  * Constants are lifted as raw bits, never retyped as decimals
-//    (reference_crt_coefficients_must_be_lifted_not_retyped.md):
+//  * Constants are lifted as raw bits, never retyped as decimals:
 //      0x180161694 = 0x3f000000   0.5f   (not used here; listed for the family)
 //      0x180161698 = 0x3f7fbe77  +0.999f  upper pole threshold
 //      0x18016169c = 0x3f800000  +1.0f    reciprocal numerator and +up

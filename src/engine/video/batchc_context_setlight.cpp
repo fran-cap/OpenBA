@@ -40,8 +40,7 @@
 //    `(att.y*dir.y + att.x*dir.x) + att.z*dir.z`. The y term is the LEFT
 //    operand of the first ADDSS (0x18001aa7b adds XMM0 into XMM5, where XMM5
 //    already holds the y product). Re-associating it is a different float.
-//    (reference_moved_term_hides_where_terms_cancel.md: this project has
-//    already lost a wave to exactly that.)
+//    (A regrouped float sum differs in the last bit where the terms cancel.)
 // 4. THE TWO COPY BLOCKS AT THE END ARE NOT A MEMCPY OF THE WHOLE STAGING
 //    AREA. Retail copies exactly eight dwords from +0x1dd8 to +0x268 and
 //    exactly four from +0x1e28 to +0x248, dword by dword, and touches nothing

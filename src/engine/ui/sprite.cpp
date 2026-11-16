@@ -6,7 +6,7 @@
 // Ports 20 of the 23 exports this lane owns (PLAN.md §4.2 wave 7, §6). Every
 // mangled name below was checked against the shipped export directory of
 // C:\GOG Games\Banished\Runtime-x64.dll with a pefile-style reader BEFORE any
-// body was written (reference_resolveexport_phantom_names.md); all 23 exist.
+// body was written; all 23 exist.
 // The full write-up — the oracle argument per function, the SpriteInfo layout
 // correction, and everything held back — is
 // docs/history/runtime_port/WAVE7_LANE_F.md.

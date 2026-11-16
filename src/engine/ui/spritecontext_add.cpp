@@ -16,8 +16,7 @@
 //   | 0x18011ccb0 | ?AddFont@SpriteContext@UI@@QEAAXV?$ExternalPtr@VFont@UI@@@Object@@AEBVString@System@@_NHW4Justify@Font@2@HHHI@Z |
 //
 // Every fact below is read out of `disassemble_function` on retail
-// Runtime-x64.dll, not out of Ghidra's decompiled C
-// (reference_ghidra_c_output_vs_disassembly.md). The three AddSprite bodies are
+// Runtime-x64.dll, not out of Ghidra's decompiled C. The three AddSprite bodies are
 // byte-for-byte the same shape and differ only in where the record's four
 // coordinates and its rotation come from, which is why they are written here as
 // three separate bodies rather than three wrappers: retail does not share them
@@ -27,7 +26,7 @@
 // NO HIDDEN RETURN SLOT ON ANY OF THE FOUR
 // ---------------------------------------------------------------------------
 // The `X` in each mangling says void, and — because the mangling alone is not
-// the proof (reference_hidden_retslot_wild_write.md) — the shipped bytes agree:
+// the proof — the shipped bytes agree:
 // all three AddSprite bodies begin `MOV RBX,[RDX]` and immediately treat RDX as
 // the `UI::Sprite const&`, and AddFont's first instruction is
 // `MOV [RSP+0x10],RDX` — spilling RDX into the home slot of ARGUMENT 1, which it

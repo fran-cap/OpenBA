@@ -356,8 +356,7 @@ namespace {
 //     now "no reason to deviate", not "load-bearing".
 //     The lesson generalises and is why this note survives its own
 //     retraction: a control that corrupts a value NOTHING OBSERVES reports
-//     NOT CAUGHT and reads as an indictment of a sound instrument
-//     (reference_control_must_pick_a_compared_subject.md). Note 5 is the
+//     NOT CAUGHT and reads as an indictment of a sound instrument. Note 5 is the
 //     round-trip-invisible hazard on this body that IS real; that is the one
 //     the effectiveness control uses.
 //

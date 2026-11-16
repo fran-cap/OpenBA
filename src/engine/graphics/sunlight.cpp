@@ -13,7 +13,7 @@
 //
 // All three mangled names were verified present in the shipped export table
 // (tools/pe_exports.py over the shipped Runtime-x64.dll) BEFORE anything here
-// was written, per reference_resolveexport_phantom_names.md.
+// was written.
 //
 // ---------------------------------------------------------------------------
 // WHY THIS LANDS NOW, AND WHAT LANE GFX'S BLOCKER WAS
@@ -201,7 +201,7 @@ void DeleteRenderBuffer(Video::RenderBuffer* rb) {
 }
 
 // `if (ib) (*ib->vtable[0])(ib, 1)` — retail's deleting destructor
-// (reference_phantom_dtor_mangling_qeaa_vs_ueaa.md: slot 0 is ??_E, not ??_G).
+// (slot 0 is ??_E, not ??_G).
 // B3X W0 audit: by name, through the object's own class (Object::Base root);
 // B3X W1: that call is `delete`.
 void DeleteImageBuffer(Video::ImageBuffer* ib) {
@@ -211,7 +211,7 @@ void DeleteImageBuffer(Video::ImageBuffer* ib) {
 }
 
 // The two float constants the ctor's bounds block uses, LIFTED AS RAW BITS and
-// not retyped from a decimal (reference_crt_coefficients_must_be_lifted_not_retyped.md).
+// not retyped from a decimal.
 //   0x18016173c = 00 24 74 49 = 0x49742400
 //   0x180161778 = 00 24 74 c9 = 0xc9742400
 float BitsToFloat(uint32_t b) { float f; std::memcpy(&f, &b, 4); return f; }

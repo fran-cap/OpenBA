@@ -5,7 +5,7 @@
 //
 //   ?PlayPlatform@Device@Audio@@AEAA_NHV?$ExternalPtr@VSoundBuffer@Audio@@@Object@@AEBVTime@System@@MMM@Z
 //
-// `AEAA` is PRIVATE, not unexported (reference_aeaa_is_private_not_unexported.md);
+// `AEAA` is PRIVATE, not unexported;
 // checked against the retail export directory with pefile before writing this
 // file, not assumed. It was Audio's last remaining unported BODY row: two
 // earlier lanes (WAVE28_LANE_SLOTS.md §the callback table, WAVE29_LANE_AVBODY.md
@@ -20,8 +20,8 @@
 //
 // ---------------------------------------------------------------------------
 // THE BODY, READ FROM THE DISASSEMBLY (not Ghidra's decompile -- it silently
-// drops the 7th argument, `third`, the way
-// reference_ghidra_c_output_vs_disassembly.md warns; the disassembly settles
+// drops the 7th argument, `third`, and its C is not authoritative for argument counts; the
+// disassembly settles
 // every register and every stack offset used below)
 // ---------------------------------------------------------------------------
 //   1800de7b4  MOV RCX,[this+0xa88]         ; IXAudio2* engine
@@ -169,9 +169,9 @@
 // 0x1801616a0 = 0x3f873c9e = 1.0594631433486938f = 2^(1/12), the semitone
 // ratio -- so `pitch` is consumed as a SIGNED SEMITONE OFFSET and this call is
 // `pow(2^(1/12), pitch)`, the standard equal-temperament pitch-to-frequency-
-// -ratio conversion. Read as the bit pattern's VALUE, matching
-// `reference_crt_coefficients_must_be_lifted_not_retyped.md`'s rule for
-// literals pulled out of `.rdata` (this one is the CONSTANT ARGUMENT, not a
+// -ratio conversion. Read as the bit pattern's VALUE, matching the rule that literals pulled out
+// of `.rdata` are lifted from the binary's bits, never retyped as decimals (this one is the
+// CONSTANT ARGUMENT, not a
 // tempering coefficient, so it is spelled as the float value rather than the
 // hex bit pattern; both name the same IEEE754 bits).
 //

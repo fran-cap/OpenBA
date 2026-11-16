@@ -102,9 +102,8 @@
 // ---------------------------------------------------------------------------
 // WHAT THE CTOR DOES *NOT* WRITE — 25 bytes, and the oracle depends on it
 // ---------------------------------------------------------------------------
-// `reference_oracle_must_not_compare_unwritten_bytes.md`: an oracle that
-// memcmps bytes NEITHER side writes fails on padding noise and reads like a
-// catastrophic port defect. The ctor leaves these ranges untouched:
+// An oracle that memcmps bytes NEITHER side writes fails on padding noise and
+// reads like a catastrophic port defect. The ctor leaves these ranges untouched:
 //
 //     0x014..0x017   _dialogs._pad14
 //     0x074..0x077   padding after _dragDropId

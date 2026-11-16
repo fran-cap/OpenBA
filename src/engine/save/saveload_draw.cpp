@@ -30,8 +30,8 @@
 //
 // Wave 5 lane C (WAVE5_LANE_C.md, row 6) and the Wave 8.5 hold-back re-check
 // (WAVE8_5_HOLDBACK_RECHECK.md, row 10) both declined it, with two reasons.
-// Re-checked here before porting, as
-// reference_holdback_blockers_are_stale_check_them_first.md requires:
+// Re-checked here before porting against the disassembly and the tree, since a
+// stated hold-back blocker records only what one earlier check could establish:
 //
 //   REASON 1 — "it hand-constructs five Wave 6/7 classes, so porting Draw means
 //   porting their constructors first; that is a wave, not a function."
@@ -47,10 +47,9 @@
 //   (0x18001c750, 0x180033bc0, 0x180033de0), which are `UI::SpriteContext`'s
 //   member-wise destructor here, plus one `Array<{String,void*}>::SetSize`
 //   (0x180061480), transcribed inline below.
-//   The lesson is the general one of
-//   reference_grep_cannot_tell_internal_from_unported_export.md: "the callee is
-//   not ported" and "the callee has no name" are different facts, and only the
-//   export table can tell them apart.
+//   The lesson is the general one: "the callee is not ported" and "the callee
+//   has no name" are different facts, and only the export table can tell them
+//   apart.
 //
 //   REASON 2 — "no oracle is possible: it renders into the live Video::Context
 //   and would draw twice and leak a render target per call."
@@ -62,8 +61,8 @@
 //
 // ----------------------------------------------------------------------------
 // FOUR THINGS THE DECOMPILED C GOT WRONG. Every one was caught by reading the
-// disassembly, which is what reference_ghidra_c_output_vs_disassembly.md says
-// to do and what Wave 13 had to do twice in this same class.
+// disassembly, which outranks Ghidra's C on derefs, widths and argument counts,
+// and reading it is what Wave 13 had to do twice in this same class.
 //
 //   1. *** A DROPPED ARGUMENT AT A VTABLE CALL. *** Ghidra prints the
 //      FrameCopyImageBuffer capture call as
@@ -210,8 +209,8 @@ void ReleaseBindingNames(MaterialBinding* p, int32_t count) {
 //     the array SHRANK, the dropped elements' Strings are released; when it
 //     did move, ALL the old elements' Strings are released and then the old
 //     block is freed. Collapsing either into a bare `MemFree` would leak one
-//     String refcount per element — the shape
-//     reference_a_written_recipe_can_be_wrong.md is about.
+//     String refcount per element — look-alike bodies differ by exactly such a
+//     release pass, so each is checked against its own disassembly.
 void ArrayBindingSetSize(BindingArray* a, uint32_t newSize, const MaterialBinding* fill) {
     const uint32_t oldSize = static_cast<uint32_t>(a->_size);
     if (newSize == oldSize) return;
@@ -258,7 +257,7 @@ void ArrayBindingSetSize(BindingArray* a, uint32_t newSize, const MaterialBindin
 // ============================================================================
 // 2. The Video::Device singleton Draw reads. The retail export names quoted in
 //    the body were read out of the SHIPPED export table with pefile, by ADDRESS
-//    (reference_resolveexport_phantom_names.md); the ordinal is recorded next
+//    (never inferred from the signature); the ordinal is recorded next
 //    to each so the lookup is reproducible.
 // ============================================================================
 

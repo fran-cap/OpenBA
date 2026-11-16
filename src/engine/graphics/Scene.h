@@ -47,7 +47,7 @@ namespace RtGraphics {
 // 0x180102639: `MOV dword ptr [RSP+0x30], 0xffffffff` then
 // `MOV RAX, qword ptr [RSP+0x30]`, with nothing ever writing [RSP+0x34]. This is
 // the same shape as the shipped-DLL uninitialised read Wave 5 found in
-// Picking::Scene::RemoveMesh (reference_shadow_predicate_must_name_its_failing_term.md).
+// Picking::Scene::RemoveMesh.
 // Consequence for this lane: no oracle may compare +0x14, and our port must not
 // pretend to a value retail does not have.
 // ============================================================
@@ -112,8 +112,8 @@ using SceneObjectId = uint32_t;
 // of the shipped Runtime-x64.dll contains no `??_7Scene@Graphics@@6B@` and no
 // `?_typeInfo@Scene@Graphics@@`, its constructor stores no vtable, and every one
 // of its fifteen exports is `QEAA`/`QEBA` (public non-virtual), `SA` (static) or
-// `AEBA` (private non-virtual — and this DLL exports its private members,
-// reference_aeaa_is_private_not_unexported.md). The banner at the top of this
+// `AEBA` (private non-virtual — and this DLL exports its private members).
+// The banner at the top of this
 // file established all of that in wave 6 and block 0 re-read it from bytes.
 //
 // -------------------------------------------------------------------------
@@ -286,7 +286,7 @@ public:
     void AddDrawItems(Renderer& renderer) const;             // 0x1801023b0
 
     // Both are `AEBA` in retail — PRIVATE const members, which this DLL exports
-    // anyway (reference_aeaa_is_private_not_unexported.md). They are declared
+    // anyway. They are declared
     // PUBLIC here because code outside the class calls them by name
     // (lights_vtable.cpp, wave27_lane_gfxbig.cpp, wave28_lane_partsys.cpp,
     // src/ext/render_pipe/passes.cpp): access control is not ABI. Retail's access

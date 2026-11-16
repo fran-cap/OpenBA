@@ -233,8 +233,7 @@ constexpr size_t kPackageFileSize = 0xF0;
 //   1800254ad  MOV EAX,dword ptr [RAX + R8*0x8 + 0xc]
 //
 // So the address is `entries + index*16 + 0xc`, and the index is SIGN-extended.
-// Ghidra's C prints that MOVSXD as a zero extension
-// (reference_ghidra_c_output_vs_disassembly.md, three Wave 6 defects); it is
+// Ghidra's C prints that MOVSXD as a zero extension (three Wave 6 defects); it is
 // written as int64 here because that is what the instruction says. There is no
 // bounds check in either body, and none is added — the caller bounds it with
 // GetFileCount, and a guard here would skip work rather than restore it.
@@ -397,8 +396,7 @@ bool PackageFile::CanOverride() const {
 //   1800254ad  MOV EAX,dword ptr [RAX + R8*0x8 + 0xc]
 //
 // So the address is `entries + index*16 + 0xc`, and the index is SIGN-extended.
-// Ghidra's C prints that MOVSXD as a zero extension
-// (reference_ghidra_c_output_vs_disassembly.md, three Wave 6 defects); it is
+// Ghidra's C prints that MOVSXD as a zero extension (three Wave 6 defects); it is
 // written as int64 here because that is what the instruction says. There is NO
 // bounds check in either body and none is added -- the caller bounds it with
 // GetFileCount, and a guard here would skip work rather than restore it.

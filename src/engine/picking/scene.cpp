@@ -22,8 +22,8 @@
 //
 // All nine names were checked against the shipped export directory of
 // C:\GOG Games\Banished\Runtime-x64.dll with pefile BEFORE any body was
-// written (reference_resolveexport_phantom_names.md: a name the DLL does not
-// contain resolves to NULL in silence and the census still counts the port).
+// written (a name the DLL does not contain resolves to NULL in silence and the
+// census still counts the port).
 // The addresses and ordinals above are that query's output.
 //
 // THE GRID INTERNALS
@@ -164,8 +164,7 @@ namespace Picking {
 //
 // Four stores. NOTE the argument count: five after `this`, so the callback is
 // the SIXTH register argument and lands on the stack. A signature that dropped
-// it would leave entry+0x40 holding whatever the caller happened to have there
-// (reference_hidden_retval_and_int_pointer_args.md).
+// it would leave entry+0x40 holding whatever the caller happened to have there.
 // ============================================================================
 void Scene::SetMeshUserData(uint32_t id, void* userData, int32_t userValue,
                             int32_t userValue2, HitCallback callback) {

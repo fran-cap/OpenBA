@@ -20,8 +20,8 @@ namespace KeyTables {
 //
 // Neither was transcribed by hand. read_memory returned the bytes; a script
 // re-encoded the decoded arrays back to hex and ASSERTED equality against that
-// same dump; only then were they written out here. That is the discipline
-// reference_crt_coefficients_must_be_lifted_not_retyped.md asks for, applied to
+// same dump; only then were they written out here. That is the discipline of
+// copying constants as raw bits from the binary, never retyping them, applied to
 // byte tables instead of float coefficients.
 // ---------------------------------------------------------------------------
 

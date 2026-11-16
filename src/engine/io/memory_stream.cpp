@@ -24,7 +24,7 @@
 // types header before opening the PE.
 //
 // All six mangled names were checked against the shipped export table before a
-// line was written (reference_resolveexport_phantom_names). Two of them are
+// line was written. Two of them are
 // spelled `UEBAI` — const, returning UNSIGNED int — which is why the two
 // getters below return uint32_t and not int32_t.
 // ============================================================================

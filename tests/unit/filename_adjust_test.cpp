@@ -4,7 +4,7 @@
 // ============================================================================
 // `OldAdjust` below is the pre-SAVELOAD body of AdjustDelimiters, verbatim but
 // for spelling `this` as `f` (the length re-read per character, no fast exit).
-// It lives here only, never in src/ (feedback_no_off_switched_perf_bodies_in_main).
+// It lives here only, never in src/.
 // Each test feeds the same raw characters to both and compares the result:
 //   * every string of length 0..8 over { a / \ . : } (488,281 strings), which
 //     covers every arrangement of delimiters, "..", splices at every position,

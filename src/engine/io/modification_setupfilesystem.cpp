@@ -35,7 +35,7 @@
 // WHAT THIS PORT NEEDED, AND WHAT IT DID NOT OPEN
 // ---------------------------------------------------------------------------
 // Every callee is ALREADY OURS or is ported in this same commit. Enumerated
-// rather than asserted (reference_porting_can_grow_the_cutover_surface.md):
+// rather than asserted:
 //
 //   0x1800be9d0 FindNext           ported, external.cpp
 //   0x180006250 External::GetPath  ported, external.cpp
@@ -150,8 +150,7 @@
 //
 // UNVERIFIED ON AN UNMODDED BOOT: with `_dirty` false the body returns at
 // 0x1800aebdb before doing anything, so a plain autostart run reaches the first
-// instruction and nothing else. `calls=0` is not verification
-// (reference_uncalled_port_is_not_verified.md).
+// instruction and nothing else. `calls=0` is not verification.
 // ============================================================================
 
 #include "platform_file.h"    // Platform::PathAttributes (GetFileAttributesW) — see the banner.

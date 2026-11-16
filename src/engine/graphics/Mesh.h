@@ -11,8 +11,7 @@
 // EVERY offset below was read out of a decompiled or disassembled RETAIL
 // Runtime-x64.dll body, and the function plus the instruction that pins it is
 // named next to the field. Nothing here is taken from the profile build: PLAN
-// §6 warns that profile NAMES win but profile OFFSETS must not
-// (reference_encoding_vtable_offsets_differ_between_builds.md).
+// §6 warns that profile NAMES win but profile OFFSETS must not.
 //
 // The full write-up is docs/history/runtime_port/WAVE6_LANE_E.md.
 //
@@ -281,7 +280,7 @@ static_assert(offsetof(VideoBufferHeader, _deviceData) == 0x08, "Video buffer _d
 // outline follows — holding whatever the allocator handed back, and only
 // EdgeMeshInstance::SetMesh (0x1800a3a20) ever fills it in. This is the same
 // class of finding as Wave 5's `RemoveMesh` leaving `Entry::_userValue2`
-// uninitialised (reference_shadow_predicate_must_name_its_failing_term.md).
+// uninitialised.
 // The port MUST NOT zero it: doing so would make our default ctor differ from
 // retail's on a field a copy ctor propagates.
 // ============================================================================
@@ -360,7 +359,7 @@ public:
     // retired; the class keeps the exe's SCALAR arm (D1.2).
     // `??1MeshInstance@Graphics@@UEAA@XZ` @ 0x180017060, `UEAA` because retail's
     // is virtual — the non-virtual `QEAA` spelling is a name the DLL does not
-    // contain (reference_phantom_dtor_mangling_qeaa_vs_ueaa.md). NON-VIRTUAL
+    // contain. NON-VIRTUAL
     // here (ENDGAME decision 2). The body is empty (B.4 Z MIRROR2 GFX): the
     // implicit member dtors run in reverse declaration order -- ~_nodes
     // (0x18001c550), ~_animation (0x1800fe380 inlined: 0x18001c480),

@@ -4,8 +4,7 @@
 //
 // RETAIL VTABLE — read byte-wise, not guessed. `vtable_RadiusUI` @ 0x14015d160,
 // 11 slots. The 0x20 bytes BEFORE it (0x14015d140) are the RTTI type descriptor
-// (shared pointer 0x14003a978 + the ASCII class name "RadiusUI"), exactly the trap
-// reference_rtti_descriptor_mistaken_for_vtable warns about.
+// (shared pointer 0x14003a978 + the ASCII class name "RadiusUI"), not vtable slots.
 //
 //   idx0  (+0x00) 0x140013640  ScalarDtor
 //   idx1  (+0x08) 0x140013580

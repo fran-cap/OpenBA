@@ -45,8 +45,7 @@
 // +0x10 (the playback speed) or +0x31..+0x37. Those are retail's holes: the
 // `else` arm of each fill loop stores exactly the qwords listed beside it below
 // and nothing more. Helpfully zeroing them would be unfaithful AND would make an
-// oracle that compared them fail 100% of calls
-// (reference_oracle_must_not_compare_unwritten_bytes.md). Every caller in this
+// oracle that compared them fail 100% of calls. Every caller in this
 // cluster overwrites the speed before reading it — AnimationState::
 // PlayAnimation writes it on the line after it grows the array — which is
 // presumably why MSVC was allowed to elide the stores. Retail's fill loop also

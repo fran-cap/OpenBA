@@ -1,7 +1,7 @@
 // src/game/Game/gameupdateloop_load.cpp
 // GameUpdateLoop::Load (exe 0x140096b00) — the in-game WORLD BUILD (M5).
 //
-// This is the Stage-C cliff from project_newgame_path_roadmap: the loader chain
+// This is the first world build on the New Game path: the loader chain
 // reaches GameUpdateLoop::Load on "New Game → OK", and this function constructs
 // the ~28 in-game subsystems that GameUpdateLoop::{Startup,Update,Draw} operate on.
 // Until it ran, m_game (+0xF8) was null and those methods held behind a guard.

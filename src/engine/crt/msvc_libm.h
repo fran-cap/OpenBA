@@ -19,8 +19,8 @@
 // bodies fixes the divergence AND removes five ResolveRuntimeRaw dependencies.
 //
 // These are ordinary functions at known addresses and they are ported the same
-// way as anything else in this tree: from the DISASSEMBLY, not from Ghidra's C
-// (reference_ghidra_c_output_vs_disassembly.md), with the coefficient tables
+// way as anything else in this tree: from the DISASSEMBLY, not from Ghidra's C,
+// with the coefficient tables
 // lifted as raw bit patterns by tools/extract_crt_tables.py rather than retyped
 // as decimals. The cos series coefficients are NOT the sin ones -- e.g. cos uses
 // 0x3f81111111110bb3 where sin uses 0x3f81111111111111 -- which is exactly the

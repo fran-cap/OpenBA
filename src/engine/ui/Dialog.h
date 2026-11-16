@@ -167,7 +167,7 @@ static_assert(offsetof(DialogNamedTemplate, _name) == 0x8, "DialogNamedTemplate:
 // +0x80, and a constructor's WRITTEN EXTENT is a LOWER BOUND on a class size,
 // never the size itself — trailing members a ctor leaves alone are invisible to
 // it. A written extent belongs to a WRITER, and "never written" is meaningless
-// without "by whom" (reference_never_written_needs_by_whom.md).
+// without "by whom".
 //
 // The new evidence is a DIFFERENT KIND of witness, not a bigger pile of the
 // same kind. `??_EDialog@UI@@` — slot 0 of `??_7Dialog@UI@@6B@`, at

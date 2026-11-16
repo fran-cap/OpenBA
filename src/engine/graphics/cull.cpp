@@ -46,9 +46,8 @@
 // records 1..255, so a freshly initialised stack holds uninitialised stack
 // bytes there. That is not sloppiness to be tidied: nothing reads a record
 // above `top`, and zeroing it would make a byte comparison against the DLL's
-// own stack diverge on whatever the caller happened to leave behind
-// (reference_oracle_must_not_compare_unwritten_bytes.md). The loop below
-// reproduces the partial zero exactly.
+// own stack diverge on whatever the caller happened to leave behind.
+// The loop below reproduces the partial zero exactly.
 //
 // ---------------------------------------------------------------------------
 // ORDER OF OPERATIONS
@@ -193,7 +192,7 @@ void PushVisible(GeomList* list, Geometry* g) {
 //     cull   max.x = (halfX*2 + x) + bias      shadow  max.x = (x + halfX*2) + bias
 // Float addition is not associative, so folding them into one helper would be
 // a silent last-bit change on the axis a plane test is most likely to be
-// straddling (reference_moved_term_hides_where_terms_cancel.md). Every other
+// straddling. Every other
 // component IS identical between the two and is written once, in NodeBoxCull,
 // which NodeBoxShadow starts from.
 Box NodeBoxCull(const CullStack* st, const CullRecord& r) {
@@ -371,8 +370,7 @@ static void RtGraphics_Scene_CullStackPushChildren(CullStack* self, uint32_t mas
 // ############################################################################
 //
 // `?AddCulledDrawItems@Scene@Graphics@@AEBAXAEAVRenderer@2@@Z` is `AEBA` — a
-// PRIVATE const member that this DLL exports anyway
-// (reference_aeaa_is_private_not_unexported.md). `Scene.h` declares it PUBLIC and
+// PRIVATE const member that this DLL exports anyway. `Scene.h` declares it PUBLIC and
 // records retail's access in a comment — the same choice block E made for
 // `SunLight::CreateTargets` (`AEAA`). Access control is not ABI.
 //

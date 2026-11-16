@@ -35,8 +35,8 @@
 //   | destroy subtree| (not ported)| 0x180023130 |
 //   | erase          | 0x18000aba0 | (no door)   |
 //
-// Two DIFFERENT node layouts behind one shared walk is exactly the defect
-// `reference_one_bst_find_two_node_layouts.md` records, and it is why these are
+// Two DIFFERENT node layouts behind one shared walk is a defect (it finds only
+// the root key), and it is why these are
 // separate types with separate `static_assert`s rather than a template
 // parameter threaded through a header another lane already landed.
 //

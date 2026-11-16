@@ -66,7 +66,7 @@
 // FOUR THINGS THE DECOMPILER GETS WRONG HERE
 // ----------------------------------------------------------------------------
 // Every call this body makes was counted register by register out of the
-// disassembly, per reference_ghidra_c_output_vs_disassembly.md. Four disagree
+// disassembly. Four disagree
 // with Ghidra's C, and three of the four would have been silent defects:
 //
 // 1. THE ELEMENT DESTROYER'S FIRST ARGUMENT IS DEAD. Ghidra prints
@@ -86,15 +86,14 @@
 //
 // 3. `MOV EAX,[RCX + -0x8]` IS A SIGNED LENGTH THAT IS THEN `MOVSXD`-EXTENDED
 //    before the pointer add (0x1800c1681, quoted above). Ghidra's C renders it
-//    as `(longlong)iVar5`, which happens to be right — but the same pattern is
-//    what reference_ghidra_c_output_vs_disassembly.md records being printed as
-//    a ZERO extension elsewhere, so it was read from the bytes.
+//    as `(longlong)iVar5`, which happens to be right — but Ghidra prints the same
+//    pattern as a ZERO extension elsewhere, so it was read from the bytes.
 //
 // 4. `?GetDataDirectory@FileSystem@IO@@QEBA?AVFilename@System@@XZ` RETURNS A
 //    CLASS BY VALUE. It is a MEMBER function, so the hidden return slot is RDX
 //    and there are no other arguments (`LEA RDX,[RSP+0x40]` at 0x1800c165b).
 //    A typedef that omits the slot is a wild write that still returns the right
-//    answer (reference_hidden_retslot_wild_write.md); the body calls the
+//    answer; the body calls the
 //    member `GetDataDirectory()` through `RtSaveDetail::FileSystemSingleton()`.
 //
 // ----------------------------------------------------------------------------
@@ -153,8 +152,8 @@ static_assert(sizeof(ModInfoArray) == 0x10, "Collection::Array header is 16 byte
 // 0x1800341e0 — release every element's two Strings over [data, data+count).
 // ---------------------------------------------------------------------------
 // UNEXPORTED (checked against the shipped export table with pefile, not
-// inferred from the `AEAA`-vs-`QEAA` spelling of anything —
-// reference_aeaa_is_private_not_unexported.md). It is a template instantiation
+// inferred from the `AEAA`-vs-`QEAA` spelling of anything: AEAA means private,
+// and this DLL exports its privates). It is a template instantiation
 // the linker folded in, so there is no name to call it by; ported as a
 // file-local function.
 //
@@ -489,7 +488,7 @@ void Save::SaveLoad::SaveMetaData(void* pixels, int width, int height,
     // copied into the EMBEDDED SavedState at SaveLoad+0x28, which is what
     // ?UpdateSave builds SaveBlock entry 0 out of. A port that computed the
     // right bytes and did not publish them here would be invisible until a save
-    // was loaded back (reference_port_must_reproduce_side_effects.md).
+    // was loaded back.
     //
     // ENDGAME B.3.7 B2: `SavedState::Store` is a member of this block's class
     // now, called directly (it was an RT_EXPORT_ONCE door onto our own port).

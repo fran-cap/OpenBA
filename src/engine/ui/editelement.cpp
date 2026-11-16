@@ -434,7 +434,7 @@ void EditElement::Update(const System::Time& time, UserInterface* ui,
 // ============================================================================
 // A bare `RET`. It exists so `UI::NumberEditElement` can override it
 // (0x1800d4a60) and clamp its value when the box loses focus. Ported as the
-// empty body it is — see reference_retail_ships_empty_bodies.md.
+// empty body it is.
 void EditElement::FinalizeText() {}
 
 }  // namespace UI

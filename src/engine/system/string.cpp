@@ -795,8 +795,8 @@ int String::ToInteger(const char* s) {
 // Serialize — NOT DIFFED (consumes / produces stream bytes)
 // ============================================================
 // Running the original as an oracle would read or write the stream a second
-// time and desync every record after it — the exact failure mode of the memory
-// note reference_slot3_wrapper_must_resolve_first.md, manufactured on purpose.
+// time and desync every record after it — the exact failure mode of a
+// serializer that consumes the wrong byte count, manufactured on purpose.
 
 namespace {
 // ---- the legacy UTF-16 branch --------------------------------------------

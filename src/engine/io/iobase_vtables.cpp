@@ -7,7 +7,7 @@
 // VisitorStream slot bodies are class members in Stream.h, Serializer.h and
 // FileStream.h. Every one was
 // read as DISASSEMBLY out of the shipped `Runtime-x64.dll` (`objdump -d`), not
-// from Ghidra's C (reference_ghidra_c_output_vs_disassembly.md).
+// from Ghidra's C.
 //
 //   0x18000c6a0  ?GetSource@Stream@IO@@UEBA?AVString@System@@XZ   slot 1 of SIX
 //   0x1800242a0  MemoryStream vector deleting dtor      slot 0, UNEXPORTED
@@ -43,8 +43,8 @@
 // i.e. `String GetSource() const { return String(); }` — a default-constructed
 // `System::String`, whose entire representation is one null qword. RDX is the
 // hidden return slot for the by-value `String`, so the typedef below spells it
-// (reference_hidden_retslot_wild_write.md: an fn_* typedef that omits the
-// hidden slot is a wild write that still returns the right answer).
+// (an fn_* typedef that omits the hidden slot is a wild write that still
+// returns the right answer).
 //
 // It reads NOTHING from `this`. That is not an inference from a decompile —
 // RCX is never touched in the nine instructions above.
@@ -54,8 +54,8 @@
 // ----------------------------------------------------------------------------
 // `IO::BinaryWriter`'s slot 0 (0x180023b50, Serializer.h) is the exact twin of
 // these, and Serializer.h's slot-0 note describes the shape. That is a written
-// recipe from a good lane, which is
-// precisely the thing reference_a_written_recipe_can_be_wrong.md is about — a
+// recipe from a good lane, and look-alike bodies can still differ by one
+// element-destroy pass — a
 // prescribed pair of dtor ports would have swapped a body that destroys EVERY
 // element for one that destroys only the first. So each of the four here was
 // disassembled on its own, and so was the helper:
@@ -104,8 +104,8 @@
 // are heap metadata rather than a count — so continuing would loop an
 // arbitrary number of times over arbitrary memory. Aborting with a message
 // that says what would have to have happened is the honest disposition; a
-// silent single-element destroy would be exactly the swapped body the memory
-// above warns about. This is called out in
+// silent single-element destroy would be exactly the swapped body described
+// above. This is called out in
 // docs/history/runtime_port/WAVE19_LANE_IOBASE.md as the one place in this
 // file that is not byte-faithful.
 //
@@ -196,8 +196,7 @@
 // claim "order does not matter here" is one this lane did not verify and does
 // not need to make.
 //
-// **The singleton store is a SIDE EFFECT THAT MUST BE REPRODUCED**
-// (reference_port_must_reproduce_side_effects.md).
+// **The singleton store is a SIDE EFFECT THAT MUST BE REPRODUCED**.
 // `?_singleton@Modification@IO@@2PEAV12@EA` is the class static
 // `IO::Modification::_singleton` (modification.cpp), and the store clears it.
 //

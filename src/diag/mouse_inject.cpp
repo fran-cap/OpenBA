@@ -72,8 +72,7 @@
 // THE SCREENS, AND WHY THEY ARE SCORED SEPARATELY
 // ----------------------------------------------
 // This is a route, not a differential, so its "controls caught" question is
-// "can each screen be made to read false by a wrong input?"
-// (reference_probe_needs_an_effectiveness_control.md). Five screens:
+// "can each screen be made to read false by a wrong input?" Five screens:
 //
 //   S1 injected     frames on which we wrote the input bytes
 //   S2 coordMatch   frames on which the forward evaluation of the bytes we
@@ -85,8 +84,7 @@
 //
 // The screens NEST (S5 needs S3 and S4, S3 needs S2, S2 needs S1), and that is
 // stated rather than hidden, because a control caught on the union of a nested
-// set proves nothing about the inner members
-// (reference_union_control_hides_a_blind_screen.md). Each control below is
+// set proves nothing about the inner members. Each control below is
 // therefore chosen to be the FIRST wrong input that a given screen — and not
 // the screen above it — must catch, and the report prints all five for every
 // control so a blind screen is visible as a screen that never moves.

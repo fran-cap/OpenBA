@@ -41,8 +41,8 @@
 // Lane VID2 ported the SAME FOUR ALGORITHMS at four DIFFERENT addresses for the
 // 0x10-byte element instantiation. Nothing is shared with it and nothing should
 // be: every node offset differs (element first, so the whole header shifts by
-// 8), and one walk over two node layouts is the defect
-// `reference_one_bst_find_two_node_layouts.md` exists to prevent. The two files
+// 8), and one walk over two node layouts is a defect: it finds a key at the
+// root and misses deeper ones. The two files
 // were transcribed independently from their own disassembly and then diffed
 // against each other; they agree in structure and differ in exactly the offsets
 // the table lists, which is the cross-check, not the source.
@@ -287,9 +287,8 @@ void DestroySubtree(Set* set, Node* n) {
 // ---------------------------------------------------------------------------
 // 0x180023060 — allocate a node, copy the 0x18-byte element, link the parent.
 //
-// *** THE FIRST PARAMETER IS NEVER READ. *** This is the function
-// `reference_read_the_callee_before_holding_back_on_an_arg.md` was written
-// about: `0x180023097 MOV RCX,RBX` destroys RCX with the allocator critical
+// *** THE FIRST PARAMETER IS NEVER READ. *** The callee's disassembly settles
+// that, not the call site: `0x180023097 MOV RCX,RBX` destroys RCX with the allocator critical
 // section before anything can read it, and the call sites agree in the stronger
 // form — RCX is `this` at 0x1800a7ee6 and a zero-extended id byte at
 // 0x1800a7f3a/0x1800a7f4d. A value that differs like that across call sites
@@ -300,8 +299,7 @@ void DestroySubtree(Set* set, Node* n) {
 // stack held — `RegisterInput` does not write them (input.cpp says so at its
 // element build) — so **the padding carries bytes of the caller's stack frame
 // into the tree**. Reproduced, not repaired: an oracle comparing those bytes
-// would fail ~100% of calls
-// (reference_oracle_must_not_compare_unwritten_bytes.md), and zeroing them
+// would fail ~100% of calls, and zeroing them
 // would differ from retail in a way nothing here would report.
 //
 // On allocation failure retail returns null and the CALLER stores that null as

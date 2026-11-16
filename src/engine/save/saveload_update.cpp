@@ -101,8 +101,8 @@ namespace {
 
 // ---- dependencies, all of them REAL exports in the shipped table -----------
 // Checked with pefile against C:\GOG Games\Banished\Runtime-x64.dll before
-// each name was written down, never copied out of Ghidra's demangler
-// (reference_resolveexport_phantom_names.md). Every one is called by name.
+// each name was written down, never copied out of Ghidra's demangler.
+// Every one is called by name.
 //
 // B.4 R-IO: the live sink (`src/engine/rt_sink.h`) these bodies were
 // written against is gone from this file. It was a pass-through left over from
@@ -270,8 +270,7 @@ namespace {
 // worker's slot table, then ResetEvent/SetEvent to hand the job to the thread.
 // Neither is exported under ANY name — checked against the shipped export
 // table, not inferred from Ghidra's FUN_ prefix, because a source grep alone
-// cannot tell an unexported internal from an export nobody has ported yet
-// (reference_grep_cannot_tell_internal_from_unported_export.md).
+// cannot tell an unexported internal from an export nobody has ported yet.
 //
 // Their first argument is `persistence + 0x10`, NOT the Persistence itself.
 // That sub-object is the worker; passing the container would write the queue
@@ -300,8 +299,7 @@ using NameGetterFn    = const char** (*)(const SaveLoad* self, const char** ret)
 // for what the disassembly shows as three registers
 // (0x1800c25e6: `LEA R8,[RBX+0x70]` is the NAME; `LEA RDX,[RSP+0x50]` is the
 // slot). A typedef that omits the slot is a wild write that still returns the
-// right answer, which is why it survives testing
-// (reference_hidden_retslot_wild_write.md). Confirmed register by register in
+// right answer, which is why it survives testing. Confirmed register by register in
 // the disassembly of both call sites before these lines were written.
 
 // ============================================================================
@@ -413,8 +411,7 @@ namespace {
 //
 // NONE of the three is exported — checked with pefile against the shipped
 // table, not inferred from Ghidra's `FUN_` prefix, because a source grep
-// cannot tell an unexported internal from an export nobody has ported yet
-// (reference_grep_cannot_tell_internal_from_unported_export.md).
+// cannot tell an unexported internal from an export nobody has ported yet.
 //
 // ALL THREE ARE ALREADY WRITTEN. `src/engine/io/modification.cpp` ports them
 // as RtIO::Mod's copy ctor, operator= and destructor, called directly below.
@@ -501,12 +498,12 @@ namespace {
 //    arguments shift right by one; for the FREE function `operator+` the slot
 //    is the FIRST argument in RCX and lhs/rhs follow in RDX/R8. A typedef that
 //    omits the slot is a wild write that still returns the right answer, so it
-//    survives testing (reference_hidden_retslot_wild_write.md). Every one of
+//    survives testing. Every one of
 //    the four was read register by register out of the disassembly.
 //
 // 3. `MOVSXD RCX,dword ptr [R13 + 0x48]` — the selected index is SIGN-extended
 //    at all three of its uses in this body. Ghidra's C prints it as a zero
-//    extension (reference_ghidra_c_output_vs_disassembly.md), which would turn
+//    extension, which would turn
 //    this class's live -1/-2/-4 sentinels into four-billion-element strides.
 //    `_saves._data[index]` with a signed int index does the sign extension.
 //
@@ -577,9 +574,9 @@ namespace {
 //     reads: every String this body creates is released before the iteration
 //     ends, so when the DLL runs afterwards there is nothing of ours for it to
 //     see. Suppressing them instead would leave `work.data` null and the
-//     search would compare nothing, which is the failure mode
-//     reference_uniform_population_is_not_a_verification.md is about — a scan
-//     that "matches" because every subject is empty.
+//     search would compare nothing: a uniform population, which cannot tell a
+//     wrong port from a right one — a scan that "matches" because every
+//     subject is empty.
 //
 // ----------------------------------------------------------------------------
 // RUN EVIDENCE, 2026-09-09, three runs on the BANISHED_AUTOLOAD=Auto route
@@ -594,7 +591,7 @@ namespace {
 //      objection this project has been burned by:
 //        changed=7 of 7 — EVERY prediction differed from its pre-value, so not
 //          one of them could be satisfied by the DLL doing nothing. There is no
-//          vacuous green here (reference_probe_needs_an_effectiveness_control).
+//          vacuous green here.
 //        unpredicted=0 — the coverage control. Across the watched SaveLoad
 //          (0x90) and IO::Modification header (0x18), the DLL changed NO byte
 //          this body failed to predict. Predictions alone are a lower bound;
@@ -627,8 +624,9 @@ namespace {
 // things and neither is free: mods mounted in WinData (for the clear loop and
 // the search), and a save RECORDED while they were mounted (for the reorder;
 // the recorded list is what the loop walks). The second one also collides with
-// reference_mods_off_breaks_save_loading.md, so it wants its own lane and its
-// own copy of the game directory, not a corner of this one.
+// the mods-missing prompt, which stalls the load of such a save once its mods
+// leave WinData, so it wants its own lane and its own copy of the game
+// directory, not a corner of this one.
 // ============================================================================
 }  // namespace
 
@@ -1076,8 +1074,7 @@ namespace {
 // ----------------------------------------------------------------------------
 // Every address below was checked against the SHIPPED export table with pefile
 // before it was called by address, because a source grep cannot tell an
-// unexported internal from an export nobody has ported yet
-// (reference_grep_cannot_tell_internal_from_unported_export.md). Result: five
+// unexported internal from an export nobody has ported yet. Result: five
 // of these are genuinely absent from all 4,800+ exports, and everything else
 // UpdateList calls turned out to be a plain named export and is resolved by
 // name below.

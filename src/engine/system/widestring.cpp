@@ -12,9 +12,8 @@
 // Every one of those four names was read out of Runtime-x64.dll's export
 // directory with pefile BEFORE a line of body was written. `SetLength` is
 // PRIVATE and therefore AEAA, not QEAA — the QEAA spelling is not an export
-// and would resolve NULL forever
-// (reference_phantom_dtor_mangling_qeaa_vs_ueaa.md, and the same trap
-// Filename::AdjustDelimiters fell into in Wave 2).
+// and would resolve NULL forever, the same trap Filename::AdjustDelimiters
+// fell into in Wave 2.
 //
 // THE OBJECT
 // ----------

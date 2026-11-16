@@ -9,8 +9,7 @@
 //
 // `UEAA` is the VIRTUAL spelling and it is the one the DLL exports — the
 // non-virtual `QEAA` form of this name does not exist, and asking for it would
-// have resolved NULL with `ResolveExport` hiding the miss
-// (reference_phantom_dtor_mangling_qeaa_vs_ueaa.md). The name above was printed
+// have resolved NULL with `ResolveExport` hiding the miss. The name above was printed
 // out of the shipped export directory by ADDRESS, not typed from the pattern.
 //
 // ---------------------------------------------------------------------------
@@ -49,7 +48,7 @@
 //     synthetic one"*.
 //     **RE-DERIVED: FALSE.** The objection is real but it is an objection to
 //     ONE construction (fabricating a PackageFile by hand), not to the
-//     existence of an oracle (reference_synthetic_subject_beats_a_fake.md).
+//     existence of an oracle.
 //
 // ---------------------------------------------------------------------------
 // 2. THE BODY — WHAT THE BYTES DO
@@ -87,8 +86,8 @@
 //       +0x60 with the same String idiom**, so both are `System::String`. In
 //       PackageFile.h they are `_icon` and `_preview`, marked purpose unknown:
 //       a destructor pins the TYPE and says nothing about the MEANING
-//       (reference_a_writer_beats_readers_agreeing_on_a_sign.md is the
-//       same discipline one step over).
+//       (the same discipline one step over: readers testing a sign cannot
+//       name a field; its writer can).
 //
 // (iv)  **THE LAST CALL IS A TAIL JUMP, SO ITS RETURN VALUE IS THIS
 //       FUNCTION'S.** `JMP 0x1800bc950` — whatever `~Object::External` leaves

@@ -23,7 +23,7 @@
 //   Reconstruct  slot 0 with flags=0, then tail-jump <ctor>
 //
 // The `XOR EDX,EDX` in Destruct and Reconstruct is the argument Ghidra's C
-// output DROPS (reference_ghidra_c_output_vs_disassembly.md): flags=0 means
+// output DROPS: flags=0 means
 // "destroy, do NOT free". Passing 1 would free an object the caller still owns.
 // Every body below was read from the listing at its retail VA, not from the
 // decompiler.
@@ -82,8 +82,8 @@ using SerializeFn = bool (*)(void*, void*);
 // `??0ImageBuffer@Video@@QEAA@XZ` 0x1800f2580 — PORTED (video/buffers.cpp).
 // Declared returning void because that is how buffers.cpp spells it; the
 // callers below therefore never read its return and use the pointer they
-// already hold (wave23_lane_gfxbody.cpp's rule, and
-// reference_hidden_retslot_wild_write.md's family).
+// already hold (wave23_lane_gfxbody.cpp's rule, and the same family as an
+// omitted hidden return slot, a wild write that still reads back correctly).
 // ENDGAME B.3.9 VS: `::new (p) Video::ImageBuffer()` -- the ??0 door and the minted row are retired.
 void ImageBufferCtor(void* p) {
     ::new (p) Video::ImageBuffer();
@@ -275,8 +275,8 @@ Object::Base* FrameCopyImageBuffer::CreateInPlaceObject(void* place) {
 //
 // One byte. This class copies the frame in `Generate`, which the owner calls
 // directly; it contributes nothing to the render graph, so its Render arm is
-// empty in the shipped build. An empty retail body is ported as an empty body
-// (reference_retail_ships_empty_bodies.md) — a slot left as an abort trap is
+// empty in the shipped build. An empty retail body is ported as an empty body —
+// a slot left as an abort trap is
 // not the same thing, because the trap fires where retail returns.
 // ============================================================================
 void FrameCopyImageBuffer::Render(Renderer& renderer, const Scene& scene,
@@ -390,8 +390,7 @@ Object::External* ReflectionImageBuffer::Reconstruct() {
 //
 // Empty in the shipped build: a reflection image is produced by `Render`
 // feeding a draw group, not by a blit, so there is nothing for the
-// GeneratedImageBuffer "generate" arm to do. Ported as empty
-// (reference_retail_ships_empty_bodies.md).
+// GeneratedImageBuffer "generate" arm to do. Ported as empty.
 // ============================================================================
 namespace Graphics {
 void ReflectionImageBuffer::Generate(void* context, int32_t generation) const {

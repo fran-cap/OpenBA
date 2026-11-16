@@ -11,8 +11,7 @@
 // exactly with no `windows.h` in this file.
 //
 // ---------------------------------------------------------------------------
-// FACTS THE DECOMPILED C DROPPED (read off the disassembly, per
-// reference_ghidra_c_output_vs_disassembly.md)
+// FACTS THE DECOMPILED C DROPPED (read off the disassembly)
 // ---------------------------------------------------------------------------
 //
 //  * **`Update` RETURNS THE MOUSE CURSOR INDEX.** Ghidra prints the prototype as

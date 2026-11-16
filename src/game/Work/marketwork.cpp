@@ -539,7 +539,7 @@ static void MW_Stage2Teardown(MW_SupplyTree* tree, MarketWork::DemandList* recor
 // address while being dispatched by nothing. It was deleted 2026-08-22: two ports of
 // one retail function drift apart and the dead copy accumulates stale notes (its
 // header still described the BST block as "BLOCKED", long after that stopped being
-// true). See reference_one_retail_fn_ported_twice_diverges.
+// true).
 //
 // The calling contract of the 1408-line body, recovered from the ONLY call
 // site — the citizen idle claim-walk, retail 0x1400f7b60 (ported as Helper_sub_7b60,

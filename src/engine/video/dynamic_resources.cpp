@@ -40,7 +40,7 @@
 //
 // EVERY MANGLED NAME BELOW WAS CHECKED AGAINST THE SHIPPED EXPORT DIRECTORY OF
 // C:\GOG Games\Banished\Runtime-x64.dll WITH pefile BEFORE ANY BODY WAS
-// WRITTEN (reference_resolveexport_phantom_names.md). Retail addresses and
+// WRITTEN. Retail addresses and
 // ordinals:
 //
 //   ?Lock@Device@Video@@QEAAXXZ                    0x18000ca90  ord 3214

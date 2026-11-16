@@ -11,7 +11,7 @@
 // slot 0, is the unexported VECTOR deleting destructor at 0x180038b20, the
 // class's own (`~Dialog() override`, Dialog.h). See §"SLOT 0" below.
 //
-// GREP-BEFORE-WRITE (CLAUDE.md, reference_grep_for_the_port_before_writing_it):
+// GREP-BEFORE-WRITE (CLAUDE.md):
 // all eight mangled names and all nine slot addresses were grepped across
 // `code/`, `runtime/`, `engine/` and `standalone/` before a line was written.
 // `src/engine/ui/dialog.cpp`, `dialog_ctor_dtor.cpp`, `dialog_create.cpp` and
@@ -28,8 +28,7 @@
 // slots, same order, same `Object::External` family idiom. But lane UI3's array
 // dtor recipe was WRONG last wave in exactly this way — a recipe from a good
 // lane, followed literally, would have swapped a body that destroys every
-// element for one that only frees the block
-// (reference_a_written_recipe_can_be_wrong.md). So every Dialog body below was
+// element for one that only frees the block. So every Dialog body below was
 // disassembled, and so was its SpriteSheet analogue, before anything was
 // reused. Four of the seven DIFFER, and three of the four differences would
 // have been silent:
@@ -57,7 +56,7 @@
 // The three that genuinely ARE the same shape (`TypeName`, `Type`,
 // `GetFileVersion`) say so at the body, and `Destruct` is instruction-identical
 // to SpriteSheet's three-instruction tail jump. Read out of the DISASSEMBLY,
-// never Ghidra's decompiled C (reference_ghidra_c_output_vs_disassembly.md).
+// never Ghidra's decompiled C.
 //
 // ---------------------------------------------------------------------------
 // SLOT 0 — WHY IT IS NOT IN THIS FILE
@@ -84,8 +83,8 @@
 //   * `sizeof(UI::Dialog) == 0x88`, MEASURED. src/engine/ui/Dialog.h has
 //     carried an explicit refusal to assert a size, on the correct ground that
 //     a constructor's written extent is a LOWER BOUND and not a measurement
-//     (reference_never_written_needs_by_whom.md — a written extent belongs to a
-//     WRITER). The array branch's `MOV EDX,0x88` is a different witness with a
+//     (a written extent belongs to a WRITER). The array branch's `MOV EDX,0x88`
+//     is a different witness with a
 //     different relationship to the fact: it is the STRIDE the compiler walks a
 //     `Dialog[]` with, which is `sizeof` by definition. The assert is now in
 //     that header, pinned to this instruction.
@@ -97,8 +96,8 @@
 //     (`if (p) { Enter(cs); Free(_singleton, p); Leave(cs); }`, disassembled).
 //     It changes nothing about the port — the family calls one canonical
 //     MemFree — but "unexported internal" was the wrong description of it, and
-//     that is the exact class of mistake
-//     reference_grep_cannot_tell_internal_from_unported_export.md is about.
+//     that is the exact class of mistake a source grep invites, since it cannot
+//     tell an unexported internal from an unported export.
 //
 // ---------------------------------------------------------------------------
 // WHAT THIS FILE PROVES ABOUT UI::Dialog's LAYOUT, AND WHAT IT RENAMES
@@ -136,8 +135,7 @@
 // the port calls each by name (the Serialize body below).
 //
 // EVERY ONE WAS CHECKED AGAINST THE EXPORT TABLE, not just grepped — a source
-// grep cannot tell an unexported internal from an export nobody ported yet
-// (reference_grep_cannot_tell_internal_from_unported_export.md). All nine are
+// grep cannot tell an unexported internal from an export nobody ported yet. All nine are
 // genuinely absent from Runtime-x64.dll's export directory:
 //
 //   0x180038f90  ExternalPtr<UI::ElementDescription>::Serialize. Named by lane

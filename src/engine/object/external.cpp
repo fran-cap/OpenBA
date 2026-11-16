@@ -25,7 +25,7 @@
 // Add (external_add.cpp), Clean (external_set.cpp) and SerializeReferenceTable
 // (external_reftable.cpp); External::SaveText is src/engine/io/external_savetext.cpp.
 //
-// ABI. Wave 1 defect 1 / reference_hidden_retslot_wild_write.md: a member that
+// ABI. Wave 1 defect 1: a member that
 // returns a class BY VALUE takes a HIDDEN RETURN SLOT in RDX and every real
 // argument shifts right. Three functions in this lane do:
 //     External::GetPath                    (this, ret)

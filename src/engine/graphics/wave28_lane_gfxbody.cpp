@@ -23,10 +23,10 @@
 //
 // ADDRESSES AND ORDINALS: `pefile` over the export directory of the shipped
 // C:\GOG Games\Banished\Runtime-x64.dll, read before a line of this file was
-// written (reference_resolveexport_phantom_names.md).
+// written.
 //
-// EXTENTS: NOT quoted from a single `.pdata` row, which is a LOWER bound
-// (reference_pdata_is_a_lower_bound_on_function_extent.md). Five of these ten
+// EXTENTS: NOT quoted from a single `.pdata` row, which is a LOWER bound.
+// Five of these ten
 // are assembled from CHAINED fragments and the first fragment understates them
 // badly — `UpdateNodes` by 17x (126 bytes of a 2191-byte body). The extents
 // above come from walking `.pdata` forward while `UNW_FLAG_CHAININFO` (0x4) is
@@ -77,8 +77,7 @@ using RtGraphics::MaterialTexture;
 // ---------------------------------------------------------------------------
 // Attendance. Counts the DOOR and, separately, the BRANCH that does the work:
 // `calls=0` and `calls=N with the interesting arm never taken` are different
-// findings and an entry counter cannot tell them apart
-// (reference_calls_zero_can_mean_always_took_the_uncovered_branch.md).
+// findings and an entry counter cannot tell them apart.
 // ---------------------------------------------------------------------------
 void Attend(const char* what, unsigned long long& n) {
     ++n;
@@ -120,7 +119,7 @@ unsigned long long g_cameraAssignCalls = 0;
 // it is passed STRAIGHT THROUGH to the callee — RDX is never written between
 // entry and the call. An `fn_*` typedef that omitted the slot would be a wild
 // write that still returned the right answer, because RAX comes back holding
-// the slot address either way (reference_hidden_retslot_wild_write.md). Both
+// the slot address either way. Both
 // mangled names spell `?AVString@System@@` as the return, so this is read off
 // the EXPORT TABLE, not guessed from a call site.
 //
@@ -150,8 +149,7 @@ namespace {
 
 // `MOV RAX,[RCX+0x28] / MOVSXD RCX,<idx> / MOV RCX,[RAX+RCX*8]` — the pass
 // pointer array. MOVSXD, not a zero extension: Ghidra's C prints a MOVSXD as an
-// unsigned widening and that has cost this project real defects
-// (reference_ghidra_c_output_vs_disassembly.md). A negative pass index indexes
+// unsigned widening and that has cost this project real defects. A negative pass index indexes
 // BACKWARD in retail and does so here too.
 //
 // B.4: `Material::_passes` (+0x28) is `Array<ExternalPtr<Video::VideoProgram>>`
@@ -178,9 +176,9 @@ inline const Video::PixelProgram* PassShaderProgram(const Graphics::Material* ma
 // match does it fall into the second half, an inlined `strcmp`.
 //
 // *** THE LENGTH TEST IS LOAD-BEARING AND IT IS WHAT MAKES THIS SAFE TO PORT. ***
-// reference_uniform_population_is_not_a_verification.md records a ported inline
-// strcmp that returned 0 for every distinct pair sharing a first byte, and a
-// shared BST find then matched everything. The loop below was therefore traced
+// A uniform population cannot tell a wrong port from a right one: a ported inline
+// strcmp that returned 0 for every distinct pair sharing a first byte passed its
+// oracles, and a shared BST find then matched everything. The loop below was therefore traced
 // by hand against the bytes rather than recognised:
 //
 //   180102f9f: MOVZX ECX,BYTE PTR [R8]        ; c = a[0]
@@ -345,8 +343,7 @@ int32_t FindByName(const Element* data, int32_t size, const System::String* quer
 // THE DISPATCH IS A VIRTUAL CALL ON SLOT 8 (`CALL QWORD PTR [RAX+0x40]`,
 // 0x1800faa5e) with RCX = the event object and RDX = the Transform& — the
 // SECOND parameter is forwarded and the two System::Time& are NOT. Ghidra's C
-// drops whole arguments at a mistyped vtable call
-// (reference_ghidra_c_output_vs_disassembly.md); this was read off the
+// drops whole arguments at a mistyped vtable call; this was read off the
 // instruction, where RDX is reloaded from R13 (the spilled RDX) immediately
 // before the call and nothing writes R8/R9.
 //
@@ -550,7 +547,7 @@ inline const Graphics::Animation& LayerClip(const Graphics::AnimationState::Laye
 // ============================================================================
 // NOT ONE OF THIS LANE'S TEN ROWS. It is here because `BeginDrawGroup`'s reuse
 // path is the tree's FIRST caller of it, so porting §4 PUT THIS ROW INTO THE
-// `called` COLUMN (reference_porting_can_grow_the_cutover_surface.md). A lane
+// `called` COLUMN. A lane
 // that opens a gap row and leaves it open has moved work, not done it — and
 // this one is 460 bytes of dword copies.
 //
@@ -577,8 +574,7 @@ inline const Graphics::Animation& LayerClip(const Graphics::AnimationState::Laye
 // Writing this body as "the same 53-dword loop as the sibling" would write
 // three bytes retail leaves alone, into a live Camera, every frame. "I checked
 // the sibling" is not a check; the bytes are. THE WRITTEN EXTENT OF A COPY IS A
-// PROPERTY OF THE WRITER, NOT OF THE TYPE
-// (reference_never_written_needs_by_whom.md).
+// PROPERTY OF THE WRITER, NOT OF THE TYPE.
 //
 // The unwritten windows, stated so an oracle does not compare them:
 // `+0x61..+0x63` and `+0xd5..+0xd7` (sizeof is 0xd8; the last store is the byte
@@ -682,9 +678,7 @@ System::String Material::GetTextureName(int32_t pass, int32_t index) const {
 // element stride — and `Material.h`'s real class names all of them; the stride is
 // the element type's.
 //
-// `AEBA` is PRIVATE, and this DLL exports its private members
-// (reference_aeaa_is_private_not_unexported.md); Material.h declares the two
-// PUBLIC.
+// `AEBA` is PRIVATE, and this DLL exports its private members; Material.h declares the two PUBLIC.
 // ---------------------------------------------------------------------------
 int32_t MaterialInstance::FindConstant(const System::String& name) const {
     return rtgfxbody28::FindByName(_constants._data, _constants._size, &name);

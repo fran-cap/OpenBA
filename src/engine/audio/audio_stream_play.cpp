@@ -20,8 +20,7 @@
 //
 // ---------------------------------------------------------------------------
 // THE BODY, FROM THE DISASSEMBLY (Ghidra's decompile folds two of these
-// KERNEL32 imports into names that read fine but were re-derived here anyway
-// -- reference_ghidra_c_output_vs_disassembly.md)
+// KERNEL32 imports into names that read fine but were re-derived here anyway)
 // ---------------------------------------------------------------------------
 //   1800a0d1f  TEST byte [RCX+0x8],1           ; System::Thread::runFlags bit0
 //   1800a0d2b  JZ -> 1800a0d4b

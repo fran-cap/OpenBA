@@ -27,8 +27,7 @@
 // THE WAVE 6 HOLDBACK NOTE THIS REPLACES WAS SELF-CONTRADICTORY
 // ---------------------------------------------------------------------------
 // `src/engine/video/buffers.cpp:1415` held this row back with three reasons.
-// Re-checked before inheriting any of them
-// (`reference_holdback_blockers_are_stale_check_them_first.md`), and the note
+// Re-checked before inheriting any of them, and the note
 // **disagreed with itself inside one comment block**: its opening line says
 // *"One caller (src/game/Game/w2_takescreenshot.cpp, the screenshot path)"*
 // and its closing paragraph says *"w2_takescreenshot.cpp calls a different,
@@ -354,8 +353,8 @@ bool ImageBuffer::SaveImageToFile(const System::Filename& pathRef,
     // *** RETAIL INLINES THE DESTRUCTOR; THIS RUNS THE CLASS'S OWN ONE, AND THE
     // TWO WERE COMPARED INSTRUCTION BY INSTRUCTION BEFORE THE SUBSTITUTION. ***
     // Porting a destructor by assuming an exported body matches an inlined one
-    // is how a prior lane nearly shipped a leak under a byte-identity claim
-    // (`reference_a_written_recipe_can_be_wrong.md`), so the check came first:
+    // is how a prior lane nearly shipped a leak under a byte-identity claim,
+    // so the check came first:
     //
     //   ??1BinaryFileStream@IO@@UEAA@XZ (0x180023c80) is five instructions and
     //   tail-jumps to ??1FileStream@IO@@UEAA@XZ (0x1800aaab0), which does, in

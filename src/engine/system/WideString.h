@@ -105,8 +105,8 @@ public:
     // ⚠ RETURNS `System::String` BY VALUE, WHICH IS A HIDDEN RETURN SLOT AT THE
     // ABI. Retail's is `String* f(const WideString* this, String* ret)` — RCX =
     // this, RDX = ret. The MEMBER returns by value, which is what retail's
-    // source said. Never reach it from a raw slot caller — that is
-    // `reference_hidden_retslot_wild_write.md`.
+    // source said. Never reach it from a raw slot caller: omitting the hidden
+    // return slot is a self-consistent wild write.
     String AsUTF8() const;
 
     // ?SetLength@WideString@System@@AEAAXH@Z       0x1800ca9b0

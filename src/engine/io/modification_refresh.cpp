@@ -17,11 +17,10 @@
 // `IO::PackageFile` and calls `ReadPackfile` on it, and on 2026-09-07
 // `??0PackageFile@IO@@QEAA@XZ` resolved to NULL — it was attempt 14's wall.
 // Porting a body that cannot be exercised produces a `calls=0` green line over
-// unverified code, which is the failure `reference_uncalled_port_is_not_
-// verified.md` exists to prevent.
+// unverified code: a port with zero calls is unverified, not clean.
 //
 // THAT BLOCKER IS GONE, AND IT WAS RE-DERIVED HERE RATHER THAN INHERITED
-// (`reference_holdback_blockers_are_stale_check_them_first.md`). Lane PKG2
+// (a stated holdback blocker is re-checked, never assumed). Lane PKG2
 // ported the constructor (src/engine/io/PackageFile.h) and the leaf accessors
 // (src/engine/io/package_file.cpp), and lane PKG3 ported ReadPackfile itself
 // (src/engine/io/package_file_read.cpp). So RefreshList's PackageFile

@@ -510,7 +510,8 @@ void InternalFactory::AddObject(Internal* obj) {
 
 // ?RemoveObject@InternalFactory@Object@@QEAAXPEAVInternal@2@@Z  retail 0x1800c0110
 //
-// The swap-remove reference_internalfactory_swapremove_wild_write.md is about.
+// The swap-remove `~Internal` (0x1800bfdb0) unregisters through, writing the moved entry's
+// new index at its +0x08.
 // THERE IS NO VALIDATION OF `idx` — not here and not in the profile build. If
 // `idx` is stale the second store lands wherever the allocator has since put
 // that block. That is retail's behaviour and this port keeps it; the fix for the

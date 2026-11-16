@@ -200,7 +200,7 @@
 // They are transcribed below as empty bodies and MUST STAY EMPTY: retail never
 // validates a stale handle, it relies on explicit clearing at removal time, and
 // adding validation on deref would diverge from every save file and every
-// caller (memory reference_checkptr_is_a_ret_in_every_build; hazard 5.1).
+// caller (hazard 5.1).
 //
 // RETAIL ADDRESSES (retail / profile):
 //   ??0InternalBasePtr@Object@@QEAA@XZ                 0x1800062c0 / 0x180023900
@@ -482,9 +482,8 @@ public:
     // *** IT DOES NOT CALL AddObject. *** The copy inherits the ORIGINAL's
     // `_factoryIndex`, so two live objects share one table slot and the second
     // `~Internal` swap-removes a slot that no longer names it. That is retail's
-    // behaviour, it is the shape
-    // reference_internalfactory_swapremove_wild_write.md describes, and it is
-    // transcribed, not fixed.
+    // behaviour, it is the shape in which ~Internal's swap-remove writes through
+    // stale handle-table entries, and it is transcribed, not fixed.
     Internal(const Internal& other);
 
     // ??4Internal@Object@@QEAAAEAV01@AEBV01@@Z  retail 0x180006430

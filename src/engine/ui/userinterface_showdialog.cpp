@@ -30,8 +30,7 @@
 // until the dialog leaves the nested UI's list, un-register both callbacks,
 // destroy and free the nested UI, and return the dialog's result dword.
 //
-// FACTS THE DECOMPILED C DROPPED OR MISLEADS ON
-// (reference_ghidra_c_output_vs_disassembly.md):
+// FACTS THE DECOMPILED C DROPPED OR MISLEADS ON:
 //
 //  * **`dialog->_flags |= 0x20` is NOT the modal bit.** Ghidra shows the OR and
 //    nothing more. `?IsModal@DialogInstance@UI@@QEBA_NXZ` (0x180114170) reads

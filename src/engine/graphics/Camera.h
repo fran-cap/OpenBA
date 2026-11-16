@@ -15,8 +15,7 @@
 // bites in this file: `Camera::GetFrustum` returns a `Volume::Frustum` BY VALUE,
 // so MSVC passes a hidden return-slot pointer in RDX after `this` in RCX and
 // returns that same pointer in RAX. A typedef that omits the slot is a wild
-// write that still returns the right answer
-// (reference_hidden_retslot_wild_write.md). The ports in renderer.cpp are
+// write that still returns the right answer. The ports in renderer.cpp are
 // members that return by value.
 // ============================================================================
 
@@ -81,8 +80,7 @@
 // bytes between the int at +0x20 and the pointer at +0x28) or `_pad34` (the
 // tail padding). The helper copies all seven qwords regardless, so retail
 // stores UNINITIALISED STACK BYTES into the array at those two offsets on every
-// append. A port must not zero them — and an oracle must not compare them
-// (reference_oracle_must_not_compare_unwritten_bytes.md).
+// append. A port must not zero them — and an oracle must not compare them.
 
 // One draw group, stride 0x1f0. Pinned by GetCullCamera (0x180017f90),
 // GetShader (0x180018010), AddDrawItem (0x1801057b0, which indexes

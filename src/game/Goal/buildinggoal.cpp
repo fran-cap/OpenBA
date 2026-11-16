@@ -219,8 +219,7 @@ DEFINE_EXE_TYPE(BuildingGoal, "Achievement::Goal")
 // The base game ships NO scenarios: `Dialog\Goal.rsc` is the only goal resource
 // in data0/data1.pkg, and BuildingGoal only ever gets built by the tutorial or by
 // a mod. So nothing in a sandbox autostart run evaluates a BuildingGoal, and any
-// claim that this path "works" from a normal run would be a null test
-// (reference_null_test_measures_a_world_without_the_feature).
+// claim that this path "works" from a normal run would be a null test.
 //
 // This probe builds a real one-entry BuildingGoal on the stack against a live
 // world, runs the actual Slot8 evaluator, and reports every stage: the world

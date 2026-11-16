@@ -484,8 +484,7 @@ int Modification::GetCount() const {
 //     MOVSXD RAX,EDX ; SHL RAX,7 ; ADD RAX,[RCX+8] ; RET
 //
 // MOVSXD, not a zero extension: a NEGATIVE index strides BACKWARDS off the
-// array. Ghidra's C prints this as a zero extension
-// (reference_ghidra_c_output_vs_disassembly.md), which would silently turn
+// array. Ghidra's C prints this as a zero extension, which would silently turn
 // index -1 into an 8-GB forward offset. `static_cast<int64_t>` is the sign
 // extension, and it is load-bearing. Unbounded, exactly as retail is.
 const RtIO::Mod& Modification::GetModification(int index) const {

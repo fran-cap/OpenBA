@@ -5,16 +5,14 @@
 //   ?CacheText@TextElement@UI@@AEAAXXZ           retail 0x18011ec10  (ord 1680)
 //
 // Both are `AEAA` — PRIVATE, and this DLL exports its private members, so
-// "private" was never the reason they were not ported
-// (reference_aeaa_is_private_not_unexported.md).
+// "private" was never the reason they were not ported.
 // ============================================================================
 //
 // WHY THIS FILE EXISTS AND WHAT THE RECORDED BLOCKER TURNED OUT TO BE
 // -------------------------------------------------------------------
 // The UI census carries `?CacheText@TextElement@UI@@AEAAXXZ` as "not replayable,
 // needs the predictive oracle", parked behind the allocator NO-GO. Both halves
-// of that were re-checked from scratch rather than inherited
-// (reference_holdback_blockers_are_stale_check_them_first.md):
+// of that were re-checked from scratch rather than inherited:
 //
 //  * NOT REPLAYABLE — STILL TRUE, and it is the SAME defect Wave 9 lane M
 //    found on `NumberElement::SetValue`. This body swaps a refcounted
@@ -151,8 +149,7 @@ void TextElement::CacheText() {
     } else {
         if (tmp._data) { param0._data = tmp._data; ++RtSystem::StringRefCount(tmp._data); }  // 0x18011ecb3
         // The params pointer is the parameter Array's DATA pointer, not the
-        // Array header — Ghidra's decompiled C drops this third argument
-        // (reference_ghidra_c_output_vs_disassembly.md).
+        // Array header — Ghidra's decompiled C drops this third argument.
         result = System::String::FormatParamList(param0, _params._data);
         src = &result;                                        // 0x18011ecd1: R14 = &result
     }

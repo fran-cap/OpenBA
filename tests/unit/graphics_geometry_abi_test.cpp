@@ -21,8 +21,8 @@
 //
 // The local probe hierarchy that used to mirror the slot list is gone: a probe
 // declared in the test can only ever test itself, and the retail-vs-GCC
-// argument order of a by-value virtual return (GCC passes the hidden slot
-// BEFORE `this`) is recorded in reference_gcc_msabi_retslot_before_this.md.
+// argument order of a by-value virtual return is a fact of the ABI: GCC passes
+// the hidden slot BEFORE `this`.
 // ============================================================================
 #include "unit.h"
 

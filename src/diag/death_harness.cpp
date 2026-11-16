@@ -478,7 +478,7 @@ void Census(int frameNum) {
                  n ? hungerSum / n : 0.0f, hungerMax, hungerDeath,
                  n ? thirstSum / n : 0.0f, thirstMax, thirstDeath, sick);
     // ⚠`thirst` above is really WARMTH/COLD (+0x48) — a town can freeze at 20.0 while
-    // hunger sits comfortably at 5. See project_population_sustainability_soak.
+    // hunger sits comfortably at 5.
     std::fprintf(stderr, "[FamilyCensus]   lifespan(+0x40): OVERDUE(age>=maxAge)=%d "
                  "maxAge min=%.2f max=%.2f zero/unset=%d\n",
                  overdue, (maxAgeMin > 1e8f ? 0.0f : maxAgeMin),

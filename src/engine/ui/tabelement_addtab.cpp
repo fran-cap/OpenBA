@@ -17,7 +17,7 @@
 //   * The UI census — "not replayable, needs the predictive oracle"; parked
 //     behind the allocator NO-GO.
 //
-// Re-checked (reference_holdback_blockers_are_stale_check_them_first.md):
+// Re-checked:
 //
 //  1. THE FIRST ONE IS DISSOLVED, AND IT WAS A MISREADING OF THE FRAME.
 //     The stack temporary is not an ElementDescription and it is not a

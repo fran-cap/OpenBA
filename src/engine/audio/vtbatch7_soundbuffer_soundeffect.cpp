@@ -4,8 +4,7 @@
 // ============================================================================
 //
 // Both Object::External subclasses. Retail addresses read with objdump against
-// the shipped Runtime-x64.dll (not Ghidra's decompile --
-// reference_ghidra_c_output_vs_disassembly.md).
+// the shipped Runtime-x64.dll (not Ghidra's decompile).
 //
 // ---------------------------------------------------------------------------
 // Audio::SoundBuffer — ??_7SoundBuffer@Audio@@6B@, 0x80 bytes

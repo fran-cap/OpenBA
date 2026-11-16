@@ -53,8 +53,7 @@ using SaveLoadVoidFn     = void     (*)(SaveLoad* self);
 // It lives here so that saveload_update.cpp and savedstate_setupload.cpp, which
 // both import it with a `using` declaration, share one spelling of it: a second
 // spelling elsewhere is how the two drift, and this particular shape is one
-// where drift is a WILD WRITE rather than a compile error
-// (reference_hidden_retslot_wild_write.md).
+// where drift is a WILD WRITE rather than a compile error.
 //
 // The order is the MSVC member-function convention — `this` in RCX, the hidden
 // return pointer in RDX — which is the OPPOSITE of the GCC/Itanium sret order
@@ -108,7 +107,7 @@ inline int64_t ZeroTime() {
 // dead stores at every call site that overwrites the member immediately
 // afterwards — but they are what the bytes do, and this project has already
 // lost a day to a String destructor applied to something that was not a String
-// (reference_load_wild_write_high_dword_7fc.md, Wave 4 lane H).
+// (Wave 4 lane H).
 //
 // B.4 R-IO: every Save-class String is a real `System::String` now, whose
 // destructor IS this idiom; the one remaining caller releases the raw `char*`

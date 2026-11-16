@@ -17,7 +17,7 @@
 // argument arrives as `param_2` reconstructed out of `in_register_00000081`,
 // the `bool` shows up as a phantom `in_R9B`, and the destination slot of every
 // one of the four `GetPath*` calls at the top of the function is DROPPED
-// entirely (reference_ghidra_c_output_vs_disassembly.md).
+// entirely.
 //
 // `ExpandRelativePath` calls `GetFileAttributesW`, exactly as
 // `src/engine/io/filesystem_setupdirs.cpp` does for the same inlined

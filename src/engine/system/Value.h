@@ -348,11 +348,10 @@ public:
     // ⚠ ALL THREE RETURN `System::String` BY VALUE, WHICH IS A HIDDEN RETURN
     // SLOT AT THE ABI. Retail's is `String* f(const DateTime* this, String* ret)`
     // — RCX = this, RDX = ret — and Ghidra DROPS the second parameter and the
-    // return for all three (`reference_ghidra_c_output_vs_disassembly.md`;
-    // `value_types.cpp` quotes the three instructions that prove it). The
-    // MEMBERS return by value, which is what retail's source said. Never reach
-    // one from a raw slot caller — that is
-    // `reference_hidden_retslot_wild_write.md`.
+    // return for all three (`value_types.cpp` quotes the three instructions that
+    // prove it). The MEMBERS return by value, which is what retail's source said.
+    // Never reach one from a raw slot caller: omitting the hidden return slot is
+    // a self-consistent wild write.
     String AsString() const;
     String DateAsString() const;
     String TimeAsString() const;

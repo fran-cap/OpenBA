@@ -4,7 +4,7 @@
 // ============================================================================
 //
 // Implements the new-game worldgen chain reached from GameUpdateLoop::Load
-// step 31 (project_newgame_path_roadmap):
+// step 31:
 //
 //   FUN_1400b0230  (TerrainBuild_Dispatcher)            -> WorldGen_BuildTerrain
 //     -> TradeWork_impl_c4b0 (orchestrator)             -> WorldGeometry::BuildFromHeightfield

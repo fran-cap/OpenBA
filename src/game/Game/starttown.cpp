@@ -2,7 +2,7 @@
 // Start-town spawn-tile finder + camera placement — the CAMERA portion of
 // FUN_1400a3300 (steps 1-3). The ECS spawn steps (town center, initial
 // buildings, citizens, resource cull) are in this file too (StartTown_SpawnEntities,
-// below); see project_starttown_a3300.
+// below).
 //
 // Pipeline (all read the live tile grid built by maptilegrid.cpp):
 //   * FUN_1400a2720 — spiral search from the map center: rings of 4, 8, 16, ...
@@ -714,9 +714,8 @@ static void StartTown_RunOnCreatePass(ComponentEntity* ent) {
             // standalone". That was TRUE WHEN WRITTEN — nothing populated the list, so the
             // erase was harmless. The state-2 enter landed 2026-07-26 and started populating
             // it, at which point this call silently became the thing that undoes it. Nobody
-            // re-read the comment because it still SOUNDED right. See
-            // reference_condition_shaped_comments — a comment stating a current condition
-            // rather than an invariant becomes a lie and disguises the gap it creates.
+            // re-read the comment because it still SOUNDED right. A comment stating a current
+            // condition rather than an invariant becomes a lie and disguises the gap it creates.
             //
             // Call the init half directly, skipping the erase.
             static_cast<ResidenceComponent*>(comp)->EvictResidents();   // 0x140129ef0

@@ -707,8 +707,7 @@ void WorldGeometry::BuildWaterShores(const TerrainHeightfield* hf) {
                     // the whole bbox (measured: interior == cellsTested), so the gate
                     // reduces to `someUnderwater` and the shore falloff is gradual.
                     // NOTE: this is NOT why unmeshed ponds look like dark holes — those
-                    // are basins that reach neither list b260 meshes. See
-                    // project_water_contour_phase2_tarns_dark.
+                    // are basins that reach neither list b260 meshes.
                     float w = 1.0f - (dist - radius) / r2;
                     if (w >= 0.0f) {
                         if (w > 1.0f) w = 1.0f;

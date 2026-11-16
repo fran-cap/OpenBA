@@ -34,9 +34,9 @@
 // NO ADDED NULL GUARDS. Retail derefs `_achievements` in GetAchievementCount,
 // `_completed._data` in Update and `_instances._data` in Reset without
 // checking any of them, and those faults are load-bearing: they are how a
-// manager that never got SetAchievements announces itself
-// (reference_achievementmanager_has_no_list_until_setachievements.md, whose
-// "faults on a READ of 0x28" is re-derived and confirmed in the header). The
+// manager that never got SetAchievements announces itself: its list is still
+// null, so GetAchievementCount faults on a READ of 0x28 (re-derived and
+// confirmed in the header). The
 // ports below fault in exactly the same places, now at an address inside
 // OpenBA.exe rather than inside Runtime-x64.dll.
 // ============================================================================

@@ -214,7 +214,7 @@ public:
 
     // `?RemoveState@ParticleInstance@Graphics@@IEAAXXZ` @ 0x1801040b0.
     // `IEAA` = PROTECTED, and this DLL exports its private and protected
-    // members (reference_aeaa_is_private_not_unexported.md). PORTED, body in
+    // members. PORTED, body in
     // `wave28_lane_partsys.cpp` — this block's file.
     void RemoveState();
 

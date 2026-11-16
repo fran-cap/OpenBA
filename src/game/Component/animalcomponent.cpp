@@ -549,7 +549,7 @@ void AnimalComponent::Update(const System::Time* time) {
                 // "building". Verified at instruction level, and retail's own animal
                 // update (0x140106420) calls exactly this function at 0x140106650.
                 // So the real rule is: a TRADING POST on the tile does not disqualify
-                // it; every other occupant does. See reference_misnamed_component_finders.
+                // it; every other occupant does.
                 blocked = (buildingIBP == nullptr);
             }
 

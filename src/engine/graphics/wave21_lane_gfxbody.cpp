@@ -16,7 +16,7 @@
 // All three names, and every callee named below, were checked against the
 // export directory of the shipped C:\GOG Games\Banished\Runtime-x64.dll with
 // pefile BEFORE a line was written; the addresses and ordinals above are that
-// query's output (reference_resolveexport_phantom_names.md).
+// query's output.
 //
 // GHIDRA WAS NOT AVAILABLE to this lane — the MCP bridge refused connection for
 // its whole run. Every claim below is from `objdump -d` on the shipped DLL over
@@ -206,8 +206,8 @@ extern "C" void* RtGraphics_MaterialInstance_OperatorNew(uint64_t bytes) {
 // the second run of a differential pair would find every value already stored
 // and take the equal path, raising none of the dirty bits the first run raised.
 // A "clean" diff would therefore be an artefact of replay, not agreement
-// (reference_calls_zero_can_mean_always_took_the_uncovered_branch.md is the
-// same shape one step further on). Its verification tier is stated honestly in
+// (calls=0 with worked>0, meaning the body always took the uncovered branch, is
+// the same shape one step further on). Its verification tier is stated honestly in
 // the lane doc and is not VERIFIED.
 // ============================================================================
 

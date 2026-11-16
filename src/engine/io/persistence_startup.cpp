@@ -31,8 +31,7 @@
 //                                                            has NO failure arm
 //
 // `GetSaveDirectory` returns a `System::Filename` BY VALUE, so the hidden
-// return slot is the FIRST argument and `this` is the second
-// (reference_hidden_retval_and_int_pointer_args.md). Retail passes
+// return slot is the FIRST argument and `this` is the second. Retail passes
 // `RCX = FileSystem::_singleton`, `RDX = &tmp` and then reads the result back
 // out of `[RAX]`, where `RAX == RDX`. `Filename` and `String` are
 // layout-identical (src/engine/system/Filename.h), one pointer.

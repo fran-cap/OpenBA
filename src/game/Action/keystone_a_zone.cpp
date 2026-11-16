@@ -74,7 +74,7 @@ static void EnqueueNode(PathfinderThread* self, const PathCommandArgs& cmd) {
 // ⚠ RETURNS THE PATH LENGTH. Ghidra types both this and its tail call `void`, but
 // 1400a6edf is a tail call into 0x1400a6d50, whose EAX is min(maxLen, cells found) —
 // and the boat route builder (boatcomponent_route.cpp) tests exactly that value to
-// decide whether a leg found anything. See reference_discarded_return_reenables_gated_branch.
+// decide whether a leg found anything.
 static int RunPathQuery(PathfinderThread* pf, int start, int goal, int passableTypes,
                         int32_t* path, int maxNodes) {
     PfMainTimer pfTimer(PF_MAIN_SYNCWAIT);   // [PFBENCH] the whole request + spin (stress harness only)

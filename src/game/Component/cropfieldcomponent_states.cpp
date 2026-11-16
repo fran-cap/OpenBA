@@ -42,8 +42,7 @@
 // This block used to read "FIRST PASS: the handler BODIES are not ported yet, so every
 // handler is registered as nullptr". That has been FALSE since the crop-field wave
 // (81dc93c "reaches state 10", cbe5ab0 "HARVESTS", ce26616 "61 harvested"); the comment
-// simply outlived the port that replaced it — the same trap as
-// reference_stub_comment_outlived_the_port_that_replaced_it. Corrected 2026-09-06 after
+// simply outlived the port that replaced it. Corrected 2026-09-06 after
 // re-measuring, so the next reader does not re-port work that is already done.
 //
 // Every address in the table above now has a body in this file, and each body carries

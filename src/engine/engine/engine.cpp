@@ -73,9 +73,9 @@
 // below), and the device's own lost/restore path is the ONLY thing that ever
 // calls them. So a port of either member that registered the export and
 // stopped there would be dead code on the only path that reaches it, while
-// the diff oracle reported `calls=0 divergences=0` — exactly the failure
-// reference_uncalled_port_is_not_verified.md describes. Both members are
-// ported, in src/engine/engine/mainloop_video.cpp.
+// the diff oracle reported `calls=0 divergences=0` — and a port with zero calls
+// is unverified, not clean. Both members are ported, in
+// src/engine/engine/mainloop_video.cpp.
 //
 // ⚠️ THE REST OF THIS PARAGRAPH USED TO READ "lane B's ported ctor keeps
 // installing the DLL's OWN thunk addresses so that path stays entirely inside
@@ -237,9 +237,7 @@ void Engine::MainLoop::SetNextLoop(UpdateLoop* loop) {
 //     touches +0x1a..+0x1f. Those six bytes keep whatever the allocator left
 //     there. A `memset(self, 0, 0xa0)` would be wrong, and — worse — it would
 //     be wrong in a way no oracle in this project could see, because nothing
-//     ever reads them (reference_oracle_must_not_compare_unwritten_bytes.md,
-//     reference_never_written_needs_by_whom.md). The field-by-field writes
-//     below are deliberate.
+//     ever reads them. The field-by-field writes below are deliberate.
 //   * The two callbacks installed into the Video::Device are our own static
 //     thunks (RtEngine_MainLoop_OnVideoError_static / _OnVideoRestart_static,
 //     below), which call the ported OnVideoError / OnVideoRestart members.

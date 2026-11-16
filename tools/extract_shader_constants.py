@@ -12,10 +12,10 @@ not crash, does not diverge, and has no oracle short of a rendering diff.
 
 This project already paid for the general form of that mistake once -- a CRT
 port where `sin` and `cos` used DIFFERENT bit patterns for the same term, and
-lifting the coefficients as raw bits was the only thing that caught it
-(reference_crt_coefficients_must_be_lifted_not_retyped.md). The standing rule is
-that coefficients and literals are lifted as bytes, never re-typed from a
-listing. Constant names are literals; this tool is that rule applied to them.
+lifting the coefficients as raw bits was the only thing that caught it. The
+standing rule is that coefficients and literals are lifted as bytes, never
+re-typed from a listing. Constant names are literals; this tool is that rule
+applied to them.
 
 WHAT IT DOES
 ------------

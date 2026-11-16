@@ -40,7 +40,7 @@
 //
 // All 27 mangled names were checked against the shipped export directory of
 // C:\GOG Games\Banished\Runtime-x64.dll with pefile BEFORE any body was
-// written (reference_resolveexport_phantom_names.md). All 27 are present; the
+// written. All 27 are present; the
 // addresses and ordinals in the table above are that query's output, not
 // Ghidra's guess.
 //

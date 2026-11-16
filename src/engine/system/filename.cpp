@@ -439,8 +439,7 @@ Filename Filename::GetPathIdentifer() const {
 //
 // The scan itself is a REVERSE walk from `length - 1` testing 0x2F and 0x5C,
 // read from the disassembly (0x1800c68d0-0x1800c68e4); the decompiled C for
-// this loop prints the MOVSXD of the index as a zero extension
-// (reference_ghidra_c_output_vs_disassembly.md), which would have made an
+// this loop prints the MOVSXD of the index as a zero extension, which would have made an
 // empty string walk off the front instead of taking the `JS` at 0x1800c68c6.
 Filename Filename::GetPathDirectory() const {
     Filename ret;
@@ -467,7 +466,7 @@ Filename Filename::GetPathDirectory() const {
 //
 // THE BODY IS IN src/engine/io/filename_extension.cpp and this is a
 // forward to it, not a second transcription (a duplicate would be a silently
-// dead body — reference_grep_for_the_port_before_writing_it.md). That file
+// dead body). That file
 // counts the body's arms into `RtObject::g_pc` (external_path.h).
 Filename Filename::GetPathExtension() const {
     // `out` is born null and the C body CONSTRUCTS into it (its hidden return

@@ -40,8 +40,7 @@ SettingsNode* CallMapInsert(RtIo::SettingsSet* map, const System::String& key,
 }
 
 // Retail's key encoding: bare concatenation, no separator. "Game" + "StatusIconEnable"
-// -> "GameStatusIconEnable", exactly the live HKCU value name this project's
-// own memory note (project_debugmenu_combos_and_statusicon_setting.md) found
+// -> "GameStatusIconEnable", exactly the live HKCU value name found
 // on disk. Confirmed at all four Get/Set retail sites (0x1800b81e0 + 0x22,
 // 0x1800b8290 + 0x22, 0x1800b80c0 + 0x30, 0x1800b8380 + 0x38): every one calls
 // `String::Format((String*)&local, "%s%s", section, key)` --

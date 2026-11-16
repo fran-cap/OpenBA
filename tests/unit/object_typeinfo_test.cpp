@@ -181,7 +181,7 @@ UNIT_TEST(factory_layout_is_the_set_header_and_the_node_is_0x50) {
 // the wanted keys are NOT all at the root. That last point is the whole reason
 // this test exists: a descent written against the wrong node layout returns the
 // right answer for a key that happens to BE the root and is permanently wrong
-// for everything below it (reference_one_bst_find_two_node_layouts.md).
+// for everything below it.
 struct Fixture {
     ChainScope scope;
     ::Object::Factory factory;

@@ -7,8 +7,7 @@
 // Every offset below is pinned by a named instruction in RETAIL
 // Runtime-x64.dll (image base 0x180000000), read out of the shipped binary on
 // 2026-09-06. Nothing here was taken from Runtime-x64-profile.dll: the profile
-// build's ReaderWriter vtable OFFSETS differ from retail's
-// (reference_encoding_vtable_offsets_differ_between_builds.md), so it is a
+// build's ReaderWriter vtable OFFSETS differ from retail's, so it is a
 // source of NAMES only, never of numbers.
 //
 // ----------------------------------------------------------------------------

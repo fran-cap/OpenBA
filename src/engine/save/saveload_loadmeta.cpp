@@ -6,8 +6,7 @@
 // ONE FUNCTION:
 //   ?LoadMetaData@SaveLoad@Save@@QEAAXAEAVString@System@@PEAPEAXAEAH22AEAV?$Array@UModInfo@SaveLoad@Save@@@Collection@@@Z
 //   retail 0x1800c1b30, ordinal 3208 (name, ordinal and address all read out of
-//   the shipped export directory with pefile before this file was written —
-//   reference_resolveexport_phantom_names.md).
+//   the shipped export directory with pefile before this file was written).
 //
 // It is the READ half of the save-file metadata record: given the compressed
 // byte image the async loader has already dropped into `this->_embeddedState`,
@@ -39,12 +38,12 @@
 // **a register-based screen cannot see arguments 5, 6 and 7 at all** — this
 // project scored a positive control 3/3 on the UNION of two screens and only
 // later found that one of them caught 1/3, precisely because it was blind to
-// every 5th-or-later argument (reference_union_control_hides_a_blind_screen).
+// every 5th-or-later argument.
 //
 // ----------------------------------------------------------------------------
 // GHIDRA'S C IS WRONG ABOUT THIS BODY IN TWO PLACES. THE DISASSEMBLY WINS.
 // ----------------------------------------------------------------------------
-// Both are the documented failure modes of reference_ghidra_c_output_vs_disassembly:
+// Both are known failure modes of Ghidra's decompiled C:
 //
 //  1. IT DROPS ARGUMENTS AT EVERY VTABLE CALL. The decompiler renders the
 //     encoding factory call as `(**(code **)(*local_b8 + 0x18))()` — no
@@ -204,7 +203,7 @@ using ModArray = Collection::Array<ModInfo>;
 // EVERY ONE of these was counted off the disassembly, not off Ghidra's C, and
 // none of them returns a class by value — so not one has a hidden return slot
 // (a typedef that omits one is a wild write that still returns the right
-// answer, reference_hidden_retslot_wild_write).
+// answer).
 // ENDGAME B.3.1 step 2: the String::Serialize door typedef is gone with its
 // three call sites — all three are `System::String::Serialize` now.
 // ENDGAME B.3.2 step 2: the `SetSizeFn` door typedef is gone with its one call

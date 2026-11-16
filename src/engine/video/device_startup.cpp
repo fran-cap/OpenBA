@@ -112,8 +112,8 @@ using RefreshRate       = Video::Device::RefreshRate;
 //
 // NOT the eight-argument `?ValidateConfiguration@Device@Video@@QEAAXAEAH0000000@Z`
 // (0x1800f7370, ordinal 4532) that Wave 6 lane B ported. Different function,
-// adjacent ordinal — exactly the kind of pair that
-// reference_ghidra_mcp_address_param_silently_ignored.md exists for.
+// adjacent ordinal — exactly the kind of pair where GhidraMCP's metrics and
+// callees, which ignore address= and match by bare name, answer about the other one.
 //
 // EARLY OUT: `interfaceCount == 0` returns with AL holding that count, i.e.
 // FALSE, and no field is touched (0x1800f8852 jumps straight to the epilogue).

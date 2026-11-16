@@ -5,8 +5,7 @@ WHY THIS EXISTS
 
 Waves 6 and 7 both avoided ever hand-writing a vtable: Runtime-x64.dll EXPORTS
 its `??_7` symbols, so a ported constructor just copies the DLL's bytes
-(`??_7Geometry@Graphics@@6B@` and all 68 UI vtables are exported — see
-project_runtime_wave7_ui.md / project_runtime_wave6_video_graphics.md). At
+(`??_7Geometry@Graphics@@6B@` and all 68 UI vtables are exported). At
 cutover (Wave 9) there is no DLL left to copy from, so every one of these 59
 exported DATA symbols — 27 `??_7` vtables, 16 `?_singleton@…` and 14
 `?_typeInfo@…` (`BaseTypeInfo`) found in the "called but not ported" list —

@@ -236,7 +236,7 @@ void WriteShadowMatrix(Video::Context& context, const Math::Matrix& projection,
 // ############################################################################
 
 // slot 1 — `RET`. Empty in the shipped build; an ambient light has nothing to
-// tick (reference_retail_ships_empty_bodies.md).
+// tick.
 // slot 2 — `RET`. The per-item Draw arm; an ambient light emits no draw items,
 // only the light state its slot-10 Draw sets.
 // slot 9 — `RET`. An ambient light casts no shadow.

@@ -126,8 +126,7 @@ void CloseIfOpen(RtIO::FileInfo* fi) {
 // ---------------------------------------------------------------------------
 // EFFECTIVENESS COUNTERS.
 //
-// `calls` alone cannot tell a body that ran from one that did anything
-// (reference_calls_zero_can_mean_always_took_the_uncovered_branch.md). The two
+// `calls` alone cannot tell a body that ran from one that did anything. The two
 // that matter here are `createFailed` — the early-out that skips Serialize
 // entirely — and `bomWritten`, which is expected to stay at ZERO and is
 // reported so that a future caller which does reach it is visible immediately

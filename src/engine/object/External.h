@@ -238,7 +238,7 @@ static_assert(offsetof(ReferenceEntry, _pad) == 0x4, "ReferenceEntry::_pad");
 static_assert(offsetof(ReferenceEntry, path) == 0x08, "ReferenceEntry::path @ +0x08");
 
 // The two Set instantiations. NOTE THE WAVE 2 TRAP (WAVE2.md "Notes for later
-// waves", reference_one_bst_find_two_node_layouts.md): the node's pointer tail
+// waves"): the node's pointer tail
 // offsets are a function of sizeof(T), so these two trees have DIFFERENT node
 // layouts and MSVC emits a separate find/insert/rebalance for each. One ported
 // Set body cannot serve both.
@@ -613,7 +613,7 @@ class External : public Base {
 public:
     // `?A W4CompileResult@External@Object@@` — returned BY VALUE, but a `W4`
     // enum is four bytes, so it comes back in EAX with NO hidden return slot
-    // (reference_hidden_retslot_wild_write.md checked, not assumed). The
+    // (checked, not assumed). The
     // ENUMERATOR NAMES ARE NOT RECOVERABLE from the binary — only the value 1
     // that the base's body returns — so this is spelled as the 32-bit integer
     // it is rather than an enum with invented names.
@@ -817,7 +817,7 @@ inline bool FilenameLess(const char* a, const char* b) {
     return StriCmpAscii(a, b) < 0;
 }
 
-// *** TWO NODE LAYOUTS, TWO FINDS — reference_one_bst_find_two_node_layouts.md.
+// *** TWO NODE LAYOUTS, TWO FINDS.
 // The resource tree's element is 0x18 wide so its node tail is parent +0x18 /
 // left +0x20 / right +0x28; the reference tree's element is 0x10 wide so its
 // tail is +0x10 / +0x18 / +0x20. A find written against the wrong layout

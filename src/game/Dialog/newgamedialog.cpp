@@ -68,7 +68,7 @@ static T* FindElementAs(NewGameDialog* dialog, const char* name) {
 
 // Type-check a loaded resource. In STANDALONE the Runtime factory tree is
 // incomplete, so Object::IsDerivedFrom walks up the type's parent chain into a
-// NULL factory and crashes (NULL-this). Per feedback_factory_cascade_strategy we
+// NULL factory and crashes (NULL-this). Stub factories never fake IsDerivedFrom passing, so we
 // trust FindOrLoad's result and skip the derivation check. typeId is unused (kept
 // as a parameter so every call site still names which type it means).
 static inline bool ResourceIsType(const ::Object::External* resource, uint32_t typeId) {

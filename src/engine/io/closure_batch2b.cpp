@@ -26,8 +26,7 @@
 // is pure; the LOAD job opens a file and fills caller-owned buffers, the DELETE
 // job deletes a file. Running the shipped body "for comparison" would delete
 // the save twice or read it twice into the same buffers. No RT_DIFF site is
-// added that could only ever print `divergences=0`
-// (reference_shadow_marker_is_not_an_oracle.md).
+// added that could only ever print `divergences=0`.
 // ============================================================================
 
 #include <cstdint>

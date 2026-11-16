@@ -18,7 +18,7 @@
 // index in RDX and returns RAX as if it were the String. It COMPILES, and it
 // RETURNS THE RIGHT ANSWER, because RAX comes back holding the slot address
 // either way -- while having written 8 bytes through whatever the caller had in
-// RDX. That is reference_hidden_retslot_wild_write.md, and it is the trap this
+// RDX. That self-consistent wild write is the trap this
 // lane was scoped around.
 //
 // TWO INDEPENDENT CONFIRMATIONS that the slot is real, neither of them "the
@@ -40,8 +40,8 @@
 // .pdata (first `CC CC` inter-function padding at +0x44 in both cases, which
 // agrees with Ghidra's bound -- two derivations, kickoff warning 16), and
 // neither body contains a single rel32 or RIP-relative field, so a RAW byte
-// diff is SOUND here rather than reporting the ~23% noise of
-// reference_position_only_diffs_hide_one_body.md. The precondition was checked
+// diff is SOUND here rather than reporting the ~23% noise that rel32 and
+// RIP-relative distances add between two addresses. The precondition was checked
 // by the script, not assumed.
 //
 //   A GetConstantName 48895424104883ec18...4803 41 30 4c890a488b08...
@@ -97,7 +97,7 @@
 // to start zeroed -- which is every test anyone would write by hand.
 //
 // MOVSXD, NOT A ZERO EXTENSION. Ghidra's decompiled C prints a MOVSXD as an
-// unsigned widening (reference_ghidra_c_output_vs_disassembly.md), so this is
+// unsigned widening, so this is
 // read off the DISASSEMBLY. A negative index walks BACKWARD from the array
 // base in retail, and does so here. `(uint32_t)index * 16` would read at
 // +0xFFFFFFF0 instead of -0x10 -- a 64 GB-away wild read that a non-negative
@@ -147,9 +147,8 @@ namespace {
 
 // ---- attendance ------------------------------------------------------------
 // Counted at the CALL and, separately, at the BRANCH that does the work: a
-// call count alone cannot say whether the non-null path ever ran, and
-// reference_calls_zero_can_mean_always_took_the_uncovered_branch.md is this
-// project's record of that exact confusion.
+// call count alone cannot say whether the non-null path ever ran, since a body
+// can run every time down the branch that does no work.
 unsigned long long g_constCalls = 0;
 unsigned long long g_constHits  = 0;   // BRANCH: name was non-null
 unsigned long long g_texCalls   = 0;

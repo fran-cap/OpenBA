@@ -93,7 +93,7 @@ extern "C" void* RtSystem_OperatorNew_180011640(uint64_t size) {
 // Read from the DISASSEMBLY, not the decompiled C: Ghidra prints the `SAR
 // RAX,0x2` as a plain shift and the two 43-bit masks as ordinary constants, and
 // this is a bitfield pack where a sign-extending shift and an unsigned one give
-// different answers (reference_ghidra_c_output_vs_disassembly.md).
+// different answers.
 //
 //   180034d60  MOV RAX,0x100000000000
 //   180034d6a  MOV R9,0x1ffffffffff

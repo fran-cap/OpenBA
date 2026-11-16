@@ -11,7 +11,7 @@
 //
 // "Unexported" is MEASURED, not read off a mangling: the retail export
 // directory was walked with pefile for this address before the file was
-// written and returned nothing (reference_aeaa_is_private_not_unexported.md).
+// written and returned nothing.
 // So it has no retail name; it is renamed in retail Ghidra to
 // `IO_Persistence_Worker_GetSaveInfoJob`.
 //

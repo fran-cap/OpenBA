@@ -35,8 +35,7 @@
 // UI::ProgressElement has a ported TypeId() (a class static, always populated). A null
 // type id would make IsDerivedFrom(elem, 0) always false, leave +0x38 null and turn the
 // `+0x124 = 1.0f` write into a null-deref crash.
-// See [[reference-gated-element-typeid-disables-controller]] — the same null field
-// that made every pasture ControlUI button inert.
+// It is the same null field that made every pasture ControlUI button inert.
 static uint32_t OrchardUI_ProgressElementTypeId() {
     return UI::ProgressElement::TypeId();
 }

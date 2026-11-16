@@ -128,8 +128,7 @@ char AttendanceComponent::State2Frame() {
     const char full = AllFull();
     // ⚠ Retail reads `*(longlong**)self` where `self` is the finder's RETURN value —
     // and the finder RETURNS ITS OUT-PARAM ADDRESS, so retail's deref is simply
-    // "load the found component". Handing 12c3f0 the component's VTABLE faulted
-    // (see reference_outparam_finder_recycled_ibp).
+    // "load the found component". Handing 12c3f0 the component's VTABLE faulted.
     mesh->SetFlag(2, full);   // 0x14012c3f0 (CitizenComp_FUN_14012c3f0's member)
     return 0;
 }

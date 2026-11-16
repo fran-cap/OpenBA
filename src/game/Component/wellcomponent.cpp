@@ -14,7 +14,7 @@
 // ⚠ SLOT 7 IS OnRemove, NOT OnCreate. It calls 0x140091ba0, which SCANS FOR AND
 // CLEARS the entity from the water-source array — a removal, not a registration.
 // This file used to call it OnCreate (the standing Ghidra OnCreate/OnRemove
-// off-by-one, see reference_ghidra_oncreate_onremove_mislabel), which is part of why
+// off-by-one), which is part of why
 // the missing REGISTER half went unnoticed for so long: the file looked complete.
 //
 

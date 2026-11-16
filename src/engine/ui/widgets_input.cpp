@@ -101,9 +101,8 @@ namespace {
 // `System::String::Format`, "which this lane declined to reproduce"
 // (WAVE7_LANE_D.md §3). `?Format@String@System@@SA?AV12@PEBDZZ` has in fact
 // been PORTED since Wave 2 (src/engine/system/string.cpp defines it), so the
-// blocker had already dissolved before Wave 9 opened -- the same shape as
-// reference_holdback_blockers_are_stale_check_them_first.md, three for three in
-// one session.
+// blocker had already dissolved before Wave 9 opened -- a stated holdback
+// blocker is re-checked against the callee and the tree, never assumed.
 //
 // `?SetText@EditElement@UI@@QEAAXAEBVString@System@@@Z` (0x1800d0db0) --
 // SetValue's second call -- is `EditElement::SetText`, likewise a member below.
@@ -442,8 +441,8 @@ void ComboElement::RemoveAllItems() {
 //   1. `_children._data[4]`, NOT [0]. 0x18011219b/0x1801121a7 are
 //      `MOV RBX,[RCX+0xa0]` then `MOV RBX,[RBX+0x20]` — 0x20/8 = 4. Every other
 //      wrapped-widget lookup in this file is children[0]; this one is the fifth
-//      child. Ghidra's C prints both loads as one expression, which is the
-//      shape reference_ghidra_c_output_vs_disassembly.md warns about.
+//      child. Ghidra's C prints both loads as one expression, and its C
+//      misreports dereferences; the disassembly decides.
 //   2. NEITHER index into `_strings` NOR into `_sprites` is bounds-checked
 //      against the arrays' own sizes. Retail guards only the ITEM COUNT at the
 //      top (+0xf0) and, for the sprite, the sprite's own validity. A

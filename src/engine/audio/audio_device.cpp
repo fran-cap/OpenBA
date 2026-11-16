@@ -122,9 +122,8 @@ namespace Audio {
 // call that changed either of those changes whether the lock is released.
 // That is an unbalanced-lock hazard in the shipped DLL, not a transcription
 // error here, and it is reproduced exactly. (Ghidra's decompiled C for this
-// function folds the two reads into one — the standing warning in
-// reference_ghidra_c_output_vs_disassembly.md; the disassembly above is what
-// this body was written from.)
+// function folds the two reads into one, and its C is not authoritative; the disassembly above is
+// what this body was written from.)
 // ---------------------------------------------------------------------------
 // Not analysed (clang -Wthread-safety): retail takes and releases the Stream lock on two separate
 // reads of the same test, which the analysis cannot pair.
@@ -197,8 +196,7 @@ void Device::Update(const System::Time& /*time — never read*/) {
 // Called by `Device::Stop` (below), just before `FreeChannelPlatform`.
 //
 // It IS exported, under a PRIVATE (`AEAA`) mangling - this DLL exports its
-// private members, so "private" is not "unexported"
-// (reference_aeaa_is_private_not_unexported.md). Verified with pefile against
+// private members, so "private" is not "unexported". Verified with pefile against
 // the shipped export directory, not inferred: 0x1800DEA20 maps to
 // `?StopPlatform@Device@Audio@@AEAAXH@Z`.
 //

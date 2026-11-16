@@ -220,7 +220,7 @@ float TicksToSeconds(int64_t ticks) {
 // The ports
 // ============================================================================
 // Every body below is byte-faithful to the retail DISASSEMBLY, not only to
-// Ghidra's C (reference_ghidra_c_output_vs_disassembly.md: the decompiler drops
+// Ghidra's C (the decompiler drops
 // dereferences and renders MOVSXD as a zero extension; three Wave 6 defects,
 // including the crash, came from trusting it). No null guard retail does not
 // have — CLAUDE.md's rule holds here even where one would look free, and these
@@ -292,7 +292,7 @@ void Engine::LoaderLoop::InitFields(UpdateLoop* nextLoop, int64_t delayTicks) {
     _elapsedTicks = SecondsToTicks(0.0f);
     _delayTicks   = delayTicks;
     _autoAdvance  = 1;
-    // +0x41..+0x47 are NOT written (reference_oracle_must_not_compare_unwritten_bytes.md).
+    // +0x41..+0x47 are NOT written.
 }
 
 // ??0DialogLoopT 0x1800db3f0 / ??0DialogLoaderLoopT 0x1800db0d0 after the
@@ -419,9 +419,9 @@ void Engine::DialogLoopT::Startup() {
     // Slot 12, CreateDialog, returns InternalPtr<UI::DialogInstance> BY VALUE —
     // an 8-byte class type, so MSVC still gives it a HIDDEN RETURN SLOT in RDX
     // and returns that pointer in RAX (an `int`-typed or missing return slot in
-    // an fn_* typedef is the wild-write family this project has paid for twice:
-    // reference_hidden_retslot_wild_write.md). ENDGAME B.3.7: the slot is
-    // declared retslot-first on the class, so this is an ordinary virtual call.
+    // an fn_* typedef is the wild-write family this project has paid for twice).
+    // ENDGAME B.3.7: the slot is declared retslot-first on the class, so this is an
+    // ordinary virtual call.
     Object::InternalPtr<UI::DialogInstance> ret;
     Object::InternalPtr<UI::DialogInstance>* retSlot = CreateLoopDialog(&ret);
 
@@ -966,7 +966,7 @@ Engine::Loader Engine::LoaderLoop::_loader;
 // The census BODY row, and the per-frame draw half of the main loop.
 //
 // `Draw` IS EXPORTED — ordinal 2251, read out of the shipped export directory
-// with pefile; the name is public (QEAA) (reference_aeaa_is_private_not_unexported.md).
+// with pefile; the name is public (QEAA).
 //
 // TWO THINGS IN THIS BODY ARE EASY TO GET WRONG AND ARE DELIBERATE:
 //

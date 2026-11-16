@@ -163,8 +163,7 @@ void WorkPlaceComponent::Detach(Object::InternalPtr<CitizenComponent>* worker) {
     uint32_t changed;
     // NOTE this block is retail 0x14012c3f0 INLINED, and that function is also ported as
     // StatusIconComponent::SetFlag (statusiconcomponent.cpp). Two copies, each historically
-    // unsafe in a DIFFERENT half; see
-    // [[reference_one_retail_fn_ported_twice_diverges]]. Touch one, check both.
+    // unsafe in a DIFFERENT half. Touch one, check both.
     //
     // Both hazards here are closed UPSTREAM by the StatusIconComponent ctor
     // (statusiconcomponent.cpp), which builds the embedded geometry and sets

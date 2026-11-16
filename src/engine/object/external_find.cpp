@@ -99,7 +99,7 @@ const char* const kResourceSuffix = ":resource";
 //
 // AEAA — PRIVATE, and private is not the same as unexported: this DLL exports
 // its private members and the name above is ordinal 2336 in the retail export
-// directory (reference_aeaa_is_private_not_unexported.md). Verified with
+// directory. Verified with
 // pefile before this body was written, not inferred from the mangling.
 // ============================================================================
 ::Object::External* RtObject_ExternalFactory_Find(ExternalFactory* self, const System::Filename* path) {

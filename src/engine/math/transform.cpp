@@ -396,7 +396,7 @@ Vector3 Transform3::Rotate(const Vector3& v) const {
 // (`ResolveAddr(Module::Runtime, 0x18001e540)`) under a comment saying there
 // was "no verified mangled name to hand". There is: the name above is in the
 // shipped export table at that exact RVA, checked with pefile before this line
-// was written (reference_resolveexport_phantom_names.md).
+// was written.
 //
 // ctor ABI (this file's banner): `this` IS the target, so there is no hidden
 // return slot — RCX=this, RDX=c0, R8=c1, R9=c2, and the FOURTH column arrives

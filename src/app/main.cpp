@@ -905,8 +905,7 @@ static void PrintExitSummaries() {
     // Wave 23 lane GFXBODY: attendance for the four FrameCopyImageBuffer bodies
     // and AnimationManager::Update. Always on and unconditional, because the
     // number this lane needs is the ZERO — a run that never entered a ported
-    // body must SAY so rather than stay silent
-    // (reference_uncalled_port_is_not_verified.md). `Generate` reports its BLIT
+    // body must SAY so rather than stay silent. `Generate` reports its BLIT
     // count separately from its entry count: its whole body sits behind one
     // equality test, so an entry count cannot tell you the copy happened.
     { extern void RtGraphicsWave23GfxbodySummary(); RtGraphicsWave23GfxbodySummary(); }
@@ -917,7 +916,7 @@ static void PrintExitSummaries() {
     // and must be printed rather than inferred from silence.
     { extern void RtGraphicsWave27GfxpartSummary(); RtGraphicsWave27GfxpartSummary(); }
     // Wave 28 lane PARTSYS. UNCONDITIONAL, so the expected zeros are PRINTED
-    // rather than inferred from silence (reference_uncalled_port_is_not_verified.md).
+    // rather than inferred from silence.
     { extern void RtGraphicsWave28PartsysSummary(); RtGraphicsWave28PartsysSummary(); }
     // WAVE 29 LANE VERIFY — defect #7 from the Wave 28 ledger, FIXED HERE.
     //
@@ -930,7 +929,7 @@ static void PrintExitSummaries() {
     //
     // A zero from an unreached printf and a zero from an unentered body are the
     // same character in a log. That is the defect: the instrument could not
-    // express the difference (reference_diagnostic_field_cannot_express_the_answer.md).
+    // express the difference.
     // Reachability of every *Summary/*Report/*Census in the tree is now a screen
     // of its own, recorded in docs/history/runtime_port/WAVE29_LANE_VERIFY.md §2.
     { extern void RtGraphicsWave24GfxmatSummary();  RtGraphicsWave24GfxmatSummary(); }
@@ -941,7 +940,7 @@ static void PrintExitSummaries() {
     // makes a zero mean "never printed" rather than "never called" and made a
     // lane unable to read its own BRANCH counters at all. This lane's doc
     // reports that these lines were SEEN TO PRINT before any zero in them was
-    // believed (reference_uncalled_port_is_not_verified.md).
+    // believed.
     { extern void RtGraphicsWave29GfxbodySummary(); RtGraphicsWave29GfxbodySummary(); }
     // Wave 11 follow-up 3 lane AVL: ExternalFactory::SerializeReferenceTable's
     // attendance counters and its MUTATION A post-condition. Printed here, from

@@ -78,8 +78,7 @@
 // 0x180111af0
 // ---------------------------------------------------------------------------
 // Ghidra drops the InternalPtr<Element> argument (arg2, unused by the body)
-// and the trailing two ints + void* (also unused) entirely --
-// reference_ghidra_dropped_args.md again. Read off the disassembly, the
+// and the trailing two ints + void* (also unused) entirely. Read off the disassembly, the
 // live 5-argument shape is `(this, elem/*unused*/, evt, stage, value)`, with
 // two more unused ints and an unused void* past `value`:
 //
@@ -156,8 +155,8 @@ void ComboDialog::OnUpdateLayout() {
 // takes (x, y, UserInterface*). 0x180111c50 `CALL [RAX+0x48]` is reached with
 // EDX = mx (0x180111c0d), R8D = my (0x180111c1c) and R9 = `_ui`
 // (0x180111bee) still live; the port passed `this` only and let three
-// registers of garbage through — the register-passthrough arg drop
-// (feedback_ghidra_dropped_args.md). Now passed, as UI::DialogInstance::
+// registers of garbage through — the decompiler drops register args at
+// indirect calls such as this vtable slot. Now passed, as UI::DialogInstance::
 // Contains passes them. ***
 //
 // Input::Device +0x109c / +0x10b4 are `_mouse[0].value` / `_mouse[1].value`

@@ -581,8 +581,7 @@ void TradeComponent::AutoTrade() {
 char TradeComponent::EnterDocked() {
     BuildMerchantManifest();
 
-    // The Time ctor writes EIGHT bytes through its return slot — see
-    // reference_time_ctor_8byte_clobber.
+    // The Time ctor writes EIGHT bytes through its return slot.
     {
         System::Time stay = {0};
         merchantTimer = *RtSystem_Time_Ctor(&stay, 900.0f);

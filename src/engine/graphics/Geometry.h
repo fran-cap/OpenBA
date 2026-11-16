@@ -15,8 +15,7 @@
 //
 // and it has exactly NINE slots. The count is not a guess: the bytes at
 // 0x180154e60 are nine pointers followed immediately by the ASCII string
-// "ImageBuffer\0", which is how a vtable's end is read in this project
-// (reference_vtable_slot_count_from_the_name_string.md).
+// "ImageBuffer\0", which is how a vtable's end is read in this project.
 //
 //   slot 0  +0x00  0x180015e90  scalar deleting destructor
 //   slot 1  +0x08  0x18007ec28  _purecall  (Draw)
@@ -37,8 +36,7 @@
 // ABI NOTE — see src/engine/math/Math.h. GetTransform, GetSubTransform and
 // GetInstanceTransform all return a class BY VALUE, so each carries a HIDDEN
 // RETURN SLOT in RDX and returns it again in RAX. Getting that wrong is a wild
-// write that still produces the right answer
-// (reference_hidden_retslot_wild_write.md).
+// write that still produces the right answer.
 // ============================================================================
 
 #include <cstdint>
@@ -66,8 +64,8 @@ namespace RtGraphics {
 // argument at +0xc0 and then reads `*(mesh + 0x70)` off it).
 //
 // Typed as a distinct struct rather than `void*` so a signature cannot silently
-// lose it or swap it with an `int` — the recorded 5th-argument /
-// pointer-typed-as-int trap (reference_hidden_retval_and_int_pointer_args.md).
+// lose it or swap it with an `int` — a pointer parameter typed int goes wrong
+// from the fifth argument on, where the stack slot's high dword stays garbage.
 // ============================================================================
 struct ExternalPtr {
     void* p;

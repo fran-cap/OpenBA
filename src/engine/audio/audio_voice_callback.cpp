@@ -58,8 +58,7 @@
 //          mov 0x48(%rsi),%rax        ; Audio::Stream's CreateEventW handle
 //          mov %rax,0x18(%r14)        ; r14 = Device+0xa98 + channel*0x20
 //      so `+0x18` is a real event HANDLE with a real writer. That is a
-//      MEASUREMENT of the writer, not N readers agreeing on a shape
-//      (reference_a_writer_beats_readers_agreeing_on_a_sign.md).
+//      MEASUREMENT of the writer, not N readers agreeing on a shape.
 //
 // ---------------------------------------------------------------------------
 // 2. THE RECORD LAYOUT — every field has a writer that was read
@@ -128,8 +127,8 @@
 // impossible in both directions —
 // running retail's copy after ours would set the bit twice (harmless but
 // unobserved) and SIGNAL THE EVENT TWICE, which hands the streaming thread a
-// spurious wake-up. `reference_uncalled_port_is_not_verified.md` applies in
-// full, and this file claims nothing about attendance.
+// spurious wake-up. A port with zero calls is unverified, not clean, and
+// this file claims nothing about attendance.
 //
 // UNVERIFIED: none of these seven bodies has been observed executing.
 //

@@ -492,7 +492,7 @@ void CitizenComponent::Update(const System::Time* timeArg) {
     // --- Adult section: housing, workplace, partner ---
     // NOTE: skipped for children — start-town citizens currently spawn with age=0
     // (< adultAge), so this whole assignment section no-ops until they age up or are
-    // spawned as adults. See project_economy_loop memory.
+    // spawned as adults.
     // The life-planning section (housing, workplace, partner) is gated on THREE things,
     // and the census can only see two of them. The third is the AI action index at
     // character+0x60: retail runs the whole section only while it is -1 (no action in
@@ -2087,7 +2087,7 @@ AttendanceComponent* CitizenComponent::FindAttendance(AttendanceComponent* exclu
 // The sibling FindStorage (0x1401116f0, keyed by description+0x28 -> slot +0x230) is the
 // other attendance link. Both resolve through FindAttendance, which matches a candidate
 // by `WorkPlaceComponent+0x48 == key`. The SCHOOL key is the THIRD ref, +0x20, consumed
-// by TryEnrolInSchool (0x140111840). See [[project_wpc_first_seat_and_attendance_keys]].
+// by TryEnrolInSchool (0x140111840).
 // [Plague] soak trace — same kill-switch as citizen_updatehealth.cpp's tag.
 // Default OFF; BANISHED_PLAGUE_TRACE=1 enables. Diagnostic only: the NOT-LINKED lines
 // print on every update of a sick citizen with no care building.
@@ -2187,7 +2187,7 @@ void CitizenComponent::FindStorage() {
 // CONSEQUENCE for testing: a founder spawned already at adult age has isAdult == true on
 // its first tick and NEVER crosses that edge, so it can never enrol. An empty school in a
 // short soak is therefore CORRECT, not a defect — you need a citizen that actually grows
-// up while a staffed school exists. See [[project_wpc_first_seat_and_attendance_keys]].
+// up while a staffed school exists.
 char CitizenComponent::TryEnrolInSchool(AttendanceComponent* exclude) {
     CitizenDescription* desc = description;
     AttendanceComponent* found = FindAttendance(exclude, desc->_professions[0]);

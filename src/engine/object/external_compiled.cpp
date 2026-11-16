@@ -49,8 +49,7 @@
 // right-hand operand of all five `System::operator+` calls and, for
 // `FindOrLoad`, drops `ExpandRelativePath`'s third and fourth arguments
 // entirely — the listing at 0x1800bf34f-0x1800bf359 shows `R8 = path` and
-// `R9B = 1`, neither of which appears in the decompiled call
-// (reference_ghidra_c_output_vs_disassembly.md).
+// `R9B = 1`, neither of which appears in the decompiled call.
 // ============================================================================
 
 #include <cstdint>
@@ -150,9 +149,8 @@ void BuildCompiledPath(const System::Filename* path, System::Filename* out) {
 // VALUE, so the hidden return slot is the FIRST argument and the `const
 // Filename&` is the second: `RCX = ret, RDX = path`, confirmed by the prologue
 // (`MOV RDI,RCX ; MOV RBX,RDX` at 0x1800bec2f/0x1800bec32, `MOV RAX,RDI` at
-// 0x1800bee98). Getting this wrong is the shipped defect
-// reference_hidden_retslot_wild_write.md describes: an fn_* typedef that omits
-// the slot is a wild write that still returns the right answer.
+// 0x1800bee98). Getting this wrong is a shipped defect: an fn_* typedef that
+// omits the slot is a wild write that still returns the right answer.
 System::Filename* RtObject_ExternalFactory_GetCompiledPath(System::Filename* ret,
                                                            const System::Filename* path) {
     ++g_cc.getCompiledCalls;
@@ -186,7 +184,7 @@ System::Filename* RtObject_ExternalFactory_GetCompiledPath(System::Filename* ret
 // note `AEAA`, non-const, returning a MUTABLE `External*`. It is NOT
 // 0x1800bdeb0, the public `QEBA...PEBVExternal` that `external.cpp` already
 // ports. Both are EXPORTED: `AEAA` means PRIVATE, not unexported, and this DLL
-// exports its private members (reference_aeaa_is_private_not_unexported.md).
+// exports its private members.
 // Calling the ported public one here would be a different function.
 //
 // B3R RT-Core: `Find`(private, 0x1800be0e0), `Add` (0x1800be570) and

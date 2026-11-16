@@ -165,8 +165,7 @@ void ComponentEntity::PostUpdateComponents() {
 // ============================================================
 // The in-order walk (TreeMinimum/TreeSuccessor) intermittently faults reading
 // a node's child/parent pointer through a HALF-CORRUPTED value — high dword a
-// valid heap segment, low dword small garbage (e.g. 0x00000258_0000F1FA). See
-// docs/history/notes/project_entitylist_postupdate_treesuccessor_crash. Every real node is
+// valid heap segment, low dword small garbage (e.g. 0x00000258_0000F1FA). Every real node is
 // allocated 8-byte aligned (fn_MemAlloc(...,0x28,8)) with a heap address in the
 // low-4GB..high range, so a non-null pointer that is MISALIGNED or has a set
 // high dword with a tiny low dword cannot be a live node — it is corruption.
@@ -232,9 +231,9 @@ static void FlagTreeCorrupt(const char* site, EntityTreeNode* from, const void* 
 // documented half-written signature, high dword a live heap segment, low dword a
 // small cell-index-like value, landing on a node's +0x08 parent field. Stack was
 // SimpleBST_Retrace <- WorkBST_BSTRemove_a6e0 <- EntityList_PostUpdateStaging.
-// See memory project_entitylist_postupdate_treesuccessor_crash: that writer was
-// root-caused (async pathfinder result commit, fixed 17g) and this is either a
-// second writer or an uncovered path for the same class.
+// One such writer was root-caused (the pathfinder worker's unlocked async result
+// commit, fixed 17g) and this is either a second writer or an uncovered path for
+// the same class.
 //
 // Refusing the remove here is NOT masking a faithful retail crash: retail never
 // has the corrupt pointer. It converts a run-ending AV into a logged event that
@@ -313,7 +312,7 @@ static void ReportTreeCorrupt(const char* walk, EntityList* self, EntityTreeNode
     // that field as a full 64-bit pointer.
     //
     // One writer of this class was root-caused and fixed in July (async pathfinder
-    // result commit, see memory project_entitylist_postupdate_treesuccessor_crash).
+    // result commit).
     // This is a second one, and it is not confined to tree nodes: the 2026-09-04
     // tutorial crash was UI::Element::Enable walking a child whose vtable had been
     // zeroed, with RCX=0x00000171_000045F6 — the identical half-written signature on

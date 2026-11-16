@@ -8,10 +8,8 @@
 // **Runtime-x64.dll** (retail), read instruction by instruction. Not the
 // profile build, and not Ghidra's decompiled C — this body is nothing but
 // indirect vtable calls through byte offsets, which is exactly the shape
-// Ghidra's C output drops arguments at
-// (reference_ghidra_c_output_vs_disassembly.md), and IO vtable offsets are the
-// one family measured to DIFFER between the two builds
-// (reference_encoding_vtable_offsets_differ_between_builds.md). Every slot
+// Ghidra's C output drops arguments at, and IO vtable offsets are the
+// one family measured to DIFFER between the two builds. Every slot
 // number here comes from `rt::io::rw_vtbl` / `rt::io::encoding_vtbl`, which
 // Wave 4 pinned against the shipped retail bytes.
 //
@@ -85,8 +83,8 @@
 //                RtIo_SerializeStringArray, src/engine/io/text_codec.cpp.
 //
 // SO THIS PORT GREW THE CUTOVER SURFACE BY ONE FUNCTION for a day, and that was
-// stated here rather than discovered later: the pattern is
-// reference_porting_can_grow_the_cutover_surface.md. The trade it weighed —
+// stated here rather than discovered later: porting a caller makes its unported
+// callees newly called. The trade it weighed —
 // "reproducing a 680-byte UTF-8/UTF-16 transcoder to avoid one door is not a
 // better trade" — was the right call at the time and is now moot: the
 // transcoder came with the four text-codec internals, which had to be ported

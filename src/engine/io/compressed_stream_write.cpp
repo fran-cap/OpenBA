@@ -6,7 +6,7 @@
 //
 // Every body below was read as DISASSEMBLY from
 // Runtime-x64.dll through Ghidra MCP on port 8089
-// (reference_ghidra_c_output_vs_disassembly.md — the decompiled C drops
+// (the decompiled C drops
 // dereferences, prints MOVSXD as a zero extension, and drops whole arguments at
 // a mistyped vtable call, and three of the twelve below make a vtable call).
 // Retail addresses are quoted per line, in the style the read path uses.
@@ -122,7 +122,7 @@ inline uint32_t StoredLength(const Header& h) {
 // ============================================================================
 // Encode ONE resident window into its block, replacing whatever block was
 // there. AEAA is PRIVATE, **not unexported** — this DLL exports its private
-// members (reference_aeaa_is_private_not_unexported.md).
+// members.
 //
 //   w = &window[i];
 //   if (w->start < 0) return;                 // an empty window encodes nothing
@@ -221,7 +221,7 @@ namespace RtIo {
 // vtable call, not as a direct call to the base: a direct call would silently
 // break CompressedMemoryStream, and it would still pass every test built on a
 // plain CompressedStream. Ghidra's C is known to DROP arguments at a mistyped
-// vtable call (reference_ghidra_c_output_vs_disassembly.md), so this one came
+// vtable call, so this one came
 // off the byte offset 0x40 and not off the pseudocode.
 //
 // PHASE 4 WRITES THROUGH THE SOURCE'S VTABLE, not through our Write: slots 4

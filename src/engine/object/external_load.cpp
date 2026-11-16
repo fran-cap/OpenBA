@@ -8,8 +8,7 @@
 // `SA` IS STATIC. There is no `this`: the arguments are (const Filename& path,
 // External* existing) in RCX and RDX, and the return is `PEAV12@` — a plain
 // pointer in RAX with NO hidden return slot. Both halves of that matter, and
-// both have shipped wrong in this tree before
-// (reference_hidden_retslot_wild_write.md). The call site settles it:
+// both have shipped wrong in this tree before. The call site settles it:
 // 0x1800bc642 `MOV RDI,RDX` and 0x1800bc645 `MOV RBX,RCX`, and the epilogue is
 // 0x1800bc921 `MOV RAX,RBX`.
 //
@@ -152,8 +151,7 @@ void SerUInt(::IO::ReaderWriter* rw, uint32_t* v) {
 // EFFECTIVENESS COUNTERS — branches taken INSIDE this body.
 //
 // `calls` alone cannot tell a load that did the interesting thing from one that
-// bailed at the magic check
-// (reference_calls_zero_can_mean_always_took_the_uncovered_branch.md). The ones
+// bailed at the magic check. The ones
 // that matter are `created` (step 5, the object-creation path) against
 // `reusedExisting`, and `deps` — a run in which every resource had zero
 // dependencies would leave the whole replay loop unentered while reporting a

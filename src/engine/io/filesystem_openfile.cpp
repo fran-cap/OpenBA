@@ -538,7 +538,8 @@ bool FileSystem::ReadFile(RtIO::FileInfo& fiRef, int32_t n, void* dst) {
 // ============================================================================
 // A FileInfo-RETURNING member, so the hidden return slot is the SECOND argument
 // (RCX = this, RDX = ret) and RAX is the slot on the way out — `MOV RAX,RDI` at
-// 0x1800acc2b. Getting that wrong is reference_hidden_retslot_wild_write.md.
+// 0x1800acc2b. Getting that wrong writes through a stale register yet reads back
+// correctly.
 RtIO::FileInfo FileSystem::OpenFile(const System::Filename& name) {
 
     // FileInfo's default ctor (1800ac8b3..: the four fields, the two

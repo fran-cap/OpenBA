@@ -8,7 +8,7 @@
 //   BANISHED_ORCHARD_DIAG=1        enable, dump every 120 ticks (default period)
 //   BANISHED_ORCHARD_DIAG=<N>      enable, dump every N ticks (N>0, numeric)
 //
-// Per the project convention (see reference_diagnostics_must_report_outcomes.md):
+// Per the project convention:
 // every branch below prints something, including the "found nothing" branches, so
 // an empty log can never be misread as a pass.
 //

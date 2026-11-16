@@ -18,7 +18,7 @@
 // | `?UnregisterMessageCallback@Application@1@QEAAXI@Z` | 0x18009fa20 | 4467 |
 //
 // Both names were checked against the shipped export directory with pefile
-// BEFORE any body was written (reference_resolveexport_phantom_names.md).
+// BEFORE any body was written.
 //
 // THE SPLIT WITH set_avl.cpp
 // --------------------------
@@ -86,8 +86,8 @@ void* MemAlloc(uint64_t bytes, int align) {
 // whatever RCX holds there is leftover. **A register that is not set by the
 // caller and not read by the callee is not a parameter.**
 //
-// This is the same reading `reference_read_the_callee_before_holding_back_on_an_arg.md`
-// records for `FUN_180023060`, and lane D's `KeyMap::RegisterInput` is the
+// This is the same reading, the callee's disassembly deciding which registers are parameters,
+// that settles `FUN_180023060`, and lane D's `KeyMap::RegisterInput` is the
 // precedent for the resulting signature.
 //
 // THE ELEMENT COPY IS TWO QWORDS, NOT A FIELD COPY (0x18000a61b..0x18000a625).
@@ -95,8 +95,7 @@ void* MemAlloc(uint64_t bytes, int align) {
 // — RegisterMessageCallback builds the element with `MOV [RAX-0x20],EDX`
 // (the message id, a DWORD) and never writes +0x04, so **the padding carries a
 // dword of the caller's stack frame into the tree**. Reproduced, not repaired:
-// an oracle that compared those bytes would fail 100% of calls
-// (reference_oracle_must_not_compare_unwritten_bytes.md), and zeroing them
+// an oracle that compared those bytes would fail 100% of calls, and zeroing them
 // would differ from retail in a way nothing here would ever report.
 //
 // On allocation failure retail returns null and the CALLER stores that null as

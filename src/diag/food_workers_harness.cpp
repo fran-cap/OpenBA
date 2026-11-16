@@ -119,8 +119,8 @@ void Fire(int frameNum) {
     uint32_t tids[kClassCount];
     for (int k = 0; k < kClassCount; ++k) tids[k] = ::Object::GetTypeIdByName(kClasses[k]);
 
-    // 0x140002e10 is FindComponent_WorkPlace whatever Ghidra called it — see
-    // reference_misnamed_component_finders. Body: ComponentEntity::FindComponent<WorkPlaceComponent>.
+    // 0x140002e10 is FindComponent_WorkPlace whatever Ghidra called it. Body:
+    // ComponentEntity::FindComponent<WorkPlaceComponent>.
 
     int found = 0, considered = 0;
     for (int i = 0; i < n; ++i) {

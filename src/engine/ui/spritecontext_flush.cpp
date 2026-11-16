@@ -51,14 +51,12 @@
 // The rotated path builds `T(-centre) * R(angle) * T(+centre)` as three real
 // `Math::Transform2`s and two real 2x3 multiplies, with 1.0f/0.0f stored as
 // data — retail does not fold the identities, and neither does this port.
-// Folding is algebraically identical and NOT bit-identical
-// (reference_moved_term_hides_where_terms_cancel.md): `0.0f * -sin` is `-0.0f`,
+// Folding is algebraically identical and NOT bit-identical: `0.0f * -sin` is `-0.0f`,
 // and `-0.0f + x` differs from `x` when `x` is `+0.0f`. Every ADDSS in
 // `Transform2Mul` and the two point helpers keeps retail's operand order; MULSS
 // operands are commutative and are written in whichever order reads best.
 //
-// The constants are read out of the shipped .rdata, not retyped
-// (reference_crt_coefficients_must_be_lifted_not_retyped.md):
+// The constants are read out of the shipped .rdata, not retyped:
 //   0x18016167c = 0x3c8efa35  degrees -> radians
 //   0x180161694 = 0x3f000000  +0.5f
 //   0x180161754 = 0xbf000000  -0.5f

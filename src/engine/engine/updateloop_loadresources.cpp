@@ -82,8 +82,8 @@ namespace {
 // FileSystem, and `?_singleton@Configuration@System@@` -- the "one of the two
 // remaining readers" the file banner discusses; the other is Configuration::Get).
 // `MOV EDX,dword ptr [0x1801f9be0]` — BaseTypeInfo's FIRST dword is the typeId.
-// Retail reads +0x00 and nothing else, which is the whole content of
-// reference_basetypeinfo_name_is_content_only.md.
+// Retail reads +0x00 and nothing else: BaseTypeInfo::name is read for content
+// only, never by pointer.
 // ENDGAME B.3.9 OBJ: the class record (the minted one is retired).
 uint32_t ExternalListTypeId() {
     return ::Object::ExternalList::TypeId();

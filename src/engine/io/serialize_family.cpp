@@ -48,10 +48,9 @@
 //
 // All eleven agree with `rw_vtbl`, and the BinaryWriter set is byte-identical to
 // the BinaryReader set at the same displacements. That third derivation is worth
-// having written down because the profile build DISAGREES about these offsets
-// (reference_encoding_vtable_offsets_differ_between_builds.md), so a future lane
-// reading a profile decompile will find bool +0x90 / uint +0xb0 / int +0xb8 and
-// needs to know which source won and why.
+// having written down because the profile build DISAGREES about these offsets,
+// so a future lane reading a profile decompile will find bool +0x90 / uint
+// +0xb0 / int +0xb8 and needs to know which source won and why.
 //
 // ----------------------------------------------------------------------------
 // THE FOUR BODY SHAPES — this whole family is four functions and a table
@@ -171,9 +170,8 @@
 // ----------------------------------------------------------------------------
 // Forty-four of these bodies differ from one another only in a type name and a
 // size immediate. Hand-typing forty-four near-identical functions is precisely
-// the situation in which one wrong one hides inside a uniform-looking pass — the
-// failure recorded in reference_uniform_population_is_not_a_verification.md,
-// where a ported inline strcmp returned 0 for every pair sharing a first byte and
+// the situation in which one wrong one hides inside a uniform-looking pass, as
+// when a ported inline strcmp returned 0 for every pair sharing a first byte and
 // read as fully verified. A macro cannot get the eleventh one wrong while the
 // other ten are right: there is one body per class, instantiated once per type
 // (the reader's Bool pair is written out by hand below), and the size immediate

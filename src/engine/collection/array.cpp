@@ -22,7 +22,7 @@
 // ---------------------------------------------------------------------------
 // Lane D proved the clustering by hashing MNEMONIC SEQUENCES. Lane Q re-read
 // all 27 bodies as disassembly (never the decompiled C —
-// reference_ghidra_c_output_vs_disassembly.md: three Wave 6 defects including a
+// three Wave 6 defects including a
 // crash came from Ghidra printing a MOVSXD as a zero extension, and `SetSize`
 // contains two of them, at the `_size` load and the `_capacity * stride`
 // multiply).
@@ -56,8 +56,7 @@
 //        * TWO (0x180008b90, 0x18002fea0) leave the NEW TAIL UNINITIALISED —
 //          the `else` arm of their fill loop is empty. A port that helpfully
 //          zeroed it would not be faithful, and an oracle that compared it
-//          would fail 100% of calls
-//          (reference_oracle_must_not_compare_unwritten_bytes.md).
+//          would fail 100% of calls.
 //
 //      The full per-address table is `kSpec*` below and the parameterization
 //      table in docs/history/runtime_port/WAVE9_LANE_Q.md.
@@ -380,8 +379,7 @@ void InitSpriteDraw(uint8_t* d) { InitAs<UI::SpriteDraw, &SpriteDrawInit>(d); }
 //   MOV qword ptr [RCX+0x10],R11    -> [d+0x10] = 0   (8 bytes)
 // So **+0x0c..+0x0f is NEVER WRITTEN** by the tail init, even though the
 // element stride is 0x18. Any oracle over a grown Array<Window> must exclude
-// those four bytes or it compares memory neither side wrote
-// (reference_oracle_must_not_compare_unwritten_bytes). The unaligned 8-byte -1
+// those four bytes or it compares memory neither side wrote. The unaligned 8-byte -1
 // is retail's, not a transcription convenience — the same shape as
 // InitIdentityTransform's qword at +0x0c below.
 static void WindowInit(RtIo::CompressedStreamWindow* d) {
@@ -583,8 +581,8 @@ void Destroy40(void* ignoredThis, uint8_t* base, int count) {
 // *** BYTES +0x2c .. +0x2f ARE NEVER WRITTEN. *** The element is 0x40 bytes and
 // this covers 0x00-0x2b and 0x30-0x3f. Any oracle that memcmps a whole new
 // EffectSlot will fail on four bytes of allocator fill and read like a
-// catastrophic port defect — that is exactly the Wave 6 failure recorded in
-// reference_oracle_must_not_compare_unwritten_bytes.md, four times over.
+// catastrophic port defect — that is exactly the Wave 6 failure, an oracle
+// comparing bytes neither side writes, four times over.
 // kSpec_EffectSlot records that window.
 static void EffectSlotInit(Audio::Scene::AttenutedEffect* d) {
     d->pos.x               = 0.0f;   // +0x00 qword
@@ -713,8 +711,8 @@ void DestroyExtStringAt08(void* ignoredThis, uint8_t* base, int count) {
 // makes the same four stores in zeroes -- `MOV dword [RAX],R14D` then qwords at
 // +0x08/+0x10/+0x18 -- and skips the same hole. So the window is 0x04..0x08 on
 // BOTH arms, and each was read separately rather than one assumed from the
-// other (reference_never_written_needs_by_whom.md: the extent belongs to the
-// ARM). An oracle that compared those four bytes would fail 100% of calls.
+// other: the extent belongs to the ARM. An oracle that compared those four bytes
+// would fail 100% of calls.
 static void CfgEntryAssign(RtUI::DialogControllerConfigEntry* d,
                            const RtUI::DialogControllerConfigEntry* s) {
     d->_typeId      = s->_typeId;           // +0x00 DWORD
@@ -869,8 +867,7 @@ void DestroyStringRange(void* ignoredThis, uint8_t* base, int count) {
 // a qword, and the nested Array starts at +0x08. That hole is declared in the
 // spec's assign window below, because an oracle that compares bytes neither
 // side writes fails 100% of calls and reads like a catastrophic port defect
-// (reference_oracle_must_not_compare_unwritten_bytes.md, four such gaps in
-// Wave 6).
+// (four such gaps in Wave 6).
 //
 // The destination's nested Array header is ZEROED BEFORE the operator= runs,
 // and that is load-bearing rather than tidiness: on the realloc arm the
@@ -1179,8 +1176,7 @@ const ArraySpec kSpec_Fill16A4 = {                // 0x180051aa0
 //     all and the init arm is unreachable through it too.
 // The +0x25..+0x27 hole is recorded here for whoever adds a two-argument
 // Array<SpriteDraw>::SetSize, which would be the first caller that can reach
-// it (reference_never_written_needs_by_whom.md: the extent belongs to the ARM,
-// not to the type).
+// it; the extent belongs to the ARM, not to the type.
 const ArraySpec kSpec_SpriteDraw = {              // 0x180078520, 0x1800783d0
     "Array<UI::SpriteDraw>", 0x28, 8, &Assign28, &InitSpriteDraw, nullptr, true,
     0, 0, 0x1c, 0x20, 0, 0 };
@@ -2034,7 +2030,7 @@ void DestroyAnimClip70(void* /*ignoredThis*/, uint8_t* base, int count) {
 // named is the widest (+0x54..+0x57, the padding before the int64 at +0x58);
 // the other two are +0x2d..+0x2f and +0x3d..+0x3f, the padding after each of
 // the two BYTE stores above. All three are retail's holes, recorded here rather
-// than zeroed (reference_oracle_must_not_compare_unwritten_bytes.md). Nothing
+// than zeroed. Nothing
 // in the tree reads ArraySpec's unwritten windows, so the window is documentation.
 const ArraySpec kSpec_AnimClip70 = {              // 0x180059e70
     "Array<Graphics::AnimationGroup::Clip>", 0x70, 8,
@@ -2302,7 +2298,7 @@ const char* SetSizeProf_SpecName(const ArraySpec* spec) {
 //   loop: MOV RDI,[R14] / CALL [CheckPtr](key) / MOV RAX,[R15] / CMP [RDI+RSI],RAX
 //         / JZ -> return i;  INC EBX / CMP EBX,[R14+8] / JL
 //   OR EAX,-1
-// The key's CheckPtr is a bare RET (reference_checkptr_is_a_ret_in_every_build).
+// The key's CheckPtr is a bare RET in every shipped build.
 // ---------------------------------------------------------------------------
 int ArrayFind8(const ArrayHdr* a, const void* key) {
     const uint64_t* const k = static_cast<const uint64_t*>(key);   // the 8-byte element  // CAST-OK: elem_stride
@@ -2387,7 +2383,7 @@ J1_ENTRY(180051d80)   // Audio:       Scene's channel array
 // SAME BODY, measured rather than eyeballed. Both bodies were disassembled and
 // every RIP displacement and rel32 resolved to its ABSOLUTE target before
 // comparing (a raw byte-diff of two copies of one function reports differences
-// that are only distances — reference_position_only_diffs_hide_one_body):
+// that are only distances):
 // 29 instructions on each side, 29 identical, and the ONE textual difference
 // is an internal forward branch whose ENCODED displacement is the same byte
 // (0x36) on both sides. The four external operands resolve identically to
@@ -2437,8 +2433,7 @@ J1_ENTRY(180024aa0)   // UI:          ComboElement::_userData (+0x108)
 // "*** MISMATCH *** -> 0x1917d29b4" — a confident, specific, wrong refutation,
 // for the REFERENCE body, which is registered and known good. Locating the
 // fields by instruction pattern instead is what produced the numbers above.
-// (reference_recheck_must_match_its_own_proof.md: a check whose own decode is
-// wrong reads as a finding about the subject.)
+// (A check whose own decode is wrong reads as a finding about the subject.)
 J1_ENTRY(180039440)   // UI:          reached from ?AddController@DialogInstance@ 0x180113649
 // VTABLE BATCH 2 (2026-09-12) - the two canonical free-and-zero ~Array bodies
 // the UI::*Description second half needs. Each read from its own
@@ -2465,8 +2460,7 @@ J1_ENTRY(1800248e0)   // IO:          CompressedStream::_windows (+0x30), Array<
 //     five 4-byte displacement fields and (b) all five RESOLVED absolute
 //     targets to be equal. Raw diffs were 15/115 and 13/115 bytes — i.e. a raw
 //     byte diff of two copies of ONE function says "13% different", because
-//     every rel32/RIP field encodes a DISTANCE
-//     (reference_position_only_diffs_hide_one_body.md).
+//     every rel32/RIP field encodes a DISTANCE.
 //
 //     Resolved targets, identical in all three:
 //         0x1801fc718 (allocator singleton)  0x18014b390 (EnterCriticalSection)
@@ -2491,7 +2485,7 @@ J1_ENTRY(180062320)   // Graphics
 // ---- CUTOVER VTABLE BATCH 4 "elem_B", 2026-09-12 --------------------------
 // Two more copies of the parameterless `~Array` body, both surfaced the usual
 // way: nothing in our tree called them until a destructor that does was
-// ported (reference_porting_can_grow_the_cutover_surface.md).
+// ported.
 //   0x180043cb0 — the array `??1LayoutElement@UI@@` destroys at this+0xC0
 //                 (the per-child layout records, stride 0x44)
 //   0x1800490e0 — the array `??1RadioElement@UI@@`  destroys at this+0xC0
@@ -2691,8 +2685,7 @@ J3_ENTRY3(180034860, kSpec_StringRef)   // UI:       ComboElement::_strings   (+
 // registers, and that is a MEASUREMENT: both listings were compared
 // instruction-for-instruction with the leading address stripped and every
 // INTERNAL branch target rewritten as a body-relative delta, so every operand
-// naming anything outside the body had to match ABSOLUTELY
-// (reference_position_only_diffs_hide_one_body.md).
+// naming anything outside the body had to match ABSOLUTELY.
 //
 //   0x180076250 vs 0x18005fb00 (kSpec_Node18, stride 0x18)  -> 0 differences
 //   0x180076370 vs 0x180076900 (kSpec_Fill8Z, stride 8)     -> 0 differences
@@ -2702,8 +2695,7 @@ J3_ENTRY3(180034860, kSpec_StringRef)   // UI:       ComboElement::_strings   (+
 //
 // THE INSTRUMENT WAS CONTROLLED. The same comparison run between the stride-8
 // body and the stride-0x18 body reports 62 differing instructions, so it is not
-// structurally incapable of saying "different"
-// (reference_diagnostic_field_cannot_express_the_answer.md). The two listings,
+// structurally incapable of saying "different". The two listings,
 // the script and both runs are in docs/history/runtime_port/WAVE10_LANE_UI3.md §2.
 
 // UI leftovers batch — the three-argument CaptureEntry and Event pushes:
@@ -2948,8 +2940,8 @@ void RtColl_ArrayReserve_18005f980(void* a) {
 //
 //   *** 0x180028cd0's +0x04..+0x07 IS NEVER WRITTEN. *** The first store is a
 //   DWORD and the next is at +0x08. An oracle that compared those four bytes
-//   would fail 100% of calls and read like a catastrophic port defect
-//   (reference_oracle_must_not_compare_unwritten_bytes.md). Declared in the
+//   would fail 100% of calls and read like a catastrophic port defect.
+//   Declared in the
 //   assign window below. There is no init arm, so there is no init window to
 //   read separately — the extent belongs to the ARM, and this element type has
 //   exactly one.
@@ -3410,7 +3402,7 @@ void RtColl_ArraySetSize_18003d430(void* a) {
 // ---------------------------------------------------------------------------
 // J1 -- the `~Array` addresses: seven measured, two kept (the rest are in the removed list at the end)
 // ---------------------------------------------------------------------------
-// MEASURED, not eyeballed (reference_position_only_diffs_hide_one_body.md): all
+// MEASURED, not eyeballed: all
 // seven were read with `read_memory` over their full 115 bytes and compared
 // against the canonical 0x180033960. Outside the FIVE relocatable operands --
 // the disp32 of `MOV RBX,[rip]` (+36), of `CALL [rip]` (+58), of

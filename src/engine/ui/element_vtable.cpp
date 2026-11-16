@@ -147,9 +147,8 @@ inline UI::DialogInstance* ToolTipDialogOf(const UI::UserInterface* u) {
 // ============================================================================
 // The member bodies
 // ============================================================================
-// Every body is byte-faithful to the retail DISASSEMBLY, not to Ghidra's C
-// (reference_ghidra_c_output_vs_disassembly.md). Where retail derefs without a
-// null check, so do we.
+// Every body is byte-faithful to the retail DISASSEMBLY, not to Ghidra's C.
+// Where retail derefs without a null check, so do we.
 namespace UI {
 
 // ---- slots 1/2 and the static TypeId -- ?TypeName@ 0x180035440
@@ -265,8 +264,7 @@ bool Element::Contains(int32_t x, int32_t y, UserInterface* ui) const {
 // retail's `00 00 00 00`.
 //
 // The two encoding slots are read from the OBJECT by byte displacement; retail's
-// IO::Encoding vtable has DIFFERENT offsets from the profile build's
-// (reference_encoding_vtable_offsets_differ_between_builds.md).
+// IO::Encoding vtable has DIFFERENT offsets from the profile build's.
 void Element::Persist(IO::Stream& stream) {
     ++g_elemCounts.persist;
     // The scope above IS an IO::Serializer: {stream, readerWriter}, built by

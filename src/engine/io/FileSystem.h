@@ -466,7 +466,7 @@ public:
     //                                                             0x1800ade60
     // ?PlatformCloseFile@FileSystem@IO@@AEAAXAEAUFileInfo@12@@Z    0x1800ae020
     // Both are `AEAA` — PRIVATE in retail, and this DLL exports its private
-    // members (reference_aeaa_is_private_not_unexported.md). They are declared
+    // members. They are declared
     // PUBLIC here.
     bool PlatformCreateFile(RtIO::FileInfo& info, const System::Filename& path);
     void PlatformCloseFile(RtIO::FileInfo& info);

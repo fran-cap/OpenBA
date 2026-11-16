@@ -16,12 +16,11 @@
 //
 // Every name and address above is `pefile`'s reading of the export directory of
 // the shipped C:\GOG Games\Banished\Runtime-x64.dll, run before a line of this
-// file was written (reference_resolveexport_phantom_names.md). That check also
+// file was written. That check also
 // settled the dtor's spelling, which the lane brief flagged as a trap: the
 // `UEAA` form IS in the directory at 0x1800a3c80 and the non-virtual `QEAA`
 // form is ***ABSENT*** — a `??1FrameCopyImageBuffer@Graphics@@QEAA@XZ`
-// registration would have resolved NULL and registered nothing, silently
-// (reference_phantom_dtor_mangling_qeaa_vs_ueaa.md).
+// registration would have resolved NULL and registered nothing, silently.
 //
 // EVERY BODY HERE WAS TRANSCRIBED FROM THE DISASSEMBLY, with Ghidra's C read
 // afterwards as a second, differently-biased opinion. That order mattered twice
@@ -75,9 +74,8 @@ namespace {
 // ---------------------------------------------------------------------------
 // ATTENDANCE. Same shape and the same reasoning as wave21_lane_gfxbody.cpp:86:
 // a port with no attendance counter cannot be told apart from an absent one,
-// and `calls=0` with `worked>0` is a different finding from `never entered`
-// (reference_calls_zero_can_mean_always_took_the_uncovered_branch.md). Printed
-// at 1, 10, 1000 and then every 100000, so a log tail carries the evidence.
+// and `calls=0` with `worked>0` is a different finding from `never entered`.
+// Printed at 1, 10, 1000 and then every 100000, so a log tail carries the evidence.
 //
 // `g_generateCopies` is deliberately NOT an entry counter: Generate's whole
 // body is behind one equality test, so an entry count of N says nothing about
@@ -213,7 +211,7 @@ void RenderBufferZeroHeader(Video::RenderBuffer* rb) {
 // RenderBuffers are destroyed the long way (`PlatformDestruct` then
 // `operator delete`) because RenderBuffer has no virtual destructor to reach.
 // Those are not the same idiom and swapping one for the other would leak or
-// double-free (reference_a_written_recipe_can_be_wrong.md is the general form).
+// double-free; look-alike bodies differ, so each is checked against its own disassembly.
 //
 // ENDGAME B.3.9 block GFX: the ??1 door that stood here is RETIRED with the
 // RT_DELDTOR row 0x18001f260 it served. The restamp (0x1800a3c9b), the Generated
@@ -312,9 +310,8 @@ Graphics::FrameCopyImageBuffer::~FrameCopyImageBuffer() {
 // ============================================================================
 // 60 bytes / 18 instructions, and `UEBA` — const. The whole body is behind one
 // integer comparison, which is why the counter below counts the BRANCH and not
-// the entry (reference_calls_zero_can_mean_always_took_the_uncovered_branch.md:
-// an entry count here is exactly the number that cannot tell you whether the
-// copy happened).
+// the entry (an entry count here is exactly the number that cannot tell you
+// whether the copy happened).
 //
 // THREE arguments at the indirect call, not two. `MOV R9B,0x1` at 0x1800a3b41
 // sets a fourth register before `CALL [RAX+0x18]`, so the companion's slot 3
@@ -377,8 +374,7 @@ Graphics::FrameCopyImageBuffer::~FrameCopyImageBuffer() {
 // Wave 21 §4.3 enumerated the same offsets from Ghidra's C and explicitly
 // recorded that they had NOT been checked against the disassembly. They now
 // have been, and they hold — but the check was worth doing, because the SIGN of
-// such an agreement is not informative until someone runs it
-// (reference_ghidra_c_output_vs_disassembly.md).
+// such an agreement is not informative until someone runs it.
 //
 // ---------------------------------------------------------------------------
 // §5.2  THE IDENTITY TRANSFORM IS A CONSTANT, NOT A COMPUTATION
@@ -386,8 +382,8 @@ Graphics::FrameCopyImageBuffer::~FrameCopyImageBuffer() {
 // The 4th argument is a stack `Math::Transform` rebuilt every iteration as
 // {0,0,0, 1.0f, 0,0,0}: quaternion identity then a zero Vector3. The 1.0f comes
 // from `MOVSS XMM7,[0x18016169c]`, and the four bytes there were READ
-// (00 00 80 3f) rather than assumed — a float constant lifted by eye is how
-// reference_crt_coefficients_must_be_lifted_not_retyped.md got written.
+// (00 00 80 3f) rather than assumed — constants are copied as raw bits from the
+// binary, never retyped as decimals, which can land 1 ULP off.
 //
 // ---------------------------------------------------------------------------
 // §5.3  WHAT RETAIL DOES AFTER THE CALL

@@ -38,8 +38,7 @@
 // THE ONE FACT A SIGNATURE WOULD GET WRONG
 // ---------------------------------------------------------------------------
 // `?CreateFileW@FileSystem@IO@@` RETURNS A `FileInfo` BY VALUE, so its hidden
-// return slot is RDX and the `Filename*` is R8
-// (`reference_hidden_retslot_wild_write.md`). `?Create@
+// return slot is RDX and the `Filename*` is R8. `?Create@
 // FileStream@` at 0x1800aa963/96f loads `LEA RDX,[RSP+0x28]` (a 0x30-byte stack
 // FileInfo) before the call and then hands the RETURNED pointer to
 // FileInfo::operator=.
@@ -246,8 +245,7 @@ extern "C" void RtIo_TextFileStream_SetObject(::IO::TextFileStream* self,
 // IO::FileStream::Create(Filename const&)                retail 0x1800aa8f0
 // ============================================================================
 // PROTECTED (`IEAA`), which means PRIVATE-to-the-hierarchy, NOT unexported —
-// this DLL exports its private members and ord 1876 is right there
-// (`reference_aeaa_means_private_not_unexported.md`).
+// this DLL exports its private members and ord 1876 is right there.
 //
 // Five steps:
 //   1. FileSystem::CreatePath(_singleton, path)              1800aa919

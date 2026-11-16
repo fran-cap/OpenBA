@@ -25,7 +25,6 @@
 // `__thiscall GetSunCamera(SunLight *this, Renderer *param_1)` with an unnamed
 // `in_R8`, which gets BOTH the slot position and the argument count wrong; a
 // typedef copied from it writes 0xd8 bytes over the Renderer.
-// (reference_hidden_retslot_wild_write.md, reference_ghidra_drops_r8_static_lookat.md)
 //
 // ---------------------------------------------------------------------------
 // WHICH DRAW GROUP, AND WHICH CAMERA INSIDE IT
@@ -64,7 +63,7 @@
 // FP status word, and none of the inputs can trap.
 //
 // ---------------------------------------------------------------------------
-// CONSTANTS, lifted as raw bits (reference_crt_coefficients_must_be_lifted...)
+// CONSTANTS, lifted as raw bits
 // ---------------------------------------------------------------------------
 //   0x180161688 = 0x3e000000     0.125f   (1/8: eight points averaged)
 //   0x18016169c = 0x3f800000     1.0f
@@ -141,7 +140,7 @@ inline float AbsF(float v) {
 // `_drawGroups[0]._camera._frustum`. They are still read through the float
 // cursor `m`, because the arithmetic below is transcribed in retail's operand
 // order and re-spelling it as `axisX.x` per term would invite a reader to
-// re-group a float sum (reference_moved_term_hides_where_terms_cancel.md).
+// re-group a float sum, and a regrouped sum differs in the last bit where terms cancel.
 //
 // The result is constructed DIRECTLY IN THE HIDDEN RETURN SLOT, as retail does
 // (`MOV RCX,R12` immediately before `CALL 0x1800fe960`): the Camera

@@ -177,7 +177,7 @@ static_assert(sizeof(AVLCompare) == 1, "policy struct, never stored");
 // `rtcoll::ArraySpec` rows, that array.cpp's per-address `RtColl_Array*`
 // entries run. COLLECTION_INVENTORY.md §5.3 says why in one line: a body
 // re-derived from Ghidra's C risks re-introducing an argument-count mismatch
-// this port already solved (feedback_ghidra_dropped_args.md).
+// this port already solved.
 //
 // WHICH SPEC DRIVES AN INSTANTIATION — the third template parameter.
 //
@@ -1030,7 +1030,7 @@ class LinkedList {
 //
 // THE THREE NODE LAYOUTS STAY DISTINCT. They are distinct here for the same
 // reason set_avl.h and set_avl_e24.h are two files:
-// `reference_one_bst_find_two_node_layouts.md` — one walk over two layouts
+// one walk over two layouts
 // returns the right answer for a key that happens to be the root and is
 // permanently wrong for the next one. The layout is computed from `sizeof(T)`
 // by the `Node` struct below, exactly as before, and the static_asserts at the

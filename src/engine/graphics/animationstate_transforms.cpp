@@ -64,7 +64,7 @@
 // HIDDEN RETURN SLOTS
 // ---------------------------------------------------------------------------
 // Five Math entry points here return a value by reference in RDX, which shifts
-// the real arguments right (reference_hidden_retslot_wild_write.md):
+// the real arguments right:
 //   ??DQuaternion@Math@@QEBA?AV01@AEBV01@@Z   (this, ret, rhs)
 //   ?Rotate@Quaternion@Math@@QEBA?AVVector3@2@AEBV32@@Z  (this, ret, v)
 //   ?Lerp@Quaternion@Math@@QEBA?AV12@AEBV12@AEBVScalar@2@@Z (from, ret, to, &t)

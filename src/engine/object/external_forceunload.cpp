@@ -84,8 +84,8 @@
 // cleanly and prove nothing: theirs would find the same node and store the same
 // zero, and every comparison would be green whether or not our descent landed
 // on the right entry. A site like that is worse than none, because a green
-// `calls=` reads as coverage (reference_uncalled_port_is_not_verified.md, one
-// level up). What DOES check the descent is the same machinery `Find` is
+// `calls=` reads as coverage (one level up from a port with zero calls, which is
+// unverified, not clean). What DOES check the descent is the same machinery `Find` is
 // checked by: `rtresset::Find` is lane RES's ported body with its own lockstep
 // probe, and this function contributes only the key normalisation, which is
 // byte-identical to the one `Object::ExternalFactory::Find`'s full diff oracle

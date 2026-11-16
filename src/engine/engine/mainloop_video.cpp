@@ -264,8 +264,7 @@ void AssignVideoResource(uint8_t* dst, const uint8_t* src) {
 // by this assign, and not by `OnVideoError`'s record construction, which stores
 // a dword at [RBP-0x28] and a qword at [RBP-0x20] and never touches
 // [RBP-0x24]. Comparing those four bytes would fail 100% of cases and read like
-// a catastrophic port defect
-// (reference_oracle_must_not_compare_unwritten_bytes.md).
+// a catastrophic port defect.
 //
 // NO INIT ARM: the only caller passes a fill, so retail's fill-less else arm is
 // unreachable for this instantiation and `init` is null.

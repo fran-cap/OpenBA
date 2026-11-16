@@ -19,8 +19,8 @@
 // §4.1 decision 5 (class atomicity) asks for: an object built by our ctor
 // carries our vtable and must then find every method ours.
 //
-// EVERY BODY BELOW WAS READ AS DISASSEMBLY, NOT DECOMPILED C
-// (reference_ghidra_c_output_vs_disassembly.md). The twelve ctors and twelve
+// EVERY BODY BELOW WAS READ AS DISASSEMBLY, NOT DECOMPILED C.
+// The twelve ctors and twelve
 // dtors are three and four instructions each, and all 24 were disassembled
 // INDIVIDUALLY rather than one being read and the rest assumed — the point of
 // checking was the vtable operand, which differs per class and is the only

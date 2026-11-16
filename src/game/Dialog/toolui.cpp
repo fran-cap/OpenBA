@@ -119,8 +119,7 @@ void UIDescription::AddControllers(UI::DialogInstance* const* dialog, Object::Ba
     // outside src/ext/ (the DLL never calls its own AddTab — four xrefs, not one
     // a CALL). Its predictive oracle nevertheless reported
     // rounds=0 on every route driven, and `rounds=0` reads identically to "no
-    // route exists" and to "the port is dead"
-    // (reference_uncalled_port_is_not_verified.md). These three counters
+    // route exists" and to "the port is dead". These three counters
     // separate those: they say how many controller entries this loop saw, how
     // many named an element at all, and how many took the TAB path. A route
     // that reports entries>0 and tab==0 has been MEASURED not to build tabs;

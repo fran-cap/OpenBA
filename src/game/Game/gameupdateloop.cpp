@@ -228,7 +228,7 @@ extern "C" void BuildingGoal_Probe(const char* templateName);  // src/game/Goal/
 // the callee WRITES 8+ bytes through it — a one-arg call leaves RDX stale and the store
 // lands wherever the last call left it. It was resolved and CHECK_FN'd but never called
 // from this file, so it corrupted nothing; it was a loaded gun for the next caller.
-// See reference_byvalue_return_hidden_rdx — this same export already caused one
+// This same export already caused one
 // deterministic crash (the ±0.7071 garbage signature).
 //
 // Deleted rather than corrected: callers such as action_base_move.cpp and moveto.cpp call

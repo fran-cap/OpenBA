@@ -46,7 +46,7 @@
 // decompiled C. Read as stride 4 the block is unreferenced and both functions
 // throw away every coordinate they were handed; read as stride 0x28 it is the
 // entry, and every field lands somewhere. The disassembly settles it and the
-// decompiler does not — reference_ghidra_c_output_vs_disassembly.md.
+// decompiler does not.
 //
 // ---------------------------------------------------------------------------
 // `Entry::name` IS OWNED BY THE ARRAY — and how that was nearly recorded wrong
@@ -138,8 +138,7 @@ static_assert(offsetof(CaptureEntry, color)      == 0x24, "");
 // `pad04` is the ONE window in a CaptureEntry that neither body writes: the
 // stack block is filled field by field and +0x04 is never stored. An oracle
 // that memcmp's two entries must skip it or it reports a divergence on
-// whatever the two stacks happened to hold —
-// reference_oracle_must_not_compare_unwritten_bytes.md.
+// whatever the two stacks happened to hold.
 inline constexpr size_t kCaptureEntryPadOff = 0x04;
 inline constexpr size_t kCaptureEntryPadLen = 0x04;
 

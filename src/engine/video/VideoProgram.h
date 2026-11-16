@@ -199,8 +199,8 @@ public:
     // are how the engine actually binds a program.
     void Bind(void* context, int32_t permutation) const;
 
-    // The three platform halves. `AEAA` is PRIVATE IN RETAIL, not unexported
-    // (reference_aeaa_is_private_not_unexported.md); public here as the rest of
+    // The three platform halves. `AEAA` is PRIVATE IN RETAIL, not unexported;
+    // public here as the rest of
     // this family has them. `PlatformCreate` returns void, like VertexLayout's
     // and unlike VertexProgram's and PixelProgram's.
     void PlatformConstruct();    // 0x1800f47a0

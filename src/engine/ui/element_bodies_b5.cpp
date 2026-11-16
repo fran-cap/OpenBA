@@ -8,7 +8,7 @@
 // this batch contains four of the exact shapes that output is known to get
 // wrong — an argument dropped on an indirect call, a QWORD read of a DWORD
 // stack slot, a `bool` arriving in the seventh (stack) slot, and a 91-entry
-// jump table (reference_ghidra_c_output_vs_disassembly.md).
+// jump table.
 //
 //   retail       mangled name                                            note
 //   -----------  ------------------------------------------------------  ----

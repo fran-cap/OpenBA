@@ -14,9 +14,10 @@
 // the out-of-line exports by name instead of re-inlining them.
 //
 // So the port replaced an INLINED, UNNAMED dependency with a NAMED, SCOPEABLE
-// export. That is `reference_porting_can_grow_the_cutover_surface.md` working
-// as intended, not a regression: the two bodies always ran on this path, and
-// the census could not see them only because nothing in our tree named them.
+// export. That is the cutover surface growing because a port makes its callees
+// newly called, working as intended, not a regression: the two bodies always ran
+// on this path, and the census could not see them only because nothing in our
+// tree named them.
 // This file closes both.
 //
 // ---------------------------------------------------------------------------
@@ -25,7 +26,7 @@
 // `tools/pe_exports.py` against C:\GOG Games\Banished\Runtime-x64.dll
 // (4,926 exports), BEFORE a line of body was written — a name the DLL does not
 // contain resolves to NULL in silence, the port still registers, and the census
-// still counts it (reference_resolveexport_phantom_names.md):
+// still counts it:
 //
 //   0x180112db0  ??0Dialog@UI@@QEAA@XZ    present
 //   0x180112e40  ??1Dialog@UI@@UEAA@XZ    present
@@ -35,8 +36,7 @@
 // *** THE TWO SPELLINGS DIFFER AND BOTH ARE LOAD-BEARING. *** The ctor is
 // `QEAA` (public, non-virtual). The dtor is `UEAA` — the VIRTUAL spelling.
 // `??1Dialog@UI@@QEAA@XZ` is NOT in the export table and would resolve NULL
-// without a word of complaint (reference_phantom_dtor_mangling_qeaa_vs_ueaa.md,
-// which is exactly this defect one class over).
+// without a word of complaint.
 //
 // The three vtables the ctor stamps were checked the same way and are exported
 // at exactly the addresses the shipped `LEA`s name:
@@ -65,8 +65,7 @@
 //   180112e0e  +0x48 … +0x80 = 0 (qwords, ten of them)
 //   180112e31  MOV RAX,RCX ; RET                          <- returns `this`
 //
-// THREE THINGS ONLY THE DISASSEMBLY SHOWS
-// (reference_ghidra_c_output_vs_disassembly.md):
+// THREE THINGS ONLY THE DISASSEMBLY SHOWS:
 //
 //  (a) THE FIRST QWORD IS WRITTEN THREE TIMES. Base, then External, then Dialog
 //      — the ordinary MSVC base-ctor chain, fully inlined. The first two stores
@@ -122,8 +121,7 @@
 //
 // THE TWO WITH AN ELEMENT PASS ARE STATED, NOT GLOSSED. WAVE10_LANE_UI3.md §7b called
 // all four "the same family" and suggested two more `J1_ENTRY` lines. **THAT IS
-// WRONG AND THIS LANE MEASURED IT RATHER THAN INHERITING IT**
-// (reference_holdback_blockers_are_stale_check_them_first.md). All 115 leading
+// WRONG AND THIS LANE MEASURED IT RATHER THAN INHERITING IT**. All 115 leading
 // bytes of each were read with Ghidra `read_memory` and compared against the
 // registered J1 reference 0x180033960:
 //

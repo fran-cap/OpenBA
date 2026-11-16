@@ -375,7 +375,7 @@ void GraphElement::RemoveGraphs() {
 // engine's APPEND idiom: grow by one and fill the new tail from `*fill`.
 //
 // THE MOVSXD IS REPRODUCED AS A SIGNED WIDENING, deliberately (Ghidra's C
-// prints it as a zero extension — reference_ghidra_c_output_vs_disassembly.md).
+// prints it as a zero extension).
 // A negative `graph` indexes backwards exactly as retail does. NOT guarded.
 //
 // ORACLE: none — a replay would append the point a SECOND time.

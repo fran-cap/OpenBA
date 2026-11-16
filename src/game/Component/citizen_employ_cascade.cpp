@@ -13,7 +13,7 @@
 // widget we don't have, so we drive the FindAvailableBuilding + cbf0->ca20->c5f0->c4b0
 // fallback directly (as if the player set the worker count).
 //
-// CORRECTED field semantics (reference_employ_cascade_field_semantics): each strategy
+// CORRECTED field semantics: each strategy
 // seats a worker by setting citizen+0x1f0 = professionKey and calling AssignHousing
 // (0x140111ee0), which sets citizen+0x248 (the WorkPlaceComponent-roster / workplace
 // link) — NOT +0x238 (that is the c7cf0 residence/household link, set by AssignWorkplace).

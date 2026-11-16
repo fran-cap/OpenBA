@@ -7,7 +7,7 @@
 // their ctors stamp Base/External then their OWN final vtable directly, unlike
 // Video::VertexLayout's three-level chain in vertexlayout.cpp). All addresses
 // below are RETAIL Runtime-x64.dll (read with objdump against the shipped
-// file, not Ghidra's decompile -- reference_ghidra_c_output_vs_disassembly.md).
+// file, not Ghidra's decompile).
 //
 // ---------------------------------------------------------------------------
 // Graphics::AnimationGroup — ??_7AnimationGroup@Graphics@@6B@, 0x58 bytes

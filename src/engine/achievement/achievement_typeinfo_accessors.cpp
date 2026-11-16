@@ -20,7 +20,7 @@
 // THE BODIES, READ FROM THE SHIPPED Runtime-x64.dll BYTES
 // ============================================================================
 // Disassembled, not decompiled: Ghidra's C output drops dereferences and prints
-// MOVSXD as a zero extension (reference_ghidra_c_output_vs_disassembly.md).
+// MOVSXD as a zero extension.
 //
 //   ?Type@Achievement@1@UEBAIXZ                       0x180001020
 //       MOV EAX,dword ptr [0x1801f9898] ; RET          = node+0x00
@@ -83,7 +83,7 @@
 //
 // NO `?AW4GoalState@Goal@2@` RETURN-SLOT HAZARD. The mangled return type is a
 // `W4` enum, which the MS x64 ABI returns in EAX like an int — there is no
-// hidden return slot to omit (reference_hidden_retslot_wild_write.md). The
+// hidden return slot to omit. The
 // `JMP` rather than `CALL/RET` in retail is itself the proof: a body with a
 // hidden return-slot argument cannot tail-jump to a function that does not take
 // one. `Achievement::Goal::GoalState` is `int32_t`-backed, per Goal.h.

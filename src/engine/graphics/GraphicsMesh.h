@@ -442,9 +442,9 @@ public:
     System::String GetSubMeshName() const;               // 0x180012770
     void    PlatformVersion();                             // 0x1800a4cd0
 
-    // The two PRIVATE (`AEAA`) builders. This DLL exports its private members
-    // (reference_aeaa_is_private_not_unexported.md), so both are in the export
-    // directory; they are declared `private` below rather than here.
+    // The two PRIVATE (`AEAA`) builders. This DLL exports its private members,
+    // so both are in the export directory; they are declared `private` below
+    // rather than here.
 
     GraphicsMesh(const GraphicsMesh& src);                 // 0x180012970  not ported
     GraphicsMesh& operator=(const GraphicsMesh& src);      // 0x180012a90  not ported

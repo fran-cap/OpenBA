@@ -253,8 +253,8 @@ public:
     // that were right are exactly the eleven that a registration in
     // `buffers.cpp` / `dynamic_resources.cpp` / `video_resources.cpp` also
     // spells, i.e. the ones a pefile check had already been run against
-    // (`reference_resolveexport_phantom_names.md` is the rule those three files
-    // follow and this header did not).
+    // (those three files check every mangled name against the DLL's real export
+    // table, and this header did not).
     //
     // NOTHING BEHAVIOURAL CHANGED with the fix: every one of the corrected rows
     // is an unported member, so no door and no registration named the bad

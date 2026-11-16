@@ -12,7 +12,7 @@
 //
 // Every address is in RETAIL Runtime-x64.dll (image base 0x180000000), read in
 // Ghidra on 2026-09-11 as BOTH decompiled C and raw disassembly. Where the two
-// disagree the disassembly wins (reference_ghidra_c_output_vs_disassembly.md).
+// disagree the disassembly wins.
 //
 // ----------------------------------------------------------------------------
 // THE DESTRUCTOR, AND THE TRAP THE WAVE 23 BRIEF NAMED

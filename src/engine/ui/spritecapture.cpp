@@ -23,7 +23,7 @@
 // and `BeginSpriteCapture` (0x18011f4c0) is five stores — the capture pointer
 // at UserInterface+0x110 and a viewport at +0x118. Every ingredient is an
 // export. So the dependency was never unreachable; it was unREQUESTED. That is
-// the distinction reference_synthetic_subject_beats_a_fake.md is about: no
+// the distinction that matters when the guard reads a field of the subject: no
 // fake is needed here, because a REAL SpriteCapture can be built and driven.
 //
 //
@@ -130,8 +130,7 @@ void SpriteCapture::AddScissor(int32_t x, int32_t y, int32_t right, int32_t bott
     // name's is the member's own String() (B4 Y RT-UI), its release at the
     // end of the body the member's ~String (0x1800d8fc2).
     // `pad04` is deliberately NOT written: retail does not write it either,
-    // and an oracle that compared it would report garbage
-    // (reference_oracle_must_not_compare_unwritten_bytes.md).
+    // and an oracle that compared it would report garbage.
     CaptureEntry e;
     e.x1 = 0; e.y1 = 0;
     e.x2 = 0; e.y2 = 0;
@@ -257,8 +256,7 @@ void SpriteCapture::AddSprite(const Sprite& sprite, int32_t x1, int32_t y1,
         // SpriteSheet::GetSpriteNameFromIndex returns a System::String BY
         // VALUE, so the ABI is (this, hidden-return-slot, index) and the
         // hidden slot comes back in RAX. Getting the arity wrong here writes
-        // through a sign-extended int — the failure mode
-        // reference_hidden_retslot_wild_write.md describes.
+        // through a sign-extended int — a wild write that still reads back correctly.
         //
         // The member is retail's exported 0x1800032d0. The returned
         // temporary's own reference is released by its destructor at the end
@@ -302,7 +300,7 @@ void SpriteCapture::AddSprite(const Sprite& sprite, int32_t x1, int32_t y1,
 // virtuals, nothing outside the object. That is unusual enough in this
 // namespace to state plainly, because it is what makes the body verifiable by
 // an INPUT SWEEP against the shipped export rather than by waiting for a
-// gameplay route (project_pure_functions_verify_by_sweep.md).
+// gameplay route.
 //
 // Two passes over the same array:
 //

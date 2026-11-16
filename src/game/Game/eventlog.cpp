@@ -222,7 +222,7 @@ static int EventLog_IconIndex(int eventType) {
 // entity->tile lookup, the 0x28-byte entry append, and the "drop to 1x speed on
 // a critical event" tail — is the same instruction sequence in all three, so
 // they share one core here. Porting the same body three times is how the copies
-// drift apart (see reference_one_retail_fn_ported_twice_diverges); that already
+// drift apart; that already
 // happened here — the previous AddEvent port was missing the speed tail that
 // retail 0x140095580 does have.
 //

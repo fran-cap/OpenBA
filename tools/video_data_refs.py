@@ -47,8 +47,7 @@ CONTROLS
   control 3 (blind-spot)  a subject address chosen to have NO references
       (a .rdata address in the middle of a string table).  It must report 0,
       which is what distinguishes "this row has no stampers" from "the parser
-      is dead" -- the failure recorded in
-      reference_absence_screen_must_be_handed_a_shape.md.
+      is dead".
 
 PORT STATE of an owning body is read from a runtime_census.py --csv, passed
 with --census.  That is screen R1 only; this tool does NOT re-implement screen

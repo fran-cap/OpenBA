@@ -163,7 +163,7 @@ int  CreateNaturalResource::AbstractImpl(ActionStack* actionStack) {
                          static_cast<void*>(naturalResource), static_cast<void*>(growth));
             // Two very different causes look identical from here: the TEMPLATE genuinely has
             // no GrowthComponent, or the finder's type-id .rdata slot is unregistered/zero so
-            // it misses on every entity (reference_registered_but_filled_with_zero). Separate
+            // it misses on every entity. Separate
             // them by re-scanning with the by-NAME id, which does not depend on that slot.
             const uint32_t tidByName = GrowthComponent::TypeId();
             int compN = newEntity ? newEntity->_components._size : 0;

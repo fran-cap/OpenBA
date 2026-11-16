@@ -31,9 +31,7 @@
 //
 // Ghidra's decompiled C was not used at all here. It drops dereferences, prints
 // MOVSXD as a zero extension and drops whole arguments at a mistyped vtable
-// call (reference_ghidra_c_output_vs_disassembly.md), and GhidraMCP's
-// get_function_metrics silently ignores `address=`
-// (reference_ghidra_mcp_address_param_silently_ignored.md).
+// call, and GhidraMCP's get_function_metrics silently ignores `address=`.
 //
 // ---------------------------------------------------------------------------
 // EXTENT — DERIVED, and the walker that derived it was WRONG BY CONSTRUCTION
@@ -109,7 +107,7 @@
 // ---------------------------------------------------------------------------
 // `GetRootPoseAtTime` returns `Math::Transform` BY VALUE. An fn_* typedef that
 // omits the hidden return slot is a wild write that still returns the right
-// answer (reference_hidden_retslot_wild_write.md). Read out of the prologue and
+// answer. Read out of the prologue and
 // not assumed: RCX=this, RDX=&ret, R8=&arg1, R9=&arg2, and the epilogue does
 // `MOV RAX,RDI` (0x1800fac25) where RDI was RDX — it RETURNS the slot.
 //
@@ -138,7 +136,7 @@
 // CONSTANTS — LIFTED, never retyped
 // ---------------------------------------------------------------------------
 //   0x18016169c = 00 00 80 3f = 1.0f, read out of the file with pefile. Not an
-//   export; lifted as bytes. (reference_crt_coefficients_must_be_lifted_not_retyped.md)
+//   export; lifted as bytes.
 //
 //   0x1801fe728 is NOT a liftable constant. Its RVA lies beyond .data's
 //   SizeOfRawData — the uninitialised tail — so there are no bytes in the file
@@ -168,8 +166,7 @@ namespace {
 // ---------------------------------------------------------------------------
 // Attendance. Counted per BODY and, where a body has a branch whose absence an
 // entry count cannot express, per BRANCH as well —
-// `calls=N branch=0` and `calls=0` are DIFFERENT findings
-// (reference_calls_zero_can_mean_always_took_the_uncovered_branch.md).
+// `calls=N branch=0` and `calls=0` are DIFFERENT findings.
 //
 // THE SUMMARY BELOW IS WIRED INTO src/app/main.cpp. Wave 28 defect #7 is
 // that every lane's *Summary() is written and nothing calls it, which makes a
@@ -214,8 +211,7 @@ const float kOne = FromBits(0x3f800000u);   // 0x18016169c
 // door moved the `called` column by ZERO, because the row was already there.
 // See docs/history/runtime_port/WAVE29_LANE_GFXBODY.md §2.4.1.
 //
-// `0NA` means PRIVATE, not unexported — this DLL exports its private members
-// (reference_aeaa_is_private_not_unexported.md).
+// `0NA` means PRIVATE, not unexported — this DLL exports its private members.
 //
 // ---------------------------------------------------------------------------
 inline double SecondsPerTick() {
@@ -280,17 +276,16 @@ inline void DrawItemSort(Graphics::RendererDrawItem* data, int count, void* scra
 // The `+0x1bc` read is `RendererDrawGroup::passMask`, ALREADY NAMED in
 // Camera.h from AddDrawItem's side. This body is a second, independent reader
 // of that field in the same role — and that matters, because N readers
-// agreeing is weak evidence when they test a SIGN
-// (reference_a_writer_beats_readers_agreeing_on_a_sign.md) but this is a
+// agreeing is weak evidence when they test a SIGN but this is a
 // BITWISE AND against a per-object mask, not a sign test.
 //
 // TWO FIELDS OF THE OBJECT ARE READ AND THIS LANE DOES NOT NAME EITHER.
 // `obj->[0x30]` is a mask AND'd against the group's passMask, and `obj->[0x28]`
 // is compared `>` against `Renderer::field_48`. A `>` against a threshold is
 // exactly what an LOD level, a layer index and a priority share, and this lane
-// found NO WRITER for either field. Per
-// reference_only_a_writer_names_a_field.md they are left UNNAMED here rather
-// than guessed, and they are read through a byte offset for that reason.
+// found NO WRITER for either field. Only code that writes a field can establish
+// its meaning, so they are left UNNAMED here rather than guessed, and they are
+// read through a byte offset for that reason.
 // ============================================================================
 
 // ============================================================================
@@ -320,8 +315,7 @@ inline void DrawItemSort(Graphics::RendererDrawItem* data, int count, void* scra
 // SO THIS PORT MUST NOT ZERO-INITIALISE THE RECORD. `RendererDrawable rec;`
 // with two assignments is FAITHFUL; `RendererDrawable rec{};` or `= {}` is
 // NOT, and would make our appended element differ from retail's in four bytes
-// that an oracle comparing the array would then flag — or, worse, would not
-// (reference_oracle_must_not_compare_unwritten_bytes.md).
+// that an oracle comparing the array would then flag — or, worse, would not.
 //
 // Retail, 0x1801051d0..0x180105238:
 //
@@ -447,7 +441,7 @@ inline void DrawItemSort(Graphics::RendererDrawItem* data, int count, void* scra
 //
 // --- THE MOVED-TERM HAZARD, WHICH IS LIVE IN THIS BODY ----------------------
 // A moved term in a float sum is algebraically identical and numerically
-// different (reference_moved_term_hides_where_terms_cancel.md). Two places:
+// different. Two places:
 //
 //  1. Both time conversions NARROW TO FLOAT BEFORE the multiply:
 //     `CVTSI2SD` (int64 ticks to double), `MULSD` by _secondsPerTick (a
@@ -520,8 +514,8 @@ namespace Graphics {
 //
 // THREE RAW BYTE READS THIS CONVERSION RETIRES. This lane wrote "TWO FIELDS OF
 // THE OBJECT ARE READ AND THIS LANE DOES NOT NAME EITHER", and left `obj+0x30`,
-// `obj+0x28` and `renderer+0x48` as byte reads per
-// reference_only_a_writer_names_a_field.md. All three are named now, from
+// `obj+0x28` and `renderer+0x48` as byte reads, because only code that writes a
+// field can establish its meaning. All three are named now, from
 // WRITERS and from accessor exports rather than from more readers:
 //   obj + 0x30      `Geometry::_materialTypeFlags` — block E's class; retail's
 //                   `?GetMaterialTypeFlags@Geometry@` (0x1800157f0) returns it,
@@ -576,8 +570,7 @@ void Scene::AddGlobalDrawItems(Renderer& rendererRef) const {
 // (the int). `RendererDrawable::_pad0c` is NEVER WRITTEN, and the SetSize helper
 // copies all sixteen bytes regardless, so retail stores UNINITIALISED STACK into
 // the array on every append. SO THIS PORT MUST NOT ZERO-INITIALISE THE RECORD:
-// `RendererDrawable rec;` with two assignments is FAITHFUL; `rec{}` is not
-// (reference_oracle_must_not_compare_unwritten_bytes.md).
+// `RendererDrawable rec;` with two assignments is FAITHFUL; `rec{}` is not.
 // ---------------------------------------------------------------------------
 void Renderer::AddLight(const Light* light) {
     ++rtgfxbody29::g_addLight;

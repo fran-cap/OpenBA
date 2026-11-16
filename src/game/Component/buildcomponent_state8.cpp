@@ -15,7 +15,7 @@
 //                    — the 8->2 transition ACTION: refund leftover materials to town stock
 //                    (townMgr+0x170) and reconfigure the site storage as OUTPUT storage.
 //
-// Node-slot mapping (recovered 2026-07-11 — see reference_construction_pipeline_map):
+// Node-slot mapping:
 //   StateMachineComponent::Update -> StateMachine::Tick(sm, time, altDraw=1, doDraw=1)
 //   EVERY frame. Tick skips its UPDATE phase (slot +0x20) unless a transition is pending,
 //   and runs the DRAW phase (slot +0x38, altDraw=1) every frame. So the PER-FRAME handler

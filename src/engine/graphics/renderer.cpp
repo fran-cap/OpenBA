@@ -183,8 +183,8 @@ const Matrix kZUpToYUp = {{
 // `RtGraphics_Camera_Assign` in `src/engine/graphics/wave28_lane_gfxbody.cpp`,
 // which ported it because `BeginDrawGroup`'s reuse path is the tree's first
 // caller of it. Block F drafted a second copy of it here and DELETED it on the
-// link error, which is the duplicate-registration hazard
-// reference_grep_for_the_port_before_writing_it.md describes.
+// link error, which is the duplicate-registration hazard of writing a port
+// without first grepping the tree for an existing one.
 //
 // Its body must stay where it is for the reason Camera.h's three-byte-deviation
 // banner gives: retail's `operator=` copies dwords +0x00..+0x5f, the BYTE at
@@ -443,8 +443,7 @@ void Camera::SetZUp(bool zUp) { _zUp = zUp ? 1 : 0; }
 // FALSE, which is retail's behaviour and is preserved by the ordinary spelling.
 //
 // TRANSCRIBED IN RETAIL'S ASSOCIATION, term by term, because a re-grouped float
-// sum flips exactly at the sign change this function tests
-// (reference_moved_term_hides_where_terms_cancel.md). Read off the SSE schedule
+// sum flips exactly at the sign change this function tests. Read off the SSE schedule
 // at 0x1800fe484..0x1800fe53e: the three cross terms first, then
 // `(axisZ.y*cy + axisZ.x*cx) + axisZ.z*cz` in that bracketing — `axisZ.y` FIRST,
 // which is not the order a reader would write.

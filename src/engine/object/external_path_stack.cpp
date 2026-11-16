@@ -47,7 +47,7 @@
 // Every body was transcribed from `disassemble_function(address=)` on
 // Runtime-x64.dll (image base 0x180000000, read 2026-09-09), not from the
 // decompiled C. Ghidra's C for `PushPath` is misleading in the usual way
-// (reference_ghidra_c_output_vs_disassembly.md): it DROPS the right-hand
+// (its C drops dereferences and arguments): it DROPS the right-hand
 // operand of both `System::operator+` calls, so the two string literals the
 // entry filename is built from — "." at 0x180155814 — are invisible in it, and
 // it reports four "unreachable" blocks that are the ordinary release idiom.

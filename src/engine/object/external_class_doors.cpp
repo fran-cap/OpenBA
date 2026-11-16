@@ -91,8 +91,8 @@ namespace {
 
 // A `System::Filename` returned by value out of an entry point that writes a
 // HIDDEN RETURN SLOT: the slot is raw, uninitialised bytes, so the callee
-// CONSTRUCTS into it and the local must not be constructed twice
-// (reference_hidden_retslot_wild_write.md). `char storage[8]` + placement is
+// CONSTRUCTS into it and the local must not be constructed twice.
+// `char storage[8]` + placement is
 // what the C bodies already do; the move out is a pure pointer steal.
 template <class Fn>
 inline System::Filename ByHiddenSlot(Fn call) {

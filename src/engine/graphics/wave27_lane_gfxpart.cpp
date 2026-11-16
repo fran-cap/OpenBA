@@ -7,8 +7,7 @@
 // docs/history/runtime_port/WAVE27_LANE_GFXPART.md. Read §4 before adding a body here.
 //
 // EXPORT TABLE, read with pefile out of the shipped
-// C:\GOG Games\Banished\Runtime-x64.dll BEFORE a line of this file was written
-// (reference_resolveexport_phantom_names.md):
+// C:\GOG Games\Banished\Runtime-x64.dll BEFORE a line of this file was written:
 //
 //   | Export                                                 | Retail      |
 //   |--------------------------------------------------------|-------------|
@@ -26,7 +25,7 @@
 // ParticleSystemInstance table, so one body serves both tables.
 //
 // EVERY BODY BELOW WAS TRANSCRIBED FROM `disassemble_function`, NOT FROM
-// GHIDRA'S C (reference_ghidra_c_output_vs_disassembly.md: the decompiler drops
+// GHIDRA'S C (the decompiler drops
 // dereferences, prints MOVSXD as a zero extension, and drops whole arguments at
 // a mistyped vtable call — and these bodies are nothing but mistyped vtable
 // calls and float chains).
@@ -54,8 +53,7 @@
 // already cleared (`0x9d2c5680 & (0xffffffff >> 7)` style), which is what MSVC
 // does when it can prove the high bits are shifted out. Retyping the textbook
 // values would be arithmetically equivalent HERE and is still not what this file
-// does, because nothing in the port proves the shift amounts it pairs them with
-// (reference_crt_coefficients_must_be_lifted_not_retyped.md).
+// does, because nothing in the port proves the shift amounts it pairs them with.
 //
 // ---------------------------------------------------------------------------
 // FLOAT ASSOCIATION ORDER IS LOAD-BEARING
@@ -63,8 +61,7 @@
 // Every lerp below is written in retail's own order — `prev + (cur - prev) * a`
 // where retail subtracts, multiplies and adds in that sequence, and
 // `((1 - a) * prev) + (a * cur)` where it does that instead. The two are
-// algebraically identical and numerically different
-// (reference_moved_term_hides_where_terms_cancel.md), and a particle system is
+// algebraically identical and numerically different, and a particle system is
 // exactly where a 1-ULP difference becomes a visibly different frame.
 //
 // `1.0f` appears in three of these bodies as `[0x18016169c]`. Its shipped bit
@@ -102,8 +99,7 @@ void* MemAlloc(uint64_t bytes, int align);
 
 // ============================================================================
 // Attendance counters. A run that entered none of these says so rather than
-// staying silent, and `calls=` is read separately from any comparison
-// (reference_uncalled_port_is_not_verified.md).
+// staying silent, and `calls=` is read separately from any comparison.
 // ============================================================================
 namespace {
 
@@ -164,7 +160,7 @@ inline float DegToRad() {
 // `System::Random` — MT19937 (`_index` +0x00, zero means "regenerate before
 // use"; `_mt[624]` +0x04). `?NextGroup@Random@System@@AEAAXXZ` (0x1800c7dd0) is
 // the twist. AEAA means PRIVATE, not unexported — this DLL exports its private
-// members (reference_aeaa_is_private_not_unexported.md); our header declares
+// members; our header declares
 // it public, so it is a member call (B3R).
 // ---------------------------------------------------------------------------
 
@@ -855,8 +851,8 @@ void ParticleInstance::Draw(Video::Context& context, const Camera& camera,
 // wrappers — and `Emitter` / `ParticlePool` are THIS FILE'S OWN NAMES for them,
 // not retail's. They stay file-local free functions: there is no class here to
 // convert, and inventing `Graphics::Emitter` would put a name in
-// `src/engine/` that the binary does not contain
-// (reference_resolveexport_phantom_names.md's failure, one level up).
+// `src/engine/` that the binary does not contain (a name inferred rather than
+// checked against the shipped export table, one level up).
 //
 //   0x1800205a0  `operator new` for the 0x18-byte emitter record. The size AND
 //                the alignment are immediates: `MOV EDX,0x18` then
@@ -920,8 +916,7 @@ RtGraphics::ParticleBoundsRecord::ParticleBoundsRecord(const Graphics::Particle*
 // The attendance line names THIS lane, so a run log carries a line only this
 // build emits — the on-disk md5 says which exe is on disk, not which one ran.
 // Attendance is printed SEPARATELY from any comparison so a reader cannot
-// mistake "the body ran" for "the body was verified"
-// (reference_uncalled_port_is_not_verified.md).
+// mistake "the body ran" for "the body was verified".
 void RtGraphicsWave27GfxpartSummary() {
     printf("[GFXPART27] ParticleSer=%llu (records=%llu) PIDraw=%llu (quads=%llu) "
                 "AddDrawItems=%llu (emitted=%llu) GetInstXform=%llu "

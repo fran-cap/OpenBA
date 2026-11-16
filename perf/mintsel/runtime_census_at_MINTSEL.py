@@ -166,9 +166,9 @@ RE_REG_EXPORT = re.compile(r'RegisterRuntimeExport\s*\(\s*(?=")')
 # live in the process and invisible to the tool the project treats as its
 # authority over any agent's "all N ported" claim.
 #
-# This is the mirror image of reference_uncalled_port_is_not_verified.md: there
-# a port is counted but never runs; here a port runs but is never counted. Both
-# end in a census that does not describe reality, so both must be loud.
+# This is the mirror image of an uncalled port reading as clean: there a port is
+# counted but never runs; here a port runs but is never counted. Both end in a
+# census that does not describe reality, so both must be loud.
 RE_REG_EXPORT_NONLITERAL = re.compile(
     r'RegisterRuntimeExport\s*\(\s*(?!")([A-Za-z_][A-Za-z0-9_:]*)')
 
@@ -202,10 +202,10 @@ RE_DETOUR_ADDR = re.compile(r'InstallRuntimeDetour(?:Checked)?\s*\(\s*"([^"]*)"\
 # `detour 0` for UI.
 #
 # A tool that already documents a blind spot for one column and then repeats it
-# in the next is the shape of reference_literal_grep_blind_to_variables.md, so
-# both halves of the cure are here: same-file `constexpr uintptr_t kX = 0x...;`
-# definitions are RESOLVED, and anything still unresolved is reported LOUDLY
-# rather than dropped.
+# in the next is the shape of a literal-matching grep that silently undercounts
+# facts spelled through variables, so both halves of the cure are here: same-file
+# `constexpr uintptr_t kX = 0x...;` definitions are RESOLVED, and anything still
+# unresolved is reported LOUDLY rather than dropped.
 RE_DETOUR_NONLITERAL = re.compile(
     r'InstallRuntimeDetour(?:Checked)?\s*\(\s*"([^"]*)"\s*,\s*(?!0x)([A-Za-z_][A-Za-z0-9_:]*)')
 
@@ -263,8 +263,8 @@ def load_export_addrs():
     spots") before the cause was found.
 
     That is this project's most-repeated failure mode, and this function was an
-    instance of it: `reference_truncated_tool_output_manufactures_calls_zero.md`
-    (a `tail -80` faked sixteen sites disappearing) and WAVE9.md's three census
+    instance of it: a truncated summary that made live sites look uncalled (a
+    `tail -80` faked sixteen sites disappearing) and WAVE9.md's three census
     defects are the same shape -- a tool that answers when it cannot answer. The
     census is the number this project treats as authority over any agent's "all N
     ported" claim, so it must refuse to produce one it cannot stand behind.
@@ -878,7 +878,7 @@ def main():
     # the name and the address for one function is deliberate insurance in this
     # project, and before this was fixed it made every such function report as
     # caller-less forever -- which trained the reader to ignore the list that
-    # exists to catch reference_uncalled_port_is_not_verified.md.
+    # exists to catch uncalled ports, which read as clean but are unverified.
     name_of_called_addr = {addr_to_name[a] for a in d["called_addrs"] if a in addr_to_name}
     called_export_names = set(d["called_exports"]) | name_of_called_addr
     # Detoured names/addresses have retail's callers, so they are not orphans.

@@ -258,8 +258,8 @@ void RtSceneGridReindex(Scene* self, int32_t id) {
 // new `-Wunused-function` warning in both the debug and the perf build, which
 // B35's gate reads as a regression.
 //
-// The self-describing-predicate DISCIPLINE they encoded is not lost — it lives in
-// `reference_shadow_predicate_must_name_its_failing_term.md` and in every shadow
+// The self-describing-predicate DISCIPLINE they encoded is not lost — a shadow
+// predicate's message names whichever of its terms failed, in every shadow
 // site that still has one. `TransformDiffers` below survives because the ported
 // bodies themselves use it.
 // ============================================================================

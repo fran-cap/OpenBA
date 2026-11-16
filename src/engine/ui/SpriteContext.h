@@ -15,8 +15,7 @@
 // Retail addresses (Runtime-x64.dll, image base 0x180000000). ALL of these are
 // in the export table — including the `AEAA` (private) ones this banner used
 // to call "internal, no export": `AddSpriteDraw`, `Flush`, `FlushDeferredFonts`
-// and `SetSpriteSheet` are exported private members (B36_SLOTS.md section 6;
-// reference_aeaa_is_private_not_unexported.md).
+// and `SetSpriteSheet` are exported private members (B36_SLOTS.md section 6).
 //
 // ---------------------------------------------------------------------------
 // SIZE: EXACTLY 0x88 — PINNED BY ENDGAME B.3.6 block D (B36_RULES section 13
@@ -131,8 +130,7 @@
 //
 // THAT ARGUMENT IS CORRECT, AND IT IS AN ARGUMENT ABOUT `Flush`, NOT ABOUT THE
 // THREE EXPORTS. Re-checked instruction by instruction for Wave 9
-// (reference_holdback_blockers_are_stale_check_them_first.md — three stated
-// blockers dissolved on re-checking in one session):
+// (three stated blockers dissolved on re-checking in one session):
 //
 //   * `Flush` (0x18011ba40) is the only body in the class that touches the GPU.
 //     It maps the vertex buffer through `_context`'s device vtable

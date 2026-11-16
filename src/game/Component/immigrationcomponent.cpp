@@ -90,8 +90,7 @@ void ImmigrationComponent::Persist(IO::Stream& stream) {
     int arrayCount = group._size;
     ser.Serialize(arrayCount, nullptr);
     // "Am I loading?" is the STREAM's direction (Serializer -> stream +8), not the
-    // Serializer's own +8 (m_encoding): see
-    // reference_serializer_plus8_is_encoding_not_loading_flag.
+    // Serializer's own +8 (m_encoding).
     if (static_cast<int>(ser.GetDirection()) == 0) {   // IO::Serializer::GetDirection, retail 0x180006210
         // exe 0x1400032e0 IS Collection::Array<void*>::SetSize(n) (kSpec_PtrZero).
         group.SetSize(arrayCount);

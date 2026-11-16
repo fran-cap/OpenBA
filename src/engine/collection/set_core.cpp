@@ -23,8 +23,8 @@
 //   element 0x30 (node 0x50)  rtavl::      avl_trees.cpp    0x180030540 / 307b0 / 308e0
 //
 // THE THREE NODE LAYOUTS STAY DISTINCT — that is the whole point of having
-// three forwarders instead of one (`reference_one_bst_find_two_node_layouts.md`:
-// one walk over two layouts is right for a key that happens to be the root and
+// three forwarders instead of one
+// (one walk over two layouts is right for a key that happens to be the root and
 // permanently wrong for the next one). The forwarders exist so the TEMPLATE can
 // pick the right one from `sizeof(T)` at compile time rather than a caller
 // picking it by hand.

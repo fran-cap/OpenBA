@@ -12,12 +12,11 @@
 // EVERY BODY BELOW WAS READ FROM THE DISASSEMBLY of the shipped RETAIL
 // Runtime-x64.dll, never from Ghidra's decompiled C, which drops dereferences,
 // prints MOVSXD as a zero extension and drops whole arguments at a mistyped
-// vtable call (reference_ghidra_c_output_vs_disassembly.md).
+// vtable call.
 //
 // EVERY ADDRESS WAS CONFIRMED AGAINST THE EXPORT DIRECTORY BY VA, with pefile
 // against `C:\GOG Games\Banished\Runtime-x64.dll` — not by name pattern, and
-// not against the profile build, whose vtable offsets are known to differ
-// (reference_encoding_vtable_offsets_differ_between_builds.md):
+// not against the profile build, whose vtable offsets are known to differ:
 //
 //     0x180012c90  4382  ?TypeName@EdgeMesh@Graphics@@UEBAPEBDXZ
 //     0x180012c70  4175  ?Type@EdgeMesh@Graphics@@UEBAIXZ
@@ -105,7 +104,7 @@ inline void SerializeBuffer(Video::VertexBuffer& buf, IO::Serializer& ser) {
 // SYMBOL:      none. All four are in-DLL internals with no export-directory
 //              entry — checked by VA against the export table with pefile, not
 //              inferred from an `AEAA` in a mangled name
-//              (reference_aeaa_is_private_not_unexported.md), because these
+//              (`AEAA` means private, and this DLL exports its privates), because these
 //              have no mangled name at all.
 // CALLED:      by name, see the B3R note below the list. The four are the
 //              ones docs/history/runtime_port/WAVE27_LANE_GFXMESH.md §6 lists.

@@ -13,8 +13,7 @@
 // All three verified against Runtime-x64.dll's export directory with pefile
 // before a body was written. All three RETURN A String BY VALUE, so the
 // hidden return slot sits between `this` and the declared arguments — RCX =
-// this, RDX = &ret, R8 = the first real parameter
-// (reference_hidden_retval_and_int_pointer_args.md). Getting that wrong here
+// this, RDX = &ret, R8 = the first real parameter. Getting that wrong here
 // would have made the enum argument land in the return slot.
 //
 // NOTHING HERE TOUCHES WIN32, so it stays out of a `_win` file per PLAN §4.1.

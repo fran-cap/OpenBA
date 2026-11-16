@@ -304,8 +304,7 @@ int HarvestOrchard::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
                                                                    // used to be `cellFloat`, a float
                                                                    // in an integer slot, so every
                                                                    // completion reported the same
-                                                                   // wrong slot. See
-                                                                   // reference_int_arg_typed_as_float.
+                                                                   // wrong slot.
 
                                 // Assign work and register with AI
                                 int priority = _workId;

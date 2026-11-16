@@ -25,8 +25,8 @@
 // balance +0x28, height +0x2a, 0x30 bytes — from three independent bodies.
 //
 // A destructor over a TREE that frees only the root is a leak wearing a
-// byte-identity claim (reference_a_written_recipe_can_be_wrong.md: an earlier
-// wave nearly shipped exactly that). So the recursion was proved from the
+// byte-identity claim (look-alike bodies can differ by one destroy pass: an
+// earlier wave nearly shipped exactly that). So the recursion was proved from the
 // disassembly BEFORE this body was written. `objdump -d -M intel` of
 // 0x18000a4f0:
 //
@@ -51,8 +51,8 @@
 //
 // EXPORT-TABLE STATUS OF THE TWO HELPERS THE BRIEF NAMED. Checked with pefile
 // against the SHIPPED C:\GOG Games\Banished\Runtime-x64.dll export directory,
-// not inferred from the `AEAA`/private spelling of anything
-// (reference_aeaa_means_private_not_unexported.md):
+// not inferred from the `AEAA`/private spelling of anything (AEAA marks a
+// private member, and this DLL exports its privates):
 //
 //   0x18000a4f0  Collection::Set<>::DestroyTree   NOT EXPORTED
 //   0x180009c30  the allocator-lock Free wrapper  NOT EXPORTED  (its free is

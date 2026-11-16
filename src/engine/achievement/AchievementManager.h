@@ -12,7 +12,7 @@
 //
 // Every offset below is pinned by a named instruction in RETAIL
 // Runtime-x64.dll (image base 0x180000000). Runtime-x64-profile.dll is used for
-// NAMES ONLY (reference_encoding_vtable_offsets_differ_between_builds.md).
+// NAMES ONLY (its vtable offsets differ from retail's).
 //
 // PORTABILITY: no <windows.h>, per PLAN.md §4.1.
 // ============================================================================
@@ -297,7 +297,7 @@ public:
     static AchievementManager* _singleton;
 
     // The four private `AEAA` platform hooks (exported — this DLL exports its
-    // privates, reference_aeaa_is_private_not_unexported.md). PUBLIC here, as
+    // privates). PUBLIC here, as
     // in Application.h: access control is not ABI (B.3.7 fragment).
     void PlatformConstruct();                                  // 0x18009eb50 — not ported
     void PlatformDestruct();                                   // 0x18009eb60 — not ported

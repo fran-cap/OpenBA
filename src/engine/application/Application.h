@@ -149,7 +149,7 @@ public:
     Application& operator=(const Application& other);               // 0x18000a160  application_lifecycle.cpp
 
     // `CA` (private static) and `AEAA` (private) in retail. PUBLIC here:
-    // access control is not ABI (reference_aeaa_is_private_not_unexported.md).
+    // access control is not ABI.
     static int64_t WindowProc(void* hwnd, uint32_t message,
                               uint64_t wParam, int64_t lParam);     // 0x18009f930  window_proc.cpp
     void PlatformConstruct(void* platformHandle);                   // 0x18009fbe0  application_cursor_launch.cpp

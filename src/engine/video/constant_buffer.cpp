@@ -459,8 +459,8 @@ void Video::ConstantBuffer::Bind(Context& context, void* data,
 // (bounded by the next EXPORTED address, derived not guessed), decodes every
 // `LEA r64,[rip+disp32]` from the RAW BYTES — no disassembler in the loop, so no
 // listing's typo can be inherited — and emits shader_constants.inc. That is the
-// same rule `reference_crt_coefficients_must_be_lifted_not_retyped.md` records
-// for the CRT coefficients, applied to literals.
+// same rule the CRT coefficients follow (copied as raw bits from the binary,
+// never retyped as decimals), applied to literals.
 //
 // TWO INDEPENDENT EXTRACTIONS AGREE: the byte walk finds **76 references, 45
 // distinct**, and an independent regex over Ghidra's disassembly TEXT finds the

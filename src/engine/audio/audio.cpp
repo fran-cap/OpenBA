@@ -358,8 +358,8 @@ uint32_t Scene::PlayEffect(Object::ExternalPtr<SoundEffect> effect, SoundType so
 // `the raw DLL door` and returns null, so at cutover PlayEffect3D calls
 // through null on the first positional sound the game plays.
 //
-// The stated blocker is smaller than it sounds, which is the shape
-// reference_holdback_blockers_are_stale_check_them_first.md is about. The
+// The stated blocker is smaller than it sounds, as a holdback blocker often is once it is
+// re-checked against the disassembly. The
 // SoundEffect "internals" this function touches are exactly TWO scalars:
 //
 //     +0x20  float    the 3D cutoff radius   (MOVSS XMM3,[RDX+0x20])
@@ -368,12 +368,11 @@ uint32_t Scene::PlayEffect(Object::ExternalPtr<SoundEffect> effect, SoundType so
 // Two field offsets are not a class layout, and nothing else about SoundEffect
 // is read, written, or dispatched through. There is no vtable call, no
 // allocation, and no store of any kind: this is a PURE CONST READER over the
-// Scene's own 4096-entry effect table. Same shape as
-// reference_const_reader_needs_a_caller_not_a_human.md.
+// Scene's own 4096-entry effect table. A const reader like this is verified by
+// any caller sweeping its inputs; it needs no live input.
 //
 // TRANSCRIBED FROM THE DISASSEMBLY, not the decompiler's C, for three reasons
-// the C got wrong or would have got wrong
-// (reference_ghidra_c_output_vs_disassembly.md):
+// the C got wrong or would have got wrong:
 //
 //  * Ghidra prints the free-slot test as `pfVar2[9] == 0.0`, a FLOAT compare of
 //    +0x24. The instruction is `CMP dword ptr [RCX+0x24],0` — an INTEGER
@@ -390,7 +389,7 @@ uint32_t Scene::PlayEffect(Object::ExternalPtr<SoundEffect> effect, SoundType so
 //    IS plain `>`.
 //
 // The 20.0f divisor is 0x41A00000 lifted from 0x180161700, not a decimal
-// retyped (reference_crt_coefficients_must_be_lifted_not_retyped.md); it is
+// retyped; it is
 // exactly representable, so the two spellings agree here, and the bits are
 // recorded so a future edit cannot quietly change that.
 //
@@ -904,8 +903,7 @@ void Scene::StopAll() {
 //
 // `QEAA` is the NON-VIRTUAL dtor spelling and it is the one the export table
 // carries; the virtual spelling `??1Configuration@Audio@@UEAA@XZ` does not
-// exist in this DLL and would resolve NULL silently
-// (reference_phantom_dtor_mangling_qeaa_vs_ueaa.md). Checked with pefile
+// exist in this DLL and would resolve NULL silently. Checked with pefile
 // against the export directory before this body was written, not assumed.
 //
 // THE ADDRESS IT WRITES IS `?_singleton@Configuration@Audio@@0PEAV12@EA`

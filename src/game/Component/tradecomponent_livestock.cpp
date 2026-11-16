@@ -29,8 +29,8 @@
 //      behaviour phase, and register the entity with the world.
 //
 // ── Notes taken from the DISASSEMBLY, not the decompile ──────────────────────────
-// This cluster's decompiles render hidden out-params and float constants as noise
-// (see reference_unresolved_rdata_const_deletes_guarded_test), so every float step
+// This cluster's decompiles render hidden out-params and float constants as noise,
+// so every float step
 // below was read off the instruction stream at 0x14005af6c-0x14005b0d7:
 //
 //  * The two RandFloat draws are applied CROSSED — the FIRST scales the delta's Y,
@@ -105,7 +105,7 @@ void TradeComponent::SpawnPurchasedLivestock(ComponentDescription* tmpl, unsigne
 
     // Corner 0 and corner 1 of the footprint. Three floats each: 0x140122e20 writes a
     // full Vector3 through its out-param, and a 2-float array here would let it scribble
-    // over whatever local sits next on the stack (reference_out_param_buffer_too_small).
+    // over whatever local sits next on the stack.
     Math::Vector3 a;
     Math::Vector3 b;
     footprint->NodePosition(&a, 2, 0, nullptr);

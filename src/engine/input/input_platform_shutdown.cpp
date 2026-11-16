@@ -13,9 +13,8 @@
 // ---------------------------------------------------------------------------
 // `AEAA` IS *PRIVATE*, NOT UNEXPORTED
 // ---------------------------------------------------------------------------
-// This DLL exports its private members
-// (reference_aeaa_is_private_not_unexported.md records three silent address
-// doors that survived review because a comment said "unexported"). Checked, not
+// This DLL exports its private members, so a comment that calls an `AEAA`
+// member "unexported" can hide a silent address door. Checked, not
 // assumed: the name is in the shipped export directory at ordinal 3395. Our
 // own tree calls it as a member —
 // `src/engine/engine/engine_lifecycle.cpp:729` and
@@ -26,14 +25,13 @@
 // ---------------------------------------------------------------------------
 // Grepped by NAME and by ADDRESS (0x1800e1b50) across runtime/ code/ standalone/
 // engine/ src/render/dx11/, scoped to the source roots. The two name hits above are
-// CONSUMERS; the address has NO hits. No body existed
-// (reference_half_registered_port_reads_as_absent.md).
+// CONSUMERS; the address has NO hits. No body existed.
 //
 // ---------------------------------------------------------------------------
 // THE BODY, FROM THE INSTRUCTION LISTING
 // ---------------------------------------------------------------------------
 // Ghidra's decompiled C drops dereferences and drops whole arguments at
-// mistyped vtable calls (reference_ghidra_c_output_vs_disassembly.md), and this
+// mistyped vtable calls, and this
 // body is FOUR vtable calls and three inlined tree descents, so every line below
 // comes from the disassembly.
 //

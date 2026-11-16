@@ -1229,7 +1229,7 @@ void StaffPass(GameUpdateLoop* gw, int worldFrame) {
     if (!arr || n <= 0) return;
 
     // 0x140002e10 = FindComponent_WorkPlace, 0x140003050 = FindComponent_Work (both
-    // Ghidra-misnamed; see reference_misnamed_component_finders): the two
+    // Ghidra-misnamed): the two
     // ComponentEntity::FindComponent<T> instances, called by name.
 
     struct Need { Profession* prof; int want; int have; int buildings; };

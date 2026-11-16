@@ -517,7 +517,7 @@ int ForesterWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
 
                             // ── PHASE 5 PRODUCE VERIFICATION (env BANISHED_FORCE_HARVEST, default OFF) ──
                             // The organic delivery of a citizen to the tree is gated on the pathfinder
-                            // MoveTo/arrival keystone (project_citizen_pathfinding_zero_dest) — citizens
+                            // MoveTo/arrival keystone — citizens
                             // currently drift via walk-anim root-motion and never arrive. To verify the
                             // Phase-5 PRODUCTION chain (RemoveNaturalResource::Main → FUN_1401260f0 →
                             // RegisterRawMaterial) end-to-end independent of that movement blocker, this

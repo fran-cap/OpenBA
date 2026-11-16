@@ -19,7 +19,7 @@
 //
 // Every address and ordinal above is `pefile`'s reading of the export directory
 // of the shipped C:\GOG Games\Banished\Runtime-x64.dll, taken before a line of
-// this file was written (reference_resolveexport_phantom_names.md). The `rel32`
+// this file was written. The `rel32`
 // column is a scan of the whole 1,349,120-byte `.text` for `E8`/`E9` rel32
 // whose target is the row — see WAVE24_LANE_GFXMAT.md §2, which carries the
 // scanner's POSITIVE CONTROL (`?Serialize@ElementDescription@UI@@`, documented
@@ -30,16 +30,15 @@
 // `?Serialize@` rows only by name.
 //
 // EVERY BODY HERE WAS TRANSCRIBED FROM THE DISASSEMBLY, not from Ghidra's C.
-// reference_ghidra_c_output_vs_disassembly.md: the decompiler drops
-// dereferences and drops whole arguments at a mistyped vtable call, and every
-// body in this file is a chain of mistyped vtable calls through `IO::Encoding`.
+// The decompiler drops dereferences and drops whole arguments at a mistyped
+// vtable call, and every body in this file is a chain of mistyped vtable calls
+// through `IO::Encoding`.
 //
 // ---------------------------------------------------------------------------
 // THE `IO::Encoding` OFFSET TRAP, CONFIRMED RATHER THAN INHERITED
 // ---------------------------------------------------------------------------
-// reference_encoding_vtable_offsets_differ_between_builds.md says the retail
-// and profile builds put the Encoding vtable's members at DIFFERENT offsets
-// (+0x78/98/a0 vs +0x90/b0/b8). Every offset below was read out of
+// The retail and profile builds put the Encoding vtable's members at DIFFERENT
+// offsets (+0x78/98/a0 vs +0x90/b0/b8). Every offset below was read out of
 // **Runtime-x64.dll (retail, image base 0x180000000)**, and the three call
 // sites agree with each other:
 //
@@ -87,7 +86,7 @@
 //
 // The names beside the addresses are this lane's reading of what each helper
 // does from its call site and its stride; they are NOT from a symbol table.
-// reference_grep_cannot_tell_internal_from_unported_export.md — absent from the
+// A source grep cannot tell an unexported internal from an unported export — absent from the
 // export directory by ADDRESS is not the same question as "unexported".
 // Measured: all ten are absent from the export directory by address.
 //
@@ -126,8 +125,7 @@ namespace {
 
 // ---------------------------------------------------------------------------
 // Attendance. Printed by RtGraphicsWave24GfxmatSummary(); a run that entered
-// none of these says so rather than staying silent
-// (reference_uncalled_port_is_not_verified.md).
+// none of these says so rather than staying silent.
 // ---------------------------------------------------------------------------
 uint64_t g_constructCalls   = 0;
 uint64_t g_reconstructCalls = 0;
@@ -243,13 +241,12 @@ uint64_t g_oracleRuns       = 0;   // never incremented: always 0
 //    latched into EDI once (`MOV EDI,EAX` then `DEC RDI`). It is transcribed
 //    latched, because on the READ path the SetSize above has just made the
 //    array exactly `n` long and a re-read would be a different function if a
-//    helper ever resized it (reference_moved_term_hides_where_terms_cancel.md
-//    is the same class of "algebraically identical" change).
+//    helper ever resized it (the same class of "algebraically identical" change
+//    as a regrouped float sum, which differs in the last bit where terms cancel).
 //
 // 2. `enc->vt[0x28]` is FOUR arguments — (enc, 4, p+8, 0) — from
 //    `LEA R8,[RBX+8] ; XOR R9D,R9D ; LEA EDX,[R9+4]`. Ghidra's C prints this
-//    call with arguments dropped, which is exactly the failure
-//    reference_ghidra_c_output_vs_disassembly.md names.
+//    call with arguments dropped.
 //
 // `p` walks `_data` with the RETAIL stride (0x10 textures, 0x18 constants),
 // both of which Material.h already static_asserts, so a stride error is a
@@ -443,10 +440,9 @@ void MeshInstance::Serialize(IO::Serializer& serializer) {
 // probably touches it. It does not: the only AnimationManager fields this body
 // reads are +0x00 (_data) and +0x08 (_size). `Animation.h +0x10` stays
 // UNVERIFIED and the note there must NOT be deleted. Recorded so the next lane
-// does not re-open it on the same guess
-// (reference_holdback_blockers_are_stale_check_them_first.md, applied to a
-// residual that turned out to be stale in the OTHER direction: the body named
-// as the answer is not the answer).
+// does not re-open it on the same guess (a stated blocker is re-checked, not
+// assumed; here applied to a residual that turned out to be stale in the OTHER
+// direction: the body named as the answer is not the answer).
 // ---------------------------------------------------------------------------
 // ENDGAME B.3.5 block G: BODY MOVED to `Graphics::AnimationManager::Serialize` —
 // block H1's class, declared in `AnimationManager.h:350` and left
@@ -475,8 +471,7 @@ void AnimationManager::Serialize(IO::Serializer& s) {
 
 // A run that entered none of these says so rather than staying silent, and the
 // oracle line is separate from the attendance line so a reader cannot mistake
-// "the body ran" for "the body was compared"
-// (reference_uncalled_port_is_not_verified.md).
+// "the body ran" for "the body was compared".
 void RtGraphicsWave24GfxmatSummary() {
     printf("[GFXMAT24] Construct=%llu Reconstruct=%llu Destruct=%llu "
                 "MatSer=%llu (tex=%llu const=%llu) MeshSer=%llu AnimSer=%llu\n",

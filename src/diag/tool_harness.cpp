@@ -1326,8 +1326,8 @@ void FirePinPanel(PlayerToolManager* entityUI) {
 // THE SUBJECT IS BUILT THE WAY THE GUARD READS IT, not faked. This route does
 // not stub `_userData` or hand OnOpened a synthetic DialogInstance: it allocates
 // a real buffer through the game's own allocator and publishes it into the field
-// the select path actually reads (reference_synthetic_subject_beats_a_fake, and
-// reference_port_must_reproduce_side_effects - a value that is not published
+// the select path actually reads (a subject built so its own field passes the
+// guard removes the dependency, so no fake is needed; a value that is not published
 // into the slot the consumer reads is invisible). Everything downstream is the
 // unmodified live path.
 //

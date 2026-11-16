@@ -13,8 +13,8 @@
 // All four mangled names were read back out of the shipped export directory of
 // C:\GOG Games\Banished\Runtime-x64.dll with tools/pe_exports.py BEFORE a line
 // of body was written, and all four are present at exactly those addresses
-// (reference_resolveexport_phantom_names.md — a name the DLL does not contain
-// resolves to NULL in silence and the census still counts the registration).
+// (a name the DLL does not contain resolves to NULL in silence and the census
+// still counts the registration).
 // The full query output is in docs/history/runtime_port/WAVE10_LANE_UI3.md §1.
 //
 // ---------------------------------------------------------------------------
@@ -22,8 +22,7 @@
 // ---------------------------------------------------------------------------
 // WAVE7_LANE_B.md §2a held all four back under one heading: "eight allocate or
 // free — split ownership, and no oracle can be built". Three sub-claims, each
-// re-derived here rather than inherited
-// (reference_holdback_blockers_are_stale_check_them_first.md):
+// re-derived here rather than inherited:
 //
 //  1. "`EnterCriticalSection` is Win32 and cannot appear in a non-`_win` file."
 //     TRUE OF THE INLINED FORM, and irrelevant. Every allocation these four
@@ -63,12 +62,10 @@
 // instruction-for-instruction with the leading address stripped and every
 // INTERNAL branch target rewritten as a body-relative delta, so every operand
 // naming anything outside the body (0x1800c7a50, 0x1801fc718, 0x18014b390,
-// 0x1800c6c00, 0x18014b388) had to match ABSOLUTELY
-// (reference_position_only_diffs_hide_one_body.md). Both pairs: 0 differing
+// 0x1800c6c00, 0x18014b388) had to match ABSOLUTELY. Both pairs: 0 differing
 // instructions. THE INSTRUMENT WAS CONTROLLED — the same comparison between
 // the stride-8 body and the stride-0x18 body reports 62 differing instructions,
-// so it is not structurally incapable of saying "different"
-// (reference_diagnostic_field_cannot_express_the_answer.md).
+// so it is not structurally incapable of saying "different".
 //
 // ---------------------------------------------------------------------------
 // FAITHFULNESS NOTES A "TIDY" PORT WOULD DESTROY

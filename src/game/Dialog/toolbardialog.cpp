@@ -1567,7 +1567,6 @@ void PlayerToolManager::CenterOnEntity(UI::DialogInstance* const* dialog, Compon
         // GetController's third parameter is a TYPE-ID FILTER, not an index: retail
         // 0x180113320 walks the controller array and compares the argument against
         // each controller's own type id, returning null when nothing matches.
-        // (reference_getcontroller_third_arg_is_a_type_filter.)
         // Guard the VALUE, not the pointer: a null-but-resolvable id is not a valid filter.
         const uint32_t tidEntityUI = EntityUI::TypeId();   // cell 0x1401c4f00
 

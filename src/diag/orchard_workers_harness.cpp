@@ -111,7 +111,7 @@ void Fire(int frameNum) {
     }
 
     // Shared component finder — the one that reaches a
-    // WorkPlaceComponent from an entity (see reference_misnamed_component_finders: 0x140002e10
+    // WorkPlaceComponent from an entity (0x140002e10
     // is FindComponent_WorkPlace, whatever Ghidra called it). Body:
     // AttendanceComponent_GetJobHostComponent.
 

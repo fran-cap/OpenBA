@@ -133,7 +133,8 @@ static DecalDescription* GetDecalDescription(DecalComponent* self) {
 // and flags |= 0xc3. decalId -1 matters: 0 means "I own terrain decal slot 0",
 // and decalId is NOT in the save stream (slot 3 serializes only decalScale and
 // decalState), so a stream-restored decal with 0 would RemoveDecal(0)
-// at world teardown. See reference_ctor_scalars_in_startup_are_unset_after_load.
+// at world teardown. A loaded component runs its ctor but never Startup (+0x20), so the
+// ctor is where -1 must be set.
 DecalComponent::DecalComponent()
     : decalState(0), decalId(-1), decalScale(1.0f), _pad34{} {
     OrFlagsInCtor(0xc3);

@@ -58,7 +58,7 @@
 # staleness threshold is DERIVED from that publisher's own Sleep() below rather
 # than picked, and is printed beside every verdict -- a hard-coded number here
 # would go stale the moment the watchdog's interval changed, with nothing to
-# notice (reference_a_check_is_unaimable_only_without_a_free_parameter.md).
+# notice.
 
 set -u
 

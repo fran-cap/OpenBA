@@ -118,8 +118,7 @@ void InnerArrayAssign(void* dst, const void* src) {
 // BYTES, NOT EIGHT. *** Retail writes `MOV dword [RCX],EDI` then
 // `MOV byte [RCX+4],DIL` and leaves +0x05..+0x07 of each buffer untouched.
 // Zeroing the whole qword would be unfaithful and would make any byte-wise
-// oracle over those three bytes fail on every call
-// (reference_oracle_must_not_compare_unwritten_bytes.md).
+// oracle over those three bytes fail on every call.
 //
 // Returns `this` (`MOV RAX,RBX`).
 DetailLevel* TriangleListCtor(DetailLevel* d) {

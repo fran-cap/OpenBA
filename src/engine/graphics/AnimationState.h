@@ -28,9 +28,8 @@
 // src/engine/graphics/wave23_lane_gfxbody.cpp §5.1): the 0x48 STRIDE of
 // AnimationState and the meaning of +0x18 / +0x28 / +0x38. `Update` itself
 // never touches those three, so this header cannot and does not claim to have
-// re-derived them; it names their source instead
-// (reference_a_measured_number_sitting_beside_an_asserted_one.md is exactly the
-// defect being avoided).
+// re-derived them; it names their source instead, because an inherited number
+// beside measured ones reads as measured.
 //
 // NOT PINNED, and left as explicit holes rather than invented: AnimationState
 // +0x24, +0x30..+0x37, +0x40..+0x47; AnimationLayer +0x14, +0x31..+0x37;
@@ -390,8 +389,7 @@ public:
     bool IsInstanced() const;
 
     // The three `AEAA`/`AEBA` members — retail PRIVATE, and the mangling says so
-    // (`A` is the private access code). This DLL exports its private members
-    // (reference_aeaa_is_private_not_unexported.md).
+    // (`A` is the private access code). This DLL exports its private members.
     //
     // THEY ARE PUBLIC HERE, not private; retail's own access code is kept in the
     // comment rather than in the C++.

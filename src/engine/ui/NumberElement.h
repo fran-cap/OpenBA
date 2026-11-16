@@ -51,8 +51,8 @@
 // table and this header's owning pointer are statements about TWO DIFFERENT
 // CLASSES that happen to share an offset, and both are right.
 // **TextElement.h is deliberately NOT edited**, for exactly the reason lane M
-// gives above: a written-extent fact belongs to a WRITER, not to an offset
-// (reference_never_written_needs_by_whom.md), and one function's behaviour on a
+// gives above: a written-extent fact belongs to a WRITER, not to an offset, and
+// one function's behaviour on a
 // NumberElement is no authority over TextElement's call sites.
 //
 // The layout below is now complete and static-evidenced. Lane M's warning to

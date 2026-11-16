@@ -389,8 +389,8 @@ UNIT_TEST(internal_copy_ctor_and_assign_copy_two_dwords_and_nothing_else) {
     // oversight. It shares `a`'s `_factoryIndex` without being in the table, so
     // whichever of the two is destroyed second runs `RemoveObject` with a stale
     // index against a shorter array — `_objects._data[idx] = _objects._data[-1]`
-    // — which is precisely the wild write
-    // reference_internalfactory_swapremove_wild_write.md is about. Retail
+    // — which is precisely the wild write ~Internal's swap-remove makes through a
+    // stale handle-table entry. Retail
     // behaves this way and this port keeps it; the test observes the copy's
     // fields and then abandons the storage instead of exercising the fault.
     void* storage = ::Object::detail::InternalMemAlloc(sizeof(TestInternal), 8);

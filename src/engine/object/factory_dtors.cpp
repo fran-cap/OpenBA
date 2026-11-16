@@ -54,8 +54,7 @@
 // So no gameplay run this wave can execute a single line below, and the
 // `calls=` column for these three addresses will read 0 for the reason
 // "nothing in the tree calls the caller" — which is one of the four causes,
-// stated so nobody has to guess which (reference_uncalled_port_is_not_verified,
-// reference_calls_zero_can_mean_always_took_the_uncovered_branch).
+// stated so nobody has to guess which.
 //
 // ----------------------------------------------------------------------------
 // HELPERS PORTED ELSEWHERE
@@ -255,7 +254,7 @@ void RtObject_Factory_Dtor(::Object::Factory* self) {
 // rel32s to their ABSOLUTE targets leaves 29 of 29 instructions identical to
 // the canonical 0x18001c750, with the only textual difference an INTERNAL
 // forward branch whose encoded displacement (0x36) is the same byte on both
-// sides (reference_position_only_diffs_hide_one_body). Both resolve the same
+// sides. Both resolve the same
 // four external operands: 0x1801fc718, 0x18014b390, 0x1800c6c00, 0x18014b388.
 // ============================================================================
 void RtObject_InternalFactory_Dtor(::Object::InternalFactory* self) {

@@ -66,15 +66,14 @@
 // blind corrupts the structure and no oracle necessarily notices — this project
 // has the scar: a teardown 100%-CPU hang AND an `IsA` EXEC crash were ONE
 // missing BST erase, and `CheckPtr` is a bare `RET` in every shipped build so
-// nothing validates a handle (reference_workarea_bst_bad_entry.md). And a
-// ported inline `strcmp` survived four waves of green oracles because 13 of the
-// 14 values in the population were the same value
-// (reference_uniform_population_is_not_a_verification.md).
+// nothing validates a handle. And a ported inline `strcmp` survived four waves
+// of green oracles because 13 of the 14 values in the population were the same
+// value.
 //
 // READ AS DISASSEMBLY, NOT AS C. Every body below was transliterated from
 // `disassemble_function`, not from the decompiler: Ghidra's C drops
 // dereferences and prints MOVSXD as a zero extension, which cost Wave 6 three
-// defects including a crash (reference_ghidra_c_output_vs_disassembly.md). The
+// defects including a crash. The
 // decompiler output for 0x180072d10 in particular is unreadable (it rotates
 // three loop variables through each other); the disassembly is a plain
 // singly-linked-list unlink and that is what is written here.
@@ -255,7 +254,7 @@ void DestroyEntryTransforms(void* /*ignored*/, Entry* base, int count) {
 // +0x14..+0x17 (the four slack bytes that 8-align `_mesh`) are NOT written by
 // this body, and are not written by operator= either. Any oracle that memcmps
 // a whole Entry has to skip them, or it fails 100% of cases and reads like a
-// catastrophic port defect (reference_oracle_must_not_compare_unwritten_bytes.md).
+// catastrophic port defect.
 Entry* EntryCopyConstruct(Entry* d, const Entry* s) {
     d->_queryStamp = s->_queryStamp;               // +0x00..+0x0f, four dwords
     d->_nextFree   = s->_nextFree;
@@ -314,8 +313,7 @@ Entry* EntryAssign(Entry* d, const Entry* s) {
 // add the ABSOLUTE-valued matrix applied to the half-extents. Written with
 // retail's exact term order and association — this is float arithmetic and a
 // MOVED TERM is algebraically identical and bit-different exactly where the
-// terms nearly cancel (reference_moved_term_hides_where_terms_cancel.md: one
-// call in 23,654, so a clean re-run is not an exoneration).
+// terms nearly cancel (one call in 23,654, so a clean re-run is not an exoneration).
 //
 // The Transform3 the matrix comes from is Wave 9 lane P's ported
 // `Math::Transform::AsTransform3`, the member, called by name (B3R).
@@ -509,7 +507,7 @@ void EntryArraySetSize(Collection::Array<Entry>* a, int newSize, const Entry* fi
 // function IS the erase for the cell level, and the one below is the erase for
 // the link level. A grid whose cells are never freed grows a bucket chain that
 // is walked on every query — which is what a missing erase looks like from the
-// outside (reference_workarea_bst_bad_entry.md).
+// outside.
 void FreeEmptyCell(Scene* scene, Cell* cell) {
     const int32_t x = cell->_x;
     const int32_t y = cell->_y;
@@ -920,8 +918,7 @@ void GridUnthread(Scene* scene, int32_t* cellXY, uint16_t w, uint16_t h,
 // untouched — +0x14..+0x17 (the alignment slack) and +0x3c (`_userValue2`).
 // The assignment then copies both into the live entry, so after any
 // RemoveMesh the entry's `_userValue2` holds a dword of the DLL's stack frame.
-// This is the same finding Wave 5 lane D's RemoveMesh shadow surfaced
-// (reference_shadow_predicate_must_name_its_failing_term.md). The padding is
+// This is the same finding Wave 5 lane D's RemoveMesh shadow surfaced. The padding is
 // still left unwritten; `_userValue2` is zeroed since review F-146, because
 // copying an indeterminate int (EntryAssign) is undefined behaviour in C++. An
 // oracle comparing +0x3c still has to exclude it.

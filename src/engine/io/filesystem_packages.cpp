@@ -39,7 +39,7 @@
 // user/mod pack filenames already sitting in the FileSystem at +0x30.
 // Everything below is transcribed from the disassembly at 0x1800ab460, not
 // from that sketch or from Ghidra's C (which drops dereferences and prints
-// MOVSXD as a zero extension — reference_ghidra_c_output_vs_disassembly.md).
+// MOVSXD as a zero extension).
 //
 // ---------------------------------------------------------------------------
 // 2. THE BODY
@@ -328,8 +328,8 @@ PackfileIndexNode* IndexFind(PackfileIndexNode* node, const char* key) {
 //
 // A String-RETURNING const member, so the hidden return slot is the SECOND
 // argument (RCX=this, RDX=ret) and RAX is the return slot on the way out —
-// `MOV RAX,RBX` at 0x180007c43. Getting that wrong is
-// reference_hidden_retslot_wild_write.md.
+// `MOV RAX,RBX` at 0x180007c43. Getting that wrong writes through a stale
+// register yet reads back correctly.
 //
 // The `MOV dword ptr [RSP+0x20],0` / `,1` pair around the call is MSVC's EH
 // state slot for the partially-constructed return value. It has no effect on
@@ -393,7 +393,7 @@ PackfileIndexNode* IndexFind(PackfileIndexNode* node, const char* key) {
 // vtable slot 0 — are not reached.
 //
 // **THAT IS TRUE OF THE FIRST CALL ONLY.**
-// The mods menu remounts packages (see project_mods_menu_closed.md), which
+// The mods menu remounts packages, which
 // calls this again with a POPULATED array and a POPULATED tree — and then all
 // three run.
 //

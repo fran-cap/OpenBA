@@ -223,8 +223,8 @@ public:
     static void         operator delete(void* p) { ::Object::detail::InternalMemFree(p); }                 // 0x18004dd60 — inline
 
 
-    // The three platform halves (`AEAA`, i.e. PRIVATE in retail, not unexported —
-    // reference_aeaa_is_private_not_unexported.md). `PlatformCreate` returns void,
+    // The three platform halves (`AEAA`, i.e. PRIVATE in retail, not
+    // unexported). `PlatformCreate` returns void,
     // unlike VertexProgram's and PixelProgram's, which return bool — 0x180003ff0
     // falls off its end with no return value set, so that is deliberate.
     void PlatformConstruct();                    // 0x1800f5f90

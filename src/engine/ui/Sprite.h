@@ -32,8 +32,7 @@
 //
 // pad0C IS NEVER WRITTEN by any of the three ctors (only the qword at +0x00
 // and the dword at +0x08 are stored). A diff oracle that memcmp's a freshly
-// poisoned scratch object against a live one must stop at 0xC bytes —
-// reference_oracle_must_not_compare_unwritten_bytes.md. `operator=` DOES copy
+// poisoned scratch object against a live one must stop at 0xC bytes. `operator=` DOES copy
 // it (0x180030cb6), which the trivial copy reproduces.
 //
 // THE FIELD NAMES ARE THE ONES THE TREE ALREADY SPELLS (`spriteSheet`,

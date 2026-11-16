@@ -89,8 +89,7 @@
 // spec each show up there immediately.
 //
 // UNVERIFIED UNTIL A SAVE-LIST REFRESH RUNS: an autostart boot that never opens
-// the load dialog does not reach this body, and `calls=0` is not verification
-// (reference_uncalled_port_is_not_verified.md).
+// the load dialog does not reach this body, and `calls=0` is not verification.
 //
 // PORTABILITY: no <windows.h>. The Win32 half of this path lives behind
 // `FileSystem::FindFiles` and `FileSystem::GetFileTimeStamp`, which reach it

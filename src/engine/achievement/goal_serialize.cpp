@@ -122,7 +122,7 @@ namespace Achievement {
 //   +0x28 _text         System::String                -> String::Serialize
 // A load therefore consumes precisely those two records. Getting the ORDER or
 // the COUNT wrong is the silent save-desync this project has paid for four
-// times (reference_slot3_wrapper_must_resolve_first.md). Always `MOV AL,1`.
+// times. Always `MOV AL,1`.
 //
 // The slot's parameter is retail's `IO::Stream&`, as `Object::External`
 // declares it (External.h).

@@ -5,7 +5,7 @@
 // EIGHT VTABLE SLOTS ACROSS THREE Graphics `??_7` ROWS: TWO BODIES HERE, SIX DECLARE_TYPE's.
 //
 // THE BODIES, READ FROM THE SHIPPED Runtime-x64.dll BYTES (not from Ghidra's C,
-// which drops dereferences — reference_ghidra_c_output_vs_disassembly.md). Each
+// which drops dereferences). Each
 // RIP displacement was resolved by hand against the NEXT instruction address:
 //
 //   ?Type@AnimationEvent@Graphics@@UEBAIXZ        0x1800116d0
@@ -105,8 +105,7 @@ namespace Graphics {
 // ---- ??_7AnimationEvent@Graphics@@6B@  slots 2 and 1 -----------------------
 // [2] ?Type@     0x1800116d0  `MOV EAX,[?_typeInfo@AnimationEvent@ + 0]; RET`
 // [1] ?TypeName@ 0x1800116f0  `MOV RAX,[?_typeInfo@AnimationEvent@ + 8]; RET`
-//     `BaseTypeInfo::name` is CONTENT-only, never compared by pointer
-//     (reference_basetypeinfo_name_is_content_only.md).
+//     `BaseTypeInfo::name` is CONTENT-only, never compared by pointer.
 // ENDGAME B.3.9 TI-REST: Type / TypeName are DECLARE_TYPE's bodies over the class's own
 // record (graphics_type_records.cpp).
 // ?TypeId@AnimationEvent@Graphics@@SAIXZ 0x1800116e0 -- the static twin of slot

@@ -57,8 +57,7 @@
 // stores are 4 bytes each; retail leaves whatever the allocator left in the
 // upper half of each pair. `_pad1c` / `_pad2c` are named so that a future
 // `memset(this, 0, 0x30)` reads as the behaviour change it would be — and no
-// oracle in this project could see that change
-// (`reference_oracle_must_not_compare_unwritten_bytes.md`).
+// oracle in this project could see that change.
 //
 // **+0x20..+0x2b ARE NOT TOUCHED BY THE DESTRUCTOR.** `~Configuration`
 // (0x1800c5170) clears the map at +0x10 and tail-calls `~Array(+elem)` on
@@ -130,9 +129,8 @@ public:
     // String& key)` — RCX = this, RDX = ret, R8 = key — and a typedef that
     // omitted the slot would put `key` in RDX, hand the find a `String**` where
     // it wants a `String*`, and write the answer through whatever the caller
-    // left in R8: a wild write that STILL returns the right answer in RAX
-    // (`reference_hidden_retslot_wild_write.md`). The MEMBER returns by value,
-    // which is what retail's source said.
+    // left in R8: a wild write that STILL returns the right answer in RAX. The
+    // MEMBER returns by value, which is what retail's source said.
     String GetCommandLineString(const String& key) const;
 
     // ??0Configuration@System@@QEAA@XZ                            0x1800c51b0
@@ -155,8 +153,7 @@ public:
 
     // ??1Configuration@System@@QEAA@XZ                            0x1800c5170
     // NON-VIRTUAL (`QEAA`, not `UEAA` — the `UEAA` spelling does not exist in
-    // this DLL and would have resolved NULL in silence,
-    // `reference_phantom_dtor_mangling_qeaa_vs_ueaa.md`). Clears the map at
+    // this DLL and would have resolved NULL in silence). Clears the map at
     // +0x10 and tail-calls `~Array(+elem)` on `this`: the empty body, then the
     // two members' destructors in reverse declaration order. PUBLIC and
     // non-virtual: nothing derives from this class and nothing deletes one

@@ -22,8 +22,7 @@
 // would call `Draw` where `Update` belongs. The slots were confirmed by dumping
 // ??_7DialogLoopT@Engine@@6B@ (0x1801579a0) — the derived table, because the
 // base table's own slots are all the same `_purecall` thunk and prove nothing
-// (reference_uniform_population_is_not_a_verification.md is the same trap one
-// level over):
+// (a uniform population cannot tell a wrong reading from a right one):
 //
 //     slot 0  +0x00  0x18004d8b0  (deleting dtor)
 //     slot 1  +0x08  ?Startup@DialogLoopT@Engine@@UEAAXXZ
@@ -72,7 +71,7 @@
 // returns until the game quits, and it mutates the entire world through the
 // loop objects. There is nothing to replay and nothing to compare against. This
 // is a genuine "no oracle", not a missing one — unlike the four Serialize
-// cases reference_write_path_serialize_is_replayable.md corrected.
+// cases on the write path, which replay into two separate sinks.
 //
 // `Update` has no check of its own: `clearedOk` in the transition is computed
 // and discarded. The real test for both is a BOOT: game_main.cpp calls `Run`,

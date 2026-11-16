@@ -7,8 +7,7 @@
 // Byte-faithful port of the disassembly at the retail address named above each
 // function (Runtime-x64.dll, image base 0x180000000, read 2026-09-08 with
 // `disassemble_function(address=)` — NOT the decompiled C, which drops
-// dereferences and prints MOVSXD as a zero extension,
-// reference_ghidra_c_output_vs_disassembly.md).
+// dereferences and prints MOVSXD as a zero extension).
 //
 // Layout evidence and the file-level argument: external_set.h.
 // Wave write-up, including what this lane DECLINED and why:
@@ -752,8 +751,7 @@ namespace RtObject {
 // Because phase 2 ERASES, and an erase rebalances: any node pointer collected
 // in phase 1 could have been spliced or freed by an earlier erase in phase 2.
 // The key is stable, the node pointer is not. This is the shape of the UAF the
-// Work family paid for three times over
-// (reference_workscheduler_erase_and_destroy), arrived at from the other side —
+// Work family paid for three times over, arrived at from the other side —
 // retail already knew.
 //
 // *** RETAIL HARD-FAULTS ON A KEY IT CANNOT FIND, AND THE GUARD IS NOT ADDED ***
@@ -859,8 +857,7 @@ void RtObject_ExternalFactory_Clean(ExternalFactory* self) {
     evicted.size     = 0;
     evicted.capacity = 0;
 
-    // ONE LINE PER CALL. The `calls=` discipline
-    // (reference_uncalled_port_is_not_verified.md): this body has no
+    // ONE LINE PER CALL. The `calls=` discipline: this body has no
     // ours-vs-theirs oracle, so the only thing separating "verified by
     // construction" from "never executed" is a live count. `Clean` runs at
     // world teardown, a handful of times per session, so an unconditional

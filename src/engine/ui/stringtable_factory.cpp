@@ -36,7 +36,7 @@
 // src/engine/ui/dialog_factory.cpp already transcribes as a call to the
 // out-of-line locked wrapper `?MemAlloc@System@@YAPEAX_KH@Z` (0x1800c7a50).
 // The two prologues were compared side by side rather than assumed to match
-// from resemblance (reference_a_written_recipe_can_be_wrong.md): the ONLY
+// from resemblance: the ONLY
 // differing bytes are the size immediate (0x30 vs 0x88) and the LEA
 // displacement that computes align 8 from it (-0x28 vs -0x80). The `LEA
 // R8D,[RDX-0x28]` is a code-size trick for `MOV R8D,8`; it is written below as

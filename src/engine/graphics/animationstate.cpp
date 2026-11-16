@@ -46,7 +46,7 @@
 // right: RCX = the FROM quaternion, RDX = the return buffer, R8 = the TO
 // quaternion, R9 = &t. `GetPoseAtTime` below calls it as the member, so the
 // compiler supplies that slot. Getting it wrong is a wild write into whatever
-// the caller had in RDX (reference_hidden_retslot_wild_write.md); mesh.cpp's
+// the caller had in RDX; mesh.cpp's
 // `RtLerpTransformPair` calls the member the same way.
 //
 // PORTABILITY: no <windows.h>, per PLAN §4.1 decision 1.

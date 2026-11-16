@@ -31,8 +31,7 @@
 // +0xEC IS A HOLE AND IS NEVER WRITTEN BY ANY OF THE THREE BODIES. The ctor
 // goes +0xe8 -> +0xf0 and skips it; `Set` writes +0xc0..+0xe8 and stops. It is
 // almost certainly the tail padding of the 12-byte `_ambient`/16-byte alignment
-// pair. Any oracle over this class MUST exclude it
-// (reference_oracle_must_not_compare_unwritten_bytes.md) — and InitFields in
+// pair. Any oracle over this class MUST exclude it — and InitFields in
 // sunlight.cpp leaves it unwritten.
 //
 // A CORRECTION TO WAVE9_LANE_GFX.md §6.5, which named the two buffers the other

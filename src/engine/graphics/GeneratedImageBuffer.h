@@ -249,8 +249,7 @@ public:
     void              Destruct() override;                          // [ 7] 0x1800224c0
     Object::External* Construct() override;                         // [ 8] 0x180022450
     // [10] 0x1800a6ef0 — `RET`. Empty in the shipped build: a reflection image is
-    // produced by `Render` feeding a draw group, not by a blit
-    // (reference_retail_ships_empty_bodies.md).
+    // produced by `Render` feeding a draw group, not by a blit.
     void Generate(void* context, int32_t generation) const override;
     // [11] 0x1800a6b80 — the one body in this family that does real work.
     void Render(Renderer& renderer, const Scene& scene, const Camera& camera,

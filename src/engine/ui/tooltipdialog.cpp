@@ -4,8 +4,7 @@
 //
 // `UI::ToolTipDialog` — the four census rows Wave 10C's lane UIF6 created when
 // it ported `?BeginToolTip@UserInterface@UI@@` and resolved that body's callees
-// BY NAME rather than opening silent address doors
-// (reference_porting_can_grow_the_cutover_surface.md). This file is the
+// BY NAME rather than opening silent address doors. This file is the
 // follow-through, plus the three CODE slots of that class's vtable.
 //
 //   0x18004cfd0  ??2ToolTipDialog@UI@@SAPEAX_K@Z                (class op new)
@@ -22,14 +21,12 @@
 // ---------------------------------------------------------------------------
 // All five addresses and all five mangled names were grepped across `code/`,
 // `runtime/`, `engine/` and `standalone/` before any of this was written
-// (reference_grep_for_the_port_before_writing_it.md — three lanes in one wave
-// re-ported what the tree already had, and a duplicate registration is
-// last-binding-wins, which silently makes one body dead code). The only hits
-// were CONSUMERS: `RT_EXPORT_ONCE` call sites inside
+// (three lanes in one wave re-ported what the tree already had, and a
+// duplicate registration is last-binding-wins, which silently makes one body
+// dead code). The only hits were CONSUMERS: `RT_EXPORT_ONCE` call sites inside
 // src/engine/ui/userinterface_hover.cpp, plus one comment. A body that is
 // ported but never REGISTERED is indistinguishable from an absent one to a
-// census (reference_half_registered_port_reads_as_absent.md), so the grep was
-// by ADDRESS *and* by NAME, not by class string.
+// census, so the grep was by ADDRESS *and* by NAME, not by class string.
 //
 // ---------------------------------------------------------------------------
 // `??_7ToolTipDialog@UI@@6B@` IS NOT IN THIS FILE, AND WHY
@@ -59,7 +56,7 @@
 // EVERY BODY BELOW WAS READ FROM THE DISASSEMBLY
 // ---------------------------------------------------------------------------
 // Ghidra's decompiled C drops dereferences and prints MOVSXD as a zero
-// extension (reference_ghidra_c_output_vs_disassembly.md). The decompiler
+// extension. The decompiler
 // output was used only to name things; every branch, every offset and every
 // signedness below comes from the instruction listing, which is transcribed
 // inline against each statement.

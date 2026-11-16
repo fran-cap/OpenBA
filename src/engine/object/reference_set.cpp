@@ -7,8 +7,7 @@
 // Byte-faithful port of the disassembly at the retail address named above each
 // function (Runtime-x64.dll, image base 0x180000000, read 2026-09-10 with
 // `disassemble_function(address=)` — NOT the decompiled C, which drops
-// dereferences and prints MOVSXD as a zero extension,
-// reference_ghidra_c_output_vs_disassembly.md).
+// dereferences and prints MOVSXD as a zero extension).
 //
 // Layout evidence, the address table against the two sibling instantiations,
 // and the destroy/free shape argument: reference_set.h.

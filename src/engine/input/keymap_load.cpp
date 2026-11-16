@@ -99,11 +99,11 @@ bool RetailKeyLess(const char* a, const char* b) {
 // at +0x10/+0x18/+0x20", pinned in Wave 4 lane C from Map_Find/Map_Insert. The
 // disassembly of this function agrees independently — it reads the key at
 // `[R11]`, the value at `[R11+8]`, descends left through `[R11+0x18]` and
-// right through `[R11+0x20]` — which is the cross-check
-// reference_one_bst_find_two_node_layouts.md asks for. This walk is DELIBERATELY
+// right through `[R11+0x20]` — which is the second, independent source each
+// node layout needs before it is used. This walk is DELIBERATELY
 // local and is NOT shared with input.cpp's Collection::Set<Binding> helpers:
 // that tree's nodes put left/right at +0x20/+0x28, and one shared find over
-// two layouts is precisely the defect that reference note records.
+// two layouts finds the root key and misses deeper ones.
 //
 // The root is `*(void**)Persistence::_singleton` — retail loads the singleton
 // with `MOV R12,qword ptr [0x1801FC678-ish]` once, outside both loops, and

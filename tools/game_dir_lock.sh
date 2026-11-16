@@ -444,10 +444,9 @@ run_in_progress() {
 # gap is real whatever caused any particular wait -- but the attribution was
 # wrong, and it was wrong in the most seductive direction: an explanation
 # offered for SOMEONE ELSE'S anomaly that made the explainer the sole cause,
-# tidily accounted for both lanes, and stopped the search. That is exactly
-# `reference_a_reconciliation_retires_the_flag.md`. The tell was available at
-# the time and was not looked at: the lane quoted a message naming a lane, and
-# the orphan branch cannot produce a name.
+# tidily accounted for both lanes, and stopped the search. The tell was
+# available at the time and was not looked at: the lane quoted a message
+# naming a lane, and the orphan branch cannot produce a name.
 #
 # DIAGNOSTIC RULE THIS LEAVES BEHIND: the two conditions have DIFFERENT
 # symptoms and must not be merged. An orphan fails a `cp` with "Device or

@@ -328,8 +328,7 @@ public:
     Camera GetSpotCamera(Renderer& renderer) const;  // 0x180105fb0  not ported
     //
     // `?CreateTargets@SpotLight@Graphics@@AEAAXXZ` @ 0x180106050 is PRIVATE
-    // (`AEAA`) and this DLL exports its private members
-    // (reference_aeaa_is_private_not_unexported.md). It is PORTED, in
+    // (`AEAA`) and this DLL exports its private members. It is PORTED, in
     // `src/engine/graphics/batchc_gfx_leaves.cpp` — NOT this block's file — as
     // a member.
     void CreateTargets();                            // 0x180106050  batchc_gfx_leaves.cpp

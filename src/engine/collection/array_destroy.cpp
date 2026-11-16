@@ -72,7 +72,7 @@
 //
 // Every helper's first parameter is `ignoredThis`: each one spills RCX to the
 // shadow space at entry and never reads it again (verified in all thirteen
-// disassemblies — reference_read_the_callee_before_holding_back_on_an_arg.md).
+// disassemblies).
 // It is kept in the signature because retail passes it, so the entry points
 // keep retail's arity, not a tidied one.
 //
@@ -369,9 +369,9 @@ constexpr DestroySpec kD_InnerArr_10 = { "inner Array @+0x000, stride 0x010", 0x
 // every (offset, stride) pair a slot is read out of has to FIT. Body A writes
 // sixteen bytes at each offset and Body B writes eight, so an offset that
 // overruns its own stride is a wild write into the NEXT element -- the failure
-// family reference_internalfactory_swapremove_wild_write.md and
-// reference_load_wild_write_high_dword_7fc.md are both about, and neither had a
-// proximate symptom.
+// family of ~Internal's swap-remove writing through a stale handle-table entry
+// and of a String destructor on a non-String corrupting the allocator's boundary
+// tag, and neither had a proximate symptom.
 //
 // These caught nothing when they were written. That is the point: they are free
 // and they run on every build.
@@ -934,7 +934,7 @@ void* RtColl_ArrayDtorElem_18005bf60(void* self) {
 // carries that window as `assignUnwritten = [0x34, 0x38)`. Any oracle that
 // memcmps a freshly assigned SpriteSheet element without it will fail on four
 // bytes of allocator fill and read like a catastrophic port defect — which is
-// reference_oracle_must_not_compare_unwritten_bytes.md exactly. The finding is
+// exactly how an oracle that compares bytes retail never stores fails. The finding is
 // filed in docs/history/runtime_port/WAVE9_LANE_D2.md.
 static void SpriteInfoCopy(UI::SpriteInfo* d, const UI::SpriteInfo* s) {
     AdoptStringSlot(d->name._data,  s->name._data);   // +0x00

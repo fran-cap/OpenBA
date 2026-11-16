@@ -69,8 +69,7 @@
 // plus `String::Serialize` (0x1800c9930) per entry, which is itself +0x98 for
 // the length and +0x18 for the char array.
 //
-// These are RETAIL offsets. The profile build's differ
-// (reference_encoding_vtable_offsets_differ_between_builds.md); the constants
+// These are RETAIL offsets. The profile build's differ; the constants
 // come from `rt::io::rw_vtbl`, which is pinned against retail.
 //
 // ---------------------------------------------------------------------------
@@ -373,8 +372,7 @@ void RtObject_ExternalFactory_SerializeReferenceTable(ExternalFactory* self,
     // and the run that exercises it usually has to be killed rather than quit:
     // `BANISHED_AUTOQUIT` OVERRIDES `BANISHED_AUTOLOAD`'s path, so the one run
     // that reaches a clean exit is the one that never loaded, and an exit-only
-    // instrument prints a plausible ZERO on it
-    // (reference_autoquit_overrides_autostart_newgame.md). This line is what a
+    // instrument prints a plausible ZERO on it. This line is what a
     // killed run can still be read from.
     RtObjectExternalRefTableSummary();
 }
@@ -387,8 +385,7 @@ void RtObjectExternalRefTableSummary() {
         std::fprintf(stderr,
             "[RefTable] calls=0 -- the body never ran. That is EXPECTED on a run "
             "that neither saved nor loaded; it is NOT evidence the port is "
-            "correct and it is NOT evidence it is dead "
-            "(reference_uncalled_port_is_not_verified.md).\n");
+            "correct and it is NOT evidence it is dead.\n");
         return;
     }
     std::fprintf(stderr,

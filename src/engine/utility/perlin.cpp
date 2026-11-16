@@ -136,7 +136,7 @@ float SmoothNoise(const PerlinNoise* self, int32_t x, int32_t y) {
 // NO ORACLE, AND NONE IS NEEDED OR POSSIBLE: there is no state to compare
 // against — a scratch replay would compare four stores to four stores of the
 // same four argument registers, which is true by construction and would prove
-// nothing (reference_recheck_must_match_its_own_proof.md). The verification
+// nothing. The verification
 // here is the instruction listing above, which is total: every store the
 // shipped body makes is in the list, so a field this port missed would be a
 // field that is not in the disassembly.

@@ -23,7 +23,7 @@
 //      element, node tail at parent +0x18 / left +0x20 / right +0x28) and
 //      `ReferenceFind` (0x10-wide, +0x10 / +0x18 / +0x20), each driven with
 //      seven keys at the ROOT and at TWO LEVELS DOWN.
-//      reference_one_bst_find_two_node_layouts.md: a find written against the
+//      A find written against the
 //      wrong layout answers correctly for whatever key happens to be the root
 //      and is permanently wrong below it, so a lookup that worked once proves
 //      nothing. Both trees are built by hand — no allocator, no registry.

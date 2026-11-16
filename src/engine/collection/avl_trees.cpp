@@ -157,7 +157,7 @@ static void MemFree(void* p) {
 //
 // `str-4` is the refcount and `str-8` is the allocation base; that header
 // belongs to System::String, NOT to the allocator
-// (reference_never_written_needs_by_whom.md / PLAN §6's owner rule).
+// (PLAN §6's owner rule).
 //
 // NOTE THE ASYMMETRY IN Release, which is retail's and is reproduced: the
 // FREEING branch leaves the slot holding `data - 8`, and only the
@@ -437,8 +437,7 @@ void Retrace50(TypeNode** root, TypeNode** slot) {
 // THE COMPARATOR IS AN INLINE strcmp AND IT IS THE HAZARD IN THIS SECTION.
 // This project has already paid for one: a ported inline strcmp returned 0 for
 // every distinct pair sharing a first byte, and four waves of oracles passed
-// because 13 of the 14 values in the population were identical
-// (reference_uniform_population_is_not_a_verification.md). Retail's, at
+// because 13 of the 14 values in the population were identical. Retail's, at
 // 0x18002a1c4, transcribed from the flags:
 //
 //   c  = (unsigned char)a[0]

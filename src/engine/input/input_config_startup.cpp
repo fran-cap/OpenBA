@@ -17,8 +17,8 @@
 //
 // It is a plain public export (QEAA). This is the documented trap -- this DLL
 // exports its private members, so "unexported" is a conclusion that has to be
-// MEASURED, never inferred from a mangling or from a name not being to hand
-// (reference_aeaa_is_private_not_unexported.md). The cost was real: input.cpp
+// MEASURED, never inferred from a mangling or from a name not being to hand.
+// The cost was real: input.cpp
 // had already ported and NAME-registered the same function, so the false belief
 // produced a second body, and the export's two doors reached one each. This file
 // holds the one body.

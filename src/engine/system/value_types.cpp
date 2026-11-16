@@ -316,16 +316,16 @@ System::String System::DateTime::AsString() const {
 //
 // THE HIDDEN RETURN SLOT IS REAL, AND GHIDRA DROPPED IT. `decompile_function`
 // prints both of these as `void __thiscall DateAsString(DateTime *this)` — no
-// second parameter and no return — which is the documented failure mode
-// (reference_ghidra_c_output_vs_disassembly.md: whole arguments dropped). The
+// second parameter and no return — a known failure of Ghidra's decompiled C,
+// which drops whole arguments. The
 // disassembly is unambiguous:
 //     1800c56a0  MOV qword ptr [RSP+0x10],RDX    ; RDX is a REAL argument
 //     1800c56b6  MOV RBX,RDX                     ; kept across the whole body
 //     1800c5773  MOV RAX,RBX / RET               ; and returned again in RAX
 // so the signature is `String* f(const DateTime* this, String* ret)` — RCX =
 // this, RDX = ret — and the callee returns the slot. Writing this as a C++
-// method returning `String` by value is the wild write in
-// reference_hidden_retslot_wild_write.md, which "works" because the right
+// method returning `String` by value is a hidden-return-slot wild write,
+// which "works" because the right
 // answer still lands in the right place while a second, uninitialised pointer
 // is scribbled through. The slot is spelled out as a parameter of the helper
 // below; the two members return String by value.

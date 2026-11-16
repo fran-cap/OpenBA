@@ -80,8 +80,7 @@
 // with no `if (prev >= 0)` anywhere. Read against a NULL-TERMINATED list that
 // says retail writes to `nodes[-1]`, i.e. sixteen bytes in FRONT of the array
 // buffer, which is the allocator's boundary tag — this project has already paid
-// for one wild write of exactly that shape
-// (reference_load_wild_write_high_dword_7fc.md), so "retail has a wild write
+// for one wild write of exactly that shape, so "retail has a wild write
 // here" was a plausible reading. It is wrong. With a circular chain a lone node
 // has `prev == next == id` and both stores land on the node itself, which is
 // also why GridUnthread needs the SECOND head fix at 0x18005f11e: the first one
@@ -128,8 +127,7 @@ namespace {
 // through `Collection::detail::ListNodeFree` (linkedlist.cpp).
 
 // ---------------------------------------------------------------------------
-// The float constants, LIFTED AS RAW BITS and not retyped from a decimal
-// (reference_crt_coefficients_must_be_lifted_not_retyped.md). Each was read
+// The float constants, LIFTED AS RAW BITS and not retyped from a decimal. Each was read
 // with `read_memory` out of the shipped DLL at the address the instruction
 // names, not from Ghidra's rendering of it.
 //
@@ -226,8 +224,7 @@ namespace rtgfxgrid {
 //     the array;
 //   * the reuse arm writes only `_cell` and leaves +0x14 holding whatever the
 //     slot held before, which is equally indeterminate;
-//   * NO ORACLE MAY COMPARE +0x14: neither arm writes it with a defined value
-//     (reference_oracle_must_not_compare_unwritten_bytes.md).
+//   * NO ORACLE MAY COMPARE +0x14: neither arm writes it with a defined value.
 // ============================================================================
 uint32_t GridAdd(Scene* self, Geometry* const* geo) {
 
@@ -284,7 +281,7 @@ uint32_t GridAdd(Scene* self, Geometry* const* geo) {
 // would make step 5 dead and leave a dangling head — and this project has
 // already paid for a missing erase of precisely this kind, a cancel path that
 // never removed its primary node, with a teardown 100%-CPU hang and an `IsA`
-// execute crash at the far end of it (reference_workarea_bst_bad_entry.md).
+// execute crash at the far end of it.
 // `CheckPtr` is a bare RET in every shipped build, so nothing would have caught
 // it downstream.
 //

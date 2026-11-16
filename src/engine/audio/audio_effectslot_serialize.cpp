@@ -8,8 +8,7 @@
 //                  kSpec_EmitterInstance — a Collection row, not an Audio one)
 //
 // All three are UNEXPORTED — measured against the retail export directory with
-// pefile before this file was written, not read off an `AEAA`
-// (reference_aeaa_is_private_not_unexported.md). Renamed in retail Ghidra as
+// pefile before this file was written, not read off an `AEAA`. Renamed in retail Ghidra as
 // `Audio_Scene_SerializeEffectSlots`,
 // `Audio_Scene_SerializeEmitterInstances` and
 // `Collection_Array_EmitterInstance_SetSize`.
@@ -44,8 +43,7 @@
 //   * `_pad2c` (+0x2c) — the four bytes array.cpp:1384 already records as NEVER
 //     WRITTEN by either the default-init or the copy-assign arm. Three
 //     unrelated bodies now agree that this window is dead; that agreement is
-//     the point, and it is why an oracle must not compare it
-//     (reference_oracle_must_not_compare_unwritten_bytes.md).
+//     the point, and it is why an oracle must not compare it.
 //
 // And the inner element, from 0x180051e60/0x180051e75: kArrayFloat n=3 at
 // +0x00 then kScalarFloat at +0x0c, stride 0x10 — `EmitterInstance{x,y,z,

@@ -242,8 +242,8 @@ extern "C" void RtIo_PersistenceWorker_EnqueueDelete(IO::PersistenceWorker* w, c
 //       int blockCount /*R8D*/, const SaveBlock* blocks /*R9*/)
 //
 // `MOVSXD RBP,R8D` at 0x1800b747f is a SIGN extension of a 32-bit count, not a
-// zero extension — Ghidra's C prints MOVSXD as a zero extension
-// (reference_ghidra_c_output_vs_disassembly.md), which is why the loop bound
+// zero extension — Ghidra's C prints MOVSXD as a zero extension, which is
+// why the loop bound
 // below is a SIGNED int and the `TEST EBP,EBP / JLE` guard is reproduced as
 // `> 0` rather than `!= 0`.
 //
@@ -334,7 +334,7 @@ extern "C" void RtIo_PersistenceWorker_EnqueueLoad(IO::PersistenceWorker* w, con
 // (`ADD R8D,[RDI+RCX+0x8]`) rather than from the caller's block. Those two are
 // the same value here, but the re-read is what retail does and a moved term is
 // exactly the kind of algebraically-identical change that hides where terms
-// cancel (reference_moved_term_hides_where_terms_cancel.md).
+// cancel.
 // ============================================================================
 extern "C" void RtIo_PersistenceWorker_EnqueueSave(IO::PersistenceWorker* w, const System::String* filename,
                                                    int blockCount, const SaveBlock* blocks) {
@@ -655,8 +655,7 @@ void IO::PersistenceWorker::SaveJob() {
 // deleting an already-deleted one. There is nothing to compare and nothing safe
 // to replay. A `the diff oracle` would also be dishonest here: the body has NO
 // post-condition of its own (it stores nothing), so a self-check could only
-// assert something the body never wrote
-// (reference_oracle_must_not_compare_unwritten_bytes.md). **No site is added.**
+// assert something the body never wrote. **No site is added.**
 //
 // UNVERIFIED: this body has not been observed executing.
 //

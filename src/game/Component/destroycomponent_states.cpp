@@ -138,7 +138,7 @@
 // yaw (user-reported on a storage barn, 2026-08-23; the spawn trace showed
 // yaw=1119092736 = 0x42B40000 = 90.0f — an obvious float bit pattern read as an int).
 // Ghidra types it `undefined4` and passes the raw 4 bytes, which hides the mistake.
-// Inverse of [reference_int_arg_typed_as_float_hides_at_index_zero].
+// Inverse of the trap where an int argument declared float passes its bit pattern (index 0 hides it).
 
 // starttown.cpp — world-registration (region-map cells + pick mesh) for a building
 // entity created at runtime; retail gets both from RegisterEntity's add-broadcast.
@@ -652,8 +652,8 @@ char DestroyComponent::State5Tick() {
     // left as whatever ComponentEntity_CopyCtor put there. DecalComponent::OnAdded reads
     // the field as a full uint32_t, so the decal got `garbage<<16 | rot` and painted
     // its foundation at the wrong orientation — the "rebuilt house's decal footprint
-    // doesn't match" report (2026-08-23). Same class as the narrowed-store trap in
-    // [reference_narrowed_8byte_store_desyncs_count_and_cap].
+    // doesn't match" report (2026-08-23). Same class as the narrowed-store trap, where a
+    // store narrower than retail's leaves the upper bytes stale.
     // Retail loads the four shorts with MOVSX (0x14011c1a8..bb).
     MapComponent* fp = FindOn<MapComponent>(entity);
     int16_t sx = 0, sy = 0, sc = 0, sd = 0;

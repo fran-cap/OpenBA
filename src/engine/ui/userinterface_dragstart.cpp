@@ -67,9 +67,8 @@
 //
 //  3. THE ARITHMETIC IS 32-BIT. `SUB 0x68(%rax),%r9d` is a 32-bit signed
 //     subtract, not a MOVSXD-widened one — and Ghidra's C output is exactly
-//     where that distinction gets lost (reference_ghidra_c_output_vs_disassembly.md
-//     records MOVSXD printed as a zero extension as a live Wave 6 defect
-//     class). Read off the DISASSEMBLY above, not off decompiled C. Both
+//     where that distinction gets lost: it prints MOVSXD as a zero extension.
+//     Read off the DISASSEMBLY above, not off decompiled C. Both
 //     operands are int32_t here and the result wraps like retail's.
 //
 //  4. +0x80 IS TWO int32s, NOT A POINTER. UserInterface.h declares the pair
@@ -116,8 +115,7 @@ using UI::Element;
 // ---------------------------------------------------------------------------
 // ENTRY COUNTERS, printed at exit by DragStartSummary's destructor.
 //
-// g_beginDragGrabOffset is the EFFECTIVENESS CONTROL
-// (reference_probe_needs_an_effectiveness_control.md). `entries` alone cannot
+// g_beginDragGrabOffset is the EFFECTIVENESS CONTROL. `entries` alone cannot
 // distinguish "the elemPtr deref did real work" from "it subtracted zero and
 // the grab offset is just the raw cursor position" — which is exactly what a
 // null-ish or origin-anchored element would look like. This counts the entries

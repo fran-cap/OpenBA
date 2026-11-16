@@ -101,8 +101,7 @@ UNIT_TEST(internal_base_ptr_shim_copy_matches_assignment) {
 
 UNIT_TEST(internal_base_ptr_checkptr_and_assignid_are_no_ops) {
     // Bare RETs in retail AND in the profile build. They must never validate:
-    // a stale InternalBasePtr does not self-invalidate in any shipped build
-    // (memory reference_checkptr_is_a_ret_in_every_build).
+    // a stale InternalBasePtr does not self-invalidate in any shipped build.
     BasePtr p(g_objA);
     BasePtr::Shim_CheckPtr(&p);
     BasePtr::Shim_AssignId(&p);

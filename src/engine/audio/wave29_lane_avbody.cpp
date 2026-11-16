@@ -20,9 +20,7 @@
 // I was one keystroke from writing "0x1800dfed0 is an unexported internal, so
 // it is inlined here as a file-local static". That would have been WRONG, and
 // wrong in the exact documented way: **AEBA means PRIVATE, not unexported, and
-// this DLL exports its private members** (reference_aeaa_is_private_not_
-// unexported.md, which records three silent address doors that survived review
-// on precisely that confusion). Checked instead of assumed, with a pefile
+// this DLL exports its private members**. Checked instead of assumed, with a pefile
 // lookup of the VA against the export directory:
 //
 //   0x1800dfed0  EXPORTED  ord 3027  ?GetVolumeForPosition@Scene@Audio@@AEBAMAEBVVector3@Math@@MM0@Z
@@ -35,9 +33,8 @@
 // `AEBVVector3@Math@@` = const Vector3&; `M M` = two floats; `0` is MSVC's
 // back-reference to argument type 1, i.e. a second const Vector3&. That is
 // exactly (srcPos, maxDist, minDist, listenerPos) -> float, which is what the
-// instruction stream says. Only a WRITER names a field
-// (reference_only_a_writer_names_a_field.md) and the export directory is the
-// closest thing to a writer available here.
+// instruction stream says. Only a WRITER names a field, and the export directory
+// is the closest thing to a writer available here.
 //
 // ============================================================================
 // `AttenutedEffect` IS THE STRUCT Audio.h CALLS `EffectSlot`
@@ -66,7 +63,7 @@
 // THE MOVED-TERM TRAP, WHICH IS LIVE IN GetAttenuatedVolume
 // ============================================================================
 // A moved term in a float sum is algebraically identical and numerically
-// different (reference_moved_term_hides_where_terms_cancel.md). Two terms in
+// different. Two terms in
 // this body are hoisted in retail and MUST STAY HOISTED:
 //
 //   1. `maxDist = fRadius + effect->def->maxDistanceBase` is computed ONCE,
@@ -92,8 +89,8 @@
 // `return 0.0f` would be wrong: 0.0f * baseVolume is not 0.0f when baseVolume
 // is NaN or an infinity. The multiply is kept unconditional.
 //
-// NO TRANSCENDENTALS beyond sqrtf. The CRT-coefficient rule
-// (reference_crt_coefficients_must_be_lifted_not_retyped.md) does not bite:
+// NO TRANSCENDENTALS beyond sqrtf. The CRT-coefficient rule (retail's series
+// constants are copied as raw bits from the binary, never retyped) does not bite:
 // IEEE-754 specifies sqrt as correctly rounded, so our libm and the DLL's agree
 // bit-for-bit on every input.
 //

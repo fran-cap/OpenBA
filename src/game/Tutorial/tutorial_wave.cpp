@@ -23,7 +23,7 @@
 //
 // Every address above was verified as a real function ENTRY with
 // get_function_by_address (Entry == address) — the mid-function-resolve trap
-// ([[reference-midfunction-raw-address-resolves]]) does not apply to any of them.
+// does not apply to any of them.
 //
 // 0x1400E0D70, the "tutorial finished -> launch the scenario" transition, is
 // TutorialInstance::LoadNextScenario (tutorial_next_scenario.cpp); StepExecute

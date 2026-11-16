@@ -211,8 +211,8 @@ void AttendanceComponent::ProcessQueue() {
 // Vtable slot 7 — retail 0x1400443d0 — leave the town attendance registry
 // ============================================================
 // Ghidra calls this "AttendanceComponent_OnCreate". It is slot 7, which on this
-// component family is OnRemove, not OnAdded — the usual off-by-one mislabel (see
-// reference_ghidra_oncreate_onremove_mislabel). The body is a single erase-by-value
+// component family is OnRemove, not OnAdded — the usual off-by-one mislabel.
+// The body is a single erase-by-value
 // from the town attendance list at gameWorld+0xf0 +0x60, the list that state 2's enter
 // appends to and that AllFull walks. Without it a demolished school stays in the list
 // forever and every surviving school reads as "full".

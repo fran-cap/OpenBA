@@ -17,8 +17,7 @@
 //
 // CORRECTION (batch 7, 2026-09-12): this file used to claim all three had "no
 // mangled export in either the retail or the profile DLL" and registered none
-// of them. That was WRONG in the `reference_aeaa_is_private_not_unexported.md`
-// direction: checked with pefile against the retail export directory (not
+// of them. That was WRONG: checked with pefile against the retail export directory (not
 // assumed), all three ARE exported --
 //   0x1800e0fc0  ord 4528  ?UpdateState@Device@Input@@AEAAXPEAUState@12@0HAEBVTime@System@@@Z
 //   0x1800e1c60  ord 3381  ?PlatformGetKeyboardState@Device@Input@@AEAA_NPEAUState@12@@Z
@@ -60,7 +59,7 @@
 // of ours — IS a DirectInput device as far as these functions can tell, and it
 // beats a detour in the one way that matters here: a scripted GetDeviceState
 // hands BOTH sides the same bytes, so the drain stops existing rather than
-// being recorded around (reference_synthetic_subject_beats_a_fake.md).
+// being recorded around.
 //
 //
 // ---------------------------------------------------------------------------
@@ -104,7 +103,7 @@
 // a near call inside the DLL cannot be intercepted by a registration.
 //
 // So this port's live `calls=` is 0 and will stay 0 until `MainLoop::Run` is
-// ported. That is `reference_uncalled_port_is_not_verified.md` sitting
+// ported. That is the rule that a port with zero calls is unverified, sitting
 // directly on the deliverable, and it is why the probe below is not a
 // nice-to-have: **it is the ONLY verification this function can have**, and
 // it must be driven from something that actually executes rather than from
@@ -135,9 +134,8 @@
 //                at the low half: this is (double)0.3f, NOT 0.3. Writing 0.3
 //                here compiles to 0x3FD3333333333333 and is a DIFFERENT
 //                constant — a silently different repeat cadence, and exactly
-//                the defect
-//                reference_crt_coefficients_must_be_lifted_not_retyped.md is
-//                about.
+//                the defect that copying constants as raw bits, never as
+//                retyped decimals, exists to prevent.
 //   0x1801616B8  double 0x3FD0000000000000   == 0.25, the value holdTicks is
 //                RESET to after a repeat fires. NOT zero — so the second and
 //                later repeats need only 0.05s more. That is retail's cadence
@@ -234,7 +232,7 @@ constexpr uint32_t kDiErrInputLost = static_cast<uint32_t>(Platform::Input::kInp
 //   1800e121e  UCOMISS XMM0,XMM4 ; JP ; JNZ  ; the f == 0 test
 //
 // TWO THINGS THE OBVIOUS TRANSCRIPTION GETS WRONG, both read off the flags
-// rather than off Ghidra's C (reference_ghidra_c_output_vs_disassembly.md):
+// rather than off Ghidra's C:
 //
 //  * raw is loaded with MOVSX (signed) for the DIVIDE, but the two zero tests
 //    are 16-bit CMP .,SI / TEST DX,DX — equality with zero, where signedness
@@ -535,9 +533,7 @@ namespace {
 // memset(buf, 0, count * 24) produces byte-identical downstream behaviour and
 // is STILL not what retail does. Same argument engine.cpp's MainLoop ctor gives
 // for its own partial zero at +0x18: a difference no oracle in this project can
-// see is exactly the kind that has to be preserved by transcription
-// (reference_oracle_must_not_compare_unwritten_bytes.md,
-// reference_never_written_needs_by_whom.md).
+// see is exactly the kind that has to be preserved by transcription.
 void ZeroScratch(State* buf, int32_t count) {
     for (int32_t i = 0; i < count; ++i) {
         // B.4 (R-ENG): the two qwords by field -- +0x00..+0x07 is

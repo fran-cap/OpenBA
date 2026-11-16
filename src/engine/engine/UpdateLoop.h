@@ -5,7 +5,7 @@
 //
 // Wave 8, lane A. Every offset below is pinned by a named function in the
 // SHIPPED Runtime-x64.dll (image base 0x180000000), read from the DISASSEMBLY
-// rather than only from Ghidra's C (reference_ghidra_c_output_vs_disassembly.md).
+// rather than only from Ghidra's C.
 // Where an exported one-line accessor pins a field, that accessor is cited —
 // it gives the offset AND the engine's own name for the field.
 //
@@ -25,9 +25,8 @@
 //
 // The slot counts below came out of the binary, by reading the vtable region
 // 0x1801578d0..0x180157a18 as qwords — not from a base class's count
-// (reference_vtable_slot_count_from_the_name_string.md: a table sized to the
-// base mis-dispatches every derived virtual, and in the tutorial wave that made
-// slot 8 call the constructor and auto-pass 61 goals).
+// (a table sized to the base mis-dispatches every derived virtual, and in the
+// tutorial wave that made slot 8 call the constructor and auto-pass 61 goals).
 //
 //   UpdateLoop        12 slots (0x00..0x58)
 //   LoaderLoop        12 slots, no padding before DialogLoopT's table

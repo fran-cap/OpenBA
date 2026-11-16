@@ -112,9 +112,9 @@
 //     `Object::Base::IsDerivedFrom`, including its `ADD RAX,8`-on-null.
 //
 // A third transcription would be a third copy of two tree walks that must never
-// disagree — exactly what reference_grep_for_the_port_before_writing_it.md is
-// about, and what type_system.cpp's own banner says about FindNode being shared
-// by four callers.
+// disagree — exactly why the tree is grepped for an existing port before one is
+// written, and what type_system.cpp's own banner says about FindNode being
+// shared by four callers.
 //
 // ============================================================================
 // THREE UNGUARDED DEREFS, ALL KEPT

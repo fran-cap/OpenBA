@@ -11,7 +11,7 @@
 //
 // Every address and ordinal above is `pefile`'s reading of the export directory
 // of the shipped C:\GOG Games\Banished\Runtime-x64.dll, taken before a line of
-// this file was written (reference_resolveexport_phantom_names.md). The row list
+// this file was written. The row list
 // was re-derived with `tools/runtime_census.py --unported` on this tip and
 // filtered to ported==0 && symbol_kind==BODY && namespace==Graphics; that filter
 // returns FOUR rows, and the fourth (?AddDrawItems@MeshInstance@Graphics@@)
@@ -44,8 +44,7 @@
 // PE `.pdata` table, which is why no extent above is quoted from .pdata alone:
 // `?Update@AnimationState@Graphics@@` is assembled from FIVE CHAINED .pdata
 // fragments (0x1800fdb20 -> 0xfdb71 -> 0xfdcc0 -> 0xfdf15 -> 0xfdf34 ->
-// 0xfdf46), so its first fragment's 81 bytes understate a 1062-byte body 13x
-// (reference_pdata_is_a_lower_bound_on_function_extent.md).
+// 0xfdf46), so its first fragment's 81 bytes understate a 1062-byte body 13x.
 //
 // ---------------------------------------------------------------------------
 // THE GFXR LESSON, RE-RUN ON THIS LANE'S OWN CALLEES
@@ -78,7 +77,7 @@
 // `?UpdateNodes@…QEAAXMAEBV?$Array@…@AEBVTransform@Math@@PEAV?$InterpolatedState
 // @…@PEAV56@AEAVVector3@6@@Z` spells six parameters with a FLOAT FIRST, and that
 // is what says the `MOVAPS XMM1,XMM6` at 0x180104c03's analogue is argument 2
-// rather than a spill (reference_read_the_callee_before_holding_back_on_an_arg.md).
+// rather than a spill.
 //
 // ---------------------------------------------------------------------------
 // WHAT THIS LANE DOES NOT CLAIM
@@ -139,8 +138,7 @@ using rtcoll::ArraySpec;
 // ---------------------------------------------------------------------------
 // Attendance. Counts the DOOR and, separately, the BRANCH that does the work.
 // `calls=0` and `calls=N with the interesting arm never taken` are different
-// findings and an entry counter cannot tell them apart
-// (reference_calls_zero_can_mean_always_took_the_uncovered_branch.md).
+// findings and an entry counter cannot tell them apart.
 // ---------------------------------------------------------------------------
 void Attend(const char* what, unsigned long long& n) {
     ++n;
@@ -184,8 +182,7 @@ unsigned long long g_animStateExpired = 0;   // RARE ARM: layers removed
 // 0x180005800 is `Collection::Array<T>::~Array` for a trivially-destructible T,
 // instruction-for-instruction lane Q's `ArrayDtorImpl`: MemFree(_data) (the null
 // test lives inside 0x1800c7ad0), then _data = 0 and the _size/_capacity qword
-// = 0. NOT re-written here; lane Q's body is called
-// (reference_grep_for_the_port_before_writing_it.md).
+// = 0. NOT re-written here; lane Q's body is called.
 
 // `Collection::Array<{int32,int32}>::operator=` — retail 0x180005770.
 // Destroys the destination first, then copies `src._size` elements. The loop
@@ -323,15 +320,14 @@ extern "C" void RtCollection_Array_MaterialParameterSet_SetSize(void* a, int n) 
 // lane F — it names BuildParameters beside `hasRenderTexture`,
 // `hasRenderedTexture`, `shaderClass` and `MaterialParameterSet`. Every one of
 // those readings held against the disassembly, which is worth stating because
-// the SIGN of such an agreement carries no information until somebody runs it
-// (reference_ghidra_c_output_vs_disassembly.md). Nothing in Material.h needed a
-// correction.
+// the SIGN of such an agreement carries no information until somebody runs it.
+// Nothing in Material.h needed a correction.
 //
 // THE TWO Get*Name CALLS RETURN A String BY VALUE, SO THERE IS A HIDDEN RETURN
 // SLOT, and it is the SECOND argument (RCX=material, RDX=&slot, R8D=pass,
 // R9D=index). An `fn_*` typedef that omitted it would be a wild write that still
 // returned the right answer, because RAX comes back holding the slot address
-// either way (reference_hidden_retslot_wild_write.md). Both mangled names say
+// either way. Both mangled names say
 // `?AVString@System@@` for the return, so this is read off the export table, not
 // guessed from the call site.
 //
@@ -513,8 +509,8 @@ extern "C" void RtGraphics_Renderer_DrawItemSort(RendererDrawItem* data, int32_t
 //
 // NO HIDDEN RETURN SLOT. The return is `_N` (bool, in AL: `MOV AL,0x1` at
 // 0x1800fdf32 and `XOR AL,AL` at 0x1800fdb66), so the four register arguments
-// are not shifted (reference_hidden_retslot_wild_write.md — the trap checked for
-// and found absent here).
+// are not shifted (the omitted-hidden-slot trap, checked for and found absent
+// here).
 //
 // TIME IS TICKS, AND THE SCALE IS A RUNTIME GLOBAL, NOT A CONSTANT.
 // `MULSD XMM0,[0x1801fe728]` looks like a literal. It is not: 0x1801fe728 sits
@@ -765,8 +761,7 @@ bool AnimationState::Update(const System::Time& timeRef,
     // seconds = ticks * _secondsPerTick, computed in DOUBLE and then narrowed to
     // float by CVTPD2PS — NOT computed in float. The association order is
     // retail's and is preserved exactly, because a moved term in a float sum is
-    // algebraically identical and numerically different
-    // (reference_moved_term_hides_where_terms_cancel.md).
+    // algebraically identical and numerically different.
     const float dt = static_cast<float>(
         static_cast<double>(deltaTicks) * rtgfxbig::SecondsPerTick());
 
@@ -1115,7 +1110,7 @@ void Renderer::Draw(Video::Context& context, float alpha, const Scene& sceneRef,
         // the flag word 6 are IMMEDIATES in the instruction stream (0x180104e8d,
         // 0x180104e85); the 1.0f depth is XMM6, loaded once at 0x180104d3d from
         // [0x18016169c], whose four bytes were READ (00 00 80 3f) rather than
-        // assumed (reference_crt_coefficients_must_be_lifted_not_retyped.md).
+        // assumed.
         context.Clear(Video::ClearFlags::Depth | Video::ClearFlags::Stencil, 0x1184d6u, 1.0f, 0);
 
         // Three passes x every drawable. Slot 10.

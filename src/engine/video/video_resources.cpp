@@ -19,16 +19,15 @@
 //
 // Every address and ordinal above is the shipped export directory's own answer
 // (pefile over C:\GOG Games\Banished\Runtime-x64.dll), read BEFORE any body was
-// written — reference_resolveexport_phantom_names.md. Every body below was
-// transcribed from `disassemble_function` at that address, not from Ghidra's
-// decompiled C (reference_ghidra_c_output_vs_disassembly.md).
+// written. Every body below was transcribed from `disassemble_function` at that
+// address, not from Ghidra's decompiled C.
 //
 // ---------------------------------------------------------------------------
 // THE TWO DESTRUCTORS, AND WHAT EACH ONE DESTROYS VS MERELY FREES
 // ---------------------------------------------------------------------------
 // A dtor is the highest-risk shape in this project: a prior lane's written
 // recipe would have swapped a body that destroys every element for one that
-// only frees the block (reference_a_written_recipe_can_be_wrong.md). So the
+// only frees the block. So the
 // distinction is drawn per array, from the disassembly, before the code:
 //
 // ??1Device@Video@@ owns THREE arrays and destroys them through three DIFFERENT

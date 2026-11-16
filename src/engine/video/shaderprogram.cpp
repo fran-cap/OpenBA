@@ -189,7 +189,7 @@ void PlatformSerializeArm(Video::ShaderProgram* self, IO::Serializer& outer, int
 // src/engine/video/shader_program_names.cpp, which is also where their MEMBER
 // bodies now live. Writing a second copy here would have been the duplicate-body
 // drift this tree keeps warning about, and the linker caught it. Read that file
-// for the hidden-slot analysis (reference_hidden_retslot_wild_write.md).
+// for the hidden-slot analysis.
 
 // ============================================================================
 // THE MEMBER BODIES — `Video::ShaderProgram::*`.

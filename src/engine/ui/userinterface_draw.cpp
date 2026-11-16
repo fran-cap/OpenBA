@@ -31,7 +31,7 @@
 //      whole render target, and free the four buffers the SpriteContext owns.
 //
 // ---------------------------------------------------------------------------
-// FACTS GHIDRA'S DECOMPILED C DROPS (reference_ghidra_c_output_vs_disassembly)
+// FACTS GHIDRA'S DECOMPILED C DROPS
 // ---------------------------------------------------------------------------
 //
 //  * **A DROPPED DEREFERENCE THAT CHANGES THE VALUE.** The layer pre-pass at
@@ -116,8 +116,7 @@
 // value that is already in memory and `changed=` stops moving. `wrong=0` over
 // a thousand such rounds is a weak statement. The lane doc reports `changed=`
 // beside `rounds=` for exactly that reason, and the negative control is scored
-// against the rounds that HAD an armable subject, never against the total
-// (reference_probe_needs_an_effectiveness_control.md).
+// against the rounds that HAD an armable subject, never against the total.
 //
 // The complement for the geometry is a live in-game run with the DETOUR ON —
 // if the layer walk, the letterbox arithmetic or the batch drain were wrong the
@@ -162,7 +161,7 @@ using UI::SpriteDraw;
 // SEVEN OF THE EIGHT ARE EXPORTED, verified against the shipped export
 // directory with pefile rather than assumed — `AEAA` means PRIVATE, not
 // unexported, and both `Flush` and `AddSpriteDraw` are `AEAA` names that the DLL
-// exports all the same (reference_aeaa_is_private_not_unexported.md).
+// exports all the same.
 // B3R RT-UI: all called by name -- the Camera ctor body
 // (`??0Camera@Graphics@@QEAA@AEBVFrustum@Volume@@AEBVTransform3@Math@@_N@Z`,
 // 0x1800fe960, the Graphics::Camera ctor, constructed directly), the SpriteContext /

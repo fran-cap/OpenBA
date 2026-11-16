@@ -68,7 +68,7 @@
 // ---------------------------------------------------------------------------
 // UNWRITTEN BYTES — three separate holes, all real, none of them modelling laziness
 // ---------------------------------------------------------------------------
-// `reference_oracle_must_not_compare_unwritten_bytes.md`. Each arm below leaves
+// An oracle comparing bytes neither side writes would fail every call. Each arm below leaves
 // bytes alone that retail also leaves alone, and the probe excludes exactly
 // those and no others:
 //
@@ -172,8 +172,7 @@ Graphics::Camera* RtGraphics_Camera_CopyCtor(Graphics::Camera* self,
 // ??0Camera@Graphics@@QEAA@XZ — retail 0x1800fe7f0. Returns `this`.
 //
 // Both float constants were LIFTED AS RAW BITS out of the shipped .rdata rather
-// than retyped as decimals (reference_crt_coefficients_must_be_lifted_not_
-// retyped.md): 0x18016175c is 0xbf800000 and 0x18016169c is 0x3f800000. Both
+// than retyped as decimals: 0x18016175c is 0xbf800000 and 0x18016169c is 0x3f800000. Both
 // happen to be exactly representable, so the two spellings agree here — the
 // discipline is kept anyway, because "it looked exact" is not a check.
 //
@@ -183,8 +182,8 @@ Graphics::Camera* RtGraphics_Camera_CopyCtor(Graphics::Camera* self,
 // MOVSS stores below. The reorder to plain ascending order is safe *for this
 // specific pass only*, because all twelve stores write the SAME constant (zero)
 // to DISJOINT addresses; no float arithmetic is reassociated anywhere in this
-// function, so the "moved term" hazard does not arise
-// (reference_moved_term_hides_where_terms_cancel.md).
+// function, so the "moved term" hazard (a regrouped float sum differs in the last bit
+// where terms cancel) does not arise.
 //
 // B.4: on the real class's fields. The twelve zero qwords over +0x00..+0x5f are
 // dead stores retail overwrites with the 24 plane floats, so the planes are
@@ -296,8 +295,8 @@ void SceneEntryDestroyRange(void* /*ignoredThis*/, uint8_t* base, int count) {
 // `MOV RAX,RBX`). SceneEntryAssign / SceneEntryInit keep that return; the spec
 // gets these two thin adapters instead.
 // Bending the port's signature to fit the table would have been the wrong way
-// round -- an fn_* typedef that drops part of the ABI is the
-// reference_hidden_retslot_wild_write.md shape.
+// round -- an fn_* typedef that drops part of the ABI is the shape of an omitted hidden
+// return slot, a self-consistent wild write.
 void SceneEntryAssignSpec(uint8_t* dst, const uint8_t* src) { SceneEntryAssign(dst, src); }
 void SceneEntryInitSpec(uint8_t* dst) { SceneEntryInit(dst); }
 
@@ -491,7 +490,7 @@ void Renderer::Reset() {
 // +0xe5..+0xe7); the assign then copies those uninitialised bytes into the array
 // element. A port that zeroed them would be "helpful" and WRONG in the one way
 // that shows up as a byte divergence against a DLL-built Renderer
-// (reference_oracle_must_not_compare_unwritten_bytes.md, and the same reasoning
+// (the port must leave bytes retail never stores unwritten, not zero them, by the same reasoning
 // renderer.cpp's Renderer ctor gives for leaving +0x3c and +0x4c alone). B.4 S4
 // GFX2: the record is a `RendererSceneEntry` built by retail's SceneGroup ctor
 // (0x1800628d0), whose Camera member is built by Camera's copy ctor (retail's

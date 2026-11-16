@@ -18,12 +18,10 @@ WHAT "NEARBY" MEANS, AND WHY IT IS NOT A LINE COUNT
 The window is the enclosing BLOCK: a blank-line-delimited paragraph, a whole
 markdown table, or a whole fenced code block.  It is NOT "N lines above".
 
-That choice is the direct lesson of
-``reference_documenting_a_check_can_delete_it.md`` -- adding a 12-line comment
-above a call site pushed it out of a checker's fixed 6-line window and deleted
-the check, which then read as a pass -- and of
-``reference_checker_pairs_across_function_boundaries.md``, where scanning back
-N raw lines paired a number with a population from an unrelated function and
+That choice is the direct lesson of two checker failures: adding a 12-line
+comment above a call site pushed it out of a checker's fixed 6-line window
+and deleted the check, which then read as a pass; and scanning back N raw
+lines paired a number with a population from an unrelated function and
 manufactured confident wrong findings.  A block is derived from the document's
 own structure, so it grows when the author writes more and it never crosses
 into the next paragraph.  It can still be wrong (an author may legitimately
@@ -49,8 +47,7 @@ full, plus WAVE20_CLOSED.md §5.7-§5.10 and §6-§8 in full.
 
 Tree-wide it flags 6094 of 11622 numeric claims across 207 WAVE*.md files --
 52%.  A screen that flags half its input is not a work list, and an INFLATING
-blind spot MANUFACTURES work
-(reference_a_screen_that_cannot_name_its_subject).
+blind spot MANUFACTURES work.
 
 **Why it fails is the useful part, and it is not a tuning problem.** All three
 real failures were quantities spelled as ENGLISH WORDS -- "paid for that three

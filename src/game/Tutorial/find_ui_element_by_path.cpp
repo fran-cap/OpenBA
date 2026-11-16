@@ -24,7 +24,7 @@
 // Ported from the disassembly at 0x1400E1870-0x1400E1CB6; the Ghidra pseudo-C
 // drops the String argument of both FindElement overloads and the type-filter
 // argument of GetController, so the register assignments were read from the
-// instruction stream (see [[reference-getcontroller-third-arg-is-a-type-filter]]).
+// instruction stream.
 //
 // Splitting: retail calls FUN_1400E0C90, which builds a DynArray<String> by
 // walking the path and cutting at every ':' (and at the end). We build the same

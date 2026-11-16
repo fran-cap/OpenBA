@@ -23,8 +23,8 @@
 // scan of an 8-byte-stride DynArray (+0x00 data, +0x08 count, +0x0C capacity), shift-down
 // removing EVERY slot equal to *value. It is the UNREGISTER primitive, not the append one
 // (append counterpart: DynArray8_ResizeFill 0x140003110). Naming it "RegisterEntity" is the
-// exact trap that cost a day on the residence registry — see
-// reference_ghidra_oncreate_onremove_mislabel.
+// exact trap that cost a day on the residence registry, where Ghidra's labels sat one vtable
+// slot off and named the OnRemove body OnCreate.
 
 
 // ============================================================================
