@@ -102,20 +102,20 @@ void TombstoneComponent::Startup() {
 // ============================================================
 // TombstoneComponent::Update (0x1400577D0)
 // ============================================================
+// As retail: the delta is subtracted from the countdown first (0x1400577d7 SUB
+// [RCX+0x28],RAX) with no test of the value on entry, and the tombstone stays while
+// the result is > 0 (0x1400577db CMP 0 / JG). A countdown that is 0 on entry (a
+// version<2 save's 1 tick halved by Persist) is removed on that tick. Then the entity
+// (+0x10) is the only test (JZ 0x140057849); the GameWorld's entity list (+0xe8 of
+// 0x1401c3dd8) is read unguarded, bit 10 of the entity flags skips an entity already
+// marked, MarkForRemoval 0x1400c2ea0, and the entity is pushed onto the list's
+// removal list (+0xd0) at size + 1 (0x140003110).
+// NOT RETAIL: the null tests of the GameUpdateLoop singleton and of the entity list
+// below are the port's own; retail has neither.
 void TombstoneComponent::Update(const System::Time* timeV) {
     const System::Time* pDeltaTime = timeV;
 
-    // [LIVE-COMPONENT BRING-UP GUARD] On an inert-spawned standalone component the
-    // countdown is zero unless Startup (slot +0x20) ran. If it is still zero but the
-    // description is present, run the body-init now so the countdown starts from the
-    // real random lifetime — otherwise the `timer < 1` test below fires on tick 1 and
-    // marks the tombstone for instant removal.
-    if (lifetime._ticks == 0 && _description != nullptr) {
-        TombstoneComponent::Startup();
-    }
-
     lifetime._ticks -= pDeltaTime->_ticks;
-
 
     if (lifetime._ticks < 1) {
         ComponentEntity* entityPtr = _entity.Get();
@@ -123,17 +123,13 @@ void TombstoneComponent::Update(const System::Time* timeV) {
         EntityList* entityList = GameUpdateLoop::_singleton->m_entityList;
 
         if (entityPtr != nullptr) {
-
-            // Check bit 10 of the entity flags
             uint32_t entityFlags = entityPtr->_entityFlags;
             if ((entityFlags & Bits(ComponentFlags::MarkedForRemoval)) == 0) {
                 entityPtr->MarkForRemoval();   // 0x1400c2ea0
 
-                // Add to removal queue
                 if (entityList) {
                     int count = entityList->removalList._size;
-                    entityList->removalList
-                        .SetSize(count + 1, _entity.Get());
+                    entityList->removalList.SetSize(count + 1, _entity.Get());
                 }
             }
         }
