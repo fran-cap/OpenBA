@@ -1,5 +1,5 @@
 // ============================================================================
-// src/ext/winter_ice/winter_ice.h -- ext.winter_ice (class A, default OFF): water freezes in winter
+// src/ext/winter_ice/winter_ice.h -- ext.winter_ice (class A, default ON): water freezes in winter
 // ============================================================================
 // NOT RETAIL. docs/extensions/handins/WINTERICE.md.
 //
@@ -10,9 +10,9 @@
 // boats' channel (open_mask.h). Snow banks against the shore while the ground is snowy.
 //
 // Drawing only (class A): nothing is saved and the sim is untouched (the boats sail and the citizens
-// walk where they always did). A town the row first sees (a load, a new game, the row turned on) starts
-// from a guess made from the temperature (ice_model.h Guess). Phase 2 (walkable ice, a class C row of
-// its own) will save the fronts.
+// walk where they always did). With only this row on, a town the row first sees (a load, a new game, the
+// row turned on) starts from a guess made from the temperature (ice_model.h Guess); ext.walk_on_ice
+// (walkable ice, a class C row of its own) saves the fronts in the save tail (ice_town.h).
 //
 // THE SEAM is WorldGeometry's contour-range draw (geometry_draw.cpp, modes 0x6000 rivers / 0x8000
 // lakes): after retail's DrawIndexed and ext.better_water's shore pass, `if (Drawing()) DrawIce(...)`.
@@ -20,9 +20,10 @@
 // and our pixel program (src/render/common/winter_ice/ice_overlay.hlsl), our textures bound at t4 / t6 /
 // t7 for its draw alone. The faithful path pays one relaxed load per water range.
 //
-// THREADS. BeginFrame (main thread, GameUpdateLoop's per-frame ext block) advances the ice, builds
-// the textures and the open-water mask and publishes them; DrawIce runs on the drawing thread (the
-// main thread, or the render thread under ext.render_pipe) and only reads what was published.
+// THREADS. Tick (main thread, the game tick) advances the ice; BeginFrame (main thread, GameUpdateLoop's
+// per-frame ext block) builds the textures and the open-water mask and publishes them; DrawIce runs on
+// the drawing thread (the main thread, or the render thread under ext.render_pipe) and only reads what
+// was published.
 // ============================================================================
 #pragma once
 
@@ -84,9 +85,9 @@ struct ChannelShape {
 // The row (ext.winter_ice), as the Extensions dialog leaves it.
 bool Enabled();
 
-// Main thread, once per frame (GameUpdateLoop's ext block): reads the row, starts a town's ice from a
-// guess (ice_model.h Guess), keeps the textures and the open-water mask. Sets g_tick while the row is
-// on and the town's weather has run.
+// Main thread, once per frame (GameUpdateLoop's ext block): reads the row, puts a loaded town's walk set
+// back on its map, keeps the textures and the open-water mask. Sets g_tick while this row or
+// ext.walk_on_ice is on and a town is loaded.
 void BeginFrame();
 
 // The game tick's seam (GameUpdateLoop::Update, right after WeatherSimulation::Update):

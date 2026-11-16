@@ -12,9 +12,7 @@
 // `Dialog::GetBackgroundSprite`) and passed by `const Sprite&` to the four
 // `SpriteContext::AddSprite`s — so it must stay trivially copyable, and it is.
 //
-// The registered ctor DOORS in src/engine/ui/sprite.cpp stay (the exe
-// constructs Sprites into caller storage 26 times through them) and delegate
-// to these constructors by placement-new.
+// The two constructors that take a sheet are defined in src/engine/ui/sprite.cpp.
 //
 // Retail exports (B36_SLOTS.md section 6, all twelve declared below):
 //   ??0Sprite@UI@@QEAA@XZ                                          0x18011ba10
@@ -34,16 +32,15 @@
 //
 // pad0C IS NEVER WRITTEN by any of the three ctors (only the qword at +0x00
 // and the dword at +0x08 are stored). A diff oracle that memcmp's a freshly
-// poisoned scratch object against a live one must stop at 0xC bytes —
-// reference_oracle_must_not_compare_unwritten_bytes.md. `operator=` DOES copy
+// poisoned scratch object against a live one must stop at 0xC bytes. `operator=` DOES copy
 // it (0x180030cb6), which the trivial copy reproduces.
 //
 // THE FIELD NAMES ARE THE ONES THE TREE ALREADY SPELLS (`spriteSheet`,
 // `spriteIndex`, `pad0C`) and they stay PUBLIC: unconverted bodies in other
-// blocks' files read them directly, and `spriteSheet` stays `void*` — an
-// `Object::ExternalPtr<T>` is exactly one raw pointer with no refcount
-// (External.h), so the bytes are identical and every existing `void*` use keeps
-// compiling. `GetSpriteSheet()` hands out the typed handle.
+// blocks' files read them directly, and `spriteSheet` is a raw `SpriteSheet*` —
+// an `Object::ExternalPtr<T>` is exactly one raw pointer with no refcount
+// (External.h), so the bytes are identical. `GetSpriteSheet()` hands out the
+// typed handle.
 // ============================================================================
 
 #include <cstdint>

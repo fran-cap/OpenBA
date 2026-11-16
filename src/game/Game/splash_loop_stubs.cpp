@@ -1,5 +1,5 @@
 // src/game/Game/splash_loop_stubs.cpp
-// Standalone-only stub vtable for the exe's splash DialogLoaderLoopT subclass
+// Member bodies of GameLoadDialogLoopT, the exe's splash DialogLoaderLoopT subclass
 // (vtable @ 0x140158800, used for both Dialog\Loading.rsc and Dialog\ShiningRock.rsc
 // in the original GameMain).
 //
@@ -37,9 +37,9 @@
 #include "object/class_vptr.h"          // Object::ClassVptr<GameUpdateLoop>
 #include <cstdio>
 #include <cstdint>
-#include "system/String.h"   // -Iruntime/types
-#include "engine/UpdateLoop.h"   // -Iruntime/types: ENDGAME B.3.7 Engine loop classes
-#include "engine/MainLoop.h"     // -Iruntime/types: ENDGAME B.3.7 Engine::MainLoop
+#include "system/String.h"   // -Isrc/engine
+#include "engine/UpdateLoop.h"   // -Isrc/engine: ENDGAME B.3.7 Engine loop classes
+#include "engine/MainLoop.h"     // -Isrc/engine: ENDGAME B.3.7 Engine::MainLoop
 #include "system/Value.h"    // ENDGAME B.3.4b System callers: System::Random
 #include "object/TypeInfo.h" // B3R: Object::IsDerivedFromNullSafe
 #include "object/External.h"                 // ENDGAME B.3.6 UI callers (K4)
@@ -74,7 +74,7 @@ namespace {
 //
 // Retail cycles this every 2.0s (DAT_140172174) off the self+0xB58 timer; the
 // caller drives the timing. This helper just sets one tip. Fully defensive: it
-// silently no-ops if the dialog/element/table or any engine fn is missing (e.g.
+// no-ops if the dialog/element/table is missing (e.g.
 // ShiningRock.rsc has no descText — FindElement then returns the missing-element
 // sentinel, which we normalise to null and skip).
 // Diagnostic: name the gate that stopped us. A silent no-op here is
@@ -89,7 +89,7 @@ void SetRandomLoadingTip(GameLoadDialogLoopT* self) {
     if (!self->_dialogInstance) { TipBail("m_dialogInstance==null", self); return; }
 
     // Find "descText" in the dialog instance (member value-return ABI:
-    // RCX=this, RDX=retbuf, R8=name — the typedef carries all three).
+    // RCX=this, RDX=retbuf, R8=name).
     const System::String nameStr("descText");
     const Object::InternalPtr<UI::Element> found = self->_dialogInstance->FindElement(nameStr);
 
@@ -111,7 +111,8 @@ void SetRandomLoadingTip(GameLoadDialogLoopT* self) {
         return;
     }
 
-    // StringTable at element+0xD8; pick a random 1-based index in [1, count].
+    // StringTable at element+0xD8; retail draws Rand(count - 1) + 1, a 1-based index in
+    // [1, count - 1] (1 when count is 1): the last string is never picked.
     UI::TextElement* textElem = static_cast<UI::TextElement*>(elem);
     UI::StringTable* table = textElem->_text.GetStringTable().Get();
     if (!table) { TipBail("elem+0xD8 StringTable==null", elem); return; }
@@ -579,7 +580,7 @@ Object::InternalPtr<UI::DialogInstance>* GameLoadDialogLoopT::CreateLoopDialog(
            (void*)this, (void*)retPtr, _dialogExternal);
     // Mirrors exe LoaderDialog_Ctor3 @ 0x140099070: builds a real DialogInstance
     // subclass wrapping the loaded .rsc (Dialog/ShiningRock.rsc or
-    // Dialog/Loading.rsc), patches our standalone vtable, returns IBP.
+    // Dialog/Loading.rsc) and returns IBP.
     // The body (loaderdialog.cpp) returns its second argument on every path.
     LoaderDialog_FromSplashDLT(this, retPtr);
     return retPtr;

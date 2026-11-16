@@ -3,15 +3,9 @@
 // ?PlatformConfigure@Engine@1@QEAA_N_NPEAX@Z   retail 0x1800a1670, ord 3329
 // ============================================================================
 //
-// THE CUTOVER BOOT WALL. Wave 20 recorded this function as the address the
-// DLL-absent boot dies on (EXEC-of-0 at `RtEngine_Engine_Startup+0x777`) and
-// then left it `[NOT RE-DERIVED]` for three waves. Lane ENGINE re-derived the
-// wall statically — see docs/history/runtime_port/WAVE23_LANE_ENGINE.md §1 — and it is
-// still there, for a reason that is mechanically exact and was never written
-// down: our own PORTED `Engine::Engine::Startup` (engine_lifecycle.cpp:710)
-// calls this export through `RT_EXPORT_ONCE`, and with the DLL gone that
-// resolves to null. The wall is not a missing feature; it is one unported
-// callee on a ported caller's only path.
+// Its one caller is `Engine::Engine::Startup` (engine_lifecycle.cpp), a direct
+// member call with `configure == true`. Its derivation as the cutover boot wall
+// is in docs/history/runtime_port/WAVE23_LANE_ENGINE.md §1.
 //
 // ---------------------------------------------------------------------------
 // 1. THE FUNCTION HAS TWO HALVES AND ONLY ONE OF THEM IS PORTABLE TODAY
@@ -24,7 +18,7 @@
 //   already ported (Save@Configuration@Video, WriteSettings@Persistence@IO,
 //   Set@String@System, GetCommandLineString@Configuration@System). This half is
 //   ported here, byte-faithfully, and it is the ONLY half an unattended run
-//   ever executes — `HarnessGuardUnattendedBoot` (src/app/main.cpp:184)
+//   ever executes — `HarnessGuardUnattendedBoot` (src/app/main.cpp)
 //   exists precisely to keep the arming bit clear so that this branch is taken.
 //
 //   HALF B — the launcher dialog actually being shown. It needs, all of which
@@ -41,19 +35,11 @@
 //   Verified unexported with pefile against the shipped DLL, not assumed:
 //   none of those addresses appears in the export directory.
 //
-// Half B is therefore a NAMED RESIDUAL, not an oversight. See §4.
+// Half B is therefore a NAMED RESIDUAL, not an oversight. See §2.
 //
 // ---------------------------------------------------------------------------
-// 2. WHAT THIS PORT CHANGES AT CUTOVER, STATED WITHOUT INFLATION
+// 2. HALF B IN THIS EXE
 // ---------------------------------------------------------------------------
-// It does NOT make the launcher dialog work without the DLL. It converts the
-// wall from an EXEC-of-0 that names only an address into:
-//   * Half A running for real — which is what an unattended boot takes; and
-//   * a NAMED refusal on Half B, printed with the symbol and the reason,
-//     instead of a jump to 0.
-// A cutover boot is a GATE, not a planner: it can only name what it reached.
-// Moving it past this function is what lets the next attempt name the NEXT
-// wall. That is the whole claim.
 //
 // Phase D.4 SETTINGS E.5 (the user's decision, ENDGAME §E item 2): the
 // launcher dialog is NOT ported. Its two check boxes are the settings.cfg
@@ -82,7 +68,6 @@
 // `Video::Configuration::Shutdown`. It is not: pefile says 0x1800f6d10 is
 // `?Save@Configuration@Video@@QEAAXXZ`. Corrected in that header by this lane.
 //
-// Kill switch: RT_ENGINEPLATFORM=0.
 // ============================================================================
 
 #include <cstdint>
@@ -278,7 +263,7 @@ bool Engine::Engine::PlatformConfigure(bool configure, void* platformHandle) {
     ++g_calls;
 
     // ---- 0x1800a1aa0: the `configure == false` half ------------------------
-    // This is the call `src/game/Game/game_main.cpp:240` already inlines. The
+    // This is the call `src/game/Game/game_main.cpp:165` already inlines. The
     // deref of `_videoConfiguration` is guarded HERE because retail guards it
     // here (`TEST RCX,RCX ; JZ`), not because we added a null check.
     if (!configure) {
@@ -343,7 +328,7 @@ bool Engine::Engine::PlatformConfigure(bool configure, void* platformHandle) {
     // ---- 0x1800a17ae: HALF B ----------------------------------------------
     ++g_shownDlg;
     {
-        // THE DOOR DECIDES THE OVERLOAD: the no-argument `_NXZ` spelling
+        // THE OVERLOAD MATTERS: the no-argument `_NXZ` spelling
         // (0x1800f8830), not the eight-int-reference `XAEAH0000000@Z` one.
         Video::Device* device = ::Video::Device::_singleton;
         device->ValidateConfiguration();

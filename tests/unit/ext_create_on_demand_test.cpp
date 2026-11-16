@@ -2,7 +2,7 @@
 // tests/unit/ext_create_on_demand_test.cpp -- ext.create_on_demand (block CREATEONDEMAND)
 // ============================================================================
 // The registry row (class A, default ON (ruled 2026-10-23), off under /profile:faithful, never a
-// pseudo-mod); the backend-neutral parts the DX11 backend drives (src/render/common/create_on_demand/):
+// pseudo-mod); the backend-neutral parts every backend drives (src/render/common/create_on_demand/):
 //   - payload.h: RedecodeRange over a compressed entry built by the real encoder (compressed,
 //     stored and short blocks, ranges across block edges, malformed entries), the package mappings
 //     (shared per handle, detached on close, alive while a Locator holds them);

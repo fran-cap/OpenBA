@@ -5,7 +5,7 @@
 // The front-end menu's Quit is already reachable unattended (BANISHED_AUTOQUIT
 // injects the click on MainMenuDialog before a game exists). The in-game one is
 // not: it needs a running world, the toolbar's menu button (ToolbarDialog action
-// type 3 -> EntityUI_OpenPauseMenu), and then a click on the Pause.rsc dialog
+// type 3 -> PlayerToolManager::OpenPauseMenu), and then a click on the Pause.rsc dialog
 // that appears. This harness drives that whole chain from GameUpdateLoop::Update
 // so a run can prove it end to end with no human at the mouse.
 //
@@ -23,8 +23,7 @@
 //                                  autostart.cpp's BANISHED_AUTOMENU_CLICKS. The
 //                                  harness disarms itself after the last token so
 //                                  a world reload (mods Ok) does not re-run it.
-//                                  Extra tokens: w = wait one interval, p = dump the
-//                                  IO::Modification/FileSystem state ([ModProbe:clicks]),
+//                                  Extra tokens: w = wait one interval,
 //                                  q<id> = open the pause menu on the current world and
 //                                  click its button <id>, t<row> = flip the row's
 //                                  checkbox and send its toggle (a bare 1000+row
@@ -138,8 +137,7 @@ bool DialogLive(UI::UserInterface* ui, UI::DialogInstance* dlg) {
 
 }  // namespace
 
-// The tool manager (gameupdateloop.cpp hands its `m_toolManager`; its local
-// declaration still spells the parameter void*).
+// The tool manager (gameupdateloop.cpp hands its `m_toolManager`).
 extern "C" void PauseMenuHarness_Tick(PlayerToolManager* entityUI, int frameNum) {
     Init();
     if (s_openFrame <= 0) return;
@@ -328,9 +326,10 @@ extern "C" void PauseMenuHarness_Tick(PlayerToolManager* entityUI, int frameNum)
 }
 
 // pausemenu_harness.h: another harness's sequence is over, the run ends through the in-game Quit.
-// Arming = what BANISHED_PAUSEMENU=1 would have read, applied to the current world: the per-world
-// rearm in Tick sees a "new" world on its next call, counts from there, opens the menu one frame
-// later and clicks Quit Game (id 6) after the usual delay.
+// Arming = an open frame of 1 (below the 600 floor options.cpp puts on BANISHED_PAUSEMENU),
+// applied to the current world: the per-world rearm in Tick sees a "new" world on its next call,
+// counts from there, opens the menu one frame later and clicks Quit Game (id 6) after the usual
+// delay.
 extern "C" void PauseMenuHarness_QuitGame() {
     Init();
     if (s_stage != Stage::WaitOpen) return;

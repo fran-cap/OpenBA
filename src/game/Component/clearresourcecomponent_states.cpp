@@ -18,7 +18,7 @@
 //
 // The icon is NOT cleared by an event or by the model-finalize path:
 //   * ClearArea state 1's helper_7820 -> 0x140118270 is gated on the description's
-//     _flattenGround, which Clear.rsc sets FALSE, so it correctly no-ops. Its
+//     _regrowTerrain (+0x2c), which Clear.rsc sets FALSE, so it correctly no-ops. Its
 //     deferred `e0e0` terrain-regrow call does not touch the decal either.
 //   * DecalComponent's +0x60 event handler (0x14011b760) free-then-RE-ADDS the
 //     decal for both event 1 and event 5 — it is a refresh, never a removal.
@@ -52,16 +52,12 @@
 // drain walks a stale/duplicate slot (entity+0x30 is the components array — hence
 // the READ 0x30 fault). The guard is what makes multiple controllers safe.
 //
-// Opt-in via BANISHED_LIVE_CLEARCTRL — the same gate that brings up the ClearArea
-// controller, deliberately NOT a separate var. The two are one feature (retail
-// always has both), and bringing this one up ALONE would be actively unsafe:
-// StateMachineComponent_Startup (0x14012b6a0) takes its default state from the
-// FIRST ControllerComponent only (`if (!bVar1)` guard), and our standalone linker
-// treats "first with a non-null CreateState" as first. With `cleararea` inert this
-// component would be first and its GetDefaultState of 2 (0x1400026c0: MOV EAX,2;
-// RET) would start the SM in state 2 => every clear-job would delete itself on
-// creation. With `cleararea` live, its 0 wins and this is unreachable except via
-// the real 1 -> 2 harvest transition.
+// The default state of 2 is safe only because StateMachineComponent_Startup
+// (0x14012b6a0) takes its default state from the FIRST ControllerComponent only
+// (`if (!bVar1)` guard). Were this component first, its GetDefaultState of 2
+// (0x1400026c0: MOV EAX,2; RET) would start the SM in state 2 => every clear-job
+// would delete itself on creation. `cleararea` precedes it in _descriptions, so its 0
+// wins and this is unreachable except via the real 1 -> 2 harvest transition.
 //
 // Faithful offset-by-offset port.
 

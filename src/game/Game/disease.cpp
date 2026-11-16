@@ -34,10 +34,8 @@
 #include <new>
 #include "ui/StringTable.h"   // B8 RT2: ::Object::SerializeExternal<UI::StringTable> (the downcast needs it complete)
 
-// 0x14000bf40 — ExternalPtr<StringTable>::Serialize, registered at that address
-// (standalone/address_registry.cpp) to this body in serialize_externals.cpp.
-// Called directly: the old lazily-resolved door (a non-atomic first-call cache,
-// reached on the LOADER thread — B6-5) resolved to exactly this function.
+// 0x14000bf40 — ExternalPtr<StringTable>::Serialize: ::Object::SerializeExternal<UI::StringTable>
+// (object/External.h), called directly.
 
 // create 0x14008fd0 — the field defaults (External() and the stamp are the
 // compiler's).

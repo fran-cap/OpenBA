@@ -30,8 +30,7 @@
 // singleton_ctors.cpp) as `::new (dev + 0xa00) Audio::Stream()`, and torn down
 // by `Engine::Shutdown` with `~Stream()`. The `??0` / `??1` doors, the minted
 // `??_7Stream@Audio@@6B@` and the `?Run@` slot door are retired. B.4 R-ENG:
-// `Audio::Device::_stream` is this class; the `RtAudio::Stream` POD below is
-// kept only for tests/unit/audio_abi_test.cpp, which names it.
+// `Audio::Device::_stream` is this class.
 //
 // THREADS (RULE B7-7): `Run` executes on the AUDIO STREAM WORKER (a
 // `_beginthreadex` thread); `Play` / `Stop` / `Lock` / `Unlock` run on the main
@@ -54,11 +53,6 @@
 #include "platform_sync.h"               // Platform::LockStorage _lock, Platform::EventHandle
 #include "../collection/Collection.h"   // Collection::Array<Block> _buffers
 
-
-// ----------------------------------------------------------------------------
-// RtAudio::Stream — the POD (B4b-3), cross-asserted field for field against
-// the class. No product code names it (tests/unit/audio_abi_test.cpp does).
-// ----------------------------------------------------------------------------
 
 
 namespace Audio {
@@ -111,8 +105,8 @@ public:
         uint8_t  packets[0x8b60];       // +0x0040  the audio
     };
 
-    // ---- the 0x58 bytes Stream adds, at retail's offsets (public: the doors
-    // and Audio::Device reach them) ----
+    // ---- the 0x58 bytes Stream adds, at retail's offsets (public: Audio::Device
+    // reaches them) ----
     // ctor 0x1800a0e67/0x1800a0e6b zero stores; ~Stream 0x1800a0dd4 CALL
     // 0x18000c4a0 (J1: free, zero; Block is trivial) after the body's handles
     // and critical section.

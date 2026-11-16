@@ -3,62 +3,54 @@
 //   UI::DialogInstance + UI::Dialog + UI::DialogController + UI::ElementDescription
 // ============================================================================
 //
-// Ports 14 of the 28 lane-B symbols (PLAN.md §4.2 wave 7, §6). The recovered
-// layouts and the evidence for every offset are in src/engine/ui/
-// DialogInstance.h, Dialog.h and ElementDescription.h; the per-function
-// write-up, the oracle argument for each, everything held back and why, and
-// the resolution of this lane's two phantom export names are in
-// docs/history/runtime_port/WAVE7_LANE_B.md.
+// The recovered layouts and the evidence for every offset are in src/engine/ui/
+// DialogInstance.h, Dialog.h and ElementDescription.h; the lane-B write-up (the
+// oracle argument per function and the resolution of the two phantom export names)
+// is docs/history/runtime_port/WAVE7_LANE_B.md.
 //
-//   | Export (short form)                   | Retail      | Ord  | Ported | Oracle |
-//   |---------------------------------------|-------------|------|--------|--------|
-//   | ??0DialogInstance (ctor)              | 0x180114870 |  147 | NO     | —      |
-//   | ??1DialogInstance (dtor)              | 0x180114d40 |  574 | W9-UID | shape  |
-//   | ??_7DialogInstance (vtable)           | 0x180156d70 | 1420 | n/a    | —      |
-//   | ?AddController@ (I,H,H,External*,Str) |  NOT AN EXPORT     | n/a    | —      |
-//   | ?AddController@ (…ExtPtr,ExtPtr,Str)  | 0x180113470 | 1541 | NO     | —      |
-//   | ?AddController@ (…ExtPtr,IntPtr)      | 0x1801133b0 | 1542 | NO     | —      |
-//   | ?FindElement@                         | 0x180114c70 | 2346 | yes    | replay |
-//   | ?FindElementType@                     | 0x1801140c0 | 2348 | yes    | replay |
-//   | ?GetController@                       | 0x180113320 | 2513 | yes    | replay |
-//   | ?GetRoot@                             | 0x180045580 | 2875 | yes    | replay |
-//   | ?OnElementEvent@                      | 0x180114ed0 | 3274 | yes    | shape  |
-//   | ?OnUpdate@                            | 0x180115400 | 3286 | yes    | shape  |
-//   | ?OnUpdateLayout@                      | 0x1801153a0 | 3289 | yes    | shape  |
-//   | ?SetFlagsOnOff@                       | 0x180114690 | 3882 | yes    | replay |
-//   | ?SetUpperLeft@                        | 0x180114a60 | 3997 | NO     | —      |
-//   | ?Persist@DialogInstance@              | 0x180114fa0 | 3322 | W9-Z   | none   |
-//   | ?OnSerializeSettings@DialogInstance@  | 0x180115470 | 3281 | W9-Z   | none   |
-//   | ?TypeName@DialogInstance@             | 0x180045400 | 4379 | W9-Z   | none   |
-//   | ?OnClosed@DialogInstance@             | 0x180115330 | 3269 | NO(*)  | —      |
-//     (*) DECLINED AGAIN by WAVE 9 LANE UID, on a blocker RE-MEASURED rather
-//         than inherited — see the block below RtUiDialogInstance_Dtor.
-//   | ?StartTimer@                          | 0x1801137c0 | 4081 | NO     | —      |
-//   | ?StopTimer@                           | 0x180113730 | 4111 | yes    | replay |
-//   | ?CreateElement@Dialog@                | 0x180112ed0 | 1888 | NO     | —      |
-//   | ?GetReference@Dialog@ (as spelled)    |  NOT AN EXPORT     | n/a    | —      |
-//   | ?GetTemplate@Dialog@                  | 0x1800388b0 | 2956 | yes    | replay |
-//   | ?_typeInfo@Dialog@ (data)             | 0x1801faa88 | 4847 | n/a    | —      |
-//   | ??1DialogController (dtor)            | 0x1800cd2f0 |  572 | yes    | shape  |
-//   | ?GetContainer@DialogController@       | 0x18003b700 | 2508 | yes    | replay |
-//   | ??0ElementDescription (ctor)          | 0x180115a40 |  173 | yes    | replay |
-//   | ??1ElementDescription (dtor)          | 0x180116100 |  585 | yes(*) | none   |
-//     (*) WAVE 9 LANE UIF. `none` is the literal oracle disposition, not a gap
-//         nobody noticed: a replay would double-release a refcounted String and
-//         run ~External twice. See the body's header near the bottom of this file.
-//   | ?CreateInstance@ElementDescription@   | 0x180115ad0 | 2004 | W10-UIF| replay+twin |
-//   | ?GetFileVersion@ElementDescription@   | 0x180116af0 | 2624 | yes    | replay |
-//   | ?Serialize@ElementDescription@        | 0x180116b00 | 3687 | NO     | —      |
+//   | Export (short form)                   | Retail      | Ord  |
+//   |---------------------------------------|-------------|------|
+//   | ??0DialogInstance (ctor)              | 0x180114870 |  147 |
+//   | ??1DialogInstance (dtor)              | 0x180114d40 |  574 |
+//   | ??_7DialogInstance (vtable)           | 0x180156d70 | 1420 |
+//   | ?AddController@ (I,H,H,External*,Str) |  NOT AN EXPORT     |
+//   | ?AddController@ (…ExtPtr,ExtPtr,Str)  | 0x180113470 | 1541 |
+//   | ?AddController@ (…ExtPtr,IntPtr)      | 0x1801133b0 | 1542 |
+//   | ?FindElement@                         | 0x180114c70 | 2346 |
+//   | ?FindElementType@                     | 0x1801140c0 | 2348 |
+//   | ?GetController@                       | 0x180113320 | 2513 |
+//   | ?GetRoot@                             | 0x180045580 | 2875 |
+//   | ?OnElementEvent@                      | 0x180114ed0 | 3274 |
+//   | ?OnUpdate@                            | 0x180115400 | 3286 |
+//   | ?OnUpdateLayout@                      | 0x1801153a0 | 3289 |
+//   | ?SetFlagsOnOff@                       | 0x180114690 | 3882 |
+//   | ?SetUpperLeft@                        | 0x180114a60 | 3997 |
+//   | ?Persist@DialogInstance@              | 0x180114fa0 | 3322 |
+//   | ?OnSerializeSettings@DialogInstance@  | 0x180115470 | 3281 |
+//   | ?TypeName@DialogInstance@             | 0x180045400 | 4379 |
+//   | ?OnClosed@DialogInstance@             | 0x180115330 | 3269 |
+//   | ?StartTimer@                          | 0x1801137c0 | 4081 |
+//   | ?StopTimer@                           | 0x180113730 | 4111 |
+//   | ?CreateElement@Dialog@                | 0x180112ed0 | 1888 |
+//   | ?GetReference@Dialog@ (as spelled)    |  NOT AN EXPORT     |
+//   | ?GetTemplate@Dialog@                  | 0x1800388b0 | 2956 |
+//   | ?_typeInfo@Dialog@ (data)             | 0x1801faa88 | 4847 |
+//   | ??1DialogController (dtor)            | 0x1800cd2f0 |  572 |
+//   | ?GetContainer@DialogController@       | 0x18003b700 | 2508 |
+//   | ??0ElementDescription (ctor)          | 0x180115a40 |  173 |
+//   | ??1ElementDescription (dtor)          | 0x180116100 |  585 |
+//   | ?CreateInstance@ElementDescription@   | 0x180115ad0 | 2004 |
+//   | ?GetFileVersion@ElementDescription@   | 0x180116af0 | 2624 |
+//   | ?Serialize@ElementDescription@        | 0x180116b00 | 3687 |
 //
 // All 28 mangled names were checked against the shipped export directory of
 // C:\GOG Games\Banished\Runtime-x64.dll with pefile BEFORE any body was
-// written (reference_resolveexport_phantom_names.md: a name the DLL does not
-// contain resolves to NULL in silence, the port still registers, and the
-// census still counts it). TWO ARE NOT THERE — see the next block. The
-// addresses and ordinals in the table are that query's output, not Ghidra's.
+// written. TWO ARE NOT THERE — see
+// the next block. The addresses and ordinals in the table are that query's
+// output, not Ghidra's.
 //
 // ---------------------------------------------------------------------------
-// THE TWO PHANTOM NAMES — BOTH ARE LIVE DEFECTS, NEITHER IS PORT WORK
+// THE TWO PHANTOM NAMES
 // ---------------------------------------------------------------------------
 // ?AddController@DialogInstance@UI@@QEAAXIHHPEBVExternal@Object@@AEBVString@System@@@Z
 //     Not in the export table. It is a mis-mangling of the SIX-argument
@@ -66,16 +58,9 @@
 //     is (uint, Base*, ExternalPtr<DialogControllerConfig>,
 //     ExternalPtr<ElementDescription>, String const&). The phantom spells
 //     arguments 2 and 3 as plain `int`s, which is the
-//     reference_hidden_retval_and_int_pointer_args.md failure exactly: the two
+//     int-typed pointer argument failure exactly: the two
 //     pointer arguments land in R8/R9 as 32-bit halves.
-//     `engine_funcs.cpp` ALREADY resolves that same overload correctly as
-//     `fn_DialogInstance_AddController6`, so the phantom is a duplicate — and
-//     its ResolveExport returns null, at which point its fallback reads exe
-//     dispatch slot 0x140151a60, which `tools/dispatch_slot_map.py` says is
-//     `?AddChild@Element@UI@@…`. So `fn_DialogInstance_AddController` has been
-//     silently bound to Element::AddChild. It is harmless ONLY because the
-//     pointer has zero callers tree-wide; it is removed at its source rather
-//     than repaired (PLAN §6 step 8), and WAVE7_LANE_B.md §5 records it.
+//     docs/history/runtime_port/WAVE7_LANE_B.md §5 records it.
 //
 // ?GetReference@Dialog@UI@@QEBA?AV?$ExternalPtr@VDialogReference@UI@@@Object@@XZ
 //     Not in the export table, and neither is any symbol containing
@@ -84,115 +69,9 @@
 //     at 0x1800388d0 / ordinal 2861: it returns ExternalPtr<Object::External>
 //     and it TAKES AN INT INDEX, which the phantom typedef omits. It sits four
 //     bytes after ?GetTemplate@ and is the identical one-liner against a
-//     different array (Dialog+0x78 vs +0x68). `fn_Dialog_GetReference` has no
-//     fallback, so it has been NULL since it was written, and no caller has
-//     ever noticed because it has no callers. Removed at its source too.
+//     different array (Dialog+0x78 vs +0x68). Its port is
+//     `Dialog::GetReference(int32_t)` below.
 //
-// ---------------------------------------------------------------------------
-// WHY REGISTERING THIS PORT IS SAFE
-// ---------------------------------------------------------------------------
-// Registering redirects OUR callers only. The DLL keeps calling its own
-// bodies through direct near-CALLs the registry cannot see, and — new in this
-// lane — three of the fourteen ports are VIRTUALS (`?OnElementEvent@`,
-// `?OnUpdate@`, `?OnUpdateLayout@` are all `UEAA`), so every dispatch through
-// the DLL's own `??_7DialogInstance@UI@@6B@` still lands in the DLL no matter
-// what we register. That is not a problem to fix, it is the shape of the
-// wave: what we redirect is the `fn_DialogInstance_*` pointers our exe-side
-// dialog vtables call directly.
-//
-// It is safe here because of four facts, each checked rather than assumed:
-//
-//   1. ⚠ NO LONGER TRUE AS WRITTEN — corrected by WAVE 9 LANE UID rather than
-//      left standing. Wave 7's claim was: nothing ported here allocates,
-//      frees or reshapes a tree; every body reads a field, writes fields of
-//      an object somebody else owns at static_assert'ed offsets, or walks an
-//      existing array. That still describes every Wave 7 body, and it is why
-//      the replay oracle is sound for them.
-//      IT DOES NOT DESCRIBE `??1DialogInstance@UI@@` (lane UID). That body
-//      FREES two arrays, destroys a whole child tree through slot 0, clears
-//      a linked list and removes the object from the handle table. It is
-//      therefore NOT covered by argument 3 below either: it has no replay
-//      oracle and cannot have one. What carries it instead is stated at the
-//      body — a shape check of the six values that could silently be wrong,
-//      compared against the shipped bytes while the DLL is still present.
-//      Everything else that allocates (both AddControllers, StartTimer,
-//      CreateInstance, the two ctors) is still held back — WAVE7_LANE_B.md §2.
-//   2. NO PORTED BODY STAMPS A VTABLE IT MINTED. The one ported function that
-//      writes vtable pointers, `??0ElementDescription`, resolves all three of
-//      them (`??_7Base@Object@@6B@`, `??_7External@Object@@6B@`,
-//      `??_7ElementDescription@UI@@6B@`) out of the DLL's own export table and
-//      stores those. This is the `??_7Geometry@Graphics@@6B@` lever from Wave
-//      6 and it is what keeps a half-ported class from putting two vtables in
-//      play (PLAN §4.3 risk 3).
-//   3. THE REPLAY ORACLE PROVES, ON EVERY DIFFED CALL, that our body leaves
-//      the object byte-identical to what the DLL's body would have left. That
-//      is what makes "two implementations, one live object" a non-event.
-//   4. NO DETOUR IS INSTALLED, deliberately, for the same reason Wave 6 lane A
-//      installed none: it would route the DLL's own UI loop into this port for
-//      no gain the argument above does not already give.
-//
-// ---------------------------------------------------------------------------
-// ONE REGISTRATION HAS A WIDER BLAST RADIUS THAN THE OTHERS — AND IT IS HELD BACK
-// ---------------------------------------------------------------------------
-// `standalone/address_registry.cpp` binds five exe PE-import slots to lane-B
-// exports by NAME, through `RegisterDispatchSlot(slot, ResolveExport(name))`:
-//
-//     0x1401518b0  ??0ElementDescription@UI@@QEAA@XZ
-//     0x1401518b8  ??1ElementDescription@UI@@UEAA@XZ
-//     0x1401518c0  ?GetFileVersion@ElementDescription@UI@@UEBAHXZ
-//     0x1401518c8  ?Serialize@ElementDescription@UI@@UEAA_NAEAVStream@IO@@@Z
-//     0x1401518d0  ?CreateInstance@ElementDescription@UI@@QEBAXV?$InternalPtr@…@Z
-//     0x1401528c0  ?CreateElement@Dialog@UI@@QEBA?AV?$InternalPtr@…@Z
-//
-// `RuntimePortInit()` runs BEFORE `AddressRegistryInit()` (src/app/main.cpp
-// :1614 / :1626, and the comment there says so on purpose), and `ResolveExport`
-// consults the runtime registry first — so registering one of those names does
-// not merely redirect our own `fn_*` pointers, it re-points the exe's own
-// retail-shaped `.rdata` slot at our body too. For the two we do register
-// (`??0ElementDescription`, `?GetFileVersion@`) that is exactly what we want
-// and both are fully oracled. For `?Serialize@` it would put our body on the
-// UIDescription parse path of every `.rsc` in the game, which is the single
-// worst place in this codebase to land an unverifiable port
-// (reference_createplaced_placebitarray_zeroed_by_reparse.md, and commit
-// a12037d). It is held back; see WAVE7_LANE_B.md §2.
-//
-// ---------------------------------------------------------------------------
-// THREE ORACLES
-// ---------------------------------------------------------------------------
-// (a) REPLAY, for the accessors and the two self-contained mutators. Snapshot
-//     the live object into a scratch copy BEFORE our body runs, run our body
-//     on the real object, then run the DLL's body on the scratch copy and
-//     compare. Because the scratch is a memcpy of the live object, the four
-//     padding holes the DialogInstance ctor never initialises (DialogInstance.h
-//     lists them) hold identical bytes on both sides — this is NOT the
-//     "comparing bytes neither side wrote" trap
-//     (reference_oracle_must_not_compare_unwritten_bytes.md), which bites only
-//     when one side starts from fill.
-//     For the const accessors the comparison is the returned value, which is
-//     the entire output.
-//
-// (b) REPLAY WITH A REDIRECTED ARRAY, for `?StopTimer@` alone. It mutates a
-//     heap buffer the object merely points at, so a naive replay would shift
-//     the SAME buffer twice. The scratch object's `_timers._data` is repointed
-//     at a private copy of the timer entries first, and the comparison is over
-//     a fingerprint of the object prefix (minus that one pointer) plus the live
-//     timer entries.
-//
-// (c) SHAPE, decoded from the shipped bytes at registration time, for the four
-//     functions a replay would double-execute: the three controller-dispatch
-//     loops (running them twice would tick every controller twice) and
-//     `??1DialogController` (running it twice would swap-remove the object from
-//     the handle table twice). A dispatch loop's ENTIRE failure surface is
-//     three numbers — which field holds the array, which field holds the count,
-//     and which vtable slot it calls — and all three are literal displacements
-//     in the shipped instruction stream. `VerifyDispatchLoop` reads them out
-//     and reports through an ordinary diff site. This is the Wave 6 lane A
-//     `VerifyThunk` idea applied to a loop instead of a tail-jump.
-//     ~DialogController's whole body is two instructions (stamp a vtable, tail-
-//     jump to `Object::Internal::~Internal`), and `VerifyDtorThunk` checks both
-//     of the addresses they name.
-//     invocation — say so when reading the summary rather than concluding the
-//     function was never exercised.
 // ============================================================================
 
 #include <cstddef>
@@ -214,21 +93,6 @@
 #include "system/MemoryAllocator.h"
 #include "object/External.h"
 #include "../collection/array_internal.h" // ENDGAME B.3.2 step 2 — kSpec_Event30
-// ⚠ WAVE 9 LANE Z — `src/engine/object/TypeInfo.h` IS NOT INCLUDABLE HERE,
-// and the reason is a real defect in another lane's header rather than anything
-// about this file. `src/engine/object/External.h` opens `namespace RtObject
-// {` at its line 37 and then `#include "TypeInfo.h"` at its line 276, INSIDE
-// that namespace — so every declaration in TypeInfo.h lands in
-// `RtObject::RtObject`, and `#pragma once` means whichever translation unit
-// pulls External.h first (here, via ElementDescription.h) fixes that nesting for
-// the whole TU. `RtObject::BaseTypeInfo` then does not name a type.
-//
-// Filed, NOT fixed: moving that one `#include` out of External.h's namespace is
-// a two-line change in a header 40+ files depend on, it is not this lane's file,
-// and it cannot be validated without a full build — which lane Z does not hold.
-// `?TypeName@DialogInstance@` below therefore spells the one offset it needs as
-// a raw offset with its evidence at the use site, which is the convention
-// src/engine/ui/UserInterface.h already states for foreign offsets.
 
 using RtUI::DialogTimer;
 using RtUI::kDialogInstanceCtorExtent;
@@ -237,20 +101,10 @@ using RtUI::DialogNamedTemplate;   // WAVE 9 LANE UIC (?CreateElement@Dialog@)
 // ----------------------------------------------------------------------------
 namespace {
 
-// ---- Raw retail ABI typedefs ----------------------------------------------
-// Every member below takes `this` in RCX. Every one whose C++ return type is a
-// class (InternalPtr<T>, ExternalPtr<T>) has a HIDDEN RETURN SLOT in RDX and
-// returns that same pointer in RAX — confirmed instruction by instruction in
-// the disassembly, e.g. ?GetRoot@ is literally
-//   MOV RAX,[RCX+0x50] / MOV [RDX],RAX / MOV RAX,RDX / RET.
-// Getting this wrong is the wild-write family
-// (reference_hidden_retslot_wild_write.md), so it is spelled out per typedef.
-
 // ---- WAVE 9 LANE UIC helpers ----------------------------------------------
 // The `System::String` release retail open-codes at every temporary, with its
 // asymmetry intact: the FREEING branch leaves the local holding `data - 8`
-// (dangling, and then freed), the SHARING branch nulls it. Identical to the one
-// `??1ElementDescription@` at the bottom of this file spells out; factored here
+// (dangling, and then freed), the SHARING branch nulls it. Factored here
 // because `?CreateElement@` performs it three times.
 //
 // Takes the local BY REFERENCE so the two different post-states are visible to
@@ -294,19 +148,10 @@ inline void MemFreeStatic(void* p) {
 }  // namespace
 
 // ============================================================================
-// WAVE 9 LANE Z — three DialogInstance vtable slots the CUTOVER needs
+// WAVE 9 LANE Z — DialogInstance vtable slots
 // ============================================================================
-// The DLL-absent boot asks for four `DialogInstance` virtuals, all four from
-// ONE exe-side site (0x7ff71e05a0dc, four times each): the derived-dialog vtable
-// builders in src/game/Dialog/mod_dialog_vtables.cpp,
-// src/game/Dialog/toolbar_vtable_standalone.cpp and
-// src/game/Player/tool_base_toolui.cpp, which copy the base class's slots into
-// each derived table. With no DLL those copies are nulls STAMPED INTO A LIVE
-// VTABLE — an EXEC-of-0 on the first virtual call, several frames from anything
-// naming `DialogInstance`.
-//
-// Three of the four land here. `?OnClosed@` is DECLINED and why is recorded at
-// the end of this block.
+// `?Persist@` / `?OnSerializeSettings@` and `?TypeName@` / `?Type@` below;
+// `?OnClosed@` is ported in src/engine/ui/dialog_settings.cpp.
 // ============================================================================
 
 // ---- ?Persist@DialogInstance@UI@@UEAAXAEAVStream@IO@@@Z  0x180114fa0 ord 3322
@@ -323,15 +168,6 @@ inline void MemFreeStatic(void* p) {
 // `Object::Internal`'s `Persist` slot and the dialog's settings hook — and every
 // derived dialog that cares overrides them.
 //
-// AN EMPTY BODY IS STILL A PORT, and it is worth stating why rather than
-// treating it as trivia. What the cutover needs is not behaviour, it is a
-// NON-NULL ADDRESS to stamp into slot 3 and slot 9 of every derived vtable. A
-// null there is indistinguishable at the call site from a correct empty
-// override right up until it is called. There is deliberately no oracle: a
-// function with no reads, no writes and no return value has nothing to compare,
-// and no oracle site is manufactured for the sake of a green count over work
-// that never happened
-// (reference_probe_needs_an_effectiveness_control.md).
 // ENDGAME B.3.9 UI-D: the two RET slot doors are retired with the minted
 // table; the members are `DialogInstance::Persist` / `OnSerializeSettings`.
 
@@ -351,7 +187,8 @@ inline void MemFreeStatic(void* p) {
 // so it needs FOUR more bodies that were themselves unported minted traps --
 // the two scalar Serialize slots (+0x98, +0xa0), the back-patching destructor
 // ??1BinaryWriter, and BinaryWriter's unexported deleting destructor at slot 0.
-// Those landed first, in src/engine/io/binary_writer.cpp. The row was six
+// Those landed first: class BinaryWriter (src/engine/io/Serializer.h) and its
+// Serialize bodies (src/engine/io/serialize_family.cpp). The row was six
 // functions, not one, and counting it as one is the same underestimate that
 // made lane ENC four functions instead of the two it was scoped for.
 //
@@ -373,10 +210,7 @@ inline void MemFreeStatic(void* p) {
 // ============================================================================
 // UI::DialogInstance — the three controller-dispatch virtuals
 // ============================================================================
-// All three are `UEAA`, i.e. VIRTUAL, and the DLL's exported
-// ??_7DialogInstance@UI@@6B@ is what the DLL itself dispatches through — so
-// registering these redirects our direct `fn_DialogInstance_*` callers and
-// nothing else. That is intentional (see the safety note at the top).
+// All three are `UEAA`, i.e. VIRTUAL (DialogInstance.h slots 6, 7 and 8).
 //
 // The loops carry NO null check on the controller pointer: retail's
 // `MOV RCX,[RDI+RAX] / MOV RAX,[RCX]` dereferences it unguarded. Kept.
@@ -392,15 +226,14 @@ inline void MemFreeStatic(void* p) {
 // ============================================================================
 // Four bodies read from the disassembly (not the decompiled C, which drops the
 // implicit RDX argument on the `OnUpdate` vtable call and mis-shapes
-// `ComputeLayout`'s tail-call jump table — reference_ghidra_c_output_vs_
-// disassembly.md). Raw Element offsets are spelled out at the use site, same
+// `ComputeLayout`'s tail-call jump table). Raw Element offsets are spelled out at the use site, same
 // convention src/engine/ui/UserInterface.h states for a foreign class this
 // file does not own.
 //
 // Element vtable slots used below (src/engine/ui/Element.h): 0x20
 // ComputeSize(), 0x28 ComputeLayout(x,y,w,h), 0x38 Update(...), 0x48
-// Contains(x,y,UserInterface*). DialogInstance's OWN vtable slots (this file's
-// tables above / tooltipdialog.cpp): 0x30 OnUpdateLayout(), 0x38 OnUpdate(time).
+// Contains(x,y,UserInterface*). DialogInstance's OWN vtable slots
+// (DialogInstance.h / tooltipdialog.cpp): 0x30 OnUpdateLayout(), 0x38 OnUpdate(time).
 
 // ============================================================================
 // UI::Dialog
@@ -422,21 +255,14 @@ inline void MemFreeStatic(void* p) {
 //
 // The dialog lifecycle's teardown half, declined by lane UIF (row 6, "the one
 // genuinely close call") and again by lane UIC (§7). BOTH DECLINES RESTED ON
-// THREE STATED BLOCKERS AND ALL THREE DISSOLVED ON RE-CHECKING
-// (reference_holdback_blockers_are_stale_check_them_first.md). Each is answered
+// THREE STATED BLOCKERS AND ALL THREE DISSOLVED ON RE-CHECKING. Each is answered
 // from the bytes below rather than argued:
 //
-//  1. "0x18002fca0 (int)" — NOT unported. `ArrayPtrSetSize` in
-//     src/engine/object/internal.cpp has been the port of FUN_18002fca0 since
-//     Wave 3, with the address in the comment directly above it. What was
-//     missing was the REGISTRATION at that address, which this lane added
-//     (internal.cpp, ungated). A half-registered port reads exactly like an
-//     absent one from a callee census, which is how it survived two lanes.
-//  2. "0x1800325f0 (int, list free-all)" — now ported, as
-//     `RtColl_LinkedListClear_1800325f0` in src/engine/collection/linkedlist.cpp,
-//     the fourth member of the `Collection::LinkedList<T=8>` family lane UIC
-//     opened. ~20 lines; its whole failure surface is four displacements and
-//     they are shape-checked below.
+//  1. "0x18002fca0 (int)" — NOT unported. `Object::detail::ArrayPtrSetSize` in
+//     src/engine/object/internal_class.cpp is the port of FUN_18002fca0.
+//  2. "0x1800325f0 (int, list free-all)" — ported: `Collection::LinkedList::Clear`
+//     (src/engine/collection/Collection.h), which ReleaseFields calls as
+//     `_children.Clear()`.
 //  3. "the body OPEN-CODES the InternalFactory swap-remove inline at
 //     0x180114e71 … in a function with no oracle, and it is the one row where
 //     being wrong CORRUPTS THE HANDLE TABLE."
@@ -465,19 +291,10 @@ inline void MemFreeStatic(void* p) {
 //       MOV [RBX],RAX                      MOV [RDI],RAX
 //
 //     So retail's "open-coded swap-remove" IS `Object::Internal::~Internal`,
-//     INLINED VERBATIM — not a second, private handle-table mutator. This port
-//     therefore does what `??1DialogController@UI@@` (60 lines above, Wave 7,
-//     shape-verified) already does for the identical tail: it calls the ONE
-//     body the tree owns, through the seam, so exactly one handle-table mutator
-//     is ever in play and it is whichever one the object-table port
-//     tier has armed. Nothing here reimplements the swap-remove, and nothing
-//     here arms a tier that is off.
-//
-//     ⚠ THE COUPLING IS REAL AND IS NOT HIDDEN: with the DLL present and that
-//     tier off (the default), this dtor's tail is the DLL's `~Internal`, which
-//     is correct. AT CUTOVER the tier must be armed — WAVE9.md already records
-//     it as "Opt-in, and MANDATORY at cutover", so this adds no new obligation,
-//     but it does add a caller that will fault loudly if the promise is broken.
+//     INLINED VERBATIM — not a second, private handle-table mutator. In the
+//     port ~DialogInstance runs ReleaseFields and then the compiler runs
+//     ~Internal, so exactly one handle-table mutator is ever in play. Nothing
+//     here reimplements the swap-remove.
 //
 // WHAT THE BODY IS, in retail's own order (0x180114d40-0x180114ec9):
 //
@@ -509,18 +326,8 @@ inline void MemFreeStatic(void* p) {
 //
 // ORACLE: NONE, and none is possible — it is a destructor, so a replay is not a
 // comparison but a second destruction: it would run every child's deleting
-// destructor again, free both arrays twice, and swap-remove a handle that no
-// longer exists. It ships in the disposition lanes M, Z and UIF established: a
-// no-oracle port with NO call into the shipped body at all.
-//
-// What stands in for it is a SHAPE CHECK, `VerifyDialogInstanceDtorShape`,
-// which reads the shipped instruction stream and compares the three vtable
-// addresses this body stamps, the two functions it calls, and the `_children`
-// displacement it hands to the first of them. That is not "some" of the failure
-// surface — for a destructor whose every other operation is a store of zero,
-// those six values ARE what could silently be wrong, and all six are compared
-// against the DLL while the DLL is still there (WAVE9.md §2: the verification
-// budget has to be spent before the removal).
+// destructor again, free both arrays twice, and swap-remove a handle that is
+// already gone.
 // ENDGAME B.3.9 UI-D: the door `RtUiDialogInstance_Dtor` that stood here is
 // retired with the minted table and its RT_DELDTOR row; the body above is
 // `UI::DialogInstance::~DialogInstance` (ReleaseFields, the UI section), and
@@ -534,12 +341,10 @@ inline void MemFreeStatic(void* p) {
 //
 // Three vtable stores in base-class order, then the field initialisers. The
 // two non-zero seeds are the interesting part and both are reproduced exactly:
-//   +0x3c = -1        (the element id; -1 means "unset", 0 is a REAL id —
-//                      reference_unresolved_lookup_leaves_a_valid_looking_zero.md)
+//   +0x3c = -1        (the element id; -1 means "unset", 0 is a REAL id)
 //   +0x40 = 3         (as a QWORD, so +0x44, the flags, is zeroed with it)
 //
-// Every byte of 0x00..0x67 is written, which is what makes the replay below a
-// full-object oracle rather than a spot check.
+// Every byte of 0x00..0x67 is written.
 // ENDGAME B.3.9 UI-D: the door `RtUiElementDescription_Ctor` is retired
 // with the minted table; the real constructor (ElementDescription.h) runs
 // External() and the three stamps through the compiler, and its body is
@@ -548,10 +353,8 @@ inline void MemFreeStatic(void* p) {
 // ?GetFileVersion@ElementDescription@UI@@UEBAHXZ — retail 0x180116af0, ord 2624.
 //   MOV EAX,0x4 / RET
 // The constant is the .rsc element-description file version and it is what
-// ?Serialize@ (held back) is written against.
-// ENDGAME B.3.6 fragment pass F2: the body is UI::ElementDescription::
-// GetFileVersion (member section below); the door delegates QUALIFIED.
-// (ENDGAME B.3.9 UI-D: the slot door is retired; the member is below.)
+// ?Serialize@ (elementdescription_serialize.cpp) is written against.
+// The body is UI::ElementDescription::GetFileVersion (member section below).
 
 // ?TypeName@ / ?Type@ElementDescription@UI@@ (retail 0x1800350f0 / 0x1800350d0):
 // DECLARE_TYPE's inline bodies over the class's own record (ENDGAME B.3.9
@@ -562,28 +365,13 @@ inline void MemFreeStatic(void* p) {
 //                                                          (WAVE 9 LANE UIF)
 // ============================================================================
 //
-// WHY THIS ROW EXISTS AT ALL. Like `??1Element`, this destructor is not reached
-// by any direct C++ caller in our tree — it is reached through a LIVE MINTED
-// VTABLE. `??_7ElementDescription@UI@@6B@` slot 0 is the vector deleting
-// destructor `??_EElementDescription@UI@@` at 0x180035350, and lane K's family
-// reaches `~Class` by ADDRESS through ResolveAddr.
-// With this row unported that edge went to the DLL, and after cutover to NULL.
-//
-// ⚠ CORRECTION, WAVE 27 lane IOTEXT. This paragraph used to call 0x180035350
-// "one of the 37 Wave 9 lane K ported". IT WAS NOT PORTED until Wave 27: at
-// wave27/base, grepping 0x180035350 across runtime/, standalone/ and code/
-// found it ONLY in this comment and in standalone/rt_data_mint_tables.inc:1016
-// (the mint row, i.e. the TRAP), never in a RegisterRuntimeAddr. The sentence
-// read as a completion and cost the table three waves of being 3/6
-// (reference_a_prescription_read_as_a_completion.md). The row now exists:
-// src/engine/object/deleting_dtor.cpp, spec index 44, "UI::ElementDescription".
+// HOW IT IS REACHED. `??_7ElementDescription@UI@@6B@` slot 0 is the vector
+// deleting destructor `??_EElementDescription@UI@@` at 0x180035350.
 //
 // 0x180035350 WAS DISASSEMBLED FOR THIS LANE, and it is one of lane K's "22 of
 // 37 that INLINE the scalar branch": only its ARRAY branch names the destructor
 // (`LEA R9,[0x180116100]` at 0x180035377), while its scalar branch open-codes
-// the same instructions. That is exactly why lane K's port calls `~Class` on
-// BOTH branches rather than reproducing the inlining — so this registration is
-// what both branches now land on.
+// the same instructions.
 //
 // THE BODY, from the disassembly at 0x180116100 (13 instructions, one tail
 // jump), and it is small enough to quote in full:
@@ -604,12 +392,6 @@ inline void MemFreeStatic(void* p) {
 //   * 0x1800bc950 ~External    — PORTED, Wave 9 lane B2 (?? 1External@Object@@)
 // Two callees, both ours. The row CLOSES; it does not move one frame deeper.
 //
-// NO ORACLE, for the same reason as `??1Element` and stated for the same
-// reason: a replay would decrement the `_textName` refcount a second time and,
-// where our body already took it to zero, free a block twice and then run
-// `~External` twice over a handle that no longer exists. The did-work split
-// how many calls actually released a buffer; `calls=` stays 0 because there is
-// no comparison to report. Liveness, not correctness.
 // ENDGAME B.3.9 UI-D: the door `RtUiElementDescription_Dtor` that stood
 // here is retired with the minted table and its RT_DELDTOR row. The body
 // above is `UI::ElementDescription::~ElementDescription` (ReleaseFields);
@@ -628,7 +410,7 @@ inline void MemFreeStatic(void* p) {
 // ============================================================================
 //
 // "Stamp this serialized description onto that live element." It is the second
-// half of `?CreateElement@Dialog@` (ported above by Wave 9 lane UIC): that one
+// half of `?CreateElement@Dialog@` (UI::Dialog::CreateElement, below): that one
 // picks WHICH description wins, this one applies it.
 //
 // WHY IT WAS BLOCKED AND WHY IT IS NOT NOW. Wave 7 lane B held it in the
@@ -636,10 +418,8 @@ inline void MemFreeStatic(void* p) {
 // in fact, allocate anything of its own — but it FREES, twice, through the
 // inlined `System::String` release, and every free in this project sat behind
 // the Wave 2 allocator NO-GO. Wave 10 lane ALLOC retired that gate
-// (docs/history/runtime_port/WAVE10_LANE_ALLOC.md): the allocator port runs with the
-// DLL present, so "our body frees what the DLL's unported code allocated" is
-// one heap either way. This body does not need the flag; it frees through
-// whichever `MemFree` is live.
+// (docs/history/runtime_port/WAVE10_LANE_ALLOC.md). This body frees through
+// `MemFreeStatic` (`System::MemoryAllocator::MemFree`).
 //
 // ---------------------------------------------------------------------------
 // ABI. `QEBAX` returning void: RCX = `this` (const), RDX = the `InternalPtr<
@@ -648,7 +428,6 @@ inline void MemFreeStatic(void* p) {
 // the mangled name spells it by value — and the body proves it, dereferencing
 // RDX eleven times (`MOV RBX,[RDI]` at 0x180115b15 and ten re-reads). So the
 // second parameter is `void** elemPtr`, NOT `void* elem`.
-// reference_hidden_retval_and_int_pointer_args.md is the family this belongs to.
 //
 // THE BODY, from the disassembly at 0x180115ad0 (0x31a bytes):
 //
@@ -674,7 +453,6 @@ inline void MemFreeStatic(void* p) {
 //
 // ---------------------------------------------------------------------------
 // THREE FACTS THAT ONLY THE DISASSEMBLY SHOWS
-// (reference_ghidra_c_output_vs_disassembly.md)
 // ---------------------------------------------------------------------------
 //
 // (a) THE INLINED `UI::Dialog` TEMPORARY IS THE EXPORTED CTOR/DTOR, INSTRUCTION
@@ -690,20 +468,16 @@ inline void MemFreeStatic(void* p) {
 //         (0x180009460, 0x180039440, 0x180039360, 0x180039280), the String
 //         release at +0x28, and a tail-JMP to `~External` (0x1800bc950) — which
 //         is exactly the tail of the inline, `~External` included.
-//     So the port TRANSCRIBES the ctor (it is only constant stores, and doing
-//     so adds NO callee at all) and CALLS the exported dtor. That is the same
-//     out-of-line substitution `??1DialogInstance@` already makes for `MemFree`
-//     in this file. It grows the cutover surface by exactly ONE named row,
-//     `??1Dialog@UI@@UEAA@XZ` — reference_porting_can_grow_the_cutover_surface
-//     .md says to say so rather than let a later census discover it.
+//     So the port constructs a real `UI::Dialog` in the buffer
+//     (`::new (p) UI::Dialog()`) and destroys it with `UI::Dialog::~Dialog`.
 //
 // (b) `elem->_toolTip._index` IS WRITTEN AS A QWORD OVER AN UNINITIALISED
 //     UPPER HALF. Retail stores the int32 index into a stack slot
 //     (`MOV [RBP+0x1f],EAX`) and then reads EIGHT bytes back out of it
 //     (`MOV RAX,[RBP+0x1f]; MOV [RCX+0x50],RAX`), so element +0x54..+0x57 —
 //     the `UIString` pad — receives whatever was on retail's stack. That is
-//     INDETERMINATE and cannot be reproduced. The port writes the DWORD only,
-//     and the oracle EXCLUDES +0x54..+0x57 from its compare. This is a stated
+//     INDETERMINATE and cannot be reproduced. The port writes the DWORD only.
+//     This is a stated
 //     deviation, not an accident, and it is the one place this body is not
 //     byte-faithful.
 //
@@ -718,41 +492,27 @@ inline void MemFreeStatic(void* p) {
 //     unreachable in this build" is a claim the port should not bake in.
 //
 // ---------------------------------------------------------------------------
-// THE WIDER BLAST RADIUS — read this before registering
+// CALLEES
 // ---------------------------------------------------------------------------
-// This is one of the six names in this file whose registration also re-points
-// an EXE PE-import slot: `standalone/address_registry.cpp:1115` binds
-// 0x1401518d0 with `RegisterDispatchSlot(slot, ResolveExport(name))`, and
-// `RuntimePortInit()` runs BEFORE `AddressRegistryInit()`. So registering this
-// puts our body on the element-stamping path of every dialog the game builds,
-// not merely on our own `fn_*` pointers. That is precisely the row the census
-// asked for — it is *sourced* from address_registry.cpp — but it is why this
-// one gets a REPLAY oracle rather than a shape check.
-//
-// EVERY CALLEE IS SATISFIED:
-//   * 0x180006250 `?GetPath@External@Object@@`        — ported (external.cpp)
+//   * 0x180006250 `?GetPath@External@Object@@`        — ported (external_class.cpp)
 //   * 0x1800c6610 `?GetPathIdentifer@Filename@System@@` — ported (filename.cpp)
-//   * 0x1800c7ad0 `MemFree`                            — ported, lane Q
-//   * 0x180002470 `?GetIndexFromName@StringTable@UI@@`  — see sprite.cpp:571
-//   * 0x180112e40 `??1Dialog@UI@@UEAA@XZ`              — NOT ported; new row
+//   * 0x1800c7ad0 `MemFree`                            — ported
+//   * 0x180002470 `?GetIndexFromName@StringTable@UI@@`  — ported (sprite.cpp)
+//   * 0x180112e40 `??1Dialog@UI@@UEAA@XZ`              — ported (dialog_ctor_dtor.cpp)
 //   * `_childDesc`'s vtable slot 8                     — PURE on the base
-//     (standalone/rt_data_mint_tables.inc, `RT_MINT_PURECALL`), so it is only
-//     ever reached on a concrete derived description and porting this body
-//     introduces no new cutover symbol for it — the same argument
-//     `?CreateElement@Dialog@` already makes for the identical slot.
+//     (ElementDescription.h), so it is only ever reached on a concrete
+//     derived description.
 // ---------------------------------------------------------------------------
 
 namespace {
 
 // The retail-inlined `??0Dialog@UI@@QEAA@XZ` / `??1Dialog@UI@@UEAA@XZ` pair is
-// `::new (p) UI::Dialog()` / `~T()` (slot 0, flags 0) since ENDGAME B.3.9 UI-D (the
+// `::new (p) UI::Dialog()` / the qualified `UI::Dialog::~Dialog()` since ENDGAME B.3.9 UI-D (the
 // temporary is a real UI::Dialog wearing the class's table).
 constexpr size_t kDialogTempSize = 0x88;
 
-// ENDGAME B.3.6 fragment pass F2: the body that stood here (the file-local
-// `EdCreateInstanceBody`) MOVED into UI::ElementDescription::CreateInstance(
-// InternalPtr<Element>*) in the member section below; the door delegates
-// QUALIFIED.
+// ENDGAME B.3.6 fragment pass F2: the body is UI::ElementDescription::CreateInstance(
+// InternalPtr<Element>*) in the member section below.
 
 // (The replay oracle's storage that sat here — g_edCi* — had no reader since
 // the oracle was retired; removed with the body move.)
@@ -770,13 +530,12 @@ constexpr size_t kDialogTempSize = 0x88;
 //   * controller slot +0x10/+0x38/+0x40/+0x48 -> c->Type() / OnUpdateLayout() /
 //     OnUpdate(time) / OnElementEvent(...)  (virtual, on UI::DialogController)
 //   * RtUiDialogInstance_Contains/_Update/_GetMouseCursorIndex -> member calls.
-// The doors above keep their registrations and delegate QUALIFIED. Calls onto
-// OTHER blocks' classes (Element's slots 4/5/7/9, Element::FindElement /
-// FindElementType / AdjustUpperLeft, UserInterface::_events) are left as they
-// were: those classes are not converted yet.
+// Calls onto Element (slots 4/5/7/9, Element::FindElement / FindElementType /
+// AdjustUpperLeft) are member calls too; UserInterface::_events is appended
+// through rtcoll::kSpec_Event30.
 //
-// Per-body evidence and the retail disassembly are in the comment blocks at
-// each door above; they are not repeated.
+// Per-body evidence and the retail disassembly are in the comment blocks
+// above; they are not repeated.
 // ############################################################################
 
 namespace {
@@ -849,7 +608,7 @@ Object::InternalPtr<Element> DialogInstance::GetRoot() {       // 0x180045580
     return _root;
 }
 
-// THE PARAMETER IS A TYPE ID, NOT AN INDEX (see the door). No null check on
+// THE PARAMETER IS A TYPE ID, NOT AN INDEX. No null check on
 // the controller: retail loads [RCX] off it unguarded.
 Object::InternalPtr<DialogController>
 DialogInstance::GetController(uint32_t typeId) const {         // 0x180113320
@@ -881,7 +640,7 @@ void DialogInstance::SetFlagsOnOff(uint32_t on, uint32_t off) { // 0x180114690
     _flags = (on | _flags) & ~off;
 }
 
-// Transcribed from the DISASSEMBLY (see the door): 64-bit search bound,
+// Transcribed from the DISASSEMBLY: 64-bit search bound,
 // `data + index*0x18` null test on the SUM, one decrement at the end.
 void DialogInstance::StopTimer(int32_t id) {                   // 0x180113730
     const int64_t count64 = static_cast<int64_t>(_timers._size);
@@ -1048,7 +807,7 @@ void DialogInstance::ComputeLayout(int32_t x, int32_t y, int32_t w, int32_t h) {
 
 void DialogInstance::Update(const System::Time& time, UserInterface* ui,
                             Element::UpdateState& state) {     // 0x180113980
-    // The 0x30-byte UI event record (see the door's banner). +0x18 is the
+    // The 0x30-byte UI event record. +0x18 is the
     // mouse pair, written as one qword by retail (the UpdateState's +0x18).
     struct EventRecord {
         void*    dialog;
@@ -1062,8 +821,7 @@ void DialogInstance::Update(const System::Time& time, UserInterface* ui,
     static_assert(sizeof(EventRecord) == 0x30, "UI::UserInterface::Event stride");
     static_assert(offsetof(EventRecord, mouseX) == 0x18, "the event's mouse pair");
     // UserInterface::_events (+0x48) through the hand-derived kSpec_Event30
-    // row, which leaves bytes [0x24,0x28) of every element UNWRITTEN — see
-    // the door's banner for why the trait-derived member is not used.
+    // row, which leaves bytes [0x24,0x28) of every element UNWRITTEN.
     auto PushEvent = [&](EventId type, int32_t data, int32_t mouseX, int32_t mouseY) {
         EventRecord rec{};
         rec.dialog = this;
@@ -1097,7 +855,7 @@ void DialogInstance::Update(const System::Time& time, UserInterface* ui,
             const int32_t mx = state.mouseX;
             const int32_t my = state.mouseY;
             if (state.mouseCaptured == 0 && Contains(mx, my)) {
-                // +0x90/+0x94, NOT the upper-left pair at +0x88 (see the door).
+                // +0x90/+0x94, NOT the upper-left pair at +0x88.
                 if (_hoverMouseX == mx && _hoverMouseY == my) {
                     _hoverTime += timeTicks;
                     if (_hoverTime > static_cast<int64_t>(kTooltipDelaySeconds / secondsPerTick))
@@ -1112,7 +870,7 @@ void DialogInstance::Update(const System::Time& time, UserInterface* ui,
             _hoverTime = 0;
         }
 
-        // ---- timers: +0x08 is the LIVE countdown (see the door) -----------
+        // ---- timers: +0x08 is the LIVE countdown ----------------------------
         if (_timers._size > 0) {
             RtUI::DialogTimer* data = _timers._data;
             int32_t i = 0;
@@ -1140,7 +898,7 @@ void DialogInstance::Update(const System::Time& time, UserInterface* ui,
 
         const int32_t mx2 = state.mouseX;
         const int32_t my2 = state.mouseY;
-        // bit2 is mouse-passthrough: it SKIPS the hit block (see the door).
+        // bit2 is mouse-passthrough: it SKIPS the hit block.
         bool hit;
         if ((_flags & kDialogFlagNoMouseCapture) != 0) {
             hit = false;
@@ -1225,7 +983,7 @@ void DialogInstance::SetUpperLeft(int32_t x, int32_t y, bool scaled) {  // 0x180
         }
     }
 
-    // THE CLAMP ORDER IS LOAD-BEARING (see the door).
+    // THE CLAMP ORDER IS LOAD-BEARING.
     // `bounds` is {0, 0, screenW, screenH} (retail's four compares) unless the seam above answered.
     if (x < bounds[0]) x = bounds[0];
     if (w + x > bounds[2]) x = bounds[2] - w;
@@ -1276,8 +1034,7 @@ Dialog::GetReference(int32_t index) const {                    // 0x1800388d0
 }
 
 // "Make an element from this description, unless a NAMED TEMPLATE overrides
-// it." Full evidence (the inline strcmp, the slot-8 dispatch, the release
-// order) at the door above.
+// it."
 Object::InternalPtr<Element>
 Dialog::CreateElement(Object::ExternalPtr<ElementDescription> description) const {  // 0x180112ed0
     ElementDescription* const desc = description.Get();
@@ -1351,8 +1108,8 @@ Object::InternalPtr<Element> DialogController::GetContainer() {  // 0x18003b700
 // ============================================================================
 // Block A declared these on the class and left them undefined because their
 // bodies were registered doors in THIS file. They moved here unchanged except
-// `self->x` / `d + 0x..` became member access; the doors above delegate
-// QUALIFIED. Per-body evidence (the retail disassembly) stays at each door.
+// `self->x` / `d + 0x..` became member access. Per-body evidence (the retail
+// disassembly) stays in the comment blocks above.
 
 
 // ?TypeId@ElementDescription@UI@@SAIXZ 0x1800350e0 — the record's first

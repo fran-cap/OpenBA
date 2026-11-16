@@ -11,11 +11,11 @@
 //   filled by Serialize on load. We zero them for safety.)
 // Serialize (vtable +0x28, 0x14012a3d0), stream order:
 //   int   @ +0x20   maxFamilies — family-slot count; ResidenceComponent's
-//                    Serialize resizes the slot array (+0x50/+0x58) to this.
+//                    Startup resizes the slot array (+0x50/+0x58) to this.
 //                    Boarding house = maxFamilies > 1; wood/stone house = 1.
 //                    No special boarding-house code exists in retail.
 //   int   @ +0x24   maxResidentsPerFamily — read by the slot-full test
-//                    0x14012a4f0 (citizencomponent.cpp): slot is full when
+//                    0x14012a4f0 (residencecomponent.cpp): slot is full when
 //                    occupantCount >= this.
 //   float @ +0x28   coldThreshold — temp below which the house burns fuel
 //                    (stone houses ship lower values in data = less fuel)

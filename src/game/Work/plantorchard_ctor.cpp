@@ -1,15 +1,13 @@
 // src/game/Work/plantorchard_ctor.cpp
 // PlantOrchard "from entity" constructor — retail 0x1400f5140.
 //
-// WHY A SEPARATE FILE: plantorchard.cpp already hosts the PlantOrchard vtable and every
-// slot body, but NOT this constructor. It is the single unported leaf in state 9's
-// transitive closure — the OrchardComponent state machine's state 9 and state 12 enter
-// handlers both allocate 0x70 bytes and call this to build the planting work item. Kept
-// out of plantorchard.cpp only to avoid an edit collision while that file is in use.
+// WHY A SEPARATE FILE: plantorchard.cpp hosts every slot body and the default constructor,
+// but NOT this constructor. The OrchardComponent state machine's state 9 and state 12 enter
+// handlers both allocate 0x70 bytes and call this to build the planting work item.
 //
 #include "Work/exe_bodies.h"
-// ⚠ NOT to be confused with PlantOrchardAddr::Ctor (0x1400f50b0), which is the zero-arg
-// deserialize/factory constructor and leaves +0x68 null. See the note in BuildActions.h.
+// ⚠ NOT to be confused with PlantOrchard::PlantOrchard() (0x1400f50b0, plantorchard.cpp), the
+// zero-arg deserialize/factory constructor, which leaves +0x68 null.
 //
 // ABI (verified against the disassembly, not inferred):
 //   PlantOrchard* __fastcall PlantOrchard_CtorFromEntity(
@@ -19,36 +17,35 @@
 //
 // Retail copies both incoming arguments to locals FIRST (`local_res20 = *param_2;
 // local_res18 = param_3`) and hands Work_Ctor25 the address of that local, because
-// Work_Ctor25 takes an InternalBasePtr* rather than a raw pointer. Reproduced exactly:
-// passing &entityIBP straight through would hand it the caller's storage.
+// Work_Ctor25 takes an InternalBasePtr* rather than a raw pointer. Work(ComponentEntity* const*)
+// reads the pointer once, so the port passes entityIBP straight through.
 
 #include "Work/PlantOrchard.h"
 #include <new>
 #include "object/TypeInfo.h"
-#include "Component/exe_bodies.h"   // B3R: OrchardComponent_ValidateRefs
+#include "Component/exe_bodies.h"
 #include "Component/OrchardComponent.h"
 #include "Entity/ComponentEntity.h"
 #include <cstdint>
 #include <cstdio>
 
 namespace {
-// 0x140005440 WorkAcc_FindComponent_5440 (Work/exe_bodies.h) and 0x140051830
-// OrchardComponent_ValidateRefs (Component/exe_bodies.h) are called by name (B3R).
+// 0x140005440 (FindComponent<OrchardComponent>) and 0x140051830
+// (OrchardComponent::ValidateRefs) are called by name.
 // 0x14000a590 (Array<bool>::SetSize) is the exe-side Collection::Array<T>
 // monomorphisation: `_claimedSlots.SetSize` below.
-// ENDGAME B.3.8: the file-level lazy Resolve() is gone (B38 D7) — Work_Ctor25 is the
-// base ctor Work(void*), the stamp is the compiler's, and the two helpers are resolved
-// where they are used.
+// Work_Ctor25 is the base ctor Work(ComponentEntity* const*), the stamp is the compiler's,
+// and the two helpers are called where they are used.
 }  // namespace
 
 // The diag counter is bumped in the FACTORY ctor only, so this path — the state machine's,
 // and the only one that actually runs in a live game — reported "constructed=0" while
 // building work items every time. Count here too, or the counter reads as a failure of the
 // thing it is meant to be measuring.
-#include "orchard_diag.h"   // standalone/: the orchard diagnostic counters
+#include "orchard_diag.h"   // src/diag/: the orchard diagnostic counters
 
-// Retail copies the incoming IBP to a local and hands Work_Ctor25 its address; Work(void*)
-// reads the pointer once, so passing the caller's IBP is the same read.
+// Retail copies the incoming IBP to a local and hands Work_Ctor25 its address;
+// Work(ComponentEntity* const*) reads the pointer once, so passing the caller's IBP is the same read.
 PlantOrchard::PlantOrchard(ComponentEntity* const* entityIBP, ComponentDescription* treeType) : Work(entityIBP) {
     OrchardDiag_NotePlantConstructed();   // the port's diagnostic counter (no-op when off)
     // PlantOrchard's own fields. Retail writes +0x60 as one 8-byte store, which clears

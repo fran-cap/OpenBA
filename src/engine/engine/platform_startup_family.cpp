@@ -6,47 +6,33 @@
 //   because one of them installs it.
 // ============================================================================
 //
-// THE WALL
-// --------
-// The DLL-less cutover boot dies at
+// `AEAA` is PRIVATE, not unexported — Runtime-x64.dll exports its private members:
+// Application::PlatformStartup is ordinal 3402 at 0x18009fc10.
 //
-//     [RtUnresolved] ?PlatformStartup@Application@1@AEAA_NXZ
-//     [RtResolve] MISS "?PlatformStartup@Application@1@AEAA_NXZ" -> NULL
-//     Fault: EXEC of 0000000000000000     (engine_lifecycle.cpp:638)
+// THE FAMILY
+// ----------
+// Nine exports share the name (Wave 9's survey of them:
+// docs/history/runtime_port/WAVE9_LANE_PLAT.md):
 //
-// `AEAA` is PRIVATE, not unexported — this DLL exports its private members and
-// this one is ordinal 3402 at 0x18009fc10. Confirmed against the shipped export
-// directory with pefile BEFORE anything was written here, along with every
-// other mangled name this file registers
-// (reference_resolveexport_phantom_names.md).
+// | Ord  | Export                                            | Retail      | Body |
+// |------|---------------------------------------------------|-------------|------|
+// | 3401 | ?PlatformStartup@AchievementManager@Achievement@@  | 0x18009eb70 | here (member since the B.3.7 fragment) |
+// | 3402 | ?PlatformStartup@Application@1@                    | 0x18009fc10 | src/engine/application/application_platform.cpp |
+// | 3403 | ?PlatformStartup@Device@Audio@@                    | 0x1800de600 | src/engine/audio/audio_platform_startup.cpp |
+// | 3404 | ?PlatformStartup@Device@Input@@                    | 0x1800e1880 | src/engine/input/input_platform_startup.cpp |
+// | 3405 | ?PlatformStartup@Device@Video@@                    | 0x1800f8260 | src/engine/video/device_startup.cpp |
+// | 3406 | ?PlatformStartup@Engine@1@                         | 0x1800a2100 | here |
+// | 3407 | ?PlatformStartup@ExternalFactory@Object@@          | 0x1800bf6c0 | here |
+// | 3408 | ?PlatformStartup@MemoryAllocator@System@@          | 0x1800c7c40 | src/platform/win/allocator_win.cpp and its posix / darwin twins |
+// | 3409 | ?PlatformStartup@Timer@System@@                    | 0x1800ca860 | src/engine/system/timer.cpp |
 //
-// THE FAMILY, AND WHAT THIS LANE DID WITH EACH ROW
-// ------------------------------------------------
-// Nine exports share the name. Their status was measured, not assumed — every
-// address and every mangled name below was grepped across code/, engine/,
-// runtime/ and standalone/ before a line was written, because a body that is
-// PORTED BUT NEVER REGISTERED reads exactly like an absent one.
-//
-// | Ord  | Export                                            | Retail      | This lane |
-// |------|---------------------------------------------------|-------------|-----------|
-// | 3401 | ?PlatformStartup@AchievementManager@Achievement@@  | 0x18009eb70 | PORTED here (member since the B.3.7 fragment) |
-// | 3402 | ?PlatformStartup@Application@1@                    | 0x18009fc10 | PORTED here — THE WALL |
-// | 3403 | ?PlatformStartup@Device@Audio@@                    | 0x1800de600 | DECLINED, see WAVE9_LANE_PLAT.md |
-// | 3404 | ?PlatformStartup@Device@Input@@                    | 0x1800e1880 | DECLINED, see WAVE9_LANE_PLAT.md |
-// | 3405 | ?PlatformStartup@Device@Video@@                    | 0x1800f8260 | already ported (lane VID2, device_startup.cpp:844) |
-// | 3406 | ?PlatformStartup@Engine@1@                         | 0x1800a2100 | PORTED here |
-// | 3407 | ?PlatformStartup@ExternalFactory@Object@@          | 0x1800bf6c0 | PORTED here |
-// | 3408 | ?PlatformStartup@MemoryAllocator@System@@          | 0x1800c7c40 | already ported (allocator_win.cpp:129) |
-// | 3409 | ?PlatformStartup@Timer@System@@                    | 0x1800ca860 | already ported (timer.cpp:318) |
-//
-// Only four of the nine are on the cutover boot path, and the path is our own
+// Only four of the nine are on the boot path, and the path is our own
 // `Engine::Startup` port (src/engine/engine/engine_lifecycle.cpp): Application
 // at `g_startupFailAt == 6`, Video at 11, Audio at 12, Input at 13. Achievement,
 // ExternalFactory and Engine are NOT called by anything — Ghidra's xrefs for all
 // three are the export address table and nothing else, and
 // Application-x64.exe's import table names none of them (checked with pefile).
-// They are registered anyway because each is two or seven instructions; they are
-// reported honestly as UNREACHABLE, never as verified.
+// They are ported anyway because each is two or seven instructions.
 //
 // THE CALLING CONVENTIONS ARE READ OFF THE MANGLED NAMES, NOT GUESSED
 // -------------------------------------------------------------------
@@ -55,15 +41,10 @@
 //   QEAA  public  instance  -> `this` in RCX          (Engine)
 //   CA    static            -> NO `this`              (Timer, and WindowProc)
 //
-// WIN32 AT CUTOVER (history: since Phase D.4 SDL-5 the one OS call left below is
-// Platform::ComInit, src/platform/common/platform_os.h)
-// ----------------
-// Every OS call below was made DIRECTLY by name against the import libraries
-// this exe links (user32, ole32). None of them goes through Runtime-x64.dll's
-// own IAT, which is the trap lane ADDR found in `MainLoop::Run` — the DLL's
-// import thunks do not exist when the DLL is absent. The slots retail used
-// were mapped with pefile so the exact USER32/ole32 entry points are named
-// rather than inferred:
+// WIN32
+// -----
+// No OS call is left in this file. The IAT slots retail's bodies used, mapped
+// with pefile:
 //   0x18014b4a0 DefWindowProcW   0x18014b4a8 UpdateWindow   0x18014b4b0 SetCursor
 //   0x18014b4b8 PostQuitMessage  0x18014b4c0 CreateWindowExW
 //   0x18014b4c8 RegisterClassW   0x18014b618 CoInitializeEx
@@ -101,9 +82,7 @@ using App = Application::Application;
 //     18009eb72: RET
 // `this` is never touched. There is no achievement backend to bring up in this
 // build; the class's platform hook is a stub in the shipped DLL.
-// ENDGAME B.3.7 fragment: the body is the member's; the registered door
-// delegates with a QUALIFIED call (the class is non-polymorphic, so the
-// qualifier is only the house shape here).
+// ENDGAME B.3.7 fragment: the body is the member's; nothing calls it.
 bool Achievement::AchievementManager::PlatformStartup() {
     return true;
 }
@@ -131,15 +110,9 @@ extern "C" bool RtObject_ExternalFactory_PlatformStartup(void* /*self*/) {
 // COINIT_MULTITHREADED is 0, so this is `CoInitializeEx(NULL, COINIT_MULTITHREADED)`.
 //
 // `Engine::Startup` does NOT call this — it INLINES the same two-argument
-// CoInitializeEx at 0x1800dbc12, which our port already reproduces as
-// `Platform::ComInit()` (src/platform/win/os_win.cpp), which this body now
-// calls too (Phase D.4 SDL-5: the same import call behind the primitive). This body
-// is therefore the exported spelling of a thing the tree already does; it is
-// registered so the NAME resolves at cutover, and it is reported as
-// UNREACHABLE rather than as verified.
-// Phase D.4 SDL-5 D2: the CoInitializeEx is not made, as at Engine::Startup's inlined copy
-// (engine_lifecycle.cpp says why: no COM user is left in the exe). The export is still
-// unreachable; what remains is its `MOV AL,0x1`.
+// CoInitializeEx at 0x1800dbc12. Neither copy is made in the port: the
+// CoInitializeEx is gone from Engine::Startup (engine_lifecycle.cpp says why), and
+// what remains of this body is its `MOV AL,0x1`. Nothing calls it.
 bool Engine::Engine::PlatformStartup() {
     return true;
 }

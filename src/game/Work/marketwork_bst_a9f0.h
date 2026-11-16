@@ -4,8 +4,7 @@
 // Declarations only; see marketwork_bst_a9f0.cpp for the offset-by-offset
 // verification notes against the Application-x64.exe disassembly.
 //
-// Node layout (0x38 bytes, MarketWork's extended BST node — NOT the 0x20 node
-// the other Work classes use):
+// Node layout (0x38 bytes, MarketWork's extended BST node):
 //   +0x00 key        InternalBasePtr (8 bytes)
 //   +0x08 data.ptr   payload dynamic array {ptr@+0x08, count@+0x10(int), cap@+0x14(int)}
 //   +0x10 data.count/cap

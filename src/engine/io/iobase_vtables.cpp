@@ -2,10 +2,12 @@
 // src/engine/io/iobase_vtables.cpp — Wave 19 lane IOBASE, tranche 1
 // ============================================================================
 //
-// The bodies that stand between four minted `??_7…@IO@@6B@` rows and READY,
-// plus the two `IO::VisitorStream` exports that ride with them. Every one was
+// The retail bodies behind four `??_7…@IO@@6B@` tables, plus the two
+// `IO::VisitorStream` exports that ride with them. All but the five
+// VisitorStream slot bodies are class members in Stream.h, Serializer.h and
+// FileStream.h. Every one was
 // read as DISASSEMBLY out of the shipped `Runtime-x64.dll` (`objdump -d`), not
-// from Ghidra's C (reference_ghidra_c_output_vs_disassembly.md).
+// from Ghidra's C.
 //
 //   0x18000c6a0  ?GetSource@Stream@IO@@UEBA?AVString@System@@XZ   slot 1 of SIX
 //   0x1800242a0  MemoryStream vector deleting dtor      slot 0, UNEXPORTED
@@ -23,39 +25,8 @@
 //   0x18002bf80  VisitorStream vector deleting dtor     slot 0, UNEXPORTED
 //
 // ----------------------------------------------------------------------------
-// 1. `?GetSource@Stream@IO@@` — ONE BODY, SIX MINTED ROWS, AND ZERO IDENTITY
+// 1. `?GetSource@Stream@IO@@` — ONE BODY, `IO::Stream::GetSource` (Stream.h)
 // ----------------------------------------------------------------------------
-// Phase 0c names it the trap in FOUR rows (Stream, MemoryStream,
-// CompressedStream, CompressedMemoryStream). That count PREDATES phase 0b's
-// mint fix. On this tip it is `RT_MINT_NAMED` at slot 1 of **six** rows in
-// standalone/rt_data_mint_tables.inc — the four above plus
-// `??_7CompressedFileStream@` (:1223) and `??_7VisitorStream@` (:1569).
-//
-// **It moves the census identity by ZERO on its own** — and the reason is not
-// the one this comment first gave. FIRST DRAFT, WRONG, kept because the
-// correction is the useful part: I wrote that registering it "adds +1 to
-// `called` AND +1 to `ported` in the same step". MEASURED after the fact, it
-// adds **nothing to either column**. `runtime_census.py` builds its namespace
-// table from symbols that have a CALL DOOR in our tree; a symbol that is
-// registered but that nothing resolves is excluded from the table entirely and
-// listed under "Ports with no caller in our tree" instead. Before this lane the
-// symbol appeared NOWHERE in `--namespace IO` (its only tree occurrences were
-// mint rows, which are not a call door); after it, it is still nowhere in the
-// table and is one of that list's 234 exports, UNTRIAGED.
-//
-// The conclusion survives the correction and the arithmetic is unchanged, but
-// "+1/+1" and "0/0" are different claims about the instrument and only one of
-// them is true. Its whole value is that it is a PREREQUISITE: a `??_7…` row
-// cannot be promoted while one of its slots is a trap, and it is the row's
-// PROMOTION that adds +1 to `ported` against a `called` the row already had.
-//
-// The same correction applies to `??1BinaryReader@`, `??1Visitor@`,
-// `??1VisitorStream@` and the five VisitorStream stream methods below: all are
-// registered here and none has a resolve door in the tree, so all eight are
-// caller-less ports that move no count. That also means the census's own
-// warning applies to them — a port with no caller is NOT verified by a clean
-// diff run (reference_uncalled_port_is_not_verified.md). What verifies them is
-// that the mint slots they fill are dispatched; see WAVE19_LANE_IOBASE.md.
 //
 // The shipped body, in full (0x18000c6a0):
 //
@@ -72,8 +43,8 @@
 // i.e. `String GetSource() const { return String(); }` — a default-constructed
 // `System::String`, whose entire representation is one null qword. RDX is the
 // hidden return slot for the by-value `String`, so the typedef below spells it
-// (reference_hidden_retslot_wild_write.md: an fn_* typedef that omits the
-// hidden slot is a wild write that still returns the right answer).
+// (an fn_* typedef that omits the hidden slot is a wild write that still
+// returns the right answer).
 //
 // It reads NOTHING from `this`. That is not an inference from a decompile —
 // RCX is never touched in the nine instructions above.
@@ -81,10 +52,10 @@
 // ----------------------------------------------------------------------------
 // 2. THE FOUR VECTOR DELETING DESTRUCTORS ARE ONE SHAPE, AND I READ EACH LOOP
 // ----------------------------------------------------------------------------
-// binary_writer.cpp:187-230 already carries the exact twin of these
-// (`RtIo_BinaryWriter_DeletingDtor`, 0x180023b50) and its header block
-// describes the shape. That is a written recipe from a good lane, which is
-// precisely the thing reference_a_written_recipe_can_be_wrong.md is about — a
+// `IO::BinaryWriter`'s slot 0 (0x180023b50, Serializer.h) is the exact twin of
+// these, and Serializer.h's slot-0 note describes the shape. That is a written
+// recipe from a good lane, and look-alike bodies can still differ by one
+// element-destroy pass — a
 // prescribed pair of dtor ports would have swapped a body that destroys EVERY
 // element for one that destroys only the first. So each of the four here was
 // disassembled on its own, and so was the helper:
@@ -93,8 +64,7 @@
 //   its own bytes, walks from the LAST element to the FIRST:
 //       rbx = base + count*size ;  edi = count-1
 //       while (edi >= 0) { rbx -= size; (*dtor)(rbx); --edi; }
-//   It destroys every element. The `flags & 2` arms below therefore must too,
-//   and each one is written as a loop, not as a single destructor call.
+//   It destroys every element.
 //
 // The common shape (all four, byte for byte):
 //
@@ -111,10 +81,9 @@
 // with `sizeof(T)` = 0x30 (MemoryStream), 0x30 (BinaryReader), 0x28 (Visitor),
 // 0x18 (VisitorStream), matching each type header's `static_assert`.
 //
-// ENDGAME B.3.9 IO: all four are now the classes' own inline `DeletingDtor`
-// overrides (Stream.h, Serializer.h, FileStream.h) and the `flags & 2` arm IS
-// retail's vector delete; the abort below and its helper are gone. The
-// paragraph is kept as the record of what the arm used to be.
+// ENDGAME B.3.9 IO: all four are now the classes' own virtual destructors
+// (Stream.h, Serializer.h, FileStream.h); the abort below and its helper are
+// gone. The paragraph is kept as the record of what the arm used to be.
 //
 // **THE `flags & 2` ARM IS A NAMED ABORT, NOT A PORT — and that is a declared
 // divergence.** ENC-2 took the same position for BinaryWriter and gave the
@@ -128,20 +97,21 @@
 //     (0x1800a8120) and the Visitor factory, both a bare `MemAlloc(0x30, 4)` /
 //     `MemAlloc(0x28, 4)` that lays down NO array cookie.
 //   * VisitorStream — its one caller, `?Add@ExternalFactory@Object@@`, stack-
-//     constructs a single instance (src/engine/object/external_add.cpp:348).
+//     constructs a single instance (src/engine/object/external_add.cpp:286).
 //
 // Reaching the arm means a wrong-typed pointer arrived or a producer exists
 // that this lane did not find, and in EITHER case the eight bytes at `this-8`
 // are heap metadata rather than a count — so continuing would loop an
 // arbitrary number of times over arbitrary memory. Aborting with a message
 // that says what would have to have happened is the honest disposition; a
-// silent single-element destroy would be exactly the swapped body the memory
-// above warns about. This is called out in WAVE19_LANE_IOBASE.md as the one
-// place in this file that is not byte-faithful.
+// silent single-element destroy would be exactly the swapped body described
+// above. This is called out in
+// docs/history/runtime_port/WAVE19_LANE_IOBASE.md as the one place in this
+// file that is not byte-faithful.
 //
 // `0x180006a10`, the unexported free these bodies call, is byte-identical to
 // the exported `?MemFree@MemoryAllocator@System@@SAXPEAX@Z` (0x1800c7ad0) —
-// asserted by compressedstream.cpp, re-derived by binary_writer.cpp, and
+// asserted by compressedstream.cpp and Serializer.h, and
 // re-read here: both are `TEST RCX,RCX; JZ ret; …; Enter; Free(_singleton,p);
 // Leave`, over the SAME allocator sub-object (`[0x1801fc718] + 0x640`). Using
 // the exported name is exact, not merely equivalent.
@@ -158,24 +128,23 @@
 //     call [rax+0x18]                         ; Stream::Read(4, &scratch)
 //     mov  [rbx],??_7ReaderWriter@IO@@6B@     ; base-unwind on dtor exit
 //
-// Slot +0x18 is index 3 == `Read` on every table in the family (Stream.h:63).
+// Slot +0x18 is index 3 == `Read` on every table in the family (Stream.h:76).
 // The four bytes are read and **discarded** — the destination is a stack slot
 // nothing reads afterwards. That is the read-side mirror of ~BinaryWriter's
-// `Write(0xBBBBBBBB)` trailer (binary_writer.cpp:~30): the writer emits the
+// `Write(0xBBBBBBBB)` trailer (Serializer.h, `kRecordTrailer`): the writer emits the
 // trailer magic, the reader swallows it. The scratch buffer is reproduced as a
 // real local because the Read genuinely stores through it.
 //
 // Retail INLINES ~BinaryReader into the deleting dtor at 0x180023a10; the
-// out-of-line 0x1800a82f0 is the same instructions. Calling one from the other
-// here is the same collapse binary_writer.cpp makes and is stated rather than
-// hidden.
+// out-of-line 0x1800a82f0 is the same instructions. Here both are the one
+// `IO::BinaryReader::~BinaryReader` (Serializer.h).
 //
 // ~Visitor (0x1800bac90) is TWO STAMPS AND NOTHING ELSE — no member is read.
 //
 // ----------------------------------------------------------------------------
 // 4. IO::VisitorStream IS A NULL SINK, AND ITS FIVE STREAM SLOTS ARE 2 BYTES
 // ----------------------------------------------------------------------------
-// FileStream.h:354-401 pins the class and says so; this file is the code half.
+// FileStream.h:361-411 pins the class and says so; this file is the code half.
 // Read out of .text, each body complete:
 //
 //     0x1800baff0  GetSize        xor eax,eax ; ret      -> 0
@@ -209,10 +178,9 @@
 // **0x1801559f8 IS NOT 0x1801554a8.** The shared BinaryEncoding table the rest
 // of src/engine/io stamps is 0x1801554a8; the Visitor encoding is a DIFFERENT,
 // also-unexported table at 0x1801559f8, and external_add.cpp:58 already records
-// that. Both are unexported, so the only port-aware door is the ADDRESS door
-// (`ResolveAddr(Module::Runtime, …)`, which is registry-first —
-// reference_resolveaddr_consults_port_registry_first.md), and stamping the
-// wrong one would produce a stream that walks the object and records nothing.
+// that. The constructor builds it as `IO::VisitorEncoding` (Serializer.h),
+// and stamping the wrong one would produce a stream that walks the object and
+// records nothing.
 //
 // ----------------------------------------------------------------------------
 // 5. ??1Modification@IO@@ CLEARS THE EXPORTED SINGLETON, AND THAT IS THE POINT
@@ -228,15 +196,9 @@
 // claim "order does not matter here" is one this lane did not verify and does
 // not need to make.
 //
-// **The singleton store is a SIDE EFFECT THAT MUST BE PUBLISHED INTO THE
-// EXPORTED SLOT, not into storage of our own** — a port that owns its own copy
-// is invisible until something reads the slot
-// (reference_port_must_reproduce_side_effects.md).
-// `?_singleton@Modification@IO@@2PEAV12@EA` is tagged UNPROMOTABLE(HARMFUL) in
-// reg_mint_promoted.cpp, i.e. deliberately left on the DLL, so `RT_DATA_SLOT`
-// hands back the DLL's slot and the store lands where retail's does. That is
-// the correct outcome and it is why the tag matters here rather than being
-// merely bookkeeping.
+// **The singleton store is a SIDE EFFECT THAT MUST BE REPRODUCED**.
+// `?_singleton@Modification@IO@@2PEAV12@EA` is the class static
+// `IO::Modification::_singleton` (modification.cpp), and the store clears it.
 //
 // `0x180010b80` (`Collection::Array<Mod>::~Array`) is ALREADY PORTED —
 // `RtIO::ModList::DestroyAndFree` (row kSpec_Mod, modification.cpp) — and is called by name
@@ -288,7 +250,7 @@ namespace RtIo {
 // ??1Modification@IO@@QEAA@XZ   0x1800b0470   — header §5
 // ===========================================================================
 extern "C" void RtIo_Modification_Dtor(IO::Modification* self) {
-    // Publish into the DLL's exported slot; see header §5.
+    // Clear the class static; see header §5.
     ::IO::Modification::_singleton = nullptr;                   // 1800b0486  (B.3.9 IO: the class static)
 
     self->_savedMods.DestroyAndFree();     // 1800b0495  +0x18  ~Array<Mod> 0x180010b80
@@ -303,7 +265,7 @@ extern "C" void RtIo_Modification_Dtor(IO::Modification* self) {
 // A member of `IO::X` cannot be defined inside `namespace RtIo` — `IO` and
 // `RtIo` are siblings, and C++ requires a member definition to appear in a
 // namespace ENCLOSING the class (B34_BRIEFS section A.2). So the bodies open
-// their own `namespace IO` block after the doors close, exactly as
+// their own `namespace IO` block after the RtIo block closes, exactly as
 // memory_stream.cpp, file_stream.cpp and serialize_family.cpp do.
 //
 // These are the whole class: two instructions each, read out of .text, and
@@ -315,8 +277,8 @@ extern "C" void RtIo_Modification_Dtor(IO::Modification* self) {
 // `IO::VisitorStream::Write` is the class's KEY FUNCTION (the first non-inline,
 // non-pure virtual it declares), so GCC emits `vtable for IO::VisitorStream`
 // in THIS translation unit. That is why the host unit build needs the stub
-// copies in tests/unit/io_stream_abi_stubs.cpp: this file stands on the port
-// registry and cannot link into a host test.
+// copies in tests/unit/io_stream_abi_stubs.cpp: this file is not in the host
+// unit build (tests/unit/sources.cmake does not list it).
 namespace IO {
 
 // ?Write@VisitorStream@IO@@UEAA_NHPEBX@Z   0x1800bb030   `mov al,1 ; ret`

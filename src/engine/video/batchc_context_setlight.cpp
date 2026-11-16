@@ -40,8 +40,7 @@
 //    `(att.y*dir.y + att.x*dir.x) + att.z*dir.z`. The y term is the LEFT
 //    operand of the first ADDSS (0x18001aa7b adds XMM0 into XMM5, where XMM5
 //    already holds the y product). Re-associating it is a different float.
-//    (reference_moved_term_hides_where_terms_cancel.md: this project has
-//    already lost a wave to exactly that.)
+//    (A regrouped float sum differs in the last bit where the terms cancel.)
 // 4. THE TWO COPY BLOCKS AT THE END ARE NOT A MEMCPY OF THE WHOLE STAGING
 //    AREA. Retail copies exactly eight dwords from +0x1dd8 to +0x268 and
 //    exactly four from +0x1e28 to +0x248, dword by dword, and touches nothing
@@ -50,13 +49,9 @@
 //    so the light's colour/position pair and its shadow parameters are
 //    published into the PIXEL constant staging as well as the light staging.
 //
-// ORACLE: A REAL ONE. This body is a pure function of its eight values into
-// `this`: it reads no global, calls nothing, and writes only the three windows
-// below plus one OR into the dirty mask. Re-running the shipped copy on the
-// SAME object therefore writes the same bytes again — it is idempotent — so
-// the harness snapshots our result, lets the DLL overwrite it, and compares.
-// That is a genuine byte comparison, not an attendance marker, and every Draw
-// arm drives it on every frame the DLL is present.
+// This body is a pure function of its eight values into `this`: it reads no
+// global, calls nothing, and writes only the three windows below plus one OR into
+// the dirty mask.
 // ============================================================================
 
 #include <cstddef>
@@ -65,9 +60,7 @@
 
 #include "video/Context.h"
 
-// ENDGAME B.3.5 block D1: the body MOVED onto `Video::Context::SetLight`; the
-// registered door at the bottom kept its name, its mangled-name row and its
-// address row and is a one-line QUALIFIED non-virtual delegation. B.4 (R-VIDEO):
+// ENDGAME B.3.5 block D1: the body is `Video::Context::SetLight`. B.4 (R-VIDEO):
 // the light window is `Context::LightStaging`'s named head now (still one 0x1a0
 // block for `Reset` and `BindResources`); the two publish windows stay offsets
 // into `_pixelConstantStaging` (+0x200, 0x98 bytes), which other blocks index

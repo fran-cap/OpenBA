@@ -3,10 +3,11 @@
 // ============================================================================
 // The POSIX half of src/platform/common/platform_time.h (Phase D.4 THREADS E.9).
 //
-// THE PERFORMANCE COUNTER runs at 10 MHz: CLOCK_MONOTONIC nanoseconds / 100. Never
-// 1 GHz: Timer::CurrentTimeTicks computes (now - initial) * 1e6 / freq in int64,
-// which overflows after 2.6 hours at 1 GHz and after 10.7 days at 10 MHz (the
+// THE PERFORMANCE COUNTER runs at 10 MHz: CLOCK_MONOTONIC nanoseconds / 100 (the
 // QueryPerformanceFrequency most Windows machines report; plans/THREADS.md F.4).
+// Retail's Timer::CurrentTimeTicks computes (now - initial) * 1e6 / freq in int64,
+// which overflows after 2.6 hours at 1 GHz and after 10.7 days at 10 MHz; the port
+// splits it at whole seconds (CounterToTicks, Timer.h).
 //
 // WALL CLOCK: CLOCK_REALTIME converted into FILETIME units (FileTimeFromUnix).
 // LOCAL TIME: localtime_r, the zone the C library resolves (no getenv of ours).

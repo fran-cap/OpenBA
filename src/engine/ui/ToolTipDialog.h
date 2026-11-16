@@ -82,8 +82,8 @@ public:
     void SetPosition(int32_t x, int32_t y);                       // 0x1800dac50
     ToolTipDialog(const ToolTipDialog& other);                    // 0x18004d180
     ToolTipDialog& operator=(const ToolTipDialog& other);         // 0x18004d1e0
-    // 0x18004cfb0 — the minted record's type id (tooltipdialog.cpp).
-    // MemoryAllocator statics (B36_RULES 7): `??2` 0x18004cfd0 is the door
+    // 0x18004cfb0 — the type id, DECLARE_TYPE's, over the class's own record (tooltipdialog.cpp).
+    // MemoryAllocator statics (B36_RULES 7): `??2` 0x18004cfd0 is ported as
     // `RtUi_ToolTipDialog_OperatorNew` (tooltipdialog.cpp). The factory pair is
     // the class's own (B39_RULES D2), defined and registered in tooltipdialog.cpp.
     static void* operator new(std::size_t bytes);                 // 0x18004cfd0

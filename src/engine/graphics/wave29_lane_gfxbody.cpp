@@ -31,9 +31,7 @@
 //
 // Ghidra's decompiled C was not used at all here. It drops dereferences, prints
 // MOVSXD as a zero extension and drops whole arguments at a mistyped vtable
-// call (reference_ghidra_c_output_vs_disassembly.md), and GhidraMCP's
-// get_function_metrics silently ignores `address=`
-// (reference_ghidra_mcp_address_param_silently_ignored.md).
+// call, and GhidraMCP's get_function_metrics silently ignores `address=`.
 //
 // ---------------------------------------------------------------------------
 // EXTENT — DERIVED, and the walker that derived it was WRONG BY CONSTRUCTION
@@ -109,54 +107,42 @@
 // ---------------------------------------------------------------------------
 // `GetRootPoseAtTime` returns `Math::Transform` BY VALUE. An fn_* typedef that
 // omits the hidden return slot is a wild write that still returns the right
-// answer (reference_hidden_retslot_wild_write.md). Read out of the prologue and
+// answer. Read out of the prologue and
 // not assumed: RCX=this, RDX=&ret, R8=&arg1, R9=&arg2, and the epilogue does
 // `MOV RAX,RDI` (0x1800fac25) where RDI was RDX — it RETURNS the slot.
-// Lane PARTSYS already spells its neighbour correctly
-// (wave28_lane_partsys.cpp:1042, `void* (*)(const void*, void*, void*)`), and
-// this file matches that shape.
 //
 // ---------------------------------------------------------------------------
 // CALLEES — classified against the export directory BEFORE anything was written
 // ---------------------------------------------------------------------------
 //   0x180023830  Array<uint32>::SetSize(n,&fill)   NOT EXPORTED, but PORTED as
-//                RtColl_ArraySetSizeFill_180023830 (array.cpp J3_ENTRY3) and
-//                registered, so registry-first ResolveAddr reaches OUR body.
+//                RtColl_ArraySetSizeFill_180023830 (array.cpp J3_ENTRY3).
 //   0x180063a80  Array<0x10>::SetSize(n,&fill)     NOT EXPORTED. THIS LANE
 //                PROVED IT IS THE SAME TEMPLATE INSTANTIATION as the known
 //                kSpec_Fill16 site 0x18004f790 — 79 of 79 instructions
 //                IDENTICAL under position-independent normalisation, with a
 //                positive control (a function against itself, 79/79) and a
-//                negative control (an unrelated function, 0/79). It is now
-//                registered as such in array.cpp, which converts what would
-//                have been an address-door residual into a ported one.
-//   0x180062d60  the draw-item sort                NOT EXPORTED, NOT PORTED.
+//                negative control (an unrelated function, 0/79). It is ported
+//                as such in array.cpp (J3_ENTRY3 with kSpec_Fill16).
+//   0x180062d60  the draw-item sort                NOT EXPORTED, PORTED as
+//                rtgfxbig::RtGraphics_Renderer_DrawItemSort (wave27_lane_gfxbig.cpp).
 //                ~0x2306 bytes of introsort with a 0x400-byte recursion stack.
-//                Reached by address. RESIDUAL — see §8 of the lane doc; this is
-//                the same class as Wave 27 lane GFXBIG's R1 and Wave 28's R1.
 //   vtable +0x18 AddDrawItems(const Scene&, Renderer&) — slot 3, a virtual
 //                call, no door of any kind.
 //   0x1801fe728  ?_secondsPerTick@Timer@System@@0NA — a NAMED DATA export,
-//                ordinal 4797, reached here by NAME. Wave 28 residual R5 said
-//                a name door was available and nobody had taken it; NINE files
-//                already had. See the SecondsPerTick() comment below.
+//                ordinal 4797: the class static `System::Timer::_secondsPerTick`.
+//                See the SecondsPerTick() comment below.
 //
 // ---------------------------------------------------------------------------
 // CONSTANTS — LIFTED, never retyped
 // ---------------------------------------------------------------------------
 //   0x18016169c = 00 00 80 3f = 1.0f, read out of the file with pefile. Not an
-//   export; lifted as bytes. (reference_crt_coefficients_must_be_lifted_not_retyped.md)
+//   export; lifted as bytes.
 //
 //   0x1801fe728 is NOT a liftable constant. Its RVA lies beyond .data's
 //   SizeOfRawData — the uninitialised tail — so there are no bytes in the file
 //   and a port that baked in "the constant" would have baked in ZERO. It is
-//   read at runtime, through the name door above.
+//   read at runtime, from the class static `System::Timer::_secondsPerTick`.
 //
-// Kill switch: RT_GFXBODY29=0. Its own variable, deliberately NOT
-// shared with RT_GFXBODY28 or RT_PARTSYS, so that with
-// PARTSYS armed and this off, PARTSYS's SunLight::AddDrawItems runs and reaches
-// the DLL for exactly these three callees — which separates "the caller is
-// wrong" from "one of its callees is". Sharing a variable destroys that A/B.
 // ============================================================================
 
 #include <cstdint>
@@ -166,23 +152,21 @@
 #include "graphics/Animation.h"   // Graphics::Animation -- ENDGAME B.3.5 block GC
 #include "graphics/Camera.h"   // Renderer, RendererDrawGroup, RendererDrawable
 #include "graphics/Scene.h"    // Scene, _globals @ +0x60
-#include "math/Math.h"         // Math::Transform (0x1c), GLOBAL scope
+#include "math/Math.h"         // Math::Transform (0x1c), aliased at GLOBAL scope
 #include "system/Value.h"      // System::Time -- ENDGAME B.3.5 block GC
 #include "system/Timer.h"      // ENDGAME B.3.9 SS1: Timer::_secondsPerTick
 
 namespace rtgfxbody29 {
 namespace {
 
-// `Transform` is at GLOBAL scope in src/engine/math/Math.h -- the header is
-// named for the Math NAMESPACE of the DLL, but declares its structs unwrapped.
-// Checked rather than assumed: `grep -n namespace Math.h` finds only
-// RtMathConst. No using-declaration is possible or needed.
+// `Transform` is `Math::Transform` (src/engine/math/Math.h); the same header
+// also declares a global alias for it, so the unqualified spelling below needs
+// no using-declaration.
 
 // ---------------------------------------------------------------------------
 // Attendance. Counted per BODY and, where a body has a branch whose absence an
 // entry count cannot express, per BRANCH as well —
-// `calls=N branch=0` and `calls=0` are DIFFERENT findings
-// (reference_calls_zero_can_mean_always_took_the_uncovered_branch.md).
+// `calls=N branch=0` and `calls=0` are DIFFERENT findings.
 //
 // THE SUMMARY BELOW IS WIRED INTO src/app/main.cpp. Wave 28 defect #7 is
 // that every lane's *Summary() is written and nothing calls it, which makes a
@@ -208,10 +192,7 @@ inline float FromBits(uint32_t bits) {
 const float kOne = FromBits(0x3f800000u);   // 0x18016169c
 
 // ---------------------------------------------------------------------------
-// System::Timer::_secondsPerTick, through the NAME door.
-//
-// This is the ORDINARY house pattern here, not a new door. Saying so because an
-// earlier draft of this comment claimed otherwise.
+// System::Timer::_secondsPerTick, the class static (src/engine/system/timer.cpp).
 //
 // WAVE 28 RESIDUAL R5 WAS STALE ON ARRIVAL. It said 0x1801fe728 is the named
 // export `?_secondsPerTick@Timer@System@@0NA` (ord 4797) — TRUE, re-confirmed
@@ -228,15 +209,10 @@ const float kOne = FromBits(0x3f800000u);   // 0x18016169c
 //
 // The census confirmed it the only way that cannot be argued with: adding this
 // door moved the `called` column by ZERO, because the row was already there.
-// What is genuinely open is ONE address door, engine_funcs.cpp:1546, which this
-// file does not touch. See WAVE29_LANE_GFXBODY.md §2.4.1.
+// See docs/history/runtime_port/WAVE29_LANE_GFXBODY.md §2.4.1.
 //
-// `0NA` means PRIVATE, not unexported — this DLL exports its private members
-// (reference_aeaa_is_private_not_unexported.md).
+// `0NA` means PRIVATE, not unexported — this DLL exports its private members.
 //
-// RT_DATA_SLOT never caches a null, so a phantom name would fail loudly rather
-// than silently resolving to zero and baking a 0.0 scale into every root pose
-// (reference_resolveexport_phantom_names.md).
 // ---------------------------------------------------------------------------
 inline double SecondsPerTick() {
     // ENDGAME B.3.9 SS1 (B39_RULES D7): the class static now, read fresh.
@@ -247,19 +223,17 @@ inline double SecondsPerTick() {
 // Callees.
 // ---------------------------------------------------------------------------
 
-// ENDGAME B.3.2 step 2 (callers) — the `ArraySetSizeFill4` (0x180023830) and
-// `ArraySetSizeFill16` (0x180063a80) ResolveAddr forwarders that used to sit
-// here are GONE. Their one caller, `RtGraphics_Renderer_AddLight` below, now
-// calls `.SetSize(n, fill)` directly on `RendererSceneEntry::drawableIds` and
-// `Renderer::drawables` — both real `Collection::Array<T>` members
+// ENDGAME B.3.2 step 2 (callers) — `Renderer::AddLight` below calls
+// `.SetSize(n, fill)` directly on `RendererSceneEntry::_drawableIds` and
+// `Renderer::_drawables` — both real `Collection::Array<T>` members
 // (src/engine/graphics/Camera.h) whose element types (`int32_t`,
-// `RendererDrawable`) make kSpec_Fill4/kSpec_Fill16 trait-equivalent. Both
-// rows stay registered in array.cpp: `code/` still reaches them by address.
+// `RendererDrawable`) make kSpec_Fill4/kSpec_Fill16 trait-equivalent.
 
 // The per-pass draw-item sort — 0x180062d60, UNEXPORTED; ported as
 // rtgfxbig::RtGraphics_Renderer_DrawItemSort (wave27_lane_gfxbig.cpp, declared
-// in Scene.h), called by name (B3R). std::sort(first, last) over stride-0x38
-// elements; `last` is INCLUSIVE: the callee computes `first - 0x38 + count*0x38`.
+// in Scene.h), called by name (B3R). It runs DrawSort::Sort (draw_sort.h) over
+// the `count` stride-0x38 elements in place; `scratch` is never read. Retail's
+// callee takes an INCLUSIVE `last`: it computes `first - 0x38 + count*0x38`.
 inline void DrawItemSort(Graphics::RendererDrawItem* data, int count, void* scratch) {
     rtgfxbig::RtGraphics_Renderer_DrawItemSort(data, count, scratch);
 }
@@ -302,17 +276,16 @@ inline void DrawItemSort(Graphics::RendererDrawItem* data, int count, void* scra
 // The `+0x1bc` read is `RendererDrawGroup::passMask`, ALREADY NAMED in
 // Camera.h from AddDrawItem's side. This body is a second, independent reader
 // of that field in the same role — and that matters, because N readers
-// agreeing is weak evidence when they test a SIGN
-// (reference_a_writer_beats_readers_agreeing_on_a_sign.md) but this is a
+// agreeing is weak evidence when they test a SIGN but this is a
 // BITWISE AND against a per-object mask, not a sign test.
 //
 // TWO FIELDS OF THE OBJECT ARE READ AND THIS LANE DOES NOT NAME EITHER.
 // `obj->[0x30]` is a mask AND'd against the group's passMask, and `obj->[0x28]`
 // is compared `>` against `Renderer::field_48`. A `>` against a threshold is
 // exactly what an LOD level, a layer index and a priority share, and this lane
-// found NO WRITER for either field. Per
-// reference_only_a_writer_names_a_field.md they are left UNNAMED here rather
-// than guessed, and they are read through a byte offset for that reason.
+// found NO WRITER for either field. Only code that writes a field can establish
+// its meaning, so they are left UNNAMED here rather than guessed, and they are
+// read through a byte offset for that reason.
 // ============================================================================
 
 // ============================================================================
@@ -342,8 +315,7 @@ inline void DrawItemSort(Graphics::RendererDrawItem* data, int count, void* scra
 // SO THIS PORT MUST NOT ZERO-INITIALISE THE RECORD. `RendererDrawable rec;`
 // with two assignments is FAITHFUL; `RendererDrawable rec{};` or `= {}` is
 // NOT, and would make our appended element differ from retail's in four bytes
-// that an oracle comparing the array would then flag — or, worse, would not
-// (reference_oracle_must_not_compare_unwritten_bytes.md).
+// that an oracle comparing the array would then flag — or, worse, would not.
 //
 // Retail, 0x1801051d0..0x180105238:
 //
@@ -441,7 +413,7 @@ inline void DrawItemSort(Graphics::RendererDrawItem* data, int count, void* scra
 //
 // --- WHAT THE FIELDS ARE, AND WHERE THIS LANE REFUSES TO NAME ONE ----------
 // `this` is the `Graphics::Animation` clip record. Wave 27 lane GFXBIG built
-// `AnimationClipPrefix` (src/engine/graphics/AnimationState.h:112) entirely
+// `AnimationClipPrefix` (src/engine/graphics/AnimationState.h:130) entirely
 // from AnimationState::Update's READS of it, and Wave 28 lane GFXBODY confirmed
 // six of its offsets from ApplyEvents, a MEMBER of the same class. This body is
 // a third reader and it fills THREE of that struct's `_unpinned_` holes:
@@ -451,23 +423,15 @@ inline void DrawItemSort(Graphics::RendererDrawItem* data, int count, void* scra
 //                      frameFirst)) * [0x50]` — the key index of the loop start.
 //                      The SAME three-term expression ApplyEvents uses. Third
 //                      independent agreement.
-//   +0x44  _unpinned   A FLOAT, and this body multiplies SECONDS by it to get a
-//                      key position, and multiplies the second Time by it too.
-//                      Structurally that is KEYS PER SECOND. Stated as a
-//                      structural reading, not a name: this lane has no WRITER.
-//   +0x4c  _unpinned   An INT multiplied by a key index BEFORE a *0x1c stride,
-//                      i.e. ELEMENTS PER KEY. That is a stride multiplier, not
-//                      a sign test, so it is a strong reading — but again, no
-//                      writer, so it is not entered into the header as a name.
-//   +0x50  frameRate   *** A NAME TENSION THIS LANE REPORTS RATHER THAN
-//                      SILENTLY RESOLVES. *** AnimationState.h calls +0x50
-//                      `frameRate`. In THIS body it is used as the EXCLUSIVE
-//                      UPPER BOUND on a key index (`CMP ESI,R8D / JL`) and as
-//                      the modulus base for the loop wrap — i.e. as a key
-//                      COUNT. Both readings scale frame->index identically and
-//                      both readers are consistent with either name. NO WRITER
-//                      HAS BEEN FOUND, so the field stays named as the header
-//                      already has it and the tension is recorded here.
+//   +0x44  _frameRate  A FLOAT, and this body multiplies SECONDS by it to get a
+//                      key position, and multiplies the second Time by it too:
+//                      KEYS PER SECOND.
+//   +0x4c  _boneCount  An INT multiplied by a key index BEFORE a *0x1c stride,
+//                      i.e. ELEMENTS PER KEY.
+//   +0x50  _frameCount The EXCLUSIVE UPPER BOUND on a key index (`CMP ESI,R8D /
+//                      JL`) and the modulus base for the loop wrap — a key
+//                      COUNT. AnimationState.h's `AnimationClipPrefix` names it
+//                      `frameCount` too.
 //   +0x3c  looping     already named; read here exactly as the header says —
 //                      zero CLAMPS to the last key, non-zero WRAPS.
 //   +0x60  (beyond the 0x60 prefix) the key array base. Elements are 0x1c bytes
@@ -477,7 +441,7 @@ inline void DrawItemSort(Graphics::RendererDrawItem* data, int count, void* scra
 //
 // --- THE MOVED-TERM HAZARD, WHICH IS LIVE IN THIS BODY ----------------------
 // A moved term in a float sum is algebraically identical and numerically
-// different (reference_moved_term_hides_where_terms_cancel.md). Two places:
+// different. Two places:
 //
 //  1. Both time conversions NARROW TO FLOAT BEFORE the multiply:
 //     `CVTSI2SD` (int64 ticks to double), `MULSD` by _secondsPerTick (a
@@ -513,16 +477,12 @@ inline void DrawItemSort(Graphics::RendererDrawItem* data, int count, void* scra
 // ############################################################################
 //
 // `Graphics::Renderer` is a real C++ class as of block F
-// (`src/engine/graphics/Camera.h`), so `AddLight` and `EndDrawGroup` move onto
-// it and their doors above become one-line QUALIFIED delegations. The attendance
-// counters move WITH the bodies, so a C++ caller is counted exactly as a
-// by-name caller is; `RtGraphicsWave29GfxbodySummary()` is unchanged.
+// (`src/engine/graphics/Camera.h`), so `AddLight` and `EndDrawGroup` are its
+// members, defined below with their attendance counters;
+// `RtGraphicsWave29GfxbodySummary()` prints those counters.
 //
-// `Scene::AddGlobalDrawItems` and `Animation::GetRootPoseAtTime` do NOT move
-// here: the first lands with `Graphics::Scene` in block F's next commit, and the
-// second belongs to `Graphics::Animation`, which is BLOCK H1's class — its
-// header already carries the declaration and says the door in this file is "not
-// ours". Both are listed in block F's report.
+// `Scene::AddGlobalDrawItems` and `Animation::GetRootPoseAtTime` are defined
+// in this block too, as members of `Graphics::Scene` and `Graphics::Animation`.
 //
 // TWO FIELD NAMES THIS CONVERSION SETTLES, both recorded as open by the banner at
 // the top of this file:
@@ -547,15 +507,15 @@ namespace Graphics {
 // The "global" half of the scene — objects that skip the grid and are visited
 // every frame regardless of the cull. `AEBA`: a PRIVATE const member that this
 // DLL exports anyway, declared public on `Graphics::Scene` for the reason
-// Scene.h records (its registered door is a free function).
+// Scene.h records.
 //
 // WRITTEN-OPERAND SET: EMPTY outside the frame. The operand set PROVES the const
 // rather than trusting the `AEBA` in the name.
 //
 // THREE RAW BYTE READS THIS CONVERSION RETIRES. This lane wrote "TWO FIELDS OF
 // THE OBJECT ARE READ AND THIS LANE DOES NOT NAME EITHER", and left `obj+0x30`,
-// `obj+0x28` and `renderer+0x48` as byte reads per
-// reference_only_a_writer_names_a_field.md. All three are named now, from
+// `obj+0x28` and `renderer+0x48` as byte reads, because only code that writes a
+// field can establish its meaning. All three are named now, from
 // WRITERS and from accessor exports rather than from more readers:
 //   obj + 0x30      `Geometry::_materialTypeFlags` — block E's class; retail's
 //                   `?GetMaterialTypeFlags@Geometry@` (0x1800157f0) returns it,
@@ -610,8 +570,7 @@ void Scene::AddGlobalDrawItems(Renderer& rendererRef) const {
 // (the int). `RendererDrawable::_pad0c` is NEVER WRITTEN, and the SetSize helper
 // copies all sixteen bytes regardless, so retail stores UNINITIALISED STACK into
 // the array on every append. SO THIS PORT MUST NOT ZERO-INITIALISE THE RECORD:
-// `RendererDrawable rec;` with two assignments is FAITHFUL; `rec{}` is not
-// (reference_oracle_must_not_compare_unwritten_bytes.md).
+// `RendererDrawable rec;` with two assignments is FAITHFUL; `rec{}` is not.
 // ---------------------------------------------------------------------------
 void Renderer::AddLight(const Light* light) {
     ++rtgfxbody29::g_addLight;
@@ -679,7 +638,7 @@ void Renderer::EndDrawGroup(int group) {
 // ?GetRootPoseAtTime@Animation@Graphics@@QEBA?AVTransform@Math@@AEBVTime@System@@0@Z
 // retail 0x1800faaa0 -- ENDGAME B.3.5 block GC. The key-index arithmetic, the
 // short-circuited loop fraction and the "single iff the two indices coincide OR
-// the fraction is exactly 0.0f" arm selection are in the door's banner.
+// the fraction is exactly 0.0f" arm selection are in the banner above.
 // ---------------------------------------------------------------------------
 Math::Transform Animation::GetRootPoseAtTime(const System::Time& time,
                                              const System::Time& delta) const {

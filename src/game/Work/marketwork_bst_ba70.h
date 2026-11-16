@@ -16,7 +16,7 @@
 //     +0x0C  ...    payload
 //     +0x10  qword  payload
 //
-// RELATION TO 0x14002b680 / 0x14002bd80 (ported in a sibling lane): those are the
+// RELATION TO 0x14002b680 / 0x14002bd80 (marketwork_bst_b680.cpp): those are the
 // SAME sort SHAPE -- median-of-three quicksort, cutoff 8, equal-run collapse, 62-deep
 // explicit lo/hi stack -- but a DIFFERENT instantiation.  Do not assume the sibling's
 // record parameters here; they were checked and they differ:

@@ -115,8 +115,7 @@ static_assert(offsetof(MaterialConstant, name)  == 0x00, "MaterialConstant::name
 // then ??_7External@Object@@6B@ (0x1801547a0), zeroes +0x08/+0x10/+0x18, stamps
 // ??_7MaterialInstance@Graphics@@6B@ (0x1801545e0), then zeroes +0x20 (dword),
 // +0x24 (WORD — so +0x24 and +0x25 are two separate bytes, not an int) and the
-// seven qwords +0x28..+0x5f. The last store ends at +0x5f, so sizeof is 0x60 —
-// which also matches the pre-existing note at engine/funcs/engine_funcs.h:3513.
+// seven qwords +0x28..+0x5f. The last store ends at +0x5f, so sizeof is 0x60.
 //
 // The two bytes at +0x24/+0x25 are named by BuildParameters (0x1801033e0):
 // it clears +0x24, then ORs into +0x24 whether any bound texture's +0x2c == 4
@@ -203,25 +202,11 @@ static_assert(offsetof(MaterialConstant, name)  == 0x00, "MaterialConstant::name
 // `this` is RCX, the caller's storage is RDX, the index is R8D, the value is
 // STORED THROUGH RDX and RDX comes back in RAX. That is the MSVC hidden return
 // slot exactly, on an 8-byte class — so MSVC did NOT treat `ExternalPtr<T>` as
-// trivially copyable for return purposes, and section 2.5 is RIGHT. Every door
-// for one of these keeps the `(self, ret, args…)` shape. The C++ MEMBERS below
-// are nevertheless declared with an ordinary by-value return, per the
-// amendment's second half: none of them is a vtable slot, so both ends of every
-// C++ call are this same GCC, and the registered door stays a separate function
-// that writes the caller's slot and returns it.
+// trivially copyable for return purposes, and section 2.5 is RIGHT. The C++
+// MEMBERS below are nevertheless declared with an ordinary by-value return, per
+// the amendment's second half: none of them is a vtable slot, so both ends of
+// every C++ call are this same GCC.
 //
-// ABSTRACT, per B34_BRIEFS A.4 as amended: nothing in the tree holds either
-// class BY VALUE as a C++ member (`RendererDrawItem` holds
-// `MaterialInstance`'s +0x28 ExternalPtr, which is a HANDLE, not the object),
-// and each slot 0 is a row the mint owns — `src/engine/object/deleting_dtor.cpp`
-// row 50 for Material (0x180011d20) and `standalone/reg_mint_promoted.cpp` for
-// MaterialInstance (0x180002d60) — which B35_RULES section 11 forbids retiring
-// in step 5. So slot 0 stays `= 0` on both.
-//
-// NO REAL CONSTRUCTOR (B4b-2, ENDGAME section B.1 decision 3): `Construct` and
-// `Reconstruct` run on objects that ALREADY EXIST and that wear the MINTED
-// table, and they re-stamp the three vtables by hand out of the mint. A member
-// constructor there would stamp GCC's tables into a minted object.
 // ############################################################################
 
 // Classes other blocks own; taken by reference / pointer under their real
@@ -265,7 +250,7 @@ class Scene;      // block F
 // ~Material holding the retired ??1 door's body, the factory pair as the class's
 // own statics; Construct / Reconstruct placement-new the class. The minted
 // `??_7Material@Graphics@@6B@`, its RT_DELDTOR row 0x180011d20, the FACTREST
-// row and the ctor-body / ??1 / slot doors are retired (rt_mint_retired/gfx.txt).
+// row and the ctor-body / ??1 / slot doors are retired.
 // ============================================================================
 class Material : public Object::External {
 public:
@@ -329,7 +314,7 @@ public:
     Material(const Material& src);                          // 0x180011be0  not ported
     Material& operator=(const Material& src);               // 0x180011c80  not ported
 
-    // The three operators stay declared and undefined (placement is `::new`);
+    // The two operator news stay declared and undefined (placement is `::new`);
     // the factory pair is the class's own (B39_RULES D2, material.cpp).
     static void* operator new(std::size_t bytes);            // 0x1800118e0
     static void* operator new(std::size_t bytes, void* place);// 0x180011950
@@ -374,9 +359,8 @@ static_assert(sizeof(Object::ExternalPtr<Video::VideoProgram>) == 8,
 //   [7] +0x38  0x180002b50  ?Destruct@…
 //   [8] +0x40  0x180002ad0  ?Construct@…  — INTRODUCED HERE (RULE B5-16)
 //
-// The fields are `RtGraphics::MaterialInstance`'s, unchanged and cross-asserted
-// below; that POD's banner carries the per-field evidence and stays, because it
-// has live users outside this block's file set.
+// The per-field evidence is the `Graphics::MaterialInstance` banner at the end of
+// the `RtGraphics` block above.
 // ============================================================================
 class MaterialInstance : public Object::External {
 public:
@@ -389,7 +373,7 @@ public:
     // ??1MaterialInstance@Graphics@@UEAA@XZ 0x180103a00: restamp, the three
     // retail ~Array calls (+0x50, +0x40, +0x30), ~External. The three calls are
     // the body (renderer.cpp); the restamp and ~External are the compiler's.
-    // ENDGAME B.3.9 GFX: the ??1 door (deleting_dtor_leaves.cpp) is retired
+    // ENDGAME B.3.9 GFX: the ??1 door is retired
     // with the RT_DELDTOR row it served.
     ~MaterialInstance() override;
 
@@ -407,12 +391,12 @@ public:
     virtual Object::External* Construct();                  // [8] 0x180002ad0 — B5-16
 
     // ---- PORTED non-virtual members ---------------------------------------
-    // Bodies in the wave-lane files this block owns; each keeps its registered
-    // door, which becomes a QUALIFIED non-virtual delegation.
+    // Bodies in the wave-lane files this block owns, defined as members.
     void    Setup(Video::Context& context, int32_t pass) const;   // 0x180102c90  wave21
     // EXT SEAM (NOT RETAIL, docs/extensions/BLOSSOM.md): ext.better_trees' natural tree growth writes the
-    // draw's blossom code (Context::_time.zw) after Setup's retail body. Null by default and while natural
-    // tree growth is off; set and cleared only by Ext::BetterTrees::Sync. A static: the layout is unchanged.
+    // draw's blossom code (Context::_time.zw) after Setup's retail body, and ext.better_clouds the sky draw's
+    // constants. Null by default and while both are off; set and cleared only through Ext::MaterialSetup
+    // (src/ext/material_setup.h). A static: the layout is unchanged.
     static void (*_extAfterSetup)(const MaterialInstance& instance, Video::Context& context);
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/SMOOTHREPLAY.md section 3): ext.render_pipe's
     // replayed frames draw recorded sprite batches by their MaterialInstance. Run first in
@@ -450,10 +434,9 @@ public:
     Object::ExternalPtr<Video::ImageBuffer> GetTexture(const System::String& name) const; // 0x180103120
     void SetTexture(const System::String& name,
                     Object::ExternalPtr<Video::ImageBuffer> image);   // 0x180103180
-    // `AddTexture` (0x180103350) and `SetMaterial` (0x180103340) were listed here
-    // as unported; they are NOT — both have registered, ported doors in
-    // `renderer.cpp` and are declared with the ported members above. Corrected by
-    // block GC, 2026-09-19.
+    // `AddTexture` (0x180103350) and `SetMaterial` (0x180103340) are ported:
+    // both are members defined in `renderer.cpp`, declared with the ported
+    // members above.
 
     MaterialInstance(const MaterialInstance& src);          // 0x180002ba0  not ported
     MaterialInstance& operator=(const MaterialInstance& src);// 0x180002c80  not ported
@@ -517,11 +500,10 @@ static_assert(offsetof(MaterialInstance, _shaderClass) == sizeof(Object::Externa
 
 }  // namespace Graphics
 
-// ==== B3R W0-P0c: Runtime bodies reached by retail address ====
-// ENDGAME B.3R (B3R_RULES R5): each body below is registered at the retail
-// address in its trailing comment and read through the registry today. It is
-// declared here, copied from its definition (linkage, namespace, types), so the
-// reader can call it by name. Nothing calls it through this declaration yet.
+// ==== B3R W0-P0c: Runtime bodies called by name ====
+// ENDGAME B.3R (B3R_RULES R5): the body below is declared here, copied from its
+// definition (linkage, namespace, types), so a reader calls it by name
+// (wave28_lane_partsys.cpp does). Its retail address is the trailing comment.
 
 // ---- system/closure_batch2b.cpp
 extern "C" void RtGraphics_Material_OperatorDelete(void* p);  // 0x180061ae0

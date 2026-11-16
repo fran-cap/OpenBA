@@ -17,7 +17,7 @@
 //     5  GraphicsMesh's node block + Array<Transform>   (animationstate.cpp: the shape of
 //                                                        graphicsmesh_vtable.cpp:521-525, then
 //                                                        RtGraphics_SerializeTransformArray)
-//     6  RtGraphics_SerializeAnimInstances              (animationstate.cpp:323-357)
+//     6  RtGraphics_SerializeAnimInstances              (animationstate.cpp:342-361)
 //
 // HARNESS MODEL (not retail): ExternalPtrSerializeBody is replaced below. The real body
 // (external_ptr_serialize.cpp) resolves the path through ExternalFactory::_singleton, which a
@@ -170,7 +170,7 @@ FZ_NULL_FN(_ZN11Achievement11Achievement8DestructEv)
 FZ_NULL_FN(_ZN11Achievement11Achievement9ConstructEv)
 FZ_NULL_FN(_ZNK11Achievement11Achievement14CreateInstanceEv)
 FZ_NULL_FN(_ZNK11Achievement11Achievement14GetFileVersionEv)
-// achievement_manager.cpp:298 (the whole body; that TU drags the FileSystem and the GoalList).
+// achievement_manager.cpp:239 (the whole body; that TU drags the FileSystem and the GoalList).
 Achievement::Achievement::~Achievement() {}
 // Data: only their address is taken (the ExternalPtr stand-in ignores the type record).
 extern "C" {
@@ -185,7 +185,7 @@ namespace {
 constexpr int kModes = 7;
 
 // FuzzImageBuffer: Create is the backend's (DX11 / Vulkan / Metal); the stand-in records the
-// format and checks the two DX11 table indices (render/dx11/imagebufferdata.cpp:212/610/634,
+// format and checks the two DX11 table indices (render/dx11/imagebufferdata.cpp:212/624/648,
 // `kFormatToDxgi[8]` / `kFormatBytes[ib->_format]`) the way that backend would use them.
 int g_lastFormat = 0;
 bool g_checkDx11Index = false;
@@ -333,7 +333,7 @@ void SeedGen(const char* dir) {
         static uint32_t none[1];
         sb._data = pcm;
         sb._length = 64;
-        sb._wmaData = none;   // length 0, but not null: Write(0, nullptr) is F-rsc-1 (memcpy null)
+        sb._wmaData = none;   // length 0, but not null
         sb.Serialize(s);
         sb._data = nullptr;
         sb._length = 0;

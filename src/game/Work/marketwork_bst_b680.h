@@ -5,7 +5,6 @@
 // MarketWork_helper_* Ghidra labels.  0x14002b680 is a QUICKSORT and
 // 0x14002bd80 is its selection-sort small-range fallback, both operating on a
 // flat array of 0x20-byte records keyed on a float at record+0x14.
-// The file name is kept only because the lead's registration wave expects it.
 //
 // See marketwork_bst_b680.cpp for the offset-by-offset verification notes.
 

@@ -33,7 +33,7 @@ public:
     void Enter(ActionStack* actionStack, const System::Time* time) override;        // [6] 0x1400c7de0
     bool GetTarget(ComponentEntity** param) override;                      // [9] 0x1400c7d60
 
-    // ---- fields, retail order (PUBLIC: the slot bodies are C functions) ----
+    // ---- fields, retail order (PUBLIC) ----
     // +0x20: the HuntComponent (Persist checks HuntComponent; Enter tests HuntIsReady and clears
     // its huntProgress). +0x28: the HUNTING CITIZEN (Persist checks CitizenComponent; its
     // character's position seeds the query). The tree called them "animal" and "herd".

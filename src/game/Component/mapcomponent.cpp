@@ -5,17 +5,13 @@
 // Fields: +0x28..+0x2E = four int16 tile coords (x, y, w, h)
 //         +0x30 = int32 rotation (serialized)
 //
-// Vtable at 0x140163aa0. Three non-trivial overrides:
+// Vtable at 0x140163aa0. Four non-trivial overrides:
 //   Persist   (0x1401243e0) — Serializes tile coords as shorts + rotation int
 //   OnAdded   (0x140124370) — AddToMap when MapDescription::_claimOnAdd (+0x30)
 //   OnEvent   (0x1401243c0) — AddToMap on message 1 (ClearArea's state-2 enter)
 //   OnRemove  (0x1401242f0) — Clears the minimap rect + the map occupancy
 //
 // Decompiled from Application-x64.exe using Ghidra.
-//
-// LEFT (B.4 COMP-d): GameUpdateLoop m_game / m_imageCapture are void* (W0 header);
-// the tile rect is read through int16 (retail's MOVSX) until the fields take
-// retail's int16 type (a later commit).
 
 #include "Component/MapComponent.h"
 #include "Component/MapDescription.h"

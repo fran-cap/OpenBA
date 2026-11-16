@@ -6,21 +6,12 @@
 //
 // WHAT CAN AND CANNOT BE TESTED HERE
 // ----------------------------------
-// Everything below runs without the port registry, without the Runtime DLL and
-// without the mint: `src/engine/object/type_reflection.cpp` is registry-free by
-// construction and takes a malloc allocator seam under -DBANISHED_UNIT_TEST.
+// Everything below runs on the host: `src/engine/object/type_reflection.cpp`
+// takes a malloc allocator seam under -DBANISHED_UNIT_TEST.
 //
 // What is NOT covered, and only a live boot can be:
-//   * that `Object::BaseTypeInfo::_firstTypeInfo` is the cell the minted row's
-//     two doors publish (standalone/rt_data_mint.cpp's `MintStorageCell`), and
-//     therefore that `[GameMain] Post-Startup _firstTypeInfo` still counts the
-//     same entries with the same ids;
-//   * the static-init ORDER of real `DEFINE_TYPE` objects against
-//     `RtDataMintInit()` — nothing in the exe uses `DEFINE_TYPE` yet, and the
-//     splice in `MintStorage()` is written for the day something does;
-//   * `Factory::Get()`, which reads the minted `?_singleton@` cell and returns
-//     null here by design.
-// Those three are called out in the step's report for the coordinator to gate.
+//   * `Factory::Get()`, which reads `Factory::_singleton` and returns null
+//     here by design.
 //
 // THE CHAIN IS PROCESS-GLOBAL. `_firstTypeInfo` is one static, so a test that
 // builds a chain must restore it — otherwise the next test in link order
@@ -77,10 +68,8 @@ UNIT_TEST(basetypeinfo_layout_is_the_retail_record) {
     static_assert(offsetof(::Object::BaseTypeInfo, inPlaceFactoryFn) == 0x28, "");
     static_assert(offsetof(::Object::BaseTypeInfo, next)             == 0x30, "");
 
-    // It must stay trivially destructible: 300+ of these are file-scope statics
-    // and 14 more live inside standalone/rt_data_mint.cpp's `kStorageBytes`,
-    // which memsets them. A destructor would run at exit over storage the mint
-    // owns. (Not trivially CONSTRUCTIBLE — the five-argument ctor is the
+    // It must stay trivially destructible: 300+ of these are file-scope statics.
+    // (Not trivially CONSTRUCTIBLE — the five-argument ctor is the
     // registration.)
     CHECK(std::is_trivially_destructible<::Object::BaseTypeInfo>::value == true);
     CHECK(std::is_standard_layout<::Object::BaseTypeInfo>::value == true);
@@ -192,7 +181,7 @@ UNIT_TEST(factory_layout_is_the_set_header_and_the_node_is_0x50) {
 // the wanted keys are NOT all at the root. That last point is the whole reason
 // this test exists: a descent written against the wrong node layout returns the
 // right answer for a key that happens to BE the root and is permanently wrong
-// for everything below it (reference_one_bst_find_two_node_layouts.md).
+// for everything below it.
 struct Fixture {
     ChainScope scope;
     ::Object::Factory factory;
@@ -336,8 +325,8 @@ UNIT_TEST(factory_startup_is_independent_of_chain_order) {
     // The chain is a head-insert list, so declaration order is REVERSED in it.
     // Startup's parent pass runs over the tree in key order, not over the
     // chain, so a child registered before its parent must still link — and that
-    // is the property the exe depends on, because 300+ REGISTER_TYPE statics
-    // land in link order nobody controls.
+    // is the property the exe depends on, because the `DEFINE_TYPE` and
+    // `DEFINE_EXE_TYPE` statics land in link order nobody controls.
     ChainScope scope;
     ::Object::Factory factory;
 
@@ -357,7 +346,7 @@ UNIT_TEST(factory_startup_is_independent_of_chain_order) {
 // Object::Base — ENDGAME B.3.3 step 4.
 //
 // `Base::IsDerivedFrom` is NOT tested here: it reaches `Factory::Get()`, which
-// returns null on the host by design (there is no minted `?_singleton@` cell),
+// returns null on the host by design (`Factory::_singleton` stays null there),
 // and retail's body derefs it unguarded. The derivation walk itself is covered
 // by `factory_lookups_answer_the_retail_surface` above, on a Factory the test
 // owns.

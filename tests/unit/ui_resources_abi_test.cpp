@@ -6,7 +6,7 @@
 //   UI::SpriteSheet   0x58   UI::SpriteCapture 0x58  UI::Font         0x90
 //   (UI::Dialog, the seventh 9-slot External in B36_SLOTS, is block B's)
 //
-// All abstract, all 9 slots, all directly on Object::External, `Construct`
+// All concrete, all 9 slots, all directly on Object::External, `Construct`
 // introduced at slot 8 (RULE B6-1.1), and ONLY `Font` and `SpriteSheet`
 // override slot 4 `Compile` (RULE B6-1.5) — the other four carry
 // `?Compile@External@Object@@` (0x1800066e0) unchanged.
@@ -19,12 +19,9 @@
 //            ran. Nine distinct entries, `Construct` at +0x40.
 //   PART C — SLOT 4: shared with a bare External leaf on four classes,
 //            overridden (a different pointer that answers retail's 1) on two.
-//   PART D — THE QUALIFIED CALL: a door that delegates with
-//            `reinterpret_cast<UI::C*>(self)->UI::C::M()` does not re-enter
-//            itself through a minted table whose slot points back at the door.
 //
-// The real member bodies live in src/engine/ui/*.cpp and stand on the port
-// registry, so they are not linked here: the out-of-line members are defined as
+// The real member bodies live in src/engine/ui/*.cpp and are not linked
+// here: the out-of-line members are defined as
 // MARKERS at the bottom of this file (one definition per binary — none of those
 // .cpp files is in UNIT_TREE_SRCS), which also makes GCC emit the vtables here.
 // ============================================================================

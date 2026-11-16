@@ -25,13 +25,13 @@
 //
 // So the frame's Context traffic comes from the OTHER side: our own DX11
 // backend calls back INTO Video::Context, by name, on the hot path.
-// src/render/dx11/contextdata.cpp resolves `?BindResources@` and `?BindTextures@`
-// through `Dx11ResolveRuntimeImport` and calls them at four sites:
+// src/render/dx11/contextdata.cpp calls `BindResources` and `BindTextures` at
+// four sites:
 //
-//   contextdata.cpp:776   BindTextures  — slot 5, ContextData_BindRenderBuffer
-//   contextdata.cpp:953   BindResources — the indexed/instanced draw
-//   contextdata.cpp:1092  BindResources — the dynamic-vertex draw
-//   contextdata.cpp:1253  BindResources — the dynamic indexed draw
+//   contextdata.cpp:811   BindTextures  — slot 5, ContextData::BindRenderBuffer
+//   contextdata.cpp:973   BindResources — ContextData::DrawIndexed
+//   contextdata.cpp:1099  BindResources — ContextData::EndVertices
+//   contextdata.cpp:1245  BindResources — ContextData::EndInstancedIndexedVertices
 //
 // `BindResources` therefore runs ONCE PER DRAW CALL. It is the most-executed
 // `Video::Context` method in the process, and before this file every one of
@@ -41,62 +41,14 @@
 // get_xrefs_to(0x1800ef060) names four DATA references (the export tables) and
 // nothing else; get_xrefs_to(0x1800ef330) adds exactly one CALL, from
 // BindResources itself at 0x1800ef093. Everything that calls either of these
-// lives in the video plugin — which is us. **There is no split-ownership
-// hazard here at all**: after this registration our backend is the only caller
-// in the process and it reaches only our body.
+// lives in the video plugin — which is us.
 //
 // TRANSITIVE CLOSURE, COUNTED BEFORE ANYTHING WAS WRITTEN
 // -------------------------------------------------------
 // BindResources contains exactly one direct CALL (`CALL 0x1800ef330`, which is
 // BindTextures); every other call it makes is `CALL qword ptr [reg+imm]`, i.e.
 // a virtual dispatch through a pointer the Context already holds. BindTextures
-// contains no direct call at all. **Closure = these two functions, and ZERO new
-// resolve doors** — the port adds no name to `unsatisfied_export_scan.py`'s
-// denominator, which is the property lane PICK's five-rows-cost-fourteen note
-// asks to be measured up front rather than discovered afterwards.
-//
-// THE ORACLE, CHOSEN BEFORE THE FIRST BODY, AND WHAT WAS REJECTED
-// ---------------------------------------------------------------
-// Neither function can be REPLAYED on a live Context the way Wave 6 lane A
-// replayed the setters. A setter is a pure state transformation, so running it
-// twice on two copies is free; these two ISSUE COMMANDS — every arm ends in a
-// virtual call into the backend, and running them twice would bind every
-// resource to D3D twice and (via the dirty-bit clears) make the second pass see
-// a different input from the first.
-//
-// REJECTED — a live `RT_VIDCTXBIND` A/B. It can only report "did it
-// boot and did the picture look right", which is exactly the
-// executed-but-undiffed state reference_uncalled_port_is_not_verified.md warns
-// about one door over; it cannot tell me that arm 0x1000 uploaded 0x20 bytes
-// from +0x3f8 rather than 0x40 bytes from +0x208.
-//
-// REJECTED — comparing only the Context bytes afterwards. Both bodies write
-// just three fields (+0x10, +0x18, +0x1c and the qword at +0x20), so a
-// byte-only comparison is blind to the entire point of the function: WHICH
-// backend entry points were called, in WHICH ORDER, with WHICH ARGUMENTS. That
-// is the "lossy transform" trap — the comparison point cannot see the work.
-//
-// CHOSEN — a synthetic subject plus a CALL LOG. Two `.bss` Contexts, one set of
-// fake sub-objects SHARED by both sides (so every recorded pointer argument
-// except the Context itself compares directly), and a recorder on every vtable
-// slot. Ours runs on one copy, the shipped body on the other, and the probe
-// compares the full 0x2168 bytes AND the two call sequences element by element
-// — tag, slot index, and all five arguments, with pointer arguments that land
-// inside the subject normalised to an OFFSET from that side's own base.
-//
-// That is lockstep, not end-state-only: a defect that sets a wrong dirty bit
-// and then clears it compares equal at the end and differs in the log.
-//
-// THE FAKE TABLES ARE 64 SLOTS WIDE AND EVERY ENTRY IS IMPLEMENTED, and the
-// probe PRINTS THE OBSERVED SET rather than the predicted one. Lane VID2 guessed
-// a slot set three times and was wrong three times; the derivation below says
-// slots 4,5,6,7,8,9,10,11 and 1 and 2, but the report is what was actually
-// called, on both sides, as a bitmask.
-//
-// NOTHING IS EXCLUDED FROM THE BYTE COMPARISON. Both subjects are memcpy'd from
-// one master image before each case, so every byte either side reads was
-// written by the probe; there is no 0xCD region for the two to disagree about
-// and therefore no tolerance to state.
+// contains no direct call at all. **Closure = these two functions.**
 //
 // ---------------------------------------------------------------------------
 // THE DIRTY MASK, COMPLETED
@@ -152,8 +104,7 @@
 // comparison is on a field Context.h calls `_boneCount`. That is why the
 // function's final store is `MOV qword ptr [RBX+0x20],RBP`: a QWORD write
 // clearing BOTH +0x20 and +0x24 at once. Clearing only the dword at +0x20
-// would leave a live transform binding that never re-binds again, and it is one
-// of this file's negative controls.
+// would leave a live transform binding that never re-binds again.
 //
 // AND THE WHOLE FUNCTION IS WRAPPED IN `if (dirty != 0) { ... }`. When the mask
 // is zero nothing happens — not the transform check, not the two clears. A
@@ -166,8 +117,8 @@
 #include <cstring>
 
 #include "video/Context.h"
-// ENDGAME B.3.5 block J: the eight real Video::*Data abstract bases (block A),
-// whose slots the seventeen backend dispatches below go through.
+// ENDGAME B.3.5 block J: the real Video::*Data abstract bases (block A),
+// whose slots the backend dispatches below go through.
 #include "video/CompanionData.h"
 // B.4 (R-VIDEO): the owners whose companions the arms read, by name.
 #include "video/Buffers.h"
@@ -177,23 +128,15 @@
 #include "video/VertexLayout.h"
 #include "video/VideoProgram.h"
 
-// ENDGAME B.3.5 block D1. Both bodies MOVED onto `Video::Context`; the two
-// registered doors kept their names and became one-line QUALIFIED non-virtual
-// delegations.
+// ENDGAME B.3.5 block D1. Both bodies are members of `Video::Context`.
 //
 // B.4 (R-VIDEO): every read is a named field of a typed receiver — the owners'
 // companions (`ImageBuffer::_data` +0x60, `VertexProgram` / `PixelProgram::_data`
 // +0x50, `VideoProgram::_data` +0x40, `VertexLayout::_data` +0x30,
 // `Index/VertexBuffer::platformData` +0x08, `RenderState::_data` +0x78,
-// `ConstantBuffer::_platformData` +0x40) and the Context's own fields. What is
-// LEFT, each with its reason at the line:
-//   * `_imageBuffers[i]` is still `void*` in Context.h (outside writers store
-//     untyped pointers into it), so the image arm views it as the ImageBuffer it
-//     is;
-//   * +0x200 is `_videoProgram` living inside `_pixelConstantStaging`, which
-//     Context.h keeps undivided because code outside this block indexes the
-//     array by its own offsets;
-// and two things are spelled from the member they start in:
+// `ConstantBuffer::_platformData` +0x40) and the Context's own fields. +0x200 is
+// `_pixelConstantStaging.videoProgram`, the first member of `_pixelConstantStaging`.
+// Two things are spelled from the member they start in:
 //   * the QWORD clear over +0x20..+0x27 (0x1800ef317), `_transformCount` AND
 //     `_boneCount`, written as the two named fields in address order (H7);
 //   * the five constant-buffer STAGING sources at +0x208 / +0x248 / +0x328 /

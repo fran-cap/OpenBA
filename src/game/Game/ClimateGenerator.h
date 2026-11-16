@@ -23,7 +23,7 @@
 #include <cstdint>
 #include <cstddef>
 #include "object/External.h"
-#include "system/String.h"   // System::String (_name)
+#include "system/String.h"   // System::String (_text)
 #include "Object/exe_type.h"
 
 namespace UI { class StringTable; }

@@ -8,9 +8,10 @@
 // NOT RETAIL. No graphics types (the create_on_demand_backend.h precedent). A backend that supports
 // the drop creates a qualifying texture (texture_quality.h DropFor) without its dropped levels: the
 // descriptor halved per level, the subresources and pitches from the first kept level, the sampler's
-// MaxLOD lowered by the same count. The DX11 body is src/render/dx11/texture_quality/; the Metal
-// backend answers "not supported" (its uploads still plan every level of the file), and the
-// extension then leaves the drop at 0, so the level readers keep every level.
+// MaxLOD lowered by the same count. The DX11 and Vulkan bodies are src/render/dx11/texture_quality/
+// and src/render/vulkan/texture_quality/; the Metal backend answers "not supported" (its uploads
+// still plan every level of the file), and the extension then leaves the drop at 0, so the level
+// readers keep every level.
 // ============================================================================
 
 namespace TextureQualityBackend {

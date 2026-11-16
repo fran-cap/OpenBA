@@ -10,8 +10,8 @@
 //   0x180108160  ??1SunLight@Graphics@@UEAA@XZ                        (dtor)
 //
 // SIZE. 0x108, from `MemAlloc(0x108, 8)` at the two exe call sites that build
-// one (src/game/Game/menudialogloopt.cpp:733 and
-// src/game/Game/gameupdateloop_load.cpp:1209). Consistent with the last field
+// one (src/game/Game/menudialogloopt.cpp and
+// src/game/Game/gameupdateloop_load.cpp). Consistent with the last field
 // the ctor writes, `+0x100`.
 //
 // THE INHERITANCE CHAIN, and why `Light` contributes no bytes. The ctor calls
@@ -31,9 +31,8 @@
 // +0xEC IS A HOLE AND IS NEVER WRITTEN BY ANY OF THE THREE BODIES. The ctor
 // goes +0xe8 -> +0xf0 and skips it; `Set` writes +0xc0..+0xe8 and stops. It is
 // almost certainly the tail padding of the 12-byte `_ambient`/16-byte alignment
-// pair. Any oracle over this class MUST exclude it
-// (reference_oracle_must_not_compare_unwritten_bytes.md) — and the probe in
-// sunlight.cpp does.
+// pair. Any oracle over this class MUST exclude it — and InitFields in
+// sunlight.cpp leaves it unwritten.
 //
 // A CORRECTION TO WAVE9_LANE_GFX.md §6.5, which named the two buffers the other
 // way round ("depth ImageBuffer* +0xf0, colour ImageBuffer* +0xf8"). Read off
@@ -83,11 +82,8 @@
 //   [9] +0x48  0x180106bc0  ?DrawShadowMap@…            lights_vtable.cpp
 //  [10] +0x50  0x1801067b0  ?Draw@…HHHH@Z  -> DrawLight lights_vtable.cpp
 //
-// The POD above keeps its name and its users; this class describes the same
-// bytes with `Light` as a real base and is cross-asserted against it field for
-// field. The field NAMES are the POD's, deliberately: the bodies in
-// `sunlight.cpp`, `sun_camera.cpp` and `wave28_lane_partsys.cpp` read
-// `_dirX` / `_sunR` / `_ambientA` and move onto these members unchanged.
+// The bodies are in `sunlight.cpp`, `sun_camera.cpp`, `wave28_lane_partsys.cpp`
+// and `lights_vtable.cpp`.
 // ############################################################################
 
 namespace Graphics {
@@ -102,8 +98,9 @@ public:
     // class itself (table copy 0x14015e290, MenuScene / MainMenuDialog,
     // `MemAlloc(0x108)`). Geometry(), the Light stamp and the SunLight stamp
     // are the compiler's; InitFields is the rest of retail's body. ENDGAME
-    // B.3.9 pilot: the ??0/??1 doors and `DoorBody` are gone -- the exe's one
-    // builder spells `::new (p) Graphics::SunLight()` (B39_RULES D1).
+    // B.3.9 pilot: the ??0/??1 doors and `DoorBody` are gone -- the exe's two
+    // builders (menudialogloopt.cpp, gameupdateloop_load.cpp) spell
+    // `::new (p) Graphics::SunLight()` (B39_RULES D1).
     SunLight() : _direction(0.0f, 0.0f, -1.0f), _sun(1.0f, 1.0f, 1.0f, 1.0f),
                  _ambient(0.0f, 0.0f, 0.0f, 1.0f) { InitFields(); }
 
@@ -147,15 +144,14 @@ public:
     // recorded the declaration as a comment because a by-value return needs the
     // COMPLETE type and `Graphics::Camera` was still a POD; the class exists now
     // and `Light.h` (included above) includes `Camera.h`. NON-VIRTUAL, so the
-    // by-value return is correct C++; the door keeps retail's
-    // `(this, ret, renderer)` order and placement-news the prvalue.
+    // by-value return is correct C++.
     Camera GetSunCamera(Renderer& renderer) const;   // 0x180107010
 
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/EYECAM.md §9): the engine end of ext.eye_camera's shadow-fit view.
     // Null always, except for the span
-    // of the one Renderer::Draw call the eye camera makes in its seam at
-    // GameUpdateLoop::Draw step 7 (the selection is there; src/engine does not
-    // include src/ext). While set, AddDrawItems fits the shadow camera to this
+    // of the one Renderer::Draw call the eye camera or the town screenshot makes
+    // in its seam at GameUpdateLoop::Draw step 7 (the selection is there;
+    // src/engine does not include src/ext). While set, AddDrawItems fits the shadow camera to this
     // view instead of draw group 0's camera: GetSunCamera's fit assumes a view
     // that looks DOWN at the ground (its box half-size is scaled by
     // sqrt(|forward.z|) and an upward corner ray is extruded 1000 units), so a

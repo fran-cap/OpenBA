@@ -5,7 +5,7 @@
 // plus the CharacterComponent per-tick "move-tick" that drives it.
 //
 // Faithful 1:1 ports of three exe functions (lead-verified addresses this session):
-//   0x1400c4c50  CitizenAI_ActionExecutor_c4c50   — the action-stack executor
+//   0x1400c4c50  ActionStack::Execute             — the action-stack executor
 //   0x1400c4bb0  CitizenAI_ActionFlush_c4bb0      — the executor's flush/cleanup tail
 //   0x1401094c0  CharacterComponent_MoveTick_1094c0 — runs the executor IF the stack is
 //                non-empty, then (only when char-index>=0) updates the ModelComponent
@@ -25,26 +25,21 @@
 //       main:      CALL [vt+0x28] with RCX=node, RDX=stack, R8=time   (asm 0x1400c4d57)
 //       exit:      CALL [vt+0x38] with RCX=node, RDX=stack            (asm 0x1400c4ddc)
 //   * RETURN WIDTH (bug #7): each slot return is read as INT (EAX), compared ==1 / ==0 / ==2.
-//     Keep `int` returns through the function pointer typedefs — never bool.
+//     Keep `int` returns through the Action slots — never bool.
 //
-// Crash-safety for the move-tick (0x1401094c0): in standalone the citizen's
-// ModelComponent (CharacterComponent+0x68), its MeshInstance(+0x28)/Geometry/Picking,
-// and the char render-index (self+0x40) are INERT (zeroed/negative). The disasm shape is:
+// The move-tick (0x1401094c0) has this disasm shape:
 //     RCX = self+0x48
 //     if (*(int*)(RCX+0x18) /* self+0x60 top index */ >= 0) FUN_1400c4c50(RCX, time);
 //     if (*(int*)(self+0x40) < 0) return;        // <-- early-return SKIPS the whole tail
 //     ...big transform/animation/rendering block...
-// Because self+0x40 < 0 in standalone, the early-return is the intended crash-safety: the
-// transform tail (which touches the inert ModelComponent/MeshInstance/Geometry/Picking
-// rendering layer) is NEVER reached. It is ported faithfully below but all its engine
-// dispatch-slots / exe sub-callees are null-guarded; it stays dormant until ModelComponent
-// is brought live. See the report for the rendering-coupled sub-callee table.
+// self+0x40 is the char render-index CharacterComponent gets when it registers with the
+// character manager; while it is unregistered (-1) the transform tail is skipped.
 //
 
 
 // graphics/*.h FIRST: they pull src/engine/volume/Volume.h, whose global-scope
 // `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()` once <windows.h> has
-// been seen through resolve.h.  ENDGAME B.3.5 caller batch I2.
+// been seen.  ENDGAME B.3.5 caller batch I2.
 #include "graphics/Mesh.h"
 #include "Component/PickingDescription.h"   // B.3.8 CB1a (TypeId)
 #include <new>
@@ -114,7 +109,7 @@ static inline void CallExit(Action* node, ActionStack* stack) {
 
 
 // FUN_1400c5400 — TaskListCleanup, called when a main-slot returns 2 (push-more / requeue):
-// WorkBase_TaskListCleanup_c5400, called by name.
+// ActionStack::Clear, called by name.
 
 } // namespace
 
@@ -218,12 +213,9 @@ LAB_e38:
 
 // ===========================================================================
 // 0x1401094c0  CharacterComponent move-tick (Ghidra: "CharacterComponent_OnAttach").
-// HEAD (exercised in standalone): run the executor if the stack is non-empty, then
-// early-return when the char render-index (self+0x40) is < 0 — the crash-safety gate.
-// TAIL (DORMANT in standalone, char-index < 0): the ModelComponent transform/animation
-// update. Ported faithfully but every engine dispatch-slot / exe sub-callee is resolved
-// lazily + null-guarded. The tail touches the inert rendering layer and must NOT run
-// until ModelComponent is brought live. See report for the full sub-callee table.
+// HEAD: run the executor if the stack is non-empty, then early-return when the char
+// render-index (self+0x40) is < 0.
+// TAIL (char-index >= 0): the ModelComponent transform/animation update, ported faithfully.
 // ===========================================================================
 namespace {
 
@@ -239,7 +231,7 @@ static inline float RdataF(uint32_t bits) {
 }
 
 // --- exe sub-callees used by the tail, called by name ---
-//   0x14009f3e0 GridToWorld = Reimpl_MapGetTerrainPos; 0x140018660 = CharMgr_sub_8660.
+//   0x14009f3e0 GridToWorld = Map::GetTerrainPos; 0x140018660 = CharacterGrid::Place.
 //   sinf / cosf (0x140131c90 / 0x140131090) are the exe's MSVC CRT bodies, ported as
 //   MsvcLibm::Sinf / Cosf; sqrtf (0x140132010) is __builtin_sqrtf, see the tail.
 
@@ -275,8 +267,7 @@ static Math::Transform* PickXfCtorMember(void* xformOut, const Math::Transform* 
     return ::new (xformOut) Math::Transform(*transformIn);
 }
 // PerfX's deferred pick push (ext.render_culling, PICK_CULL) replays through this: the
-// member Picking::Scene::SetTransform, which the exe slot 0x1401529a8 used to
-// be resolved for (the slot's registered target is the same member's door).
+// member Picking::Scene::SetTransform, which the exe slot 0x1401529a8 names.
 static void PickSetXfMember(Picking::Scene* scene, uint32_t id, const Math::Transform* xform) {
     scene->SetTransform(id, *xform);
 }
@@ -328,7 +319,7 @@ extern "C" void CharacterComponent_MoveTick_1094c0(CharacterComponent* self, con
     if (-1 < self->actionStack.current) {
         self->actionStack.Execute(time);
     }
-    // Crash-safety gate: char render-index < 0 (always in standalone) → skip the tail.
+    // Char render-index < 0 (not registered) → skip the tail.
     if (self->characterIndex < 0) {
         return;
     }

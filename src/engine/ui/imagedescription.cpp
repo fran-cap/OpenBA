@@ -2,7 +2,7 @@
 // src/engine/ui/imagedescription.cpp — UI::ImageDescription, the whole class
 // ============================================================================
 //
-// PORTED AS A DEPENDENCY, NOT AS A WALL. The cutover boot stops on
+// PORTED AS A DEPENDENCY, NOT AS A WALL. The cutover boot stopped on
 // ??_7AnimatedImageDescription@UI@@6B@, and AnimatedImageDescription DERIVES
 // from this class in a way that cannot be worked around:
 //     ~AnimatedImageDescription (0x1800cb6b0) TAIL-JUMPS to ~ImageDescription
@@ -13,8 +13,8 @@
 //
 // ??_7ImageDescription@UI@@6B@ (retail 0x180156110), ten slots:
 //   0  deleting dtor      0x1800361f0  ImageDescription.h (the class's own)
-//   1  TypeName           0x180035cd0  here
-//   2  Type               0x180035cb0  here
+//   1  TypeName           0x180035cd0  ImageDescription.h (DECLARE_TYPE)
+//   2  Type               0x180035cb0  ImageDescription.h (DECLARE_TYPE)
 //   3  GetFileVersion     0x1801184a0  here  (returns 0x204)
 //   4  External::Compile  0x1800066e0  already ported
 //   5  Serialize          0x1801184b0  here
@@ -25,9 +25,8 @@
 // plus ??1ImageDescription@UI@@UEAA@XZ 0x180118370, the factory pair, and the
 // applier 0x180118570 — the NON-VIRTUAL
 // `?CreateInstance@ImageDescription@UI@@QEBAXV?$InternalPtr@VImageElement@UI@@@Object@@@Z`.
-// It IS EXPORTED (B36_SLOTS.md section 6); this file called it "unexported"
-// and still registers it by address only, which is enough: a by-name lookup
-// lands on the same address.
+// It IS EXPORTED (docs/history/endgame_b/B36_SLOTS.md section 6); here it is
+// the member `ImageDescription::CreateInstance(Object::InternalPtr<ImageElement>*)`.
 //
 // LAYOUT: src/engine/ui/ImageDescription.h — ElementDescription (0x68) plus
 // `_spriteSheet` +0x68, `_spriteName` +0x70, `_width` +0x78, `_height` +0x7c.
@@ -37,8 +36,7 @@
 // nothing else. That is retail's, transcribed, not an omission.
 //
 // ENDGAME B.3.6 block C2: every slot body and the applier are MEMBERS of
-// `UI::ImageDescription`; the registered doors are one-line QUALIFIED
-// delegations. The base Serialize (by address 0x180116b00 before) is the
+// `UI::ImageDescription`. The base Serialize (by address 0x180116b00 before) is the
 // qualified member `ElementDescription::Serialize`; the applier's
 // `GetSpriteIndexFromName` (RT_EXPORT_ONCE before) is the real
 // `UI::SpriteSheet` member.
@@ -48,7 +46,7 @@
 // ConstructBody transcribed) is in the header; the factory pair is defined and
 // registered here, replacing the ui_factory_wave28.cpp row. The slot doors and
 // the ??1 door, read only by the retired minted table and its RT_DELDTOR row,
-// are gone. The applier's door (non-slot) stays.
+// are gone. The applier is the non-slot member `ImageDescription::CreateInstance`.
 // ============================================================================
 #include <cstddef>
 #include <cstdint>
@@ -143,7 +141,7 @@ bool ImageDescription::Serialize(IO::Stream& streamv) {
 //    TO. 0x1801185ac and 0x1801185b2 write `dword [RSP+0x28]`; 0x1801185bd
 //    reads `qword [RSP+0x28]` and 0x1801185ce stores all eight bytes, so the
 //    Sprite's pad receives four bytes of whatever was on the stack. What is
-//    faithful is the WIDTH (description_common.h's SpriteIndexSlot note).
+//    faithful is the WIDTH (description_common.h's SpriteFromName note).
 //
 // `ElementDescription::CreateInstance` (0x180115ad0) is a QUALIFIED member
 // call since fragment pass F2 defined it (dialog.cpp).

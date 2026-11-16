@@ -7,14 +7,14 @@
 // PARENT `UI::Element` — READ, not inferred:
 //     ?_ParentTypeName@ScrollElement@UI@@CAPEBDXZ @0x18003a820 -> "Element"
 //
-// RULE B5-15 / B6-7 — THE TWO NAME LITERALS, RECORDED, NOT USED (slots 1/2 keep
-// reading the minted `?_typeInfo@ScrollElement@UI@@…`, 0x1801fad98):
+// RULE B5-15 / B6-7 — THE TWO NAME LITERALS (slots 1/2 read the class's own
+// `_typeInfo`, which DEFINE_TYPE builds from them; retail's record 0x1801fad98):
 //     ?_TypeName@ScrollElement@UI@@CAPEBDXZ       @0x18003a810 -> "ScrollElement"
 //     ?_ParentTypeName@ScrollElement@UI@@CAPEBDXZ @0x18003a820 -> "Element"
 //
 // `??_7ScrollElement@UI@@6B@` @ 0x180156400, TWELVE slots (B36_SLOTS.md
 // section 1; sizeof from `MOV EDX,0x178` in slot 0 0x18003adc0):
-//   [0] 0x18003adc0 deleting dtor (row)  [1] 0x18003a850 TypeName
+//   [0] 0x18003adc0 deleting dtor        [1] 0x18003a850 TypeName
 //   [2] 0x18003a830 Type                 [3] Element::Persist INHERITED
 //   [4] 0x18011ad80 ComputeSize          [5] 0x18011af20 ComputeLayout
 //   [6] 0x18011b0b0 Draw                 [7] 0x18011b620 Update
@@ -25,8 +25,7 @@
 // own slot 0 (the vector deleting dtor), a virtual ~ScrollElement holding
 // the retired ??1 door's body, and the factory pair as the class's own statics;
 // every live one wears the COMPILER's table. The minted `??_7ScrollElement@UI@@6B@`,
-// its RT_DELDTOR row 0x18003adc0 and the ctor / dtor / slot doors are retired
-// (tools/rt_mint_retired/ui-b.txt).
+// its RT_DELDTOR row 0x18003adc0 and the ctor / dtor / slot doors are retired.
 // ABSTRACT (slot 0 pure), no real ctor: every live one is built by the
 // `??0ScrollElement` DOOR (scrollelement.cpp) and wears the MINTED table.
 //
@@ -97,8 +96,8 @@ public:
     // Exported, not ported (nothing in the tree calls them): declared, undefined.
     void  SetMaxValue(float value);                               // 0x18003a9d0
     void  SetDisplayPercent(float percent);                       // 0x18003a9f0
-    // PORTED, body in ANOTHER BLOCK'S FILE (element_bodies_b5.cpp,
-    // `RtUi_ScrollElement_GetBarLayout`) — fragment pass. Retail: private.
+    // PORTED, body in ANOTHER BLOCK'S FILE (element_bodies_b5.cpp) — fragment
+    // pass. Retail: private.
     void  GetBarLayout(int32_t& left, int32_t& top,
                        int32_t& right, int32_t& bottom) const;    // 0x18011a2d0
 

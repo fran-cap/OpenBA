@@ -17,18 +17,14 @@
 //   9  Construct          0x180041c70  here
 // plus ??1TextDescription@UI@@UEAA@XZ 0x18011eae0 and the applier
 // ?CreateInstance@TextDescription@UI@@ (0x18011ef70), which the shipped binary
-// keeps as its own function — exported, so it is registered by NAME as well as
-// by address.
+// keeps as its own (exported) function.
 //
 // ENDGAME B.3.6 block C3: every slot body is a `UI::TextDescription` member
 // (src/engine/ui/TextDescription.h, which now carries the layout this file
-// used to spell as raw offsets — RULE B6-8). The registered doors keep their
-// names and addresses and delegate with a QUALIFIED call: a live
-// TextDescription wears the MINTED table. The ctor and dtor stay door bodies
-// (no real ctor on a polymorphic class, B4b-2).
+// used to spell as raw offsets — RULE B6-8).
 //
-// The applier 0x18011ef70 is element_bodies_b5.cpp's (a non-slot member body
-// and its door), reached here by address.
+// The applier 0x18011ef70 is element_bodies_b5.cpp's (a non-slot member body),
+// called here by name.
 //
 // THE CONSTRUCTOR IS OUT OF LINE IN RETAIL. Unlike Group/Ribbon/Image, whose
 // ctor bodies are inlined into Construct/Reconstruct, TextDescription's is a
@@ -45,7 +41,7 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "element_common.h"   // rtuielem::AtomicExport (RULE B6-5), ResolveAddr
+#include "element_common.h"
 #include "ui/TextDescription.h"
 #include "ui/TextElement.h"
 #include "system/String.h"
@@ -104,7 +100,7 @@ TextDescription::~TextDescription() {
 //   ElementDescription::Serialize(this, stream)      0x180116b00 (qualified)
 //   rw = encoding factory, read side or write side by stream->mode
 //   ExternalPtr<UI::Font>::Serialize(&_font, &pair)        0x18003f1e0
-//   ExternalPtr<UI::StringTable>::Serialize(&_tbl, &pair)  0x1800042a0
+//   ExternalPtr<UI::StringTable>::Serialize(&_stringTable2, &pair)  0x1800042a0
 //   System::String::Serialize(&_name, &pair)               0x1800c9930
 //   rw->vt[0x78](rw, &_dropShadow, 0)   kScalarBool
 //   rw->vt[0x78](rw, &_wordWrap, 0)     kScalarBool
@@ -165,11 +161,11 @@ bool TextDescription::Serialize(IO::Stream& streamv) {
 // The allocation is the MemoryAllocator::Alloc wrapper (0x1800c7a50) INLINED —
 // the shipped body enters the same critical section at `g_heap+0x640`, calls
 // the same 0x1800c6e60 with (0x100, 8), and leaves it. Calling the wrapper is
-// the same sequence and keeps the one allocator door this tree already has.
+// the same sequence.
 //
 // The applier 0x18011ef70 is the non-virtual `CreateInstance(InternalPtr<
-// TextElement>, const Dialog*)`, whose body is element_bodies_b5.cpp's door:
-// reached by address (registry-first) with the handle by ADDRESS (B6-11).
+// TextElement>, const Dialog*)`, whose body is in element_bodies_b5.cpp:
+// a member call with the handle by ADDRESS (B6-11).
 Object::InternalPtr<Element>* TextDescription::CreateInstance(
         Object::InternalPtr<Element>* ret, const Dialog* dialog) const {
     void* raw = System::MemoryAllocator::MemAlloc(0x100, 8);   // 18011f412 (inlined)

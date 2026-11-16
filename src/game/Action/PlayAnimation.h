@@ -33,7 +33,7 @@ public:
     void CheckEntity() override;                               // [8] 0x1400423f0 own `RET 0` (same bytes as the base body)
     bool GetTarget(ComponentEntity** param) override;                      // [9] 0x1400423b0
 
-    // ---- fields, retail order (PUBLIC: the slot bodies are C functions) ----
+    // ---- fields, retail order (PUBLIC) ----
     Object::InternalPtr<ComponentEntity> _entity;   // +0x20 the animated entity (Persist checks ComponentEntity)
     int32_t   animation;         // +0x28 the animation SetAnimation plays (Persist: int)
     uint8_t   _pad2C[4];         // +0x2C

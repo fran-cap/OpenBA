@@ -6,7 +6,7 @@
 // Factory 0x14014b840-area (MemAlloc 0x38). Ctor defaults: zero @ +0x20, +0x28, +0x30.
 // Serialize (vtable +0x28, 0x1400576a0), stream order (interleaved ExtPtr/enum):
 //   ExternalPtr @ +0x20  (FUN_14000b7b0 — single-ExternalPtr variant w/ type-check;
-//                          stream-identical to fn_ExternalPtr_BuildSerialize)
+//                          stream-identical to FUN_140002340)
 //   enum        @ +0x30  (serializer encoding vtable +0x98)
 //   ExternalPtr @ +0x28  (FUN_14000b7b0)
 //   enum        @ +0x34  (serializer encoding vtable +0x98)

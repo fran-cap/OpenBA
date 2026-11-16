@@ -53,8 +53,8 @@ using Graphics::SceneNode;
 
 // ===========================================================================
 // The walk -- cull.cpp's CullStack and helpers, copied record for record (the
-// faithful file keeps its own; FRUSTUMCULL is changing that body and a shared
-// header is the follow-up once both are merged, DRAWGATHER.md §8).
+// faithful file keeps its own; a shared header is the follow-up, DRAWGATHER.md
+// §8).
 // ===========================================================================
 constexpr float kHalf         =  0.5f;   // 0x180161694
 constexpr float kTwo          =  2.0f;   // 0x1801616d8
@@ -306,8 +306,7 @@ constexpr int32_t kTopDepth = 2;
 
 // Per task (and the coordinator's interior work): plain counters, private to the
 // thread running it, summed by the coordinator after the join. The DrawGatherSide
-// shadow is recorded here and reported after the join, on the main thread
-// (StressHarness_Verify is single-threaded).
+// shadow is recorded here and reported after the join, on the main thread.
 struct TaskStats {
     uint64_t nodesTested    = 0;
     uint64_t geoTouched     = 0;

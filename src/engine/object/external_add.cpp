@@ -18,9 +18,10 @@
 // right. `??0VisitorStream@IO@@QEAA@XZ` (ordinal 511) and
 // `??1VisitorStream@IO@@UEAA@XZ` (ordinal 715) are both EXPORTED — this DLL
 // exports its private and protected members, and reading `QEAA`/`AEAA` as
-// "unexported" is the mistake reference_aeaa_is_private_not_unexported.md
-// records. What was genuinely missing was the LAYOUT, i.e. how many bytes to
-// reserve and which fields the inlined destructor touches.
+// "unexported" is a mistake: export status comes from the shipped export
+// directory, never from the mangling. What was genuinely missing was the
+// LAYOUT, i.e. how many bytes to reserve and which fields the inlined
+// destructor touches.
 //
 // src/engine/io/FileStream.h now pins it: `IO::VisitorStream` is 0x18
 // bytes, adds NO fields to `IO::Stream`, and its `Write` is literally
@@ -66,7 +67,7 @@
 //   ?GetPath@External@Object@@         0x180006250   ported, external.cpp
 //   Set<ResourceEntry>::Insert         0x18002ca00   ported, external_set.cpp
 //   the AVL node layout / EntryValue                 external_set.h
-//   ResourceEntry field offsets                      types/object/External.h
+//   ResourceEntry field offsets                      object/External.h
 //   Filename copy-ctor and the String release idiom  external_set.cpp
 //
 // so the only new code here is the descent, the clean-bit test, and the
@@ -115,16 +116,15 @@ void ExternalSerialize(::Object::External* self, IO::Stream& stream) {
 // ---------------------------------------------------------------------------
 // The comparator, and why it is spelled out here again.
 //
-// This is the third copy in the tree (external.cpp's `StriCmpAscii` /
-// `FilenameLess`, external_set.cpp's, and this one). They are duplicated rather
-// than shared because the other two are `static` in files other lanes own, and
-// because reference_a_rule_on_the_callers_side_gets_broken.md is about exactly
-// what happens when a shared helper drifts from the call site that depends on
-// it. The behaviour is pinned by the assertion below, not by inspection.
+// This is one of four copies in src/engine/object (external.cpp's `StriCmpAscii`
+// / `FilenameLess`, external_set.cpp's, External.h's `Object::detail` pair, and
+// this one). They are duplicated rather than shared because
+// of what happens when a shared helper drifts from the call site that depends
+// on it: a rule kept only on the caller's side gets broken.
 //
 // Retail's comparisons go through the CRT `_stricmp` at 0x18007eefc. The DLL
 // never calls `setlocale`, so that runs in the "C" locale: plain ASCII case
-// folding. `runtime/src` must not depend on a CRT whose locale behaviour
+// folding. `src/engine` must not depend on a CRT whose locale behaviour
 // differs between toolchains (PLAN §4.1).
 // ---------------------------------------------------------------------------
 int StriCmpAscii(const char* a, const char* b) {
@@ -158,8 +158,7 @@ bool FilenameLess(const char* a, const char* b) {
 // ---------------------------------------------------------------------------
 // EFFECTIVENESS COUNTERS.
 //
-// WAVE9's standing rule and reference_calls_zero_can_mean_always_took_the_
-// uncovered_branch.md: an entry count cannot tell a body that ran and did
+// WAVE9's standing rule: an entry count cannot tell a body that ran and did
 // nothing interesting from one that did. The two numbers that matter here are
 // `hitVisited` and `hitSkipped` — the clean-bit branch, which is the ONLY
 // branch in this function with a side effect beyond the tree — and they are

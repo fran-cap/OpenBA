@@ -5,8 +5,9 @@
 //
 // ENDGAME B.3.4b SYSTEM (4c). The derivations stay where they were written:
 // `src/engine/system/configuration.cpp`'s banner is the command-line parser
-// and the string-keyed BST find, instruction by instruction, and
-// `src/engine/engine/engine_lifecycle.cpp:305-332` is the constructor. This
+// and the string-keyed BST find, instruction by instruction; the constructor
+// is defined in this header and placement-constructed by Engine::Startup
+// (`src/engine/engine/engine_lifecycle.cpp:461-463`). This
 // header carries the SHAPE, the evidence for it, and — at the bottom — the
 // four things that deliberately did NOT convert.
 //
@@ -14,21 +15,20 @@
 // "IS IT A CLASS?" — YES, WITH INSTANCE STATE
 // ============================================================================
 // The test (B34B_RULES.md §1.2): MSVC emits a class-scoped mangling only for a
-// member of a class of that name. Read out of `standalone/rt_export_addrs.inc`
-// before a line was moved — the PORTED surface is split across two files, which
-// is this class's whole trap:
+// member of a class of that name. The PORTED surface is split across files,
+// which is this class's whole trap:
 //
-//  registered in src/engine/system/configuration.cpp
+//  defined in src/engine/system/configuration.cpp
 //   ?SetCommandLine@Configuration@System@@QEAAXAEBVString@2@@Z      0x1800c47a0  QEAA
 //   ?GetCommandLineString@…@QEBA?AVString@2@AEBV32@@Z               0x1800c5300  QEBA
 //   ??1Configuration@System@@QEAA@XZ                                0x1800c5170  QEAA
 //   ?ParseCommand@…@CA?AVString@2@AEAHAEBV32@@Z                     0x1800c4a00  CA
 //   ?ParseValue@…@CA?AVString@2@AEAHAEBV32@@Z                       0x1800c4930  CA
-//  registered in src/engine/system/value_types.cpp
+//  defined in src/engine/system/value_types.cpp
 //   ?CurrentBuildId@…@SA?AVString@2@XZ                              0x1800c4c60  SA
 //   ?CurrentVersion@…@SA?AVString@2@XZ                              0x1800c4f40  SA
 //   ?GetVersionString@…@SA?AVString@2@I_N@Z                         0x1800c4f90  SA
-//  registered in src/engine/engine/engine_lifecycle.cpp
+//  defined in this header (Engine::Startup placement-constructs it)
 //   ??0Configuration@System@@QEAA@XZ                                0x1800c51b0  QEAA
 //
 // Three `QEAA`/`QEBA` instance members over `this`, two `CA` private statics,
@@ -50,21 +50,18 @@
 //   MOV RAX,RCX
 //
 // so: an `Array`-shaped sub-object at +0x00, the string→string map at +0x10 and
-// a THIRD {ptr,int} at +0x20. Total 0x30.
+// three dwords at +0x20 / +0x24 / +0x28 (one qword store zeroes the first two).
+// Total 0x30.
 //
 // **THE FOUR BYTES AT +0x1c AND +0x2c ARE NEVER WRITTEN.** The two `MOV dword`
 // stores are 4 bytes each; retail leaves whatever the allocator left in the
 // upper half of each pair. `_pad1c` / `_pad2c` are named so that a future
 // `memset(this, 0, 0x30)` reads as the behaviour change it would be — and no
-// oracle in this project could see that change
-// (`reference_oracle_must_not_compare_unwritten_bytes.md`).
+// oracle in this project could see that change.
 //
-// **THE SUB-OBJECT AT +0x20 IS NEVER DESTROYED, AND THAT IS RETAIL'S CHOICE.**
-// `~Configuration` (0x1800c5170) clears the map at +0x10 and tail-calls
-// `~Array(+elem)` on `this`, and touches +0x20 not at all. It is a retail leak
-// of the same family as the two already flagged inside `Engine::Shutdown`
-// (`Input::Device`, `Audio::Device`) and it is REPRODUCED, not tidied: freeing
-// a block retail still considers live is strictly worse than the leak.
+// **+0x20..+0x2b ARE NOT TOUCHED BY THE DESTRUCTOR.** `~Configuration`
+// (0x1800c5170) clears the map at +0x10 and tail-calls `~Array(+elem)` on
+// `this`; the three dwords at +0x20..+0x2b hold no allocation, so nothing leaks.
 //
 // **THE FIELD TYPES AT +0x20 / +0x28 ARE POSITIONAL, NOT STRUCTURAL.** The
 // four accessors below name them; +0x00 and +0x10 are the real classes (next
@@ -132,11 +129,8 @@ public:
     // String& key)` — RCX = this, RDX = ret, R8 = key — and a typedef that
     // omitted the slot would put `key` in RDX, hand the find a `String**` where
     // it wants a `String*`, and write the answer through whatever the caller
-    // left in R8: a wild write that STILL returns the right answer in RAX
-    // (`reference_hidden_retslot_wild_write.md`). The registered DOOR keeps the
-    // three-argument shape and placement-news this member's prvalue into the
-    // caller's slot; the MEMBER returns by value, which is what retail's source
-    // said. Never register the member directly.
+    // left in R8: a wild write that STILL returns the right answer in RAX. The
+    // MEMBER returns by value, which is what retail's source said.
     String GetCommandLineString(const String& key) const;
 
     // ??0Configuration@System@@QEAA@XZ                            0x1800c51b0
@@ -159,8 +153,7 @@ public:
 
     // ??1Configuration@System@@QEAA@XZ                            0x1800c5170
     // NON-VIRTUAL (`QEAA`, not `UEAA` — the `UEAA` spelling does not exist in
-    // this DLL and would have resolved NULL in silence,
-    // `reference_phantom_dtor_mangling_qeaa_vs_ueaa.md`). Clears the map at
+    // this DLL and would have resolved NULL in silence). Clears the map at
     // +0x10 and tail-calls `~Array(+elem)` on `this`: the empty body, then the
     // two members' destructors in reverse declaration order. PUBLIC and
     // non-virtual: nothing derives from this class and nothing deletes one
@@ -171,10 +164,8 @@ public:
     // ?ParseCommand@…@CA?AVString@2@AEAHAEBV32@@Z                 0x1800c4a00
     // ?ParseValue@…@CA?AVString@2@AEAHAEBV32@@Z                   0x1800c4930
     // `CA` is the PRIVATE static spelling; both are real exports (ord 3310 and
-    // 3311) and both are registered, so they are PUBLIC here for the same
-    // reason `Random::NextGroup` is — their doors call them and access control
-    // is not ABI. Both return `String` BY VALUE, so both doors are
-    // hidden-retslot doors. `pos` is an in/out `int&`.
+    // 3311); they are PUBLIC here, and access control is not ABI. Both return
+    // `String` BY VALUE. `pos` is an in/out `int&`.
     static String ParseCommand(int& pos, const String& src);
     static String ParseValue(int& pos, const String& src);
 
@@ -187,10 +178,9 @@ public:
     static String CurrentVersion();
 
     // ?_singleton@Configuration@System@@0PEAV12@EA  0x1801fc6f8 — ENDGAME B.3.9
-    // SYS (B39_RULES D7): the class static, defined in configuration.cpp;
-    // RtSystemPortInit redirects the minted row onto it. Written by the ctor
-    // door (engine_lifecycle.cpp, retail `MOV [0x1801fc6f8],RCX`). PUBLIC
-    // while foreign readers (IO, the loader thread) still reach the door.
+    // SYS (B39_RULES D7): the class static, defined in configuration.cpp.
+    // Written by the constructor above (retail `MOV [0x1801fc6f8],RCX`). PUBLIC:
+    // code outside the class reads it.
     static Configuration* _singleton;
 
     // ---- the 0x30 bytes ----------------------------------------------------
@@ -265,18 +255,12 @@ static_assert(!std::is_trivially_destructible<Configuration>::value,
 // and folded the store away) or a behaviour change on a slot the caller did not
 // zero. `value_types.cpp` already recorded the second reading and decided
 // "left exactly as retail spells it"; that decision is not overridden on
-// inference. The body stays the registered free door it is, and the conversion
+// inference. The body stays the free function it is, and the conversion
 // is OWED once someone reads 0x1800c4c60's prologue and settles which it is.
 //
-// **3. `?_singleton@Configuration@System@@0PEAV12@EA` @ 0x1801fc6f8.** A
-// `CUTOVER_REQUIRED` row (`cutover_manifest.inc:77`) answered by a minted
-// storage cell, read today through `RT_DATA_SLOT` at
-// `engine_lifecycle.cpp:283`. Making it a real `static` member REDIRECTS that
-// cell at `standalone/rt_data_mint.cpp`'s `MintStorageCell()` — the B.3.3
-// `?_firstTypeInfo@BaseTypeInfo@Object@@` precedent — and `standalone/` is
-// another agent's file set this step. **RULE B4b-4**: the FUNCTIONS convert and
-// the STATIC stays an `RT_DATA_SLOT` read. The debt is tabled per row in
-// B34B_RULES §4.1 and is owed at the class-static conversion, end of B.3.
+// **3. `?_singleton@Configuration@System@@0PEAV12@EA` @ 0x1801fc6f8.**
+// CONVERTED: the class static declared above, defined in configuration.cpp and
+// written by the constructor.
 //
 // **4. THE 22 UNPORTED EXPORTS.** `?Startup@` 0x1800c4c50, `?Shutdown@`
 // 0x1800c4c40, `?IsCommandSet@` 0x1800c5410, `?AddCommandLine@` 0x1800c5200,
@@ -292,11 +276,11 @@ static_assert(!std::is_trivially_destructible<Configuration>::value,
 
 }  // namespace System
 
-// ==== B3R W0-P0c: Runtime bodies reached by retail address ====
-// ENDGAME B.3R (B3R_RULES R5): each body below is registered at the retail
-// address in its trailing comment and read through the registry today. It is
-// declared here, copied from its definition (linkage, namespace, types), so the
-// reader can call it by name. Nothing calls it through this declaration yet.
+// ==== B3R W0-P0c: Runtime bodies called by name ====
+// ENDGAME B.3R (B3R_RULES R5): each body below carries its retail address in its
+// trailing comment. It is declared here, copied from its definition (linkage,
+// namespace, types), so the reader can call it by name;
+// src/game/Dialog/mainmenudialog.cpp does.
 namespace System { class String; }       // system/String.h
 
 // ---- system/value_types.cpp

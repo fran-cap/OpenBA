@@ -66,7 +66,7 @@ Achievement::Goal::GoalState PopulationGoal::CheckGoalState() const {
     if (gameWorld == nullptr) return kNotMet;
 
     // Check IsRunning — Engine::UpdateLoop::IsRunning (import slot 0x140152850),
-    // non-virtual. The door's null-`this` test is covered by the check above.
+    // non-virtual. Retail's null-`this` test (`TEST RCX,RCX / JZ`) is covered by the check above.
     bool running = gameWorld->IsRunning();
     if (!running) return kNotMet;
 

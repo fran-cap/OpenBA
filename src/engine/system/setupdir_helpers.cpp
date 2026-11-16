@@ -1,6 +1,7 @@
 // ============================================================================
 // src/engine/system/setupdir_helpers.cpp — Wave 9 lane FS
-// The three System-namespace leaves of IO::FileSystem::SetupDirectories
+// Two of the three System-namespace leaves of IO::FileSystem::SetupDirectories (the third,
+// Filename::GetPathDirectory, is in filename.cpp)
 // ============================================================================
 //
 //   | Export                                                    | Retail      | Ord  |
@@ -12,17 +13,8 @@
 // All three verified against Runtime-x64.dll's export directory with pefile
 // before a body was written. All three RETURN A String BY VALUE, so the
 // hidden return slot sits between `this` and the declared arguments — RCX =
-// this, RDX = &ret, R8 = the first real parameter
-// (reference_hidden_retval_and_int_pointer_args.md). Getting that wrong here
+// this, RDX = &ret, R8 = the first real parameter. Getting that wrong here
 // would have made the enum argument land in the return slot.
-//
-// WHY THIS FILE EXISTS INSTEAD OF EDITS TO filename.cpp / configuration.cpp
-// -------------------------------------------------------------------------
-// Wave 2 lane A owns filename.cpp and Wave 9 lane ENG owns configuration.cpp,
-// and both may still be in flight. The wave convention (rt_system_port.cpp's
-// header) is one file per lane so no two lanes ever edit the same source; the
-// registration door is the mangled name and the Ghidra address, so where the
-// body lives is immaterial to correctness.
 //
 // NOTHING HERE TOUCHES WIN32, so it stays out of a `_win` file per PLAN §4.1.
 // ============================================================================
@@ -51,10 +43,6 @@ bool SameText(const char* a, const char* b) {
 }  // namespace
 
 // ============================================================================
-// ?GetPathDirectory@Filename@System@@QEBA?AV12@XZ          retail 0x1800c6880
-// ============================================================================
-
-// ============================================================================
 // ?GetPlatformName@Configuration@System@@QEAA?AVString@2@W4Platform@12@@Z
 //                                                          retail 0x1800c5210
 // ============================================================================
@@ -64,8 +52,8 @@ bool SameText(const char* a, const char* b) {
 //
 // `this` (RCX) is moved nowhere and NEVER DEREFERENCED — checked in the
 // disassembly, not inferred from the decompile. That is not a curiosity: it is
-// what makes this call safe for SetupDirectories to make while
-// `?_singleton@Configuration@System@@0PEAV12@EA` is still an unminted slot.
+// what makes this call safe for SetupDirectories to make with whatever `cfg`
+// it passes.
 System::String RtSystem_Configuration_GetPlatformName(void* self, int platform) {
     (void)self;   // retail never reads it
 

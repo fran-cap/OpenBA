@@ -7,7 +7,7 @@
 //
 // The metadata record is the element type of the `Array<Save::MetaData>` that
 // src/engine/collection/array.cpp's `kSpec_MetaData58` (0x1800332d0) grows,
-// and it is reached from IO::Persistence's UpdateList (0x1800c1ea0) /
+// and it is reached from Save::SaveLoad's UpdateList (0x1800c1ea0) /
 // LoadMetaData (0x1800c1b30) / SaveMetaData (0x1800c1490).
 // ============================================================================
 
@@ -24,12 +24,7 @@
 // (src/engine/collection/array_destroy.cpp, J4_ENTRY(180033f30)).
 //
 // ENDGAME B.3.2 step 2: NOT spelled as `Array<T>::operator=` on the class.
-// `Collection::Array<T,...>::operator=` is still `= default` (shallow) —
-// Collection.h's banner says the deep assign "becomes this class's operator=
-// in step 2, when the last bitwise copier is gone", and it has not gone (this
-// site's own destination is the same `Array<Save::MetaDataEntry>` header at
-// d+0x48, still bare bytes with no class type here — see the banner above).
-// So this calls the already-ported free function directly, by name, instead
+// This calls the already-ported free function directly, by name, instead
 // of by address: `RtColl_ArrayAssign_180033f30` is J4_ENTRY's forwarder onto
 // `ArrayAssignCore` (array_destroy.cpp), given external linkage by sitting in
 // `namespace rtcoll` there. Forward-declared here (at file scope, NOT inside
@@ -82,7 +77,7 @@ void GuardedFree(void* p) {
 // `SaveLoad::_saves` (+0x50) that 0x1800332d0 grows — and the field meanings
 // this banner used to call unknown are all pinned now (SaveLoad.h's SaveInfo
 // banner). The transcription above is unchanged; it moved onto the class as the
-// copy constructor, and the registered address door delegates to it.
+// copy constructor.
 //
 // The member initialisers run in declaration order, which IS retail's store
 // order above: the two Strings' zero-adopt-AddRef is ??0String@System@@QEAA@

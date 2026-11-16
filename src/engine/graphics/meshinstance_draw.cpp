@@ -5,7 +5,7 @@
 // ============================================================================
 //
 // These are slot 2 of `??_7MeshInstance@Graphics@@6B@` and of
-// `??_7EdgeMeshInstance@Graphics@@6B@`, the last unported slot of each table,
+// `??_7EdgeMeshInstance@Graphics@@6B@`,
 // and they are the per-item draw submission for every mesh in the game: pose
 // the skeleton, hand the bone matrices and the world transform to the
 // Video::Context, bind the vertex/index buffers, and issue the draw.
@@ -36,7 +36,7 @@
 // index whose sign selects which pair of buffers gets bound:
 //
 //     rec[+0x14] < 0   ->  the "skinned" buffers, stride 0x20 (or 0x10)
-//     rec[+0x14] >= 0  ->  the "rigid" buffers,   stride 0x18 (or 0x08)
+//     rec[+0x14] >= 0  ->  the "rigid" buffers,   stride 0x18 (or 0x10 / 0x08)
 //
 // MeshInstance scales the record index by `sub * 3` and then by 8
 // (`LEA R15,[RAX+RAX*2]` then `[R12 + R15*8]`), i.e. `sub * 0x18`. Written that
@@ -129,8 +129,8 @@ constexpr int kBoneMatrices = 48;
 // `[state+0x2c]` as the base. Swapping them runs every animation backwards.
 //
 // The three translation terms are computed as `(a - b) * t` then `b + that`,
-// each in its own register, exactly as retail schedules them. The build has no
-// `-march` beyond the x86-64 baseline, so GCC cannot contract these into FMAs
+// each in its own register, exactly as retail schedules them. The build passes
+// `-ffp-contract=off` (CMakeLists.txt), so GCC does not contract these into FMAs
 // and the arithmetic is bit-exact against the shipped MULSS/ADDSS pairs.
 // ---------------------------------------------------------------------------
 Math::Transform LerpTransform(const Math::Transform& cur, const Math::Transform& prev,
@@ -235,8 +235,7 @@ void IssueDraw(Video::Context& context, const Graphics::GraphicsMesh::TriangleLi
 //
 // The buffer triple comes off `this->_mesh->_detailLevels` (`[this+0xc0]` then
 // `+0x50`), re-read from the object EVERY time — four separate reloads in
-// retail, kept literal. LEFT: `_detailLevels` is a raw header (GraphicsMesh.h),
-// so each reload views it once as its element type.
+// retail, kept literal.
 // ============================================================================
 
 namespace Graphics {

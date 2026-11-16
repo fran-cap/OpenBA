@@ -6,10 +6,9 @@
 //                                    destroys every element of the Array at
 //                                    this+0xf0, frees its buffer under the
 //                                    allocator lock, zeroes {data,size,cap}.
-//                                    NOT an exported name -- called by address
-//                                    (ResolveAddr), same idiom as
-//                                    src/engine/graphics/scene.cpp's
-//                                    RtArrayPtrSetSize / RtFreeArrayPtr.
+//                                    NOT an exported name -- ported as
+//                                    rtcoll::RtColl_ArrayDtorElem_1800416d0
+//                                    (declared in Collection.h).
 //   AddGraph(color)     0x180040620  PORTED by Wave 9 lane UIW. Grows the
 //                                    graph-series Array at this+0xf0 (element
 //                                    stride 0x18) by one via 0x1800417d0 -- now
@@ -30,8 +29,8 @@
 //                                    exported-by-address 0x180023830
 //                                    (Array<uint32_t>::SetSize, the SAME
 //                                    instantiation src/engine/graphics/
-//                                    scene.cpp's RtArrayU32SetSize already
-//                                    calls for Graphics::Scene -- shared
+//                                    scene.cpp's `_freeIds` append calls
+//                                    for Graphics::Scene -- shared
 //                                    template instantiation, independent
 //                                    confirmation of the address).
 
@@ -56,8 +55,7 @@ constexpr int kGraphsCount = 0xF8;  // Collection::Array<GraphSeries> .size (int
 //   +0x04  (hole)    4 bytes  NEVER WRITTEN BY ANY ARM. Not padding this lane
 //                             chose -- padding retail leaves. It is declared as
 //                             kSpec_GraphSeries's assign-unwritten window so no
-//                             oracle compares it
-//                             (reference_oracle_must_not_compare_unwritten_bytes.md).
+//                             oracle compares it.
 //   +0x08  points    Collection::Array<int32_t>  data +0x08 / size +0x10 /
 //                             capacity +0x14. This is the array
 //                             GraphElement::AddGraphPoint appends into
@@ -78,21 +76,17 @@ constexpr int kSeriesPointsArray = 0x08;
 // PARENT, read (B36_SLOTS.md section 3):
 //     ?_TypeName@GraphElement@UI@@CAPEBDXZ       @0x180040420 -> "GraphElement"
 //     ?_ParentTypeName@GraphElement@UI@@CAPEBDXZ @0x180040430 -> "Element"
-// Recorded, not used (RULE B6-7: no DEFINE_TYPE in step 6; slots 1/2 read the
-// minted `?_typeInfo@GraphElement@UI@@0VBaseTypeInfo@Object@@A`).
+// Recorded, not used (RULE B6-7).
 //
 // `??_7GraphElement@UI@@6B@` @ 0x1801569d0, TWELVE slots; sizeof 0x100
 // (`MOV EDX,0x100` in the slot-0 vector deleting dtor 0x1800408b0):
-//   [0] 0x1800408b0 deleting dtor (RT_DELDTOR row)  [1] 0x180040460 TypeName
+//   [0] 0x1800408b0 deleting dtor                   [1] 0x180040460 TypeName
 //   [2] 0x180040440 Type          [3] Element::Persist (inherited)
 //   [4] 0x1800d1810 ComputeSize   [5] 0x1800d16b0 ComputeLayout
 //   [6] 0x1800d1360 Draw          [7..11] Element's (inherited)
 //
-// ABSTRACT (slot 0 `= 0`), NO real ctor: every live one is built by the
-// `??0GraphElement@UI@@QEAA@XZ` door (0x1800d1880, factory_ui1.cpp) and wears
-// the MINTED table. LAYOUT, every field a store in that ctor
-// (factory_ui1_tables.inc `kGraphElement`, 0x1800d18a6..0x1800d1906) or a
-// read in Draw; the names are the bodies' meanings, not recovered names.
+// LAYOUT, every field a store in the ctor 0x1800d1880 (0x1800d18a6..0x1800d1906)
+// or a read in Draw; the names are the bodies' meanings, not recovered names.
 //
 // A RETAIL SLIP, read as disassembly this block: `?SetYDivisions@` (0x180040600)
 // is `MOV [RCX+0xe4],EDX ; RET` — the SAME field `?SetXDivisions@`
@@ -157,8 +151,7 @@ public:
     // [7] Update .. [11] GetBorder — Element's
 
     // ---- non-virtual members ----------------------------------------------
-    // DEFINED in src/engine/ui/widgets_layout.cpp (moved there by the fragment
-    // pass; the registered doors delegate to them).
+    // DEFINED in src/engine/ui/widgets_layout.cpp.
     void RemoveGraphs();                                          // 0x180040610
     void AddGraph(uint32_t colour);                               // 0x180040620
     void AddGraphPoint(int32_t graph, int32_t value);             // 0x180040690

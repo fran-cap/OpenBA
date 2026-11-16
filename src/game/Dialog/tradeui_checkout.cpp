@@ -24,7 +24,7 @@
 //
 //   Phase 1 — SELL (self+0x30 array, count +0x38, stride 0x20; qty at entry+0x18)
 //     For each row with a non-zero quantity: subtract the goods from the trading
-//     post's own StorageComponent, credit the town's per-category produced-goods
+//     post's own StorageComponent, credit the town's per-category consumed-goods
 //     counter (townMgr+0x170[cat].+0xc), zero the row's spinner and the row's
 //     pending quantity. Then add the sell total (read straight off the
 //     numberSellTotal element at self+0x100, field +0xd8) to the town's trade
@@ -48,21 +48,10 @@
 // component scan, same self+0x40 walk, same write to numberBuyTotal at self+0x108.
 // It is called out to the existing port here rather than duplicated.
 //
-// ── Why this is opt-in ───────────────────────────────────────────────────────
-// UPDATE: the one genuinely missing dependency, 0x14005ace0 (the livestock
-// spawn), is now ported in src/game/Component/tradecomponent_livestock.cpp and
-// registered, so fn_Building_AddBuyToStorage resolves and all three buy arms are
-// complete. Nothing in the checkout is unported any more.
-//
-// The gate BANISHED_LIVE_TRADE_CHECKOUT remains, because this function mutates
-// storage, town resource counters and the town availability pools, and that has
-// to be exercised before it can be trusted by default (the CLAUDE.md rule that
-// unproven features start outside the default-on table). Once a run shows a purchase
-// committing correctly, this moves into the default-on table and the flag becomes a
-// kill-switch.
-//
-// With the gate OFF the click is inert — which is exactly the "pressing Trade
-// does nothing" symptom, and is the gate working as designed, not a defect.
+// ── The livestock arm ────────────────────────────────────────────────────────
+// 0x14005ace0 (the livestock spawn) is TradeComponent::SpawnPurchasedLivestock in
+// src/game/Component/tradecomponent_livestock.cpp; all three buy arms are ported and
+// the click commits unconditionally.
 
 #include "Dialog/ui_panels.h"
 #include <new>
@@ -72,8 +61,8 @@
 #include "Entity/exe_bodies.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "Entity/CitizenBehavior.h"
-#include "Action/exe_bodies.h"      // B3R: StorageSubtract, StorageAdd, ResourceCategory
-#include "Component/exe_bodies.h"   // B3R: TradeComponent_SpawnPurchasedLivestock
+#include "Action/exe_bodies.h"      // ResourceCategory
+#include "Component/exe_bodies.h"
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -93,13 +82,13 @@
 #include "ext/map_overlays/map_overlays.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/MAPOVERLAYS.md): ext.map_overlays
 
 // ── Cross-module reimpls this calls ──────────────────────────────────────────
-// 0x140091e60 RawMaterialComponent_RegisterRawMaterial: Component/exe_bodies.h.
+// 0x140091e60 CitizenBehavior::RegisterRawMaterial: Entity/CitizenBehavior.h.
 // 0x140091a20 — CitizenBehavior::RemoveEntity (a misnomer: the dedup append into +0x120).
 
 namespace {
 
 // ── Exe leaves, called by name (B3R) ─────────────────────────────────────────
-//   0x14012d150 ActRm_StorageSubtract_d150, 0x140088f90 ActRm_GetResourceCategory_88f90
+//   0x14012d150 StorageComponent::SubtractItem, 0x140088f90 ResourceCategory
 
 // Probe a purchased entity's component array for an object of a given type-id.
 //
@@ -170,13 +159,13 @@ extern "C" void TradeComponent_RemoveBuyOrder(TradeComponent* tradeComp,
 }
 
 // ============================================================
-// TradeDescription_ExtendMerchantStay (0x14005a490)
+// TradeComponent::ExtendMerchantStay (0x14005a490)
 // ============================================================
 // Called once at the top of the checkout, on the trading post's TradeComponent.
 // Reads the post's TradeDescription (component+0x18, type-id 0x1401c4bb8) and
 // raises two high-water marks on the town manager (gameWorld+0xf0):
 //
-//   townMgr+0x1a8 (float) = max(itself, desc+0x68)  — merchant arrival weight
+//   townMgr+0x1a8 (float) = max(itself, desc+0x68)  — disease risk
 //   townMgr+0x1a0 (Time)  = max(itself, desc+0x6c * 300s)
 //
 // Both are raise-only. The Time value is built through the engine's
@@ -209,7 +198,7 @@ void TradeComponent::ExtendMerchantStay() {
 // TradeUI::OnTradeButton (0x140081420) — buttonTrade / element id 0x4e20
 // ============================================================
 // Retail takes only `this` (0x140081430 reads [RCX+0x28] first; RDX/R8/R9 are
-// never read). The C spelling the harness calls is the B4 FORWARD below.
+// never read). The harness (src/diag/trade_buy_harness.cpp) calls this member directly.
 void TradeUI::OnTradeButton() {
     // The panel's subject entity (+0x28), narrowed to a ComponentEntity.
     ::Object::Base* source = _dataSource;
@@ -252,7 +241,7 @@ void TradeUI::OnTradeButton() {
                 Ext::MapOverlays::OnConsumedAt(resEntity, entity, qty);
             }
 
-            // Credit the town's per-category produced-goods tally.
+            // Credit the town's per-category consumed-goods tally.
             //   town->professionResources (+0x170): the category array, running total at +0x0c
             {
                 int cat = ResourceCategory(resEntity);   // 0x140088f90 (its first argument, the storage, is never read)
@@ -306,9 +295,6 @@ void TradeUI::OnTradeButton() {
             // Livestock: availability, plus spawn the animals into the world.
             else if (FindComponentByTypeId(bought, LivestockDescription::TypeId())) {
                 town->RemoveEntity(bought);   // 0x140091a20
-                // The door was named fn_Building_AddBuyToStorage; it is bound to
-                // 0x14005ace0 TradeComponent_SpawnPurchasedLivestock (B3R: the binding
-                // decides). The never-taken "did not resolve" arm went with the door.
                 trade->SpawnPurchasedLivestock(bought,   // 0x14005ace0
                                                        static_cast<unsigned int>(qty));
             }

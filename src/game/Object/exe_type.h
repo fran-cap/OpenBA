@@ -13,7 +13,7 @@
 // `BaseTypeInfo::_firstTypeInfo`. There is no staging list and no
 // "InvokeAllRegistrations" step any more: the B.3.8 FactoryRegistration list
 // existed only to keep registration ORDER unchanged, and the type table was
-// measured ORDER-INDEPENDENT (b39_session/ORDER_MEASUREMENT.md: ids are
+// measured ORDER-INDEPENDENT (docs/history/endgame_b/b39_session/ORDER_MEASUREMENT.md: ids are
 // ~CRC32(name), the tree is keyed by id, parents link in a second pass).
 //
 // Why static init is safe here (B39_RULES D6, block RF):

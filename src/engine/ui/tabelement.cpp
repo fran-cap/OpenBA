@@ -4,7 +4,7 @@
 //
 // `??_7TabElement@UI@@6B@` (retail 0x180157790):
 //
-//   0  vector deleting dtor  0x18004ca90  -> deleting_dtor.cpp row (this batch)
+//   0  vector deleting dtor  0x18004ca90  -> the compiler's
 //   1  TypeName              0x18004c700  here
 //   2  Type                  0x18004c6e0  here
 //   4  ComputeSize           0x1800d9ea0  here
@@ -19,15 +19,14 @@
 // was true of Wave 7 lane E and is not any more.
 //
 // NOT HERE: `?AddTab@TabElement@UI@@` (0x1800da130) — already ported, by
-// src/engine/ui/tabelement_addtab.cpp. `?SetActiveTab@` (0x18004c890) and
-// `?GetActiveTab@` (0x18004c880) are lane E's, in widgets_layout.cpp.
+// src/engine/ui/tabelement_addtab.cpp. `?SetActiveTab@` (0x18004c890) is in
+// widgets_layout.cpp and `?GetActiveTab@` (0x18004c880) is inline in TabElement.h.
 //
 // LAYOUT and the paired child list: src/engine/ui/TabElement.h (sizeof
 // 0x108; RULE B6-8 moved this file's offsets there under the retail name).
 //
-// ENDGAME B.3.6 block C5: the six slot bodies and UpdateContainers MOVED into
-// the members of the real `UI::TabElement`; each registered door is a
-// one-line QUALIFIED delegation. The ctor / dtor stay doors (B4b-2).
+// ENDGAME B.3.6 block C5: the six slot bodies and UpdateContainers are the
+// members of the real `UI::TabElement`.
 // ============================================================================
 
 #include <new>
@@ -233,7 +232,7 @@ void TabElement::Draw(SpriteContext& context, uint8_t alpha) const {
     const int32_t y1 = _children.GetData()[2]->_layoutTop + 4;
     const uint32_t c = _color;
 
-    // UI::SpriteContext::AddSprite (block D's class) — by address, doors stay.
+    // UI::SpriteContext::AddSprite (block D's class), a member call.
     context.AddSprite(_edgeLeft, bl, y0, _edgeLeft.Width() + bl, y1, c);
 
     const int32_t rw = _edgeRight.Width();

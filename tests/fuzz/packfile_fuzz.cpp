@@ -2,14 +2,14 @@
 // tests/fuzz/packfile_fuzz.cpp -- IO::PackageFile::ReadPackfile over arbitrary bytes
 // ============================================================================
 // P0_MAP input surface rank 2: the .pkg / .pkm index (every downloaded mod is one). The body
-// (src/engine/io/package_file_read.cpp) is the real one, linked as an extra source; so is
+// (src/engine/io/package_file_read.cpp) is the real one, from the unit suite's tree sources; so is
 // CompressedStream::Open (compressed_stream_open.cpp). The FileSystem singleton is the shim:
 //   * the singleton points at zeroed storage of sizeof(FileSystem) -- ReadPackfile only touches
 //     `_platformExistsGate` (+0x19) on it;
 //   * OpenFile opens the fuzz input, written to a temp file under ~/fz/<name>/tmp, as a LOOSE
 //     file (handle -2, the Platform handle in winHandle), which is what LoadPackages /
 //     Modification::RefreshList get for a .pkg / .pkm on disk;
-//   * ReadFile is a copy of the real body's LOOSE arm (filesystem_openfile.cpp:492-498):
+//   * ReadFile is a copy of the real body's LOOSE arm (filesystem_openfile.cpp:498-504):
 //     Platform::FileRead with the count cast to uint32_t, the cursor advanced by what was read.
 // So the bytes flow exactly as they do for a real package: header word, Platform::FileSeek32,
 // blobLen, MemAlloc(blobLen), the blob read, CompressedMemoryStream over the blob, the index.
@@ -21,9 +21,7 @@
 //              32 KB blocks, a correct block directory) so the fuzzer spends its time on the
 //              index parser rather than on CompressedStream::Open's `total == len` check.
 //
-// Leak checking is off for the run (ASAN_OPTIONS_EXTRA=detect_leaks=0): the unit-test archive's
-// ~CompressedStream is a host stub (tests/unit/io_stream_abi_stubs.cpp:119) that frees no window
-// buffer, so every execution leaks 32 KB by construction. The harness frees what it can reach.
+// The harness frees what it can reach.
 // ============================================================================
 #include "io/FileSystem.h"
 #include "io/PackageFile.h"
@@ -66,7 +64,7 @@ RtIO::FileInfo IO::FileSystem::OpenFile(const System::Filename&) {
     return fi;
 }
 
-// The LOOSE arm of filesystem_openfile.cpp:488, verbatim in behaviour.
+// The LOOSE arm of filesystem_openfile.cpp:498, verbatim in behaviour.
 bool IO::FileSystem::ReadFile(RtIO::FileInfo& fi, int32_t n, void* dst) {
     uint32_t got = 0;
     Platform::FileRead(fi.winHandle, dst, static_cast<uint32_t>(n), &got);
@@ -81,7 +79,7 @@ bool IO::FileSystem::ReadFile(RtIO::FileInfo& fi, int32_t n, void* dst) {
 #include "platform_window.h"
 IO::ReaderWriter* IO::BinaryEncoding::CreateReader(Serializer&, int) { std::abort(); }
 IO::ReaderWriter* IO::BinaryEncoding::CreateWriter(Serializer&, int) { std::abort(); }
-// The Commit arm at package_file_read.cpp:540 is guarded by `_direction == 1`; Open sets 0.
+// The Commit arm at package_file_read.cpp:858 is guarded by `_direction == 1`; Open sets 0.
 void IO::CompressedStream::Commit() { std::abort(); }
 ::Object::Base* IO::PackageFile::CreateNewObject() { std::abort(); }
 ::Object::Base* IO::PackageFile::CreateInPlaceObject(void*) { std::abort(); }
@@ -144,9 +142,10 @@ std::vector<uint8_t> WrapStored(const uint8_t* plain, size_t n) {
 // ---- masks: input shapes whose crash site is already recorded -------------------------------
 // Walks the plaintext the way ReadPackfile does and rejects an input that would hit a recorded
 // site, so the fuzzer reaches what lies behind it. Each mask names its finding (summary of the
-// P4 packfile run):
+// P4 packfile run). Every site is retail's; the port's NOT RETAIL hardening fails or rejects each
+// shape (CompressedStream::Read's `chunk <= 0` exit, "THE HARDENING" in package_file_read.cpp):
 //   PK-A  CompressedStream::Read spins forever reading past the end of a short final block
-//         (compressed_stream_read.cpp:447, chunk = end - pos = 0): masked by zero-padding the
+//         (retail 0x1800aa780 has no exit for chunk = end - pos = 0): masked by zero-padding the
 //         plaintext to a whole number of 32 KB blocks in WrapStored's caller.
 //   PK-B  stack-buffer-overflow, Read(len) into buf60 / buf860 with len only checked > 0
 //         (package_file_read.cpp ReadStringRaw / ReadStringUtf16 / the entry loop).
@@ -250,7 +249,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         return 0;
     const bool meta = (data[0] & 1) != 0;
     // PK-A mask: pad to whole 32 KB blocks, so a read past the data ends at a block boundary
-    // (DecompressFromSource returns false) instead of spinning on a short final block.
+    // (DecompressFromSource returns false) instead of in a short final block, where retail
+    // spins and the port's Read fails on `chunk <= 0`.
     std::vector<uint8_t> plain(data + 1, data + size);
     plain.resize(((plain.size() + 0x7fff) / 0x8000) * 0x8000 + (plain.empty() ? 0x8000 : 0), 0);
     if (MaskedShape(plain.data(), plain.size(), meta))   // walk what ReadPackfile will read

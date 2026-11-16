@@ -2,7 +2,7 @@
 // The Android twin of src/diag/posix/boot_state_watchdog_posix.cpp (src/platform/android/README.md:
 // it replaces that file whole on Android). The same boot state, written the same way in the
 // working directory (the app's data folder: Platform::App::EnterRunDirectory), so
-// tools/android_boot_state.sh pulls it and tools/boot_state.sh reads it as a Linux run's:
+// tools/boot_state.sh --android reads it over adb as it reads a Linux run's:
 //
 //   standalone_boot_state.txt, rewritten once a second:
 //   STATE=<state> pid=<n> uptimeSec=<n> frame=<n> stale=<n> detail=<text>

@@ -1,36 +1,28 @@
 // src/game/Player/keystone_a_removalcalcpath.cpp
-// Faithful 1:1 ports of RemovalTool::Slot13 (CalcPath, 0x1401035e0) and its
-// previously-unregistered exe sub-callee closure.
+// Faithful 1:1 ports of RemovalTool::CalcPath (slot 13, 0x1401035e0) and its
+// exe sub-callee closure.
 //
 // RemovalTool::Slot13 walks the rectangular tile selection (param_2..param_3
 // corner cells) and, per tile, applies the active RemovalDescription's actions:
 //   - building/item removal (FUN_1400c48a0 register a fresh ComponentEntity into
 //     the world entity list when sub_48a0 says the tile is removable),
-//   - road removal (RemovalTool_helper_c700 -> road BST + queue worker),
+//   - road removal (Map::RemovePendingRoad -> road BST + queue worker),
 //   - mark-for-removal of the resident entity (sub_4770 + FUN_1400c2ea0 +
 //     FUN_140003110),
-//   - state-machine kick (sub_4670 -> StateMachine_impl_dfa0),
-//   - citizen-AI notify (sub_43-flag -> FUN_14012ead0 + CitizenAI_impl_9ad0).
-// On finishing the rect it rebuilds the road mesh once (TradeWork_impl_f370).
+//   - state-machine kick (sub_4670 -> DestroyComponent::RunStateMachine),
+//   - citizen-AI notify (sub_43-flag -> FUN_14012ead0 + WorkScheduler::PrioritizeWork).
+// On finishing the rect it rebuilds the road mesh once (WorldGeometry::RebuildRoadMesh).
 //
-// This file ports the 6 functions whose exe sub-callee closure was NOT yet
-// registered before this wave:
-//   0x14002d960  RemovalTool_helper_d960  (FindComponent-by-type, type 0x1401c7430)
-//   0x1400f8d50  RemovalTool_helper_8d50  (in-order AVL successor lookup by key)
-//   0x14011e4d0  DestroyUI_helper_e4d0    (StateMachine slot+0x10 dispatch)
-//   0x14011dfa0  StateMachine_impl_dfa0   (full StateMachine action-tick driver)
-//   0x14009c700  RemovalTool_helper_c700  (road-removal cell handler)
-//   0x1400f9ad0  CitizenAI_impl_9ad0      (citizen-AI per-entity AVL update)
-//   0x1401035e0  RemovalTool_Slot13       (the CalcPath itself)
+// This file ports these 7 functions:
+//   0x14002d960  RemovalCalc_helper_d960            (FindComponent-by-type, type 0x1401c7430)
+//   0x1400f8d50  WorkScheduler::FindWorkAtCell      (the work-id tree's Work at a cell)
+//   0x14011e4d0  DestroyComponent::PostDestroyEvent (StateMachine slot+0x10 dispatch)
+//   0x14011dfa0  DestroyComponent::RunStateMachine  (full StateMachine action-tick driver)
+//   0x14009c700  Map::RemovePendingRoad             (road-removal cell handler)
+//   0x1400f9ad0  WorkScheduler::PrioritizeWork      (re-key the work in the +0x10 tree)
+//   0x1401035e0  RemovalTool::CalcPath              (the CalcPath itself)
 //
-// Every other callee reached from these bodies is already registered elsewhere
-// (ComponentEntity_CopyCtor 0x1400c3720, FUN_1400c48a0, FUN_1400c2ea0,
-// FUN_140003110, FUN_140003ea0, FUN_140005780, FUN_14011e710, FUN_14012ead0,
-// CitizenAI_impl_8e30 0x1400f8e30, CitizenAI_impl_a6e0 0x14001a6e0,
-// CitizenAI_State_Leisure_sub_a8c0 0x14001a8c0, FUN_14009f2f0 0x14009f2f0,
-// FUN_1400a8c90, FUN_1400a6fe0, StateMachine_Tick 0x1400a9660,
-// RemovalTool_helper_8e30 etc.), is a Runtime export (engine_funcs fn ptrs), or a
-// registered dispatch slot (static MemAlloc 0x140152b60, Time::Time 0x140152b00).
+// Every other callee reached from these bodies is called by name (the list below).
 //
 // Faithful offset-by-offset to the Ghidra disassembly. int*-arith trap handled:
 // e.g. the decompile's `param_1 + 0x3a` (int*) == byte +0xe8; `param_1 + 0x20`
@@ -80,18 +72,18 @@
 
 // ============================================================
 // Exe helpers called by name (their declaring headers):
-//   0x1400c3720 ComponentEntity_CtorFromDescription, 0x1400c48a0
-//   EntityList_RegisterEntity_Impl (Entity/componententity_funcs.h);
-//   0x1400c2ea0 ActHunt_MarkEntityRemoval_c2ea0, 0x140003110
-//   ActHunt_DynArraySetCount_3110, 0x1400af370 Pf_RoadMeshRebuild_f370,
-//   0x1400f8e30 ActCt_TaskCleanup_8e30, 0x14001a8c0 Pf_AvlRebalanceA_a8c0,
-//   0x1400a8c90 Pf_FineCellDirty_a8c90, 0x1400a6fe0 Pf_EnqueueCmd2_a6fe0,
-//   0x14009f2f0 Pf_SetTileRoadFlag_9f2f0 (Action/exe_bodies.h);
-//   0x14001a6e0 WorkBST_BSTRemove_a6e0 (Work/exe_bodies.h);
-//   0x14012ead0 WorkComponent_CheckWorkSlot (Component/exe_bodies.h);
-//   0x1400a9660 StateMachine_TickReimpl (Component/controller_state_table.h);
-//   0x140003ea0 / 0x140005780 PlayerPath_FindComponent_*, 0x14011e710
-//   PlayerPath_Sub_11e710 (Player/exe_bodies.h).
+//   0x1400c3720 ComponentEntity(ComponentDescription*), 0x1400c2ea0
+//   ComponentEntity::MarkForRemoval, 0x140003ea0 / 0x140005780 FindComponent<T>
+//   (Entity/ComponentEntity.h); 0x1400c48a0 EntityList::RegisterEntity
+//   (Entity/EntityList.h); 0x140003110 removalList.SetSize; 0x1400af370
+//   WorldGeometry::RebuildRoadMesh (Game/WorldGeometry.h); 0x1400f8e30
+//   WorkScheduler::TaskCleanup (Game/WorkScheduler.h); 0x14001a8c0 AvlRebalance
+//   (Action/PathAvl.h); 0x1400a8c90 RegionGraph::MarkCellDirty (Action/PathSearch.h);
+//   0x1400a6fe0 PathfinderThread::SetCellTerrain (Game/PathfinderThread.h);
+//   0x14009f2f0 Map::SetTerrainType (Game/Map.h); 0x14001a6e0 WorkBST_BSTRemove_a6e0
+//   (Work/KeyBst.h); 0x14012ead0 WorkComponent::IsWorkPosted (Component/WorkComponent.h);
+//   0x1400a9660 StateMachine::Tick (Component/StateMachineComponent.h); 0x14011e710
+//   DestroyComponent::InRemovalState (Component/DestroyComponent.h).
 // Import slot 0x140152b60 is System::MemoryAllocator::MemAlloc; 0x140152b00 is
 // System::Time::Time(float) (RtSystem_Time_Ctor).
 // ============================================================
@@ -113,7 +105,7 @@ static void InitTypeIds() {
 }
 
 // ============================================================
-// 0x14002d960  RemovalTool_helper_d960
+// 0x14002d960  RemovalCalc_helper_d960
 // Find-description-by-type over a ComponentDescription's sub-descriptions (count
 // +0x30, array +0x28; byte offsets confirmed in disasm). Type id DAT_1401c7430
 // (CreateDragDescription). Writes the match (or 0) into *param_2 and returns param_2.
@@ -330,8 +322,6 @@ void DestroyComponent::RunStateMachine() {
     if (sm->activeState < 0) {
         System::Time timeBuf = {0};
         RtSystem_Time_Ctor(&timeBuf, 0.0f);
-        // The door passed the Time buffer's ADDRESS where the body takes the time
-        // VALUE (int64_t); the bits the door passed are kept.
         sm->Tick(&timeBuf, 0, 0);   // 0x1400a9660
     }
     {
@@ -350,10 +340,10 @@ void DestroyComponent::RunStateMachine() {
 
 
 // ============================================================
-// 0x14009c700  RemovalTool_helper_c700
+// 0x14009c700  Map::RemovePendingRoad
 // Road-removal cell handler. param_1 = the Map. Walks the road BST (+0xE8) by cell
-// id param_2; on a found road node, resolves the BuildRoad work (RemovalTool_helper
-// _8d50 + IsA BuildRoad), reads its remove-kind fields (+0x60,+0x64,+0x68), notifies
+// id param_2; on a found road node, resolves the BuildRoad work (WorkScheduler::
+// FindWorkAtCell 0x1400f8d50 + IsA BuildRoad), reads its remove-kind fields (+0x60,+0x64,+0x68), notifies
 // the work scheduler (0x1400f8e30) and erases the BST node (0x14001a6e0). Then
 // updates the map cell (+0x80, stride 0x30): if cell+0x2a==0xff it dirties the
 // region (0x1400a8c90) and queues a worker job (0x1400a6fe0); else applies the
@@ -656,7 +646,7 @@ bool RemovalTool::CalcPath(int param_2, int param_3) {
         }
     }
 
-    // RemovalTool_helper_d960 on the description's +0x38 template, if any
+    // RemovalCalc_helper_d960 on the description's +0x38 template, if any
     if (removalDesc->_remover != nullptr) {
         void* tmp58 = nullptr;
         RemovalCalc_helper_d960(removalDesc->_remover, &tmp58);
@@ -741,7 +731,7 @@ bool RemovalTool::CalcPath(int param_2, int param_3) {
                             DestroyComponent* comp = local_e8->FindComponent<DestroyComponent>();
                             if (comp != nullptr) {
                                 DestroyComponent* pi = local_e8->FindComponent<DestroyComponent>();
-                                if (pi->InRemovalState()) {   // 0x14011e710 (the door read AL)
+                                if (pi->InRemovalState()) {   // 0x14011e710
                                     DestroyComponent* lr = local_e8->FindComponent<DestroyComponent>();
                                     StateMachineComponent* machine =
                                         lr->_entity->FindComponent<StateMachineComponent>();
@@ -804,7 +794,7 @@ bool RemovalTool::CalcPath(int param_2, int param_3) {
             uVar26 = (int64_t)(iVar24 + 1);
         } while ((int)uVar26 <= (int)uVar13);  // uVar26 == iVar24+1 here
 
-        // 0x1400af370 is void; the door read a uint64_t nobody uses.
+        // 0x1400af370 is void.
         if (bVar5)
             GameUpdateLoop::_singleton->m_worldGeometry->RebuildRoadMesh(puVar18);
     }

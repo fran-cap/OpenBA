@@ -14,16 +14,16 @@
 //   bool  @ +0x20
 //   int count (local copy of +0x30)
 //   [if loading: resize array @+0x28 to count via FUN_140001bb0 = Array<ptr>::SetSize (kSpec_PtrZero)]
-//   ExternalRefArray(count) @ *(+0x28)  (FUN_1400049c0 / fn_ExternalRefArray_Serialize)
-//   ExternalPtr @ +0x38  (FUN_140002340 / Reimpl_ExternalPtr_Serialize_StringTable)
+//   ExternalRefArray(count) @ *(+0x28)  (FUN_1400049c0 / Object::SerializeExternalArray<ComponentDescription>)
+//   ExternalPtr @ +0x38  (FUN_140002340 / Object::SerializeExternal<ComponentDescription>)
 //   bool  @ +0x40   bool @ +0x41   bool @ +0x42   bool @ +0x43
 // GetVersion (vtable +0x18, 0x140119bc0): mov eax,1; ret -> version 1.
 // Dtor (vtable +0x00, 0x140032ca0): MemFree(array @+0x28) + External::~External + free.
 //
 // NOTE: count is serialized into a local; the on-disk count then drives array resize +
 // the per-element load. The resize is `_removeTypes.SetSize` (kSpec_PtrZero).
-// fn_ExternalRefArray_Serialize -> exe FUN_1400049c0, null in standalone until 0x1400049c0
-// is registered (REPORTED). param4 is a dead init -> nullptr safe.
+// The ExtPtr[count] step (exe FUN_1400049c0) is ::Object::SerializeExternalArray<ComponentDescription>,
+// called directly.
 //
 // Field knowledge harvested from engine/reimpl/createremovaldescription.cpp.
 // Decompiled from Application-x64.exe (READ-ONLY recon).

@@ -4,7 +4,7 @@
 // Size 0x30. GetVersion=4 (slot +0x18 @ 0x140055390: mov eax,4; ret).
 //
 // Ctor defaults (QuarryDescription_Factory):
-//   ExternalPtr @ +0x20 = 0        (product material ref)
+//   ExternalPtr @ +0x20 = 0        (floor mesh ref)
 //   float       @ +0x28 = -1.5  (0xbfc00000)  (min depth)
 //   float       @ +0x2c = -7.0  (0xc0e00000)  (max depth)
 // Serialize (vtable +0x28, 0x140055320), stream order:

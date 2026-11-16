@@ -1,4 +1,4 @@
-// engine/src/ui/orchardui.cpp
+// src/game/Dialog/orchardui.cpp
 // Clean reimplementation of OrchardUI game logic.
 //
 // OrchardUI (0x48 bytes) — orchard crop selection and growth display.
@@ -32,16 +32,10 @@
 
 // Retail's Slot4 filters the "yield" FindElement result through
 // IsDerivedFrom(elem, *TypeId_ProgressElement) before storing it at +0x38.
-// That exe-.rdata slot (0x1401515b8) is filled ONLY by
-// standalone/reg_element_typeids.cpp, which is gated on BANISHED_LIVE_ELEMENT_TIDS
-// and is NOT in the default-on table — so on the default path it is null, and
-// IsDerivedFrom(elem, 0) is always false. That would leave +0x38 null and turn the
-// unguarded `+0x124 = 1.0f` write two lines later into a null-deref crash.
-// See [[reference-gated-element-typeid-disables-controller]] — the same null field
-// that made every pasture ControlUI button inert.
-//
-// ENDGAME B.3.9: UI::ProgressElement now has a ported TypeId() (a class static,
-// always populated), so the gated-global-vs-private-resolve split collapses to it.
+// UI::ProgressElement has a ported TypeId() (a class static, always populated). A null
+// type id would make IsDerivedFrom(elem, 0) always false, leave +0x38 null and turn the
+// `+0x124 = 1.0f` write into a null-deref crash.
+// It is the same null field that made every pasture ControlUI button inert.
 static uint32_t OrchardUI_ProgressElementTypeId() {
     return UI::ProgressElement::TypeId();
 }
@@ -72,8 +66,8 @@ static ComponentEntity* CheckedEntity(OrchardUI* self) {
 // ============================================================
 // OrchardUI::Slot4 (vtable +0x20) — Initialize yield progress + combo
 // ============================================================
-// Finds the "yield" progress element, stores at +0x38, sets initial
-// progress value to 1.0f, then calls SelectResourceUI::Slot4 to
+// Finds the "yield" progress element, stores at +0x38, sets its maximum
+// value to 1.0f, then calls SelectResourceUI::Slot4 to
 // initialize the combo element.
 //
 // Original: 0x1400755B0.
@@ -96,7 +90,7 @@ void OrchardUI::OnCreated() {
     yield = ::Object::IsDerivedFromNullSafe(rawElem, OrchardUI_ProgressElementTypeId())
                 ? static_cast<UI::ProgressElement*>(rawElem) : nullptr;
 
-    // Set initial progress value to 1.0f (100%).
+    // Set the progress maximum to 1.0f (ProgressElement::_maxValue, +0x124).
     // Retail writes this unguarded — Orchard.rsc always carries a "yield" progress
     // element, so the deref is load-bearing there. SA guard: the panel template is
     // reached through the shared StandardDialog mount, so a dialog whose layout has
@@ -122,7 +116,7 @@ void OrchardUI::OnCreated() {
 void OrchardUI::OnUpdateLayout() {
 
     // Per-frame (+0x38): bail on a dead / marked-for-removal datasource before the
-    // IsDerivedFrom probe. Same guard PastureUI_Slot7 carries, same reason.
+    // IsDerivedFrom probe. Same guard PastureUI::OnUpdateLayout carries, same reason.
     if (!SA_DialogEntityAlive(this)) return;
 
     // Get entity at +0x28, check ComponentEntity
@@ -241,7 +235,7 @@ int OrchardUI::GetCategory() {
 //
 // Retail vtable @ 0x14015cf30 (14 slots), read byte-wise:
 //   idx3,5,6,10 -> the shared 5-6 byte micro-rets at 0x14003a95a-0x14003a978,
-//                  for which the generic StubNop is already byte-faithful.
+//                  inherited (OrchardUI.h overrides none of them).
 //   idx4  (+0x20) 0x1400755b0 Slot4  — find "yield" ProgressElement, set 100%, base setup
 //   idx7  (+0x38) 0x1400754b0 Slot7  — per-frame: growth % into the yield bar
 //   idx8  (+0x40) 0x140078d30        — SelectResourceUI::Slot8 (combo refresh)
@@ -254,7 +248,7 @@ int OrchardUI::GetCategory() {
 // Retail's Slot4/Slot7 tail-call 0x140078be0 / 0x140078cb0 — Ghidra names those
 // `CropUI_Serialize` / `CropUI_OnCreate`, but they are idx4/idx7 of the abstract
 // base table above, i.e. SelectResourceUI's own. Slot7's tail is exactly the
-// "enable the combo iff it has items" logic already inlined in OrchardUI_Slot7.
+// "enable the combo iff it has items" logic already inlined in OrchardUI::OnUpdateLayout.
 
 
 

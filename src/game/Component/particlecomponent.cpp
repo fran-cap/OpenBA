@@ -11,7 +11,7 @@
 
 // graphics/*.h FIRST: they pull src/engine/volume/Volume.h, whose global-scope
 // `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()` once <windows.h> has
-// been seen through resolve.h.  ENDGAME B.3.5 caller batch I2.
+// been seen.  ENDGAME B.3.5 caller batch I2.
 #include "graphics/Scene.h"
 #include "Component/ParticleDescription.h"
 #include "graphics/Mesh.h"
@@ -58,7 +58,7 @@ static float PC_UVScale();  // defined with the helper ports below
 // Retail's StartEmitter/StopEmitter set the component's draw flag (self+0x20 bit 0x4)
 // and call RefreshEntityFlags (c3470), which re-aggregates the OWNING entity's flags
 // and registers it into the per-frame component-update tree; the tree walk then
-// dispatches this component's +0x40 slot (PC_TickVSlot) every frame. Earlier this was
+// dispatches this component's +0x40 slot (ParticleComponent::Tick) every frame. Earlier this was
 // suppressed in SA because re-bucketing a house woke its broken workplace/status
 // evaluation (spurious "no workers"/?/cold icons); that eval is now fixed (the building
 // "no workers" warning is raised only by WorkPlaceComponent_SetAccepting on an unstaffed
@@ -95,16 +95,11 @@ static ParticleDescription* GetParticleDesc(const ParticleComponent* self) {
 //   0x140052b30  UpdateTick   — per-frame (vtable+0x40): node-follow transform
 //                               + opacity fade integration + geometry Update
 //   0x140053090  Event        — event 2 = fade-in start, 3 = fade-out (b2 set)
-//
-// LEFT (B.4 COMP-d): GameUpdateLoop::m_graphicsScene / m_game are void* (W0);
-// Pathfinding::PointList::Point keeps its name and position raw (runtime header);
-// Component's Persist / Tick take void* (COMP-c's header).
 // ============================================================
 
-// g_fUVScale is the retail .rdata constant 1.0f. In SA the ResolveAddr for
-// 0x140172234 lands inside an unrelated registered data blob (observed value
-// 300.0 → fade rate 300/s, opacity 15+ → permanently opaque smoke), so use
-// the known retail value directly.
+// g_fUVScale is the retail .rdata constant 1.0f at 0x14017214c, read by StartEmitterFade
+// (0x1400536be, the fade-rate numerator), OnEvent 0x1400530ef, OnAdded 0x140052fb5 and
+// Tick 0x140052b77. 0x140172234 is a different constant (300.0f).
 static float PC_UVScale() { return 1.0f; }
 
 // FindComponent (exe 0x140003f60 ModelComponent, 0x140004680 MapComponent) on the
@@ -392,8 +387,7 @@ void ParticleComponent::Setup() {
 
 
 // ===== Standalone factory (Foundation D — component instantiation) =====
-// Building particle effects (chimney smoke etc). Gated on BANISHED_LIVE_PARTICLE
-// (or global the global live-components switch); default (env off) stays inert.
+// Building particle effects (chimney smoke etc).
 //
 // Live slot map (retail vtable 0x14015a290):
 //   [4]  +0x20 Startup   (0x140053230) — Setup: create ParticleSystemInstances
@@ -402,17 +396,14 @@ void ParticleComponent::Setup() {
 //   [8]  +0x40 per-frame (0x140052b30) — node-follow + fade + geometry Update
 //   [11] +0x58 OnUpdate2 (0x1400531b0) — setup + restart flagged emitters
 //   [12] +0x60 Event     (0x140053090) — event 2/3 fade-in/out (b2 emitters)
-// Slot [3] (+0x18 save/load serialize) IS installed -- see
-// ParticleComponent_FinishLiveVtable below, which sets it unconditionally,
-// outside the live gate, because serializer wiring is not a feature flag.
+// Slot [3] (+0x18 save/load serialize) IS installed -- ParticleComponent::Persist
+// below is the class's own override, with no gate, because serializer wiring is not a feature flag.
 // (This note previously claimed the slot stayed inert "because the bool array
 // is rebuilt by Startup anyway". That was stale -- it outlived the a11d083
 // fix 120 lines below -- and it was wrong in principle as well: a loader must
 // CONSUME the bytes the writer emitted regardless of whether the data can be
 // reconstructed. "Rebuilt by Startup" would justify DISCARDING a value after
-// reading it, never SKIPPING the read.
-// See [[reference_null_guard_on_a_serializer_call_is_a_desync]] and
-// [[reference_stub_comment_outlived_the_port_that_replaced_it]].)
+// reading it, never SKIPPING the read.)
 //
 // ENDGAME B.3.8 CIT: ParticleComponent is a REAL class now (ParticleComponent.h) —
 // the 48-slot ParticleComponent_LiveVtable, its per-create fills and
@@ -424,7 +415,7 @@ void ParticleComponent::Setup() {
 // ---- Per-frame frame-index un-stamp (Runtime-semantics fix, NOT a tick driver) ----
 // The tick itself is now driven faithfully by the EntityList tree walk: StartEmitter's
 // c3470 re-bucket registers the owning entity into the update tree, and the walk
-// (EntityList_TreeNodeHandler) dispatches this component's +0x40 slot (PC_TickVSlot)
+// (EntityList_TreeNodeHandler) dispatches this component's +0x40 slot (ParticleComponent::Tick)
 // every frame. The one thing SA still lacks is the per-render-frame advance of the
 // shared Graphics::ParticleInstance::_frameIndex (Runtime static @0x1801fe77c) that
 // retail's Renderer::Render performs; without it ParticleSystemInstance::Update dedups

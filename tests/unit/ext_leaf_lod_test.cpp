@@ -64,7 +64,8 @@ Mesh Tree(const std::vector<std::vector<float>>& centres) {
     return m;
 }
 
-// Twelve cards on a ring of radius 2 at two heights, and `extra` more cards.
+// Twelve cards: six on a ring of radius 2 at height 4, six on a ring of radius 1.4 at height 5.5, and `extra`
+// more cards.
 std::vector<std::vector<float>> Crown(const std::vector<std::vector<float>>& extra) {
     std::vector<std::vector<float>> c;
     for (int i = 0; i < 6; ++i) {
@@ -171,7 +172,7 @@ UNIT_TEST(ext_leaf_lod_grow_scales_the_staying_cards) {
 }
 
 UNIT_TEST(ext_leaf_lod_a_doubled_card_leaves_first_the_outline_last) {
-    // the crown, a card at its very middle (inside every outline) and a twin of card 1
+    // the crown and a card at its very middle (inside every outline)
     std::vector<std::vector<float>> centres = Crown({{0.0f, 0.0f, 4.7f}});
     std::vector<LL::CardSite> sites;
     for (size_t i = 0; i < centres.size(); ++i) {

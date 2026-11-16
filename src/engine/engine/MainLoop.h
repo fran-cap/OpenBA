@@ -33,10 +33,6 @@
 //      — it takes a `const UpdateLoop*`. The no-arg `IsRunning` in the export
 //      table is `UpdateLoop`'s (0x1800dd7b0, ordinal 3160), a different class.
 //
-// The hook-era header is left in place for the exe tree that includes it; the
-// two corrections are applied there as well (PLAN §6 step 8). New runtime-port
-// code includes THIS header.
-//
 // ---------------------------------------------------------------------------
 // THERE IS NO VTABLE
 // ---------------------------------------------------------------------------
@@ -118,17 +114,11 @@
 
 namespace Object { class External; }
 
-// Everything below lives in `RtEngine`, matching src/engine/engine/UpdateLoop.h
-// (lane A) and the RtVideo / RtObject convention the earlier waves set. This is
-// NOT cosmetic: engine/types/MainLoop.h defines a GLOBAL `struct MainLoop`,
-// engine/types/UpdateLoop.h a GLOBAL `struct UpdateLoop`, and `engine/types` is
-// on the include path AHEAD of `runtime/types` — at global scope these two
-// headers would be a hard redefinition in any TU that included both trees, and
-// `_currentLoop`/`_nextLoop` would point at a DIFFERENT, incomplete UpdateLoop
-// from the one lane A defines.
+// The entry types below (VideoResourceEntry, MainLoopCallback) live in `RtEngine`; the class
+// itself is `Engine::MainLoop`, further down, and `RtEngine::MainLoop` is an alias of it.
 namespace RtEngine {
 
-struct UpdateLoop;   // defined by lane A in src/engine/engine/UpdateLoop.h
+struct UpdateLoop;   // declared only; the class is Engine::UpdateLoop (src/engine/engine/UpdateLoop.h)
 // (`RtEngine::Engine` is an ALIAS of the real class since B.3.7: Engine.h.)
 
 // B3R (registry teardown, W1 RT-Core): the retail ADDRESS constants that
@@ -195,16 +185,15 @@ static_assert(offsetof(MainLoopCallback<void (*)()>, _context) == 0x08, "MainLoo
 // to be spelled here was field-identical and nothing embeds it, so the POD
 // BECOMES the class (B7-6) and `RtEngine::MainLoop` is an alias of it.
 //
-// HEAP-ONLY, BUILT THROUGH THE DOOR (B6-10): the exe's GameMain allocates
+// HEAP-ONLY (B6-10): the exe's GameMain allocates
 // 0xa0 bytes (`MemAlloc(0xa0,8)` 0x140041f77) and calls the imported
-// `??0MainLoop@Engine@@QEAA@PEAV11@@Z`; that ctor and `??1` stay the registered
-// DOORS in src/engine/engine/engine.cpp, and are declared here only so no
+// `??0MainLoop@Engine@@QEAA@PEAV11@@Z`; that ctor and `??1` are the extern "C"
+// bodies RtEngine_MainLoop_Ctor / _Dtor in src/engine/engine/engine.cpp, which
+// src/game/Game/game_main.cpp calls; the members are declared here only so no
 // caller batch has to edit this header.
 //
-// `?_singleton@MainLoop@Engine@@1PEAV12@EA` (0x1801fe750) STAYS a data slot
-// until the end of B.3 (carry-over 5). engine/funcs/engine_funcs reads it as
-// `g_pMainLoopSingleton` (the misnamed second global `g_pEngineSingleton`,
-// B37_RULES sec. 6.3 defect 3, was folded into it at the B.3.7 close).
+// `?_singleton@MainLoop@Engine@@1PEAV12@EA` (0x1801fe750) is the class static
+// `_singleton` below, defined in engine.cpp.
 //
 // Every by-value `System::Time` RETURN below is a retslot export in retail;
 // none of the four has a caller, so they are declared and left undefined.
@@ -223,9 +212,9 @@ public:
     using PostUpdateFunc = void (*)(const System::Time& time, void* userData);
     using PostDrawFunc   = void (*)(Video::Context& context, void* userData);
 
-    // ---- lifetime: DOORS (engine.cpp), declared, deliberately undefined ----
-    explicit MainLoop(Engine* engine);                             // 0x1800dd6b0  door RtEngine_MainLoop_Ctor
-    ~MainLoop();                                                   // 0x1800dd640  door RtEngine_MainLoop_Dtor
+    // ---- lifetime: declared, deliberately undefined; the bodies are engine.cpp's extern "C" ----
+    explicit MainLoop(Engine* engine);                             // 0x1800dd6b0  RtEngine_MainLoop_Ctor
+    ~MainLoop();                                                   // 0x1800dd640  RtEngine_MainLoop_Dtor
 
     // ---- PORTED --------------------------------------------------------------
     void Run(UpdateLoop* loop);                                    // 0x1800dd3c0  mainloop_run.cpp
@@ -239,8 +228,8 @@ public:
     // `MOV RCX,[_singleton]; JMP <member>`. engine.cpp.
     static void OnVideoError_();                                   // 0x1800dcd20
     static void OnVideoRestart_();                                 // 0x1800dc5c0
-    // AEAA (private) in retail; public here because the registered door is a
-    // free function that has to call it (access control is not ABI).
+    // AEAA (private) in retail; public here because RtEngine_MainLoop_Ctor (engine.cpp)
+    // is a free function that has to call it (access control is not ABI).
     void CreateVideoContext();                                     // 0x1800dd500  video/context_ctor.cpp
 
     // ---- exported one-line accessors: faithful inline bodies, NOT REGISTERED
@@ -317,7 +306,7 @@ public:
     static void  operator delete(void* p);                         // 0x180031450
 
     // ---- the 0xa0 bytes, evidence per field in the table at the top ---------
-    // PUBLIC: the doors and the unconverted readers reach them.
+    // PUBLIC: engine.cpp's RtEngine_MainLoop_Ctor / _Dtor and other readers reach them.
     // Video resources captured on device loss and restored on device restart.
     Collection::Array<RtEngine::VideoResourceEntry> _videoResources;  // +0x00
 
@@ -387,7 +376,7 @@ static_assert(offsetof(MainLoop, _postUpdate)      == 0x90, "MainLoop::_postUpda
 // runtime tree now names the class.
 namespace RtEngine { using MainLoop = ::Engine::MainLoop; }
 
-// ==== B3R G-Game (R5): Runtime bodies code/Game calls by name ====
+// ==== B3R G-Game (R5): Runtime bodies src/game/Game calls by name ====
 extern "C" ::Engine::MainLoop* RtEngine_MainLoop_Ctor(::Engine::MainLoop* self, ::Engine::Engine* engine);  // 0x1800dd6b0
 extern "C" void RtEngine_MainLoop_Dtor(::Engine::MainLoop* self);  // 0x1800dd640
 // ==== end B3R G-Game ====

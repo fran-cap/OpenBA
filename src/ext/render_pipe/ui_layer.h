@@ -12,15 +12,16 @@
 // context state of every chunk) and a replayed frame draws that record again: the
 // same pixels as the last real frame, with nothing read from the interface.
 //
-// What the record does not hold: the tool's draw (3D meshes from live tool state) and
-// the save-load screen's own draw. A frame in which either drew makes the record
-// unusable (Ready answers false) and the next claimed steps get no replayed frames.
+// What the record does not hold: the tool's draws other than its overlay streams
+// (UiLayerToolBegin) and the save-load screen's own draw. A frame in which either drew makes
+// the record unusable (Ready answers false) and the next claimed steps get no replayed frames.
 //
 // The record names each batch's material instance; a step that frees one drops the
 // record first (ui_layer.cpp, THE LOCK), and the replayed frames stop for that step.
 //
-// Every function here runs on the emitting thread, except Install / Remove / Drop
-// (the main thread, the render thread idle).
+// Every function here runs on the emitting thread, except Install / Remove (the main
+// thread, the render thread idle); Drop runs on either (the main thread with the render
+// thread idle, or the emitting thread after an emit that recorded no frame).
 // ============================================================================
 #pragma once
 

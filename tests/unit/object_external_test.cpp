@@ -5,10 +5,10 @@
 // What `Object::External` claims, checked by the compiler and by a running test
 // rather than by a comment:
 //
-//   1. LAYOUT — the real classes and the `RtObject::*` alias PODs describe the
-//      same bytes, field for field. The binding asserts live in External.h and
-//      fire at compile time; the ones restated here are so a reader of THIS
-//      file sees the claim rather than having to trust the header.
+//   1. LAYOUT — the two node layouts of point 5, field for field. The asserts
+//      live in External.h and fire at compile time; the ones restated here are
+//      so a reader of THIS file sees the claim rather than having to trust the
+//      header.
 //   2. SLOT ORDER — External's eight slots, reached the way every unconverted C
 //      body in the tree still reaches them: `(*(void***)p)[N](p, …)`, applied
 //      to the list measured at `??_7External@Object@@6B@`
@@ -23,18 +23,16 @@
 //      element, node tail at parent +0x18 / left +0x20 / right +0x28) and
 //      `ReferenceFind` (0x10-wide, +0x10 / +0x18 / +0x20), each driven with
 //      seven keys at the ROOT and at TWO LEVELS DOWN.
-//      reference_one_bst_find_two_node_layouts.md: a find written against the
+//      A find written against the
 //      wrong layout answers correctly for whatever key happens to be the root
 //      and is permanently wrong below it, so a lookup that worked once proves
 //      nothing. Both trees are built by hand — no allocator, no registry.
 //
 // WHAT IS NOT TESTED HERE, AND WHY. Every member of `Object::ExternalFactory`
-// and slots 5-8 of `Object::ExternalList` are doors into the port registry
-// (src/engine/object/external_class_doors.cpp), which the unit build cannot link;
+// and slots 5-8 of `Object::ExternalList` forward to the ported C bodies
+// (src/engine/object/external_class_doors.cpp), which the unit build does not link;
 // those are covered by the real run. Nothing here constructs a PRODUCTION
-// `External` either: the classes have no live caller until step 6's caller
-// batches move them, and every live `External` in the process still wears the
-// MINTED vtable.
+// `External` either.
 // ============================================================================
 
 #include "unit.h"
@@ -216,8 +214,8 @@ UNIT_TEST(object_external_resource_find_at_two_depths) {
     n[5].parent = &n[2]; n[6].parent = &n[2];
 
     // Driven over the tree ROOT, not over a `Collection::Set` object: a `Set`
-    // has a real `~Set` that reaches set_core.cpp's allocator doors, which do
-    // not link here. Both spellings are the same body (External.h).
+    // has a real `~Set` (`Clear()`), and these nodes are stack storage. Both
+    // spellings are the same body (External.h).
     Node* root = &n[0];
 
     CHECK(Object::detail::ResourceFind(root, "mmm") == &n[0]);   // root

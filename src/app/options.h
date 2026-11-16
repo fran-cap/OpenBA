@@ -4,12 +4,11 @@
 // ENDGAME C.3. Every environment flag the exe honours is a field of the one
 // `Options` struct below, filled ONCE at boot by `OptionsInit()` (called from
 // the top of WinMain, before anything else looks at the environment) and read
-// everywhere else through `Opt()`. NOTHING in the tree calls getenv outside
-// src/app/options.cpp — code/, runtime/, src/render/dx11/, engine/ and standalone/ all
-// read `Opt()`.
+// everywhere else through `Opt()`. NOTHING under src/ calls getenv outside
+// src/app/options.cpp: every other reader reads `Opt()`.
 //
 // HOW TO READ THIS FILE. Each field carries a one-line comment naming WHO SETS
-// IT — a Makefile target, a script under tools/, perf/, .vscode/launch.json,
+// IT — a script under tools/, perf/,
 // or a route documented in CLAUDE.md / docs/runtime_port/STATUS.md. A field
 // marked `[no tool reader]` is a diagnostic nothing outside the tree sets: it
 // is an ENDGAME C.4 delete candidate, kept here only so the inventory is
@@ -27,9 +26,9 @@
 // verified feature is unconditional code, not a flag). If you must: one field,
 // one comment naming the reader, one line in OptionsInit.
 //
-// STRING FIELDS point into the CRT environment block and stay valid for the
-// life of the process. The one place the environment is written is the
-// stress-town default block in OptionsInit (see options.cpp), and that runs
+// STRING FIELDS point into the CRT environment block, or at the static strings
+// the stress-town default block in OptionsInit fills in (see options.cpp), and
+// stay valid for the life of the process. That block sets fields only and runs
 // before any reader.
 //
 // ANDROID. An app process has no environment a launcher fills. The sanctioned source
@@ -62,7 +61,7 @@ struct Options {
                                         //   tools/device_sim.sh sets it; inert off Windows.
 
     // ── harness drivers: menu → game (src/diag/autostart.cpp) ──────────────
-    bool        autostart            = false;  // Makefile sa-run, tools/cutover_run.sh, perf/mintsel, CLAUDE.md
+    bool        autostart            = false;  // tools/build.sh run, tools/cutover_run.sh, perf/mintsel, CLAUDE.md
     int         autostartFrames      = 0;      //   numeric value > 1 overrides the 60-frame menu settle; 0 = default
     int         autostartGames       = 0;      // BANISHED_AUTOSTART_GAMES — quit-to-menu → New Game repeats [no tool reader]
     bool        autoquit             = false;  // CLAUDE.md / STATUS.md quit route (settings round-trip)
@@ -94,7 +93,7 @@ struct Options {
     int         saveTestRepeat       = 0;      // src/diag/saveload_harness.cpp re-arm period [no tool reader]
     const char* userProfile          = nullptr;// %USERPROFILE% — where Documents\Banished\Save lives (not a BANISHED_* flag)
 
-    // ── world setup (read in code/Game; those sites migrate in the code/ pass) ─
+    // ── world setup (read in src/game and src/diag) ──────────────────────────
     const char* seed                 = nullptr;// tools/stress_run.sh, tools/dx11_state_diff, tools/trace_oracle, CLAUDE.md
     const char* mapSize              = nullptr;// tools/stress_run.sh, perf/README.md, CLAUDE.md — small|medium|large
     const char* climate              = nullptr;// perf/README.md, CLAUDE.md — mild|fair|harsh
@@ -105,7 +104,7 @@ struct Options {
     const char* forceSpeed           = nullptr;// perf/README.md — game speed override
     const char* simprof              = nullptr;// perf/README.md — SIMPROF phase-split interval
 
-    // ── founding-town flags the stress town needs (read in code/Game) ────────
+    // ── founding-town flags the stress town needs (read in src/game and src/diag) ─
     const char* buildDemoFishingDock = nullptr;// perf/README.md stress town
     const char* buildDemoTradingPost = nullptr;// perf/README.md stress town
     const char* buildDemoCropField   = nullptr;// perf/README.md stress town
@@ -120,7 +119,7 @@ struct Options {
     bool        buildSyncLabor       = true;   //   default ON; only "=0" disables
 
     // ── perf: the stress town (src/diag/stress_harness.cpp, perf/README.md) ─
-    bool        stress               = false;  // tools/stress_run.sh / make sa-stress
+    bool        stress               = false;  // tools/stress_run.sh / tools/build.sh stress
     int         stressCitizens       = 800;    // STRESS_ARGS --citizens
     int         stressSets           = 3;      // STRESS_ARGS --sets; < 0 = |sets| in the spread layout (--spread)
     int         stressFrames         = 6000;   // STRESS_ARGS --frames
@@ -175,7 +174,7 @@ struct Options {
     bool        noFolLock            = false;  // src/app/res_load_lock.cpp — kill switch for the resource-load lock
 
 
-    // ── code/Game readers migrated off getenv (ENDGAME C.2/C.4 close) ────────
+    // ── game, render and diag readers migrated off getenv (ENDGAME C.2/C.4 close) ─
     // RAW values, parsed at the reader exactly as the getenv call used to be.
     // Every one is [no tool reader] unless the comment says otherwise.
     const char* buildDemoForce       = nullptr;// BANISHED_BUILD_DEMO_FORCE — src/game/Component/buildcomponent_state8.cpp
@@ -220,7 +219,7 @@ struct Options {
     const char* treeGuards           = nullptr;// BANISHED_TREE_GUARDS — src/game/Entity/entitylist.cpp
     const char* treePrefetch         = nullptr;// BANISHED_TREE_PREFETCH — src/game/Entity/entitylist.cpp
 
-    // ── diagnostic traces still read from code/Game ──────────────────────────
+    // ── diagnostic traces (read in src/game and src/ext) ─────────────────────
     const char* mapTrace             = nullptr;// BANISHED_MAP_TRACE — minimap / map UI / tool UI
     const char* movetickTrace        = nullptr;// BANISHED_MOVETICK_TRACE — charactercomponent.cpp, citizenai_executor.cpp
     const char* plagueTrace          = nullptr;// BANISHED_PLAGUE_TRACE — citizencomponent.cpp, citizen_updatehealth.cpp
@@ -362,8 +361,8 @@ struct Options {
     const char* waterDump            = nullptr;// BANISHED_WATER_DUMP — directory; each water-copy rebuild writes water_dump.bin (heights + water mesh)
 
     // ── NOT read by the exe ──────────────────────────────────────────────────
-    // BANISHED_DIR      — Makefile only (where sa-deploy copies the exe).
-    // BANISHED_GAME_DIR — tools/game_dir_lock.sh only (the shared game directory).
+    // BANISHED_DIR      — tools/build.sh and the scripts under tools/ (where deploy copies the exe).
+    // BANISHED_GAME_DIR — tools/game_dir_lock.sh and tools/trace_oracle/capture_arm.sh (the shared game directory).
     // BANISHED_STRIP_LOGS is not an environment flag at all: it is the
     // -DBANISHED_STRIP_LOGS compile define (see src/app/log_strip.h).
 };

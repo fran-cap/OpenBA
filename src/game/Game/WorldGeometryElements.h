@@ -2,12 +2,8 @@
 // ============================================================================
 // src/game/Game/WorldGeometryElements.h — ENDGAME B.4 GAME-b
 //
-// The element records of WorldGeometry's nine {data, size|capacity} headers
-// (WorldGeometry::_arrays, +0x1A0..+0x22F) and of the terrain vertex buffer.
-// WorldGeometry.h (GAME-c) keeps the nine headers untyped (`Header`); until it
-// splits them into typed arrays, they are read through nine named accessors
-// (WorldGeometry::ContourVertices() .. BatchCounters(), geometry_draw.cpp), whose
-// bodies are the only casts (LEFT: owner GAME-c).
+// The element records of WorldGeometry's nine {data, size|capacity} arrays
+// (+0x1A0..+0x22F, _contourVertices .. _batchCounters) and of the terrain vertex buffer.
 //
 // RETAIL (Application-x64.exe), the receivers settled from the callers, not the
 // Ghidra labels: 0x1400b04d0 (Serialize, "TradeWork_impl_04d0"), 0x1400af1a0
@@ -42,8 +38,7 @@ static_assert(offsetof(TerrainVertex, uv) == 0x08, "TerrainVertex::uv @ +0x08");
 static_assert(offsetof(TerrainVertex, normal) == 0x0C, "TerrainVertex::normal @ +0x0C");
 
 // One batch vertex (stride 0x14): a GeometryBatch's vertices (0x14001fdb0 copies
-// it, 0x14001f9c0 serializes 4 shorts, 4 shorts, 4 bytes). ACT-a's RoadVertex is the
-// same record.
+// it, 0x14001f9c0 serializes 4 shorts, 4 shorts, 4 bytes).
 struct GeometryBatchVertex {
     int16_t position[4];   // +0x00 x, y, height, blend
     int16_t uv[4];         // +0x08
@@ -55,8 +50,7 @@ static_assert(offsetof(GeometryBatchVertex, uv) == 0x08, "GeometryBatchVertex::u
 static_assert(offsetof(GeometryBatchVertex, normal) == 0x10, "GeometryBatchVertex::normal @ +0x10");
 
 // One mesh batch (stride 0x60): the decals at +0x1F0 (draw mode 0x2000) and the
-// road meshes at +0x200 (mode 0x4000). Serialize 0x14001ffa0. ACT-a's RoadBatch is
-// the same record.
+// road meshes at +0x200 (mode 0x4000). Serialize 0x14001ffa0.
 //
 // B.4 H5-P2 (behaviour:): the two inner arrays are real Collection::Array members
 // and the record's constructors / destructor are retail's:

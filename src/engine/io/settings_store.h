@@ -11,8 +11,11 @@
 // before Engine::Startup.
 //
 // Callers: IO::Persistence::ReadSettings / WriteSettings
-// (persistence_settings.cpp) and src/app/main.cpp (DumpVideoSettings,
-// HarnessGuardUnattendedBoot). docs/runtime_port/phase_d/plans/SETTINGS.md §B.
+// (persistence_settings.cpp), src/app/main.cpp (DumpVideoSettings,
+// HarnessGuardUnattendedBoot), src/ext/render_backend/render_backend.cpp and
+// src/platform/common/cpu/topology.cpp; DefaultPath alone from
+// src/ext/derived_cache/derived_cache_shared.cpp and
+// src/ext/building_finder/finder_core.cpp. docs/runtime_port/phase_d/plans/SETTINGS.md §B.
 // ============================================================================
 #pragma once
 

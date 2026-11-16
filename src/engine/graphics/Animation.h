@@ -25,9 +25,8 @@
 // Forward declarations only, for the members that are DECLARED-not-ported. None
 // of them is used by value in a defined body here, so no header is dragged in;
 // `System::Time` is deliberately NOT included, because `src/engine/system/
-// Value.h` pulls `engine/types/common.h`'s GLOBAL `struct Time` along with it
-// (the trap `src/engine/engine/UpdateLoop.h:56-60` records). Tags match the
-// real declarations — `class`, not `struct` — per RULE B4b-5.
+// Value.h` pulls `src/engine/global_types.h`'s GLOBAL `struct Time` along with
+// it. Tags match the real declarations — `class`, not `struct` — per RULE B4b-5.
 namespace System { class String; class Time; }
 namespace Math { class Transform; }
 namespace IO { class Serializer; }
@@ -47,9 +46,8 @@ namespace IO { class Serializer; }
 // LAST vtable store (0x180154bf0, AnimationEvent::_vftable_) is the only one
 // that survives, together with the three zeroed qwords at +0x08/+0x10/+0x18.
 // The dtor (retail 0x1800a2120) confirms the same vtable constant and then
-// TAIL-JMPs to Object::External::~External (0x1800bc950) -- a real,
-// non-inlined call into an unexported internal this lane does not own the
-// layout of, so it is invoked at its retail address rather than reproduced.
+// TAIL-JMPs to Object::External::~External (0x1800bc950) -- in the port, the
+// compiler's destructor chain from the empty `~AnimationEvent()` (animation.cpp).
 // ============================================================================
 
 // ============================================================================
@@ -59,7 +57,7 @@ namespace IO { class Serializer; }
 //
 // NO VTABLE: both ctor (??0...QEAA@XZ) and dtor (??1...QEAA@XZ) are QEAA,
 // i.e. non-virtual, and the ctor never stores a vtable pointer. This matches
-// the Picking::Scene precedent (reference: WAVE5_LANE_D.md §4) -- plain data,
+// the Picking::Scene precedent (reference: docs/history/runtime_port/WAVE5_LANE_D.md §4) -- plain data,
 // safe to half-port because nothing dispatches into it virtually.
 //
 // Pinned by the ctor (retail 0x1800fc430, decompiled): it zeroes +0x00..+0x13
@@ -80,7 +78,7 @@ namespace IO { class Serializer; }
 // wrongness was invisible while Update and Serialize were held back, because
 // nothing else in the tree read those twelve bytes.
 //
-// They are a `Collection::Array<AnimationGroup>` — _data / _size / _capacity —
+// They are a `Collection::Array<AnimationManager::Instance>` — _data / _size / _capacity —
 // and the proof is in `?Update@AnimationManager@Graphics@@` (0x1800fc240),
 // which this lane disassembled:
 //
@@ -98,26 +96,23 @@ namespace IO { class Serializer; }
 // been registered, not a no-op.
 //
 // NO BEHAVIOURAL CHANGE FOLLOWS. animation.cpp's ported ctor zeroes the same
-// twelve bytes it always did (a zeroed Array is an empty Array) and its ported
-// dtor still delegates to the real helper at its retail address, which is
-// correct under either reading. Only the NAMES and the explanation change —
-// and they are what a future lane would have built on.
+// twelve bytes it always did (a zeroed Array is an empty Array), and its ported
+// dtor leaves `_instances` to the member's own ~Array (kSpec_AnimInstance).
+// Only the NAMES and the explanation change — and they are what a future lane
+// would have built on.
 //
 // The Mersenne-Twister block at +0x14 is unaffected and stands as decompiled.
 // ----------------------------------------------------------------------------
 //
-// PLAN §4.1 decision 1 (no <windows.h> outside a _win twin) is still why
-// animation.cpp calls FUN_18005bf60 / FUN_18005c550 at their retail addresses
-// rather than reproducing them.
-//
 // *** DO-NOT-DELETE NOTE — checked by tools/check_standing_notes.py. ***
-// A cleanup pass that removes this paragraph, or the `UNVERIFIED` marker on
-// _f10 below, fails that checker. It is here because the note has already been
+// A cleanup pass that removes this paragraph fails that checker. The field it is
+// about is `AnimationManager::_rngIndex` (AnimationManager.h), whose comment
+// carries the `UNVERIFIED` marker. It is here because the note has already been
 // re-opened once on a guess.
 //
-// +0x10 is a fourth dword no body this project has read touches: not the ctor,
-// not the dtor, and not Update (which reads only +0x00 and +0x08). Left
-// UNVERIFIED.
+// +0x10 is a fourth dword that the ctor only zeroes (`MOV dword ptr [RCX+0x10],EAX`
+// at 0x1800fc44f) and that no body this project has read reads: not the dtor,
+// and not Update (which reads only +0x00 and +0x08). Left UNVERIFIED.
 //
 // WAVE 23 lane GFXBODY's residual R4 asked whoever ported
 // `?Serialize@AnimationManager@Graphics@@` (0x1800fc190) to settle this field,
@@ -136,20 +131,8 @@ namespace IO { class Serializer; }
 // ENDGAME B.3.5 step 5, block H1 — the REAL `Graphics::AnimationEvent` and
 // `Graphics::Animation`.
 //
-// The two `RtGraphics::` PODs above KEEP LIVING (B4b-1): every live object in
-// the process is still built by the ported ctor doors in
-// `src/engine/graphics/animation.cpp` and wears the MINTED vtable, and the
-// doors reach these classes through a `reinterpret_cast` plus a QUALIFIED,
-// non-virtual call. A converted object and a minted-vtable object are
-// slot-for-slot interchangeable; `tests/unit/graphics_animation_abi_test.cpp`
-// is the regression test in both directions.
-//
-// NOTHING IS RETIRED HERE. `RT_DELDTOR(0x180011800, 0x1800a2120, 0x020,
-// "Graphics::AnimationEvent")` (src/engine/object/deleting_dtor.cpp:299), the
-// `??_7AnimationEvent@Graphics@@6B@` mint row and the two `_typeInfo` reflection
-// rows all stay minted, per B35_RULES section 11. (ENDGAME B.3.9 block GFX
-// retired the RT_DELDTOR row and the vtable row; the `_typeInfo` row waits for
-// the W3 fold.)
+// `tests/unit/graphics_animation_abi_test.cpp` pins the real classes' vtable
+// order and layout.
 //
 // *** GREP HAZARD, ARMED BY THIS FILE (B4b-5 / B34_BRIEFS A.7). *** Nothing in
 // `src/engine/graphics/` opened `namespace Graphics` before this commit.
@@ -216,8 +199,8 @@ namespace Graphics {
 // pure External slots and `Construct` (the exe's AnimAudioEvent fills them).
 // The ??0 / ??1 doors, the Type / TypeName slot doors, the FACTREST row, the
 // RT_DELDTOR row 0x180011800 and the minted `??_7AnimationEvent@Graphics@@6B@`
-// are retired (tools/rt_mint_retired/gfx.txt). The only builder is the exe's
-// AnimAudioEvent, whose C++ base ctor is the protected one below.
+// are retired. The only builder is the exe's AnimAudioEvent, whose C++ base
+// ctor is the protected one below.
 class AnimationEvent : public Object::External {
 public:
     // [0] 0x180011800 -- retail's VECTOR deleting destructor (`MOV EDX,0x20` =
@@ -256,8 +239,7 @@ protected:
     // ??0AnimationEvent@Graphics@@QEAA@XZ  0x1800a2150 — the REAL constructor
     // (ENDGAME B.3.8 block RB, RULE B8-1). Retail's body is the inlined
     // External() (three zero stores) and the stamps, NOTHING else — so the
-    // compiler-emitted chain is the whole port and the body is empty; the
-    // door `RtGraphics_AnimationEvent_Ctor` has no field of its own to share.
+    // compiler-emitted chain is the whole port and the body is empty.
     AnimationEvent() {}
 
 };
@@ -322,9 +304,8 @@ static_assert(alignof(AnimationEvent) == 8, "Graphics::AnimationEvent aligns to 
 //
 // NO REAL CONSTRUCTOR OR DESTRUCTOR IS DEFINED. Both are declared for the
 // record (retail exports them) and left undefined: nothing in this tree calls
-// `??0Animation@Graphics@@QEAA@XZ`, and `??1Animation@Graphics@@QEAA@XZ` is
-// already a registered door in `src/engine/graphics/batchc_gfx_leaves.cpp`,
-// which is NOT this block's file set. An uncalled port is an unverified port.
+// `??0Animation@Graphics@@QEAA@XZ`, and `??1Animation@Graphics@@QEAA@XZ`'s body
+// is `RtGraphics_Animation_Dtor` in `src/engine/graphics/batchc_gfx_leaves.cpp`.
 // ============================================================================
 class Animation {
 public:
@@ -338,9 +319,8 @@ public:
     };
 
     // ---- the members retail exports, in mangled-name order ------------------
-    // Addresses are `standalone/rt_export_addrs.inc`'s. "door" names the file
-    // that owns the body; a member marked NOT PORTED is declared and
-    // deliberately left undefined (nothing calls it).
+    // "door" names the file that owns the body; a member marked NOT PORTED is
+    // declared and deliberately left undefined (nothing calls it).
 
     // ??0Animation@Graphics@@QEAA@XZ                0x1800fb1d0  NOT PORTED
     Animation();
@@ -354,10 +334,8 @@ public:
     Animation& operator=(const Animation&);
 
     // ?ApplyEvents@   0x1800fa9a0  PORTED — the body IS this member, in
-    //   `wave28_lane_gfxbody.cpp`'s `namespace Graphics` block, and the registered
-    //   door delegates (ENDGAME B.3.5 block GC). This note used to read "door:
-    //   wave28_lane_gfxbody.cpp (not ours)", which was true of block H1 and is no
-    //   longer true of the tree.
+    //   `wave28_lane_gfxbody.cpp`'s `namespace Graphics` block (ENDGAME B.3.5
+    //   block GC).
     void ApplyEvents(const Math::Transform& base, const System::Time& from,
                      const System::Time& to) const;
     // ?GetEndTime@    0x180015fe0  NOT PORTED  (`MOV EAX,[RCX+0x34]`)
@@ -378,25 +356,19 @@ public:
     System::String GetName() const;
 
     // ?GetPoseAtTime@Animation@Graphics@@QEBAXAEBVTime@System@@0PEAVTransform@
-    // Math@@H@Z   0x1800faca0 — PORTED HERE. The body moved out of
-    // `src/engine/graphics/animationstate.cpp`'s
-    // `RtGraphics_Animation_GetPoseAtTime` into this member; that door keeps its
-    // registration and both addresses and is now a one-line qualified call.
+    // Math@@H@Z   0x1800faca0 — PORTED, the member defined in
+    // `src/engine/graphics/animationstate.cpp`.
     //
     // THE FOURTH ARGUMENT IS NEVER READ (the bone count comes from `_boneCount`
-    // at +0x4c, not from the caller). Kept because the registered entry point
-    // must have retail's arity, not a tidied one.
+    // at +0x4c, not from the caller). Kept at retail's arity.
     void GetPoseAtTime(const System::Time& time, const System::Time& delta,
                        Math::Transform* out, int unused) const;
 
     // ?GetRate@       0x180015ff0  NOT PORTED
     float GetRate() const;
     // ?GetRootPoseAtTime@ 0x1800faaa0  PORTED — hidden retslot (Math::Transform).
-    //   This note read "door: wave29_lane_gfxbody.cpp (not ours)", which was true
-    //   of block H1 and stale by the time block GC moved the body: it is a member
-    //   now, defined in `src/engine/graphics/wave29_lane_gfxbody.cpp`, and the
-    //   door in that file delegates. ENDGAME B.3.5's closing pass converted its
-    //   two remaining runtime-internal callers (wave28_lane_gfxbody.cpp) onto it.
+    //   A member, defined in `src/engine/graphics/wave29_lane_gfxbody.cpp`; its two
+    //   runtime-internal callers are in wave28_lane_gfxbody.cpp.
     Math::Transform GetRootPoseAtTime(const System::Time& time,
                                       const System::Time& delta) const;
     // ?GetSourceName@ 0x180015f90  NOT PORTED — hidden retslot
@@ -491,7 +463,7 @@ static_assert(std::is_standard_layout<Animation>::value,
 
 }  // namespace Graphics
 
-// ==== B3R G-Game (R5): Runtime bodies code/Game calls by name ====
+// ==== B3R G-Game (R5): Runtime bodies src/game/Game calls by name ====
 namespace Graphics { class AnimationManager; }
 extern "C" Graphics::AnimationManager* RtGraphics_AnimationManager_Ctor(Graphics::AnimationManager* self);  // 0x1800fc430: placement-new AnimationManager()
 extern "C" void RtGraphics_AnimationManager_Dtor(Graphics::AnimationManager* self);  // 0x1800fc400: ~AnimationManager()

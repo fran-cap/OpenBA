@@ -26,8 +26,8 @@
 // three base fonts row for row (5472 / 5472, tests/unit/ext_font_raster_test.cpp).
 //
 // Standard C++ interface; the body is the platform seam
-// src/platform/win/font_raster_win.cpp (GDI) with the posix twin
-// src/platform/posix/font_raster_posix.cpp answering "absent".
+// src/platform/win/font_raster_win.cpp (GDI); the posix, darwin and android twins
+// rasterise through FreeType (src/platform/common/font_raster_freetype.cpp).
 // ============================================================================
 
 #include <cstddef>

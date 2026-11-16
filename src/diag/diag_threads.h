@@ -3,8 +3,8 @@
 // ============================================================================
 // A tiny portable roster of the threads the game creates, keyed by OS thread id:
 // the main thread, the engine loader (Engine::Loader), the persistence worker, the
-// audio stream, the pathfinder, the path-worker pool, the render thread and the
-// cull helpers. Two readers:
+// audio stream, the pathfinder, the path-worker pool, the render thread, the cull
+// helpers and the System::Parallel workers. Two readers:
 //   * the [LoadTime] stamps (load_time.h) name the thread they print on;
 //   * the sampling profiler (src/diag/win/sampler.cpp, BANISHED_SAMPLE) samples
 //     every registered thread, not only the main one.

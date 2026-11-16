@@ -1,13 +1,7 @@
 // ============================================================================
 // src/engine/collection/avl_trees.h — Wave 9 lane COLL
-//   The keyed `Collection::Set`/`Collection::Map` insert side, shared between
-//   avl_trees.cpp and its lockstep probe.
-// ============================================================================
-//
-// It exists for the same reason set_avl.h does: the probe must drive the SAME
-// bodies the registered addresses drive, against the SAME node layouts. A
-// probe that re-declared either would be testing a copy of the port rather
-// than the port.
+//   The keyed `Collection::Set`/`Collection::Map` insert side of avl_trees.cpp,
+//   declared for its callers.
 // ============================================================================
 
 #pragma once

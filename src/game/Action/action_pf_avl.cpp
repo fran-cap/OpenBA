@@ -2,11 +2,10 @@
 // Pathfinding/Action closure — AVL/BST node + rotation family.
 //
 // Shared by the pathfinder's open set, the region-pair cache, the path-cost cache
-// and the trees of other modules (through the C forwarders at the bottom). Transcribed
+// and the trees of other modules (through the template instantiations below). Transcribed
 // 1:1 from the Ghidra decompile (cross-checked against disassembly for the rotation
 // pointer surgery, the insert child-pointer offsets, and the balance-factor / height
-// fixups); none of this is exercised on the autostart path, so it stays a LITERAL
-// transcription, not an "improvement".
+// fixups), so it stays a LITERAL transcription, not an "improvement".
 //
 // B.4 ACT-a: the bodies run over a NODE TYPE (src/game/Action/PathAvl.h). Retail's two
 // copies of each primitive (one per element width, the link offsets baked in) are one

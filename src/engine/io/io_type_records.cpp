@@ -5,7 +5,7 @@
 // `?_typeInfo@PackageFile@IO@@0VBaseTypeInfo@Object@@A` (retail 0x1801f9ac8)
 // was MINTED until this block; the class's own record, built at CRT init and
 // head-inserted into `Object::BaseTypeInfo::_firstTypeInfo`, is the only one
-// now (tools/rt_mint_retired/ti-rest.txt).
+// now.
 //
 // THE LITERALS ARE THE PERSISTED ABI (ids are `~CRC32(name)`), copied from the
 // minted row and retail's literal bodies, never respelt:

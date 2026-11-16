@@ -9,8 +9,8 @@
 // Key fields:
 //   +0x20: targetId / pathfinder slot index (int, -1 = invalid)
 //   +0x24: path version (int, 0 = no path cached)
-//   +0x28: target entity (InternalBasePtr)
-//   +0x30: path data pointer (External ptr to entity description)
+//   +0x28: the moving character (InternalBasePtr to the CharacterComponent)
+//   +0x30: the character's description (ExternalPtr to CharacterDescription)
 //   +0x38: destination X (float)
 //   +0x3c: destination Y (float)
 //   +0x40: destination Z (float)
@@ -19,10 +19,10 @@
 //   +0x60: current path index (int, -1 = finished)
 //   +0x64: path node count (int)
 //   +0x68: path node array (int[0x100] -- cell indices)
-//   +0x468: idle animation ID (int)
-//   +0x46c: walk animation ID (int)
-//   +0x470: bridge flag (int)
-//   +0x474: road flag (bool/byte)
+//   +0x468: move animation ID (int)
+//   +0x46c: stop animation ID (int)
+//   +0x470: movement profile (int)
+//   +0x474: following flag (bool/byte)
 //   +0x478: speed multiplier (float, default 1.0)
 //
 // Decompiled from Application-x64.exe using Ghidra.
@@ -31,7 +31,7 @@
 #include "object/TypeInfo.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "Game/terrain_sidecar.h"
-#include "Action/exe_bodies.h"   // ActMv_*, Pf_SpatialProximityQuery_92260
+#include "Action/exe_bodies.h"
 #include "Work/exe_bodies.h"     // WorkImpl_Sqrtf_132010
 #include "Game/exe_constants.h"  // kRdata_*
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch C
@@ -63,16 +63,12 @@
 namespace {
 // The .rdata float constants (Game/exe_constants.h) that are stored as bit patterns.
 inline float RdataF(uint32_t bits) { float f; std::memcpy(&f, &bits, sizeof f); return f; }
-// 0x1400032e0 (Array<Ptr8>::SetSize) is the exe-side Collection::Array<T>
-// monomorphisation -- ENDGAME B.3.2 step 2 converted its one call site below to a
-// member call on the typed array, so its resolved-pointer stand-in
-// is gone.
 } // namespace
 
 // ENDGAME B.3.1 step 2: Math::Vector3::Serialize was read from the IAT slot at
 // 0x140152a68; it is now a direct member call on Math::Vector3.
 
-//   0x140022970 ActMv_ExternalPtrSerialize_22970 -- ExternalPtr serialize (path description)
+//   0x140022970 ::Object::SerializeExternal<CharacterDescription> -- ExternalPtr serialize (description)
 //   import slot 0x140152a98 ?IsDerivedFrom@Base@Object@@QEBA_NI@Z -> Object::Base::IsDerivedFrom
 //               (both readers test the object for null first)
 
@@ -94,17 +90,17 @@ inline float RdataF(uint32_t bits) { float f; std::memcpy(&f, &bits, sizeof f); 
 // now a real function parameter.
 
 //   0x140132010 WorkImpl_Sqrtf_132010      -- sqrtf implementation
-//   0x14010a1f0 ActMv_SetAnimation_a1f0    (AnimalComponent_impl_a1f0) -- set animation on
+//   0x14010a1f0 CharacterComponent::SetAnimation -- set animation on
 //               entity (entity_ptr, animId, param3_float, param4_float)
-//   0x140092260 Pf_SpatialProximityQuery_92260 -- bridge entity query near position
-//               (mapBridges, outResult, position, radius, flags, excludeEntity)
-//   0x1400c8c10 ActMv_PathSetup_c8c10      (MoveTo_helper_8c10) -- path setup (world pos to
+//   0x140092260 CharacterGrid::QueryNearestCharacter -- nearest character near position
+//               (grid, outResult, position, radius, typeId, excludeEntity)
+//   0x1400c8c10 MoveTo::PathSetup -- path setup (world pos to
 //               cell, A* query)
-//   0x1400c8d20 ActMv_UpdateFacing_c8d20   (MoveTo_sub_8d20) -- update facing direction
+//   0x1400c8d20 MoveTo::UpdateFacing -- update facing direction
 //               toward next waypoint
-//   0x14009e550 ActMv_SetTerrainCosts_e550 / 0x14009cfb0 ActMv_PathfinderQuery_9cfb0 (not
+//   0x14009e550 Map::SetMovementCosts / 0x14009cfb0 Map::RequestPath (not
 //               called in this file)
-//   0x1400a6d50 ActMv_CopyPathFromFinder_a6d50 (MoveTo_helper_6d50) -- copy path from
+//   0x1400a6d50 PathfinderThread::TakePath -- copy path from
 //               pathfinder result into path array
 
 // Constants (Game/exe_constants.h)
@@ -126,10 +122,10 @@ static inline int WorldToCell(int mapSize, float worldX, float worldY) {
 // ============================================================
 // MoveTo::Serialize (0x1400c8ec0)
 // Versioned serialization. Version 0 = status, Version 1 = all path data.
-// Fields: +0x18 status, +0x28 target IBP, +0x30 path desc ExternalPtr,
+// Fields: +0x18 status, +0x28 character IBP, +0x30 description ExternalPtr,
 //   +0x64 pathNodeCount, +0x60 currentPathIndex, +0x68 pathNodes[count],
-//   +0x38 destination Vec3, +0x5c terrainFlags, +0x468 idleAnimId,
-//   +0x46c walkAnimId, +0x470 bridgeFlag (version>0), +0x474 roadFlag,
+//   +0x38 destination Vec3, +0x5c terrainFlags, +0x468 moveAnimation,
+//   +0x46c stopAnimation, +0x470 movementProfile (version>0), +0x474 isFollowing,
 //   +0x478 speedMultiplier
 // ============================================================
 void MoveTo::Persist(IO::Stream& stream) {
@@ -272,7 +268,6 @@ int  MoveTo::AbstractImpl(ActionStack* actionStack) {
 
 // ============================================================
 // MoveTo::Execute (0x1400c8570)
-// DISABLED HOOK (bug class 3: MOV RAX,RSP in prologue).
 // Full A* path traversal along waypoints:
 //   - If no current path index (+0x60 == -1): check for cached path, copy from
 //     pathfinder, or call AbstractImpl (vtable +0x20) for re-query.
@@ -458,8 +453,8 @@ int  MoveTo::Execute(ActionStack* actionStack, const System::Time* time) {
         speed = description->_slowSpeed;
     } else {
         // Check terrain type for road tiles
-        // terrainType & ~0x08 in {1, 0} means road/path tile: (type - 1) & ~8 is 0 exactly
-        // for PathType::Fast (1, dirt road) and PathType::Bridge (9); retail's bit trick kept.
+        // Road tile: (type - 1) & ~8 is 0 exactly for PathType::Fast (1, dirt road) and
+        // PathType::Bridge (9); retail's bit trick kept.
         if (((terrainType - 1) & 0xFFFFFFF7) == 0) {
             // Road tile -- use road speed
             speed = description->_fastSpeed;

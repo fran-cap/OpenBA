@@ -58,8 +58,8 @@
 #include "object/Internal.h"   // ENDGAME B.3.4 caller batch G
 #include "Entity/ComponentEntity.h"
 #include "Game/exe_bodies.h"
-#include "Action/exe_bodies.h"      // ActCNR_CheckTerrain_cb00, Pf_RoadMeshRebuild_f370
-#include "Component/exe_bodies.h"   // CreateNaturalResource_helper_e2c0
+#include "Action/exe_bodies.h"
+#include "Component/exe_bodies.h"
 #include "Component/ComponentDescription.h"   // B8 RT2: ::Object::SerializeExternal<ComponentDescription> (the downcast needs it complete)
 #include "Game/cell_stamp.h"   // AMBMEMO: CellStamp::NoteWrite after a cell store
 #include "cell_trace.h"   // red square: BANISHED_CELL_DUMP (src/diag/cell_trace.h)
@@ -68,10 +68,10 @@
 
 // ============================================================
 // Functions ported elsewhere, called by name through their declaring headers:
-//   0x14009cb00 ActCNR_CheckTerrain_cb00            terrain-occupied check (Action/exe_bodies.h)
-//   0x14009e2c0 CreateNaturalResource_helper_e2c0   per-cell terrain classify (Component/exe_bodies.h)
-//   0x140002340 Reimpl_ExternalPtr_Serialize_StringTable  ExternalPtr via the string table (Game/exe_bodies.h)
-//   0x1400af370 Pf_RoadMeshRebuild_f370             road mesh rebuild (Action/exe_bodies.h)
+//   0x14009cb00 Map::CheckCellTerrain               terrain-occupied check (Game/Map.h)
+//   0x14009e2c0 Map::ClassifyTerrain                per-cell terrain classify (Game/Map.h)
+//   0x140002340 Object::SerializeExternal<T>        ExternalPtr via the string table (object/External.h)
+//   0x1400af370 WorldGeometry::RebuildRoadMesh      road mesh rebuild (Game/WorldGeometry.h)
 //   0x14009e8c0 Pathfinder_Seed + Region_Seed  the region system build, two halves (Game/exe_bodies.h)
 // ============================================================
 
@@ -92,8 +92,8 @@
 // the block moved, init the new tail, no element destroy, free the old block
 // on a realloc (both go through the null-tolerant 0x1800c7ad0). The one
 // difference: the allocation now goes through the LOCKING static `MemAlloc`
-// (0x1800c7a50) rather than `fn_MemAllocStatic` — the same export, reached
-// through rtcoll's own resolver.
+// (0x1800c7a50) rather than `fn_MemAllocStatic` — the same export, called by
+// name from rtcoll's MemAlloc (src/engine/collection/array.cpp).
 // ============================================================
 namespace {
 

@@ -55,8 +55,8 @@ ClearAreaDescription::ClearAreaDescription()
 bool ClearAreaDescription::Serialize(IO::Stream& stream) {
     IO::Serializer ser(stream, 0);
     // 1. ExternalPtr (+0x20). Same stream layout as the StringTable ExternalPtr
-    //    helper (FUN_14000bf40); only the validated typeId differs (trusted in
-    //    standalone via IsDerivedFromOrTrust).
+    //    helper (FUN_14000bf40); only the validated typeId differs (ComponentDescription's,
+    //    through Object::SerializeExternal).
     ::Object::SerializeExternal<ComponentDescription>(ser, _target);
     ser.Serialize(_clearTrees, nullptr);
     ser.Serialize(_clearGround, nullptr);

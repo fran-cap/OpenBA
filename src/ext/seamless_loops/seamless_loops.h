@@ -43,7 +43,7 @@ constexpr float    kTailRatio        = 0.2f;  // a tail window is quieter than t
 constexpr uint32_t kQuietPercentile  = 1;     // the quiet level: this percentile of the 10 ms window RMS
 
 struct Result {
-    bool     applied = false;       // false: the PCM is untouched (too short, silent, bad input)
+    bool     applied = false;       // false: the PCM is untouched (too short, bad input)
     uint32_t framesTrimmed = 0;     // the codec tail removed
     uint32_t crossfadeFrames = 0;   // kCrossfadeMs at the buffer's rate
     uint32_t newFrames = 0;         // the PCM's length afterwards (== frames when not applied)

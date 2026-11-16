@@ -21,7 +21,7 @@
 //
 //   sizeof 0x50   `MOV EDX,0x50` in its own slot-0 vector deleting destructor
 //                 (0x1800713b0) — B37_SLOTS.md section 1 — and `Allocate(0x50, 8)`
-//                 in the factory row (rt_factories_pathfinding.inc).
+//                 in `CreateNewObject` (pointlist.cpp).
 //   parent        "Object::External" (`?_ParentTypeName@PointList@Pathfinding@@`
 //                 0x180070e10, B37_SLOTS.md section 3).
 //   +0x28         a second System::String. Serialize (0x18010f6e0) hands it to
@@ -31,10 +31,10 @@
 // LIVE (B37_RULES 6.2): the exe imports `?_typeInfo@PointList@Pathfinding@@`
 // and every InteractDescription / ParticleDescription resource loads one
 // through the factory. `src/game/Component/interactdescription.cpp` reads
-// `_points` (+0x30/+0x38) by RAW OFFSET — the asserts below are its contract.
+// `_points` (+0x30/+0x38) by name; the asserts below pin those offsets.
 //
 // `??_7PointList@Pathfinding@@6B@` @ 0x180158f50, NINE slots (B37_SLOTS.md):
-//   [0] +0x00 0x1800713b0  (unexported) vector deleting dtor — RT_DELDTOR row
+//   [0] +0x00 0x1800713b0  (unexported) vector deleting dtor
 //   [1] +0x08 0x180070e40  ?TypeName@PointList@Pathfinding@@UEBAPEBDXZ
 //   [2] +0x10 0x180070e20  ?Type@PointList@Pathfinding@@UEBAIXZ
 //   [3] +0x18 0x18010f880  ?GetFileVersion@PointList@Pathfinding@@UEBAHXZ  (MOV EAX,5)
@@ -48,12 +48,11 @@
 // ENDGAME B.3 step 9 (block ENG, B39_RULES.md D1/D2): CONCRETE. The class has
 // retail's real public constructor (??0PointList 0x18010f980) and its own
 // slot 0, so every live PointList wears the COMPILER's table:
-// `CreateNewObject` / `CreateInPlaceObject` (retail's factory pair, registered
-// by name and address from pointlist.cpp) are MemAlloc + `::new (p)
+// `CreateNewObject` / `CreateInPlaceObject` (retail's factory pair, defined in
+// pointlist.cpp) are MemAlloc + `::new (p)
 // PointList()`, replacing the FACTREST step table that stamped the minted
 // `??_7PointList@Pathfinding@@6B@`. The minted row, its `RT_DELDTOR` row
-// 0x1800713b0, the `??1` door and the eight slot doors are retired
-// (tools/rt_mint_retired/eng.txt).
+// 0x1800713b0, the `??1` door and the eight slot doors are retired.
 // ============================================================================
 
 #include <cstdint>
@@ -140,7 +139,7 @@ public:
     // bumps the refcount exactly as retail's `INC [RAX-4]` does.
     System::String GetMeshName() const { return _meshName; }
 
-    // ---- exported, NOT PORTED, no caller: declared, deliberately undefined --
+    // ---- exported, NOT PORTED, no caller: declared, deliberately undefined (operator delete aside) --
     PointList(const PointList& src);                          // 0x1800711f0
     PointList& operator=(const PointList& src);               // 0x1800712c0
     static void* operator new(std::size_t bytes);              // 0x180070e50
@@ -153,8 +152,8 @@ public:
     // (Declared by DECLARE_TYPE above.)
 
 public:
-    // ---- the 0x30 bytes PointList adds (public: the doors and the exe-side
-    // raw reader reach them) ----
+    // ---- the 0x30 bytes PointList adds (public: game code such as
+    // interactdescription.cpp reads `_points` directly) ----
     System::String           _meshName;    // +0x20  GetMeshName 0x1800711b0
     System::String           _subObject;    // +0x28  serialized second; no getter
     Collection::Array<Point> _points;      // +0x30  Points 0x180071190

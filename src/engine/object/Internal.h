@@ -17,7 +17,7 @@
 // as the independent witness — it calls the same helpers out of line and its
 // assert strings name the fields.
 //
-// ORIGINAL SOURCE FILES (profile-build strings, docs/runtime_port/
+// ORIGINAL SOURCE FILES (profile-build strings, docs/history/runtime_port/
 // original_source_tree.txt): there is NO `Object\Internal.cpp`. The three
 // classes live in
 //     Object\InternalFactory.cpp
@@ -68,8 +68,7 @@
 // vptr.
 //
 // VTABLE — 4 slots, and it is EXPORTED (??_7Internal@Object@@6B@,
-// 0x180154720), so a port stamps the DLL's own vtable by name and never owns
-// one of its own. Read out of .rdata at that address:
+// 0x180154720). Read out of .rdata at that address:
 //     [0] 0x180006440  scalar deleting destructor  (flag 1 => operator delete)
 //     [1] 0x1800064c0  TypeName()  -> const char*
 //     [2] 0x1800064d0  Type()      -> unsigned int   (the type id)
@@ -80,13 +79,6 @@
 // InternalFactory::PersistObject calls `vtbl[0x18]` = slot 3 to persist a
 // freshly created object.
 // ============================================================
-// ENDGAME B.3.3 step 5. This POD is now an ALIAS for the real class
-// `Object::Internal` below, and it must STAY TRIVIALLY DESTRUCTIBLE: the ported
-// bodies in src/engine/object/ hold `RtObject::Internal` by pointer and the
-// registered `RtObject_Internal_Dtor` shim is called BY HAND out of a vtable
-// slot. Give the POD a destructor and the compiler runs a second one —
-// B31_RULES' `RtSystem::String` double-free lesson, verbatim. The assertion
-// itself is below, next to <type_traits>.
 
 // ============================================================
 // Object::InternalBasePtr — 8 bytes, one raw pointer. NOT refcounted, NOT
@@ -104,7 +96,7 @@
 // 0x1800c0280, profile 0x18008c5e0) contain nothing but `ret` — in the PROFILE
 // build too, which is the build with System::Debug::Assert calls compiled in
 // and 5,182 exports. So this is NOT "a debug-build leftover that got optimised
-// out of retail" (the claim in engine/funcs/engine_funcs.h:1983): the bodies
+// out of retail": the bodies
 // were compiled out at the SOURCE level in every shipped configuration, and no
 // build of this engine has ever validated an InternalBasePtr.
 //
@@ -117,7 +109,7 @@
 // ============================================================
 
 // ============================================================
-// Object::InternalFactory — 0x9e4 (2532) bytes.
+// Object::InternalFactory — 0x9e8 bytes (0x9e4 of fields).
 //
 //   +0x00  Collection::Array<Internal*> _objects      {data, size, capacity}
 //   +0x10  Collection::Array<int32_t>   _persistIds   {data, size, capacity}
@@ -194,10 +186,6 @@
 // ENDGAME B.3.1 step 1 -- the REAL classes, under retail's names.
 // ============================================================================
 //
-// `RtObject::InternalBasePtr` above stays declared (B31_RULES step 1: every
-// existing vocabulary keeps working; the POD goes when its last user does --
-// today src/engine/achievement/goal.cpp:411 and the C shims below).
-//
 // TRIVIALLY COPYABLE AND TRIVIALLY DESTRUCTIBLE, ON PURPOSE AND BY ASSERTION.
 // `Copy` (0x1800062b0) is `mov rax,[rdx]; mov [rcx],rax` -- a bare 8-byte copy,
 // after which the two pointers are ALIASES. There is no refcount anywhere in
@@ -212,7 +200,7 @@
 // They are transcribed below as empty bodies and MUST STAY EMPTY: retail never
 // validates a stale handle, it relies on explicit clearing at removal time, and
 // adding validation on deref would diverge from every save file and every
-// caller (memory reference_checkptr_is_a_ret_in_every_build; hazard 5.1).
+// caller (hazard 5.1).
 //
 // RETAIL ADDRESSES (retail / profile):
 //   ??0InternalBasePtr@Object@@QEAA@XZ                 0x1800062c0 / 0x180023900
@@ -238,11 +226,7 @@
 
 namespace Object {
 
-// Defined in src/engine/object/internal.cpp, next to the ReaderWriter vtable
-// slots and the `PersistObject` name door it needs -- `IO::Serializer`,
-// `Object::Base` and `InternalFactory` are all still unconverted
-// (SMARTPTR_INVENTORY.md section 4), so the body keeps reaching them exactly as
-// the C body does.
+// Defined in src/engine/object/internal.cpp.
 class Internal;   // below; `_ptr` holds one
 
 void InternalBasePtrSerializeBody(Internal** self,
@@ -302,11 +286,10 @@ public:
         InternalBasePtrSerializeBody(&_ptr, ser);
     }
 
-    // ---- the transitional entry points the C shims call --------------------
+    // ---- test entry points -------------------------------------------------
     // `Copy`, `CheckPtr` and `AssignId` are PROTECTED in retail (the `IEAA` /
-    // `IEBA` manglings). The registered C shims are free functions and cannot
-    // reach them, so each gets a one-line static forwarder that disappears with
-    // the shim in step 2. Nothing else may call these.
+    // `IEBA` manglings). Each gets a one-line static forwarder so the unit test
+    // (tests/unit/object_ptr_test.cpp) can reach them. Nothing else may call these.
     static void Shim_Copy(InternalBasePtr* self, const InternalBasePtr* other) {
         self->Copy(*other);
     }
@@ -341,9 +324,8 @@ static_assert(std::is_trivially_destructible<InternalBasePtr>::value,
 // only typed operation retail emits is the array Serialize's per-element type
 // check, which is `InternalBasePtr::Serialize` plus one `IsDerivedFrom` against
 // `T::_typeInfo`'s first dword -- ONE body, both instantiations
-// (SMARTPTR_INVENTORY.md section 3). Until `T` is a real C++ class with a
-// `_typeInfo` static (ENDGAME B.3 step 3, decision 4) the type id is supplied
-// by the caller, exactly as the C thunks read it through the name door.
+// (SMARTPTR_INVENTORY.md section 3). The one-argument `Serialize` reads T's own
+// type id (`T::TypeId()`); the two-argument form takes it from the caller.
 // ============================================================
 
 // The type test on a pointer field's held Internal* (review F-143); defined below
@@ -403,9 +385,6 @@ public:
     }
 };
 
-
-// The POD alias's trivial destructibility, asserted where <type_traits> is in
-// scope. See the note beside `RtObject::Internal` itself.
 
 // ############################################################################
 // ENDGAME B.3.3 step 5, merged back here from src/engine/object/internal_class.h
@@ -503,9 +482,8 @@ public:
     // *** IT DOES NOT CALL AddObject. *** The copy inherits the ORIGINAL's
     // `_factoryIndex`, so two live objects share one table slot and the second
     // `~Internal` swap-removes a slot that no longer names it. That is retail's
-    // behaviour, it is the shape
-    // reference_internalfactory_swapremove_wild_write.md describes, and it is
-    // transcribed, not fixed.
+    // behaviour, it is the shape in which ~Internal's swap-remove writes through
+    // stale handle-table entries, and it is transcribed, not fixed.
     Internal(const Internal& other);
 
     // ??4Internal@Object@@QEAAAEAV01@AEBV01@@Z  retail 0x180006430
@@ -588,17 +566,17 @@ inline bool IsDerivedFromNullSafe(const InternalBasePtr& p, uint32_t typeId) {
 // ============================================================
 // Object::InternalFactory — 0x9e8 bytes (0x9e4 of fields, alignof 8).
 //
-// The engine-wide handle table. Layout and evidence: the `RtObject` POD above,
-// which this class is cross-asserted against field for field.
+// The engine-wide handle table. Layout and evidence: the `Object::InternalFactory`
+// banner above; the static_asserts after the class pin each field.
 //
 // NO DESTRUCTOR IS DECLARED, deliberately. `??1InternalFactory@Object@@QEAA@XZ`
-// (retail 0x18002f860) is a NON-VIRTUAL member whose port lives in
-// src/engine/object/factory_dtors.cpp — a file this step does not own — and
-// `??0InternalFactory@Object@@QEAA@XZ` (0x1800c0030) is registered from
+// (retail 0x18002f860) is a NON-VIRTUAL member whose port is the free function
+// `RtObject_InternalFactory_Dtor` in src/engine/object/factory_dtors.cpp, and
+// `??0InternalFactory@Object@@QEAA@XZ` (0x1800c0030) is `Ctor_InternalFactory` in
 // src/engine/engine/singleton_ctors.cpp. Declaring either here would give the
-// class a second, divergent spelling of a body that is already registered at
-// those two addresses. The singleton is heap-allocated once and torn down
-// through those doors; nothing constructs one of these by value.
+// class a second, divergent spelling of those bodies. The singleton is
+// heap-allocated once, built and torn down through those functions; nothing
+// constructs one of these by value.
 // ============================================================
 class InternalFactory {
 public:
@@ -609,10 +587,8 @@ public:
 
     // ?_singleton@InternalFactory@Object@@0PEAV12@EA — retail 0x1801fc6d8. The
     // CLASS STATIC since ENDGAME B.3.9 OBJ (B39_RULES D7): defined in
-    // internal_class.cpp, and RtObjectPortInit redirects the minted row onto
-    // it, so the name door, the address door and this member are the same
-    // eight bytes. Written by the ctor door (engine/singleton_ctors.cpp).
-    // PUBLIC while foreign readers still reach the cell through the doors.
+    // internal_class.cpp and written by `Ctor_InternalFactory`
+    // (engine/singleton_ctors.cpp). PUBLIC: that free function writes it directly.
     static InternalFactory* _singleton;
 
     // ?Startup@InternalFactory@Object@@QEAA_NXZ  retail 0x1800c0020 —
@@ -672,12 +648,4 @@ static_assert(offsetof(InternalFactory, _random)     == 0x20, "_random at +0x20"
 
 }  // namespace Object
 
-// ==== B3R W0-P0c: Runtime bodies reached by retail address ====
-// ENDGAME B.3R (B3R_RULES R5): each body below is registered at the retail
-// address in its trailing comment and read through the registry today. It is
-// declared here, copied from its definition (linkage, namespace, types), so the
-// reader can call it by name. Nothing calls it through this declaration yet.
 namespace IO { class Serializer; }   // io/Serializer.h
-
-// ---- object/internal_ptr_array_serialize.cpp
-// ==== end B3R W0-P0c ====

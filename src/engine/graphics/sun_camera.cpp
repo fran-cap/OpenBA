@@ -25,7 +25,6 @@
 // `__thiscall GetSunCamera(SunLight *this, Renderer *param_1)` with an unnamed
 // `in_R8`, which gets BOTH the slot position and the argument count wrong; a
 // typedef copied from it writes 0xd8 bytes over the Renderer.
-// (reference_hidden_retslot_wild_write.md, reference_ghidra_drops_r8_static_lookat.md)
 //
 // ---------------------------------------------------------------------------
 // WHICH DRAW GROUP, AND WHICH CAMERA INSIDE IT
@@ -45,9 +44,10 @@
 // [-2, 15] — but it reads the value to clamp from `pts[i].z`, NOT
 // `pts[2i+1].z`. In the disassembly the store cursor is RBX (stride 0x18) and
 // the clamp source is `[RBP + RDI - 0x58]` with RDI = i*12, i.e. a stride-12
-// walk over the same array. For i == 0 the two coincide; for i >= 1 the clamp
-// takes the PREVIOUS iteration's already-clamped Z. It is a `p[i]` where the
-// source clearly meant `p[i*2+1]`.
+// walk over the same array. Point i is never the point just stored: at i == 0
+// it is this iteration's near point (pts[0]), at i == 1 and 3 the far points
+// stored by iterations 0 and 1, at i == 2 the near point of iteration 1, which
+// is never clamped. It is a `p[i]` where the source clearly meant `p[i*2+1]`.
 //
 // It is deterministic, it is what every shipped frame of the game has done,
 // and "fixing" it here would move shadow frusta relative to retail. Ported as
@@ -64,7 +64,7 @@
 // FP status word, and none of the inputs can trap.
 //
 // ---------------------------------------------------------------------------
-// CONSTANTS, lifted as raw bits (reference_crt_coefficients_must_be_lifted...)
+// CONSTANTS, lifted as raw bits
 // ---------------------------------------------------------------------------
 //   0x180161688 = 0x3e000000     0.125f   (1/8: eight points averaged)
 //   0x18016169c = 0x3f800000     1.0f
@@ -125,8 +125,7 @@ inline float AbsF(float v) {
 // `Camera SunLight::GetSunCamera(Renderer&) const` — the one line block E
 // recorded as a comment and left for this block, because a by-value return needs
 // the COMPLETE type and `Graphics::Camera` was still a POD. The body below is
-// that member; the registered door keeps its name, both registrations and
-// retail's `(this, ret, renderer)` ABI, and delegates.
+// that member.
 //
 // TWO THINGS THE CONVERSION MADE NAMEABLE that this file had to spell as raw
 // offsets before, and both are now `static_assert`ed in Camera.h:
@@ -142,7 +141,7 @@ inline float AbsF(float v) {
 // `_drawGroups[0]._camera._frustum`. They are still read through the float
 // cursor `m`, because the arithmetic below is transcribed in retail's operand
 // order and re-spelling it as `axisX.x` per term would invite a reader to
-// re-group a float sum (reference_moved_term_hides_where_terms_cancel.md).
+// re-group a float sum, and a regrouped sum differs in the last bit where terms cancel.
 //
 // The result is constructed DIRECTLY IN THE HIDDEN RETURN SLOT, as retail does
 // (`MOV RCX,R12` immediately before `CALL 0x1800fe960`): the Camera
@@ -172,7 +171,7 @@ Camera SunLight::GetSunCamera(Renderer& renderer) const {
 
     // The shadow basis: look from the origin towards the sun direction vector.
     const Vector3    origin = { kZero, kZero, kZero };
-    // `_dirX/_dirY/_dirZ` are three consecutive floats (+0xc0); FromLookAt
+    // `_direction` is three consecutive floats (+0xc0); FromLookAt
     // takes them as the Vector3 they are.
     const Vector3    sunDir(self->_direction.x, self->_direction.y, self->_direction.z);
     const Transform3 look = Transform3::FromLookAt(origin, sunDir);

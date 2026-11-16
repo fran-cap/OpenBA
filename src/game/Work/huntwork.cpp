@@ -48,7 +48,7 @@
 #include "Entity/CitizenBehavior.h"
 #include "Game/Map.h"
 
-// ── Slot4 destination census (BANISHED_CROPFIELD_TRACE, the hunt trace flag). ──
+// ── Slot4's hunt action (WorkAct_HuntWorkCtor_bbbc0). ──
 // Retail's sub_bbc0 builds TWO different chains from this function's last argument:
 //   param6=1 -> MoveTo(chosen cell, Slow, 0xe1f) + HuntAnimal chained behind it
 //   param6=0 -> PerformWork(Time(5.0s)) IN PLACE  + HuntAnimal chained behind it
@@ -63,23 +63,23 @@
 //   0x14012e5c0 WorkComponent::CalcMaxWorkers
 //   0x140006270  ComponentEntity::FindComponent<StorageComponent>
 //   0x14012cf10  StorageComponent::QueryCount
-//   0x14009f3e0  Reimpl_MapGetTerrainPos
+//   0x14009f3e0  Map::GetTerrainPos
 //   0x1400bbbc0  WorkAct_HuntWorkCtor_bbbc0
 //   0x140021a30  WorkBST_RegisterWork_1a30
 //   0x140115e60  CitizenComponent::LongTermPlan
 //   0x14002a730  ComponentEntity::FindComponent<HuntComponent>
 //   0x1400063d0  the RadiusDescription scan (FindRadiusDescription below)
-//   0x140008830  WorkBase_CalcDistance_8830
-//   0x14009ccf0  WorkGrid_FindCell_9ccf0
-//   0x1400a00f0  WorkBase_ValidateCell_a00f0
-//   0x140087fb0  Pf_EntityAnchorCell_7fb0
+//   0x140008830  Map::CalcDistance
+//   0x14009ccf0  Map::FindCell
+//   0x1400a00f0  Map::ValidateCell
+//   0x140087fb0  EntityAnchorCell
 //   0x1400296b0  WorkBST_BST_Serialize_296b0
 //   0x1400f7100  Work::ValidateTask
 //   0x14001a6e0  WorkBST_BSTRemove_a6e0
 //   0x140025520  WorkBST_BSTFindRemove_25520
-//   0x1400c5400  WorkBase_TaskListCleanup_c5400
+//   0x1400c5400  ActionStack::Clear
 //   0x140002e10  ComponentEntity::FindComponent<WorkPlaceComponent>
-//   0x140014c30  WorkBase_TreeNodeFree_14c30
+//   0x140014c30  WorkBase_TreeNodeFree
 //   0x140172114  kRdata_140172114 (.rdata)
 //
 // Vtable pointers for dtor chain
@@ -191,8 +191,7 @@ int HuntWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*/) 
     }
 
     // -------------------------------------------------------
-    // Step 6: Check max workers vs current count (the tree's port of 0x14012e5c0
-    // called here takes the component as an integer: LEFT)
+    // Step 6: Check max workers vs current count (0x14012e5c0)
     // -------------------------------------------------------
     int huntCount = _citizens._count;
 
@@ -209,7 +208,6 @@ int HuntWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*/) 
     // Step 7: Random search for valid hunting cell
     // -------------------------------------------------------
     Map* map = gameWorld->m_game;
-    // The map helpers (0x140008830, 0x1400a00f0) take the map as int*: LEFT.
     Map* mapGrid = map;
     System::Random* rng = gameWorld->m_random;
 
@@ -223,8 +221,8 @@ int HuntWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*/) 
     int cellRow = workCell / mapSize;
 
     // Generate random position within radius (rejection sampling)
-    // Original only bounds-checks Y; we check both for safety but the
-    // else branch below handles the case where the cell is invalid.
+    // Original only bounds-checks Y, and so does this loop; an off-map X
+    // skips the cell checks below and takes the fallback branch.
     int randX, randY;
     int testCellX, testCellY;
 
@@ -237,7 +235,7 @@ int HuntWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*/) 
         } while (radiusSq < randY * randY + randX * randX);
     } while (testCellY < 0 || testCellY >= mapSize);
     // Note: X bounds not checked here matches original behavior.
-    // Negative X will fail terrain/entity checks -> else branch handles it.
+    // An off-map X skips the cell checks below -> else branch handles it.
 
     uint32_t testCell = (uint32_t)(mapSize * testCellY + testCellX);
 
@@ -284,9 +282,6 @@ int HuntWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*/) 
         ComponentEntity* cellEntity = gridData[testCell].occupant.Get();
         bool emptyCell = (cellEntity == nullptr);
 
-        // Attribute the failure to the FIRST failing check only, so the columns sum to
-        // the fallback count instead of double-counting a cell that fails several.
-
         // Check 4: passability from random cell to citizen
         if (terrainOk && distOk && emptyCell) {
             bool canPath = (char)mapGrid->ValidateCell(PathBits::Walk, testCell, citizenGridCell) != 0;
@@ -295,7 +290,6 @@ int HuntWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*/) 
     }
 
 
-    // (0x1400bbbc0 takes the HuntComponent slot as int64_t*: LEFT)
     if (allChecksPass) {
         // -------------------------------------------------------
         // Valid hunt target — create hunt action at terrain position
@@ -337,7 +331,7 @@ int HuntWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*/) 
             _workId,              // priority
             &huntComp3,            // hunt component IBP
             fallbackPos,           // fallback position (0,0,0)
-            kRdata_140172198,     // float param (roaming radius)
+            kRdata_140172198,     // float param (the PerformWork time, 5.0)
             0);                    // char param (roaming mode)
     }
 
@@ -358,7 +352,6 @@ int HuntWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*/) 
         citizenEnt->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
     }
 
-    // (the tree helper takes the container as uintptr_t*: LEFT)
     WorkCitizenSetNode* inserted;   // the out-node slot (retail reuses workEnt's)
     WorkBST_RegisterWork_1a30(&_citizens, &inserted, citizenIBP);
     return 2;
@@ -366,10 +359,9 @@ int HuntWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*/) 
 
 
 // ============================================================
-// HuntWork::Slot6 -- NOT HOOKABLE (RIP-relative CALL)
+// HuntWork::Slot6
 // Thunk: sub rsp,0x28; add rcx,0x48; call CitizenAI_impl_5520; xor al,al; add rsp,0x28; ret
 // Calls BSTFindRemove on the BST at self+0x48, returns false.
-// (The tree helper takes the container as uintptr_t*: LEFT.)
 // ============================================================
 int HuntWork::OnComplete(CitizenComponent** param2, ComponentEntity** /*arg2*/, int /*arg3*/) {
     WorkBST_BSTFindRemove_25520(&_citizens, param2);
@@ -378,7 +370,7 @@ int HuntWork::OnComplete(CitizenComponent** param2, ComponentEntity** /*arg2*/, 
 
 
 // ============================================================
-// HuntWork::Slot7 -- 9-byte thunk, too small to hook.
+// HuntWork::Slot7 -- 9-byte thunk.
 // Thunk: add rcx,0x48; jmp CitizenAI_impl_5520
 // Calls BSTFindRemove on the BST at self+0x48.
 // ============================================================
@@ -420,7 +412,6 @@ int HuntWork::Cleanup() {
 // Iterates BST, validates each entry via FUN_1400f7100,
 // collects invalid ones, removes them from tree.
 // Returns true if all valid (removeCount == 0), false otherwise.
-// Hook DISABLED (bug class 3 -- MOV RAX,RSP).
 // ============================================================
 int HuntWork::Validate() {
     AssignmentNode* root = _citizens._root;
@@ -502,8 +493,7 @@ int HuntWork::Validate() {
         }
     }
 
-    // Remove all invalid entries from BST (keys compare unsigned; the tree helper takes
-    // the container as uintptr_t*: LEFT)
+    // Remove all invalid entries from BST (keys compare unsigned)
     if (removeCount > 0) {
         for (uint32_t i = 0; i < removeCount; i++) {
             AssignmentNode* searchNode = _citizens._root;
@@ -566,7 +556,7 @@ void HuntWork::Persist(IO::Stream& stream) {
     // Create second serializer (version=0) for BST
     IO::Serializer serializer2(stream, 0);
 
-    // Serialize BST at self+0x48 (the helper takes the container as uintptr_t*: LEFT)
+    // Serialize BST at self+0x48
     WorkBST_BST_Serialize_296b0(&_citizens, &serializer2);
 }
 

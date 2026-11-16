@@ -6,7 +6,7 @@
 //         +0x40=array2 count, +0x48=trackerId (int, init -1)
 //
 // Vtable at 0x14015ab80. One non-trivial override:
-//   Shutdown (0x140059130) — Serialize two paired (IBP+int) arrays + trackerId
+//   Persist (0x140059130) — Serialize two paired (IBP+int) arrays + trackerId
 //
 
 #include "Component/TrackerComponent.h"
@@ -18,10 +18,10 @@
 #include <cstdio>
 #include <new>
 #include "Action/exe_bodies.h"   // ActRm_ArrayResize16_da70 (0x14000da70)
-#include "Game/exe_bodies.h"     // Reimpl_ExternalPtr_Serialize_StringTable (0x140002340)
+#include "Game/exe_bodies.h"
 
 // Helpers: FUN_14000da70 ActRm_ArrayResize16_da70 — resize a paired (IBP+int) array;
-// FUN_140002340 Reimpl_ExternalPtr_Serialize_StringTable — serialize an IBP entry.
+// FUN_140002340 ::Object::SerializeExternal<ComponentDescription> — serialize an IBP entry.
 
 // ============================================================================
 // ENDGAME B.3.8 VIS — TrackerComponent as a REAL class (TrackerComponent.h).

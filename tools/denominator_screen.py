@@ -18,12 +18,10 @@ WHAT "NEARBY" MEANS, AND WHY IT IS NOT A LINE COUNT
 The window is the enclosing BLOCK: a blank-line-delimited paragraph, a whole
 markdown table, or a whole fenced code block.  It is NOT "N lines above".
 
-That choice is the direct lesson of
-``reference_documenting_a_check_can_delete_it.md`` -- adding a 12-line comment
-above a call site pushed it out of a checker's fixed 6-line window and deleted
-the check, which then read as a pass -- and of
-``reference_checker_pairs_across_function_boundaries.md``, where scanning back
-N raw lines paired a number with a population from an unrelated function and
+That choice is the direct lesson of two checker failures: adding a 12-line
+comment above a call site pushed it out of a checker's fixed 6-line window
+and deleted the check, which then read as a pass; and scanning back N raw
+lines paired a number with a population from an unrelated function and
 manufactured confident wrong findings.  A block is derived from the document's
 own structure, so it grows when the author writes more and it never crosses
 into the next paragraph.  It can still be wrong (an author may legitimately
@@ -49,8 +47,7 @@ full, plus WAVE20_CLOSED.md §5.7-§5.10 and §6-§8 in full.
 
 Tree-wide it flags 6094 of 11622 numeric claims across 207 WAVE*.md files --
 52%.  A screen that flags half its input is not a work list, and an INFLATING
-blind spot MANUFACTURES work
-(reference_a_screen_that_cannot_name_its_subject).
+blind spot MANUFACTURES work.
 
 **Why it fails is the useful part, and it is not a tuning problem.** All three
 real failures were quantities spelled as ENGLISH WORDS -- "paid for that three
@@ -70,8 +67,7 @@ WHERE THE MECHANISABLE VERSION LIVES INSTEAD
 --------------------------------------------
 Enforce the denominator where the number is PRODUCED, not where it is QUOTED.
 A tool's output is machine-readable and its author is one place; a wave doc is
-neither.  That approach has already worked in this tree -- runtime_census.py
-prints SUBJECT / PARAMETERS / POPULATION before any finding, and Wave 18's six
+neither.  That approach has already worked in this tree -- Wave 18's six
 instruments were repaired by making each print what it could not see.  Note
 the asymmetry: Wave 20 §5.10's four denominator failures were in an
 instrument, a lane, a close, and a self-verification -- and only the FIRST of
@@ -88,8 +84,8 @@ import os
 import re
 import sys
 
-# A candidate numeric claim: a bare integer (2+ digits, or 1 digit followed by
-# a noun we cannot see) or a percentage.
+# A candidate numeric claim: a bare integer of 2+ digits (scan_file drops a bare
+# single digit) or a percentage.
 NUM_RE = re.compile(r"(?<![\w.$])(\d{1,3}(?:,\d{3})+|\d+)(%?)(?![\w.])")
 
 # SKIP -- syntactic shapes that are not counts.  Each one is a deliberate

@@ -1,4 +1,4 @@
-// src/game/Goal/tutorialgoalbutton.cpp
+// src/game/Tutorial/tutorialgoalbutton.cpp
 // Clean reimplementation of TutorialGoalButton vtable methods.
 //
 // TutorialGoalButton (0x30 bytes) — tutorial goal that waits for a UI element state.
@@ -6,7 +6,7 @@
 // Extends TutorialGoal -> Object::External
 //
 // Fields (from Ghidra decompilation):
-//   +0x20: System::String elementPath — dotted path to UI element (e.g. "DialogType.ElementName")
+//   +0x20: System::String elementPath — colon-separated path to UI element (e.g. "DialogType:ElementName")
 //   +0x28: bool invertCheck — selects which bit of element flags to check
 //
 // Check logic (Slot8):

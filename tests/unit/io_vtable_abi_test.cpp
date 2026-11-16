@@ -128,17 +128,14 @@ static_assert(!std::is_abstract<IO::VisitorEncoding>::value, "all five slots ove
 
 // THE GUARD THAT MATTERS: no virtual destructor anywhere in the hierarchy.
 // Itanium would spend two slots on one, pushing CreateReader from +0x18 to
-// +0x28 and CreateWriter from +0x20 to +0x30 — and `IO::Serializer`'s
-// constructor, which reads those two byte offsets RAW, would then call
-// `GetKind()` as a factory and store the int 2 as a ReaderWriter*.
+// +0x28 and CreateWriter from +0x20 to +0x30, off the retail byte offsets
+// `enc_vtbl::kCreateReader` / `kCreateWriter` name.
 static_assert(!std::has_virtual_destructor<IO::Encoding>::value, "B34_RULES §1.1");
 static_assert(!std::has_virtual_destructor<IO::BinaryEncoding>::value, "B34_RULES §1.1");
 static_assert(!std::has_virtual_destructor<IO::TextEncoding>::value, "B34_RULES §1.1");
 static_assert(!std::has_virtual_destructor<IO::VisitorEncoding>::value, "B34_RULES §1.1");
 
-// A concrete type destructible at namespace scope is what lets encoding.cpp
-// and encoding_visitor_text.cpp hold one shared instance for their address
-// doors to delegate through with a qualified, non-virtual call.
+// The three concrete encodings are destructible types.
 static_assert(std::is_destructible<IO::BinaryEncoding>::value, "door instance");
 static_assert(std::is_destructible<IO::TextEncoding>::value, "door instance");
 static_assert(std::is_destructible<IO::VisitorEncoding>::value, "door instance");
@@ -173,7 +170,7 @@ public:
 // THIS DRIVES THE REAL CLASS, NOT A MIRROR. The retired `TestSerializer` was a
 // transcription, and a transcription can only ever test itself: it would keep
 // passing while the shipped constructor drifted. `IO::Serializer`'s member
-// bodies therefore live in a REGISTRY-FREE translation unit
+// bodies therefore live in their own translation unit
 // (src/engine/io/serializer_class.cpp, in tests/unit/sources.cmake) so that this
 // file links the shipped code, exactly as B.3.3 did with type_reflection.cpp.
 //
@@ -193,9 +190,7 @@ public:
 //
 // The caller shape mirrored here is B34_RULES §7.3's: placement-new into an
 // `alignas(8) uint8_t buf[24]` with an explicit destructor at the same
-// position. That is the shape the 187 exe-side ctor sites convert to, the shape
-// src/engine/object/internal_class.cpp's `ResetPersistState` now uses, and the
-// shape the registered `RtSerializer_Ctor` door itself uses.
+// position. That is the shape the 187 exe-side ctor sites convert to.
 // ===========================================================================
 
 namespace lifetime {
@@ -302,9 +297,9 @@ struct HeaderEncoding final : IO::Encoding {
     ~HeaderEncoding() = default;
 };
 
-// Wire a `CountingStream` up as the POD the (still unconverted) `IO::Stream`
-// is today, and hand it out as the class the constructor's signature names.
-// This pair of casts is precisely what block 4 deletes.
+// Wire a `CountingStream` up with `direction` / `encoding` at `IO::Stream`'s
+// +0x08 / +0x10, and hand it out as the class the constructor's signature
+// names.
 IO::Stream& AsIoStream(CountingStream& cs, HeaderEncoding& enc, int32_t direction) {
     TestStream* base = static_cast<TestStream*>(&cs);
     base->direction = direction;
@@ -420,14 +415,10 @@ UNIT_TEST(constructing_a_Serializer_twice_consumes_two_headers) {
 // ===========================================================================
 // PART F — ENDGAME B.3.4 block 3. PIN THE REAL CLASSES' VTABLE ORDER.
 //
-// WHY THIS TEST HAS TO EXIST. Nothing else in the tree exercises the real
-// `IO::ReaderWriter`/`IO::Encoding` vtable ORDER: every registered door calls
-// qualified or non-virtually, and every live object wears a MINTED table out of
-// `standalone/rt_data_mint_tables.inc`. So a mis-ordered declaration in
-// src/engine/io/Serializer.h would stay invisible right through B.3.4 and
-// surface only when B.3 steps 5-8 retire the minted tables — as a corrupted
-// save file, with no recent change to blame. The order was checked by eye at
-// the block-2 close and is right. This is so it STAYS right.
+// WHY THIS TEST HAS TO EXIST. The `rw_vtbl::k*` / `encoding_vtbl::k*` byte
+// offsets name retail's slot order, and nothing in the type system ties them
+// to the declaration order in src/engine/io/Serializer.h. The order was checked
+// by eye at the block-2 close and is right. This is so it STAYS right.
 //
 // The retired transcription probes proved the ABI rule but not the shipped
 // declaration. These probe the SHIPPED classes: a concrete subclass of each, every slot overridden with its
@@ -442,7 +433,7 @@ UNIT_TEST(constructing_a_Serializer_twice_consumes_two_headers) {
 //     ENDGAME B.3.9 IO; tests/unit/b39_io_classes_test.cpp builds them), so
 //     they cannot be subclassed into a probe.
 //     The BASE is the right thing to probe anyway: it is the table whose order
-//     the 54 `rw_vtbl::` files depend on.
+//     the `rw_vtbl::` offsets name.
 // ===========================================================================
 
 namespace order {
@@ -582,18 +573,16 @@ UNIT_TEST(the_real_Encoding_declares_its_5_slots_in_retail_order) {
     order::EncOrderProbe e;
     void* raw = static_cast<void*>(static_cast<IO::Encoding*>(&e));
 
-    // Slot 0 is `IsBinary`, NOT a destructor. This is the assertion that keeps
-    // `IO::Serializer`'s constructor calling a FACTORY at +0x18/+0x20 rather
-    // than `GetKind()` — which would build-clean, link-clean store the int 2 as
-    // a ReaderWriter* and corrupt every save.
+    // Slot 0 is `IsBinary`, NOT a destructor: with no destructor slot the two
+    // factories stay at retail's +0x18/+0x20.
     using BoolFn = bool (*)(void*);
     using IntFn  = int (*)(void*);
     Reset(); CHECK((SlotAt<BoolFn, order::EncOrderProbe>(raw, 0x00)(raw)) == true);  CHECK_EQ(g_lastMark, 0);
     Reset(); CHECK((SlotAt<BoolFn, order::EncOrderProbe>(raw, 0x08)(raw)) == false); CHECK_EQ(g_lastMark, 1);
     Reset(); CHECK_EQ((SlotAt<IntFn, order::EncOrderProbe>(raw, 0x10)(raw)), 2);     CHECK_EQ(g_lastMark, 2);
 
-    // The two factories, at the byte offsets the Serializer constructor reads
-    // RAW, with retail's arity 3.
+    // The two factories, at retail's byte offsets +0x18/+0x20, with retail's
+    // arity 3.
     int marker = 0;
     using MakeRw = void* (*)(void*, void*, int);
     Reset();
@@ -619,19 +608,13 @@ UNIT_TEST(the_real_Encoding_declares_its_5_slots_in_retail_order) {
 // PART G — ENDGAME B.3.4 block 4 (STREAMS). PIN THE REAL STREAM CLASSES'
 // VTABLE ORDER, and their layout against BOTH duplicate PODs.
 //
-// Same argument as PART F, one family over. Every live stream in this build
-// wears a MINTED table out of `standalone/rt_data_mint_tables.inc` and every
-// registered door calls QUALIFIED, so nothing else compiles a real
-// `IO::Stream` vtable at all. A slot declared one line out of place in
-// src/engine/io/Stream.h or FileStream.h would stay invisible until B.3
-// steps 5-8 retire the minted rows, and then surface as a stream that reads
-// through `Close` or seeks through `Open`.
+// Same argument as PART F, one family over. A slot declared one line out of
+// place in src/engine/io/Stream.h or FileStream.h would move a body off its
+// retail slot: a stream that reads through `Close` or seeks through `Open`.
 //
 // HOW SLOT 1 IS PINNED WITHOUT CALLING IT. `GetSource` returns a
-// `System::String` BY VALUE, so it carries a hidden return pointer, and the
-// registered door (`RtIo_Stream_GetSource`, iobase_vtables.cpp) spells that
-// slot in MSVC's argument order while a C++ member compiled here uses the
-// compiler's. Raw-calling it from the test would be asserting a calling
+// `System::String` BY VALUE, so it carries a hidden return pointer.
+// Raw-calling it from the test would be asserting a calling
 // convention, not a slot order. So slot 1 is pinned BY ELIMINATION instead:
 // every OTHER slot is raw-called and lands on its own marker, and all the
 // entries in the table are asserted distinct. With n distinct entries and n-1
@@ -791,8 +774,8 @@ UNIT_TEST(the_real_MemoryStream_adds_Close_at_slot_7_and_no_PreCommit) {
     { const IO::Stream& s = p; (void)s.GetSource(); }
     CHECK_EQ(g_lastMark, 1);
 
-    // `this` is unadjusted through the single-inheritance chain: the raw slot
-    // callers all over runtime/src hand the same pointer to base and derived.
+    // `this` is unadjusted through the single-inheritance chain: base and
+    // derived are the same pointer.
     CHECK(static_cast<void*>(static_cast<IO::Stream*>(&p)) ==
           static_cast<void*>(static_cast<IO::MemoryStream*>(&p)));
 }
@@ -913,8 +896,7 @@ UNIT_TEST(BinaryFileStream_differs_from_FileStream_in_slot_0_only) {
     static_assert(sizeof(IO::BinaryFileStream) == sizeof(IO::FileStream),
                   "BinaryFileStream exists to swap slot 0, not to add a field");
 
-    // `this` is unadjusted two levels down, which is what every raw slot caller
-    // in runtime/src assumes when it hands the same pointer to either type.
+    // `this` is unadjusted two levels down: the same pointer is either type.
     CHECK(static_cast<void*>(static_cast<IO::Stream*>(&bfs)) ==
           static_cast<void*>(static_cast<IO::FileStream*>(&bfs)));
     CHECK(static_cast<void*>(static_cast<IO::FileStream*>(&bfs)) ==
@@ -962,16 +944,10 @@ UNIT_TEST(the_FileStream_pair_is_layout_identical_to_its_PODs) {
 // static_asserts fire at compile time; the CHECKs below re-state the load-bearing
 // ones as a running test so a failure names the field.
 //
-// THE SLOT ORDER is pinned on a SHAPE-IDENTICAL PROBE, and that is a deliberate
-// compromise with a reason, not a shortcut. GCC emits a class's vtable in the
-// translation unit defining its KEY FUNCTION — the first non-pure, non-inline
-// virtual — and for `IO::PackageFile` that is `TypeName()`, whose body is in
-// `src/engine/io/package_file.cpp`, a file that stands on `RT_DATA_SLOT` and
-// the port registry and therefore cannot link into the unit build (`tools/build.sh unit`). Referring to
-// the real class's vtable here would drag that whole TU in. This is the SAME
-// constraint `tests/unit/sources.cmake` already records for `Object::ExternalList`
-// ("external_class_doors.cpp is deliberately NOT here and must not be added …
-// it is also where ExternalList's vtable is emitted").
+// THE SLOT ORDER is pinned on a SHAPE-IDENTICAL PROBE. GCC emits a class's
+// vtable in the translation unit defining its KEY FUNCTION — the first non-pure,
+// non-inline virtual — and for `IO::PackageFile` that is `~PackageFile()`, whose
+// unit-build body is the stub in `tests/unit/io_stream_abi_stubs.cpp`.
 //
 // So the probe reproduces the exact shape the claim is about — `Object::External`
 // (the REAL class, which does link, via external_class.cpp) plus EXACTLY ONE
@@ -1092,8 +1068,8 @@ UNIT_TEST(package_file_adds_exactly_one_virtual_at_slot_8_over_External) {
 // the four-byte `int&` door (+0xA0) is a different slot AND a different width.
 //
 // WHAT THIS PINS THAT A BUILD CANNOT. The member body is
-// `ScalarCall(_readerWriter, rw_vtbl::kScalarInt64, v, name)` — a RAW slot read
-// at a byte offset. Nothing about `kScalarInt64 == 0x90` is checked by the type
+// `_readerWriter->SerializeInt64(v, name)`, a virtual call by name that must
+// read the entry for retail +0x90. Nothing about `kScalarInt64 == 0x90` is checked by the type
 // system, so a one-slot drift would compile, link, and quietly serialize eight
 // bytes through +0x88 (`kScalarUInt64`) or +0x98 (`kScalarUInt`, FOUR bytes) —
 // a save-format change with no build error. The probe drives the REAL member
@@ -1156,8 +1132,8 @@ void* g_table[27] = {
     (void*)&Nothing,      // +0xC8  kSerializeBytes
 };
 
-// One vptr plus ReaderWriter's three fields — the storage a minted-table
-// object occupies. Nothing constructs an `IO::ReaderWriter` here.
+// One vptr plus ReaderWriter's three fields, wearing the hand-built table above.
+// Nothing constructs an `IO::ReaderWriter` here.
 struct RwStorage {
     void*   vptr;
     uint8_t allowCustomSerialize;
@@ -1187,8 +1163,8 @@ UNIT_TEST(serializer_serialize_int64_lands_on_slot_0x90_and_round_trips) {
     // The Serializer is NOT constructed: its constructor drives an Encoding
     // factory and consumes a 12-byte stream header (PART E), which has nothing
     // to do with this overload. A raw 16-byte buffer wearing the two public
-    // fields is exactly the object the 861 caller sites hand these doors, and
-    // a raw buffer has no implicit destructor, so nothing can run twice.
+    // fields stands in for one, and a raw buffer has no implicit destructor,
+    // so nothing can run twice.
     alignas(8) uint8_t buf[16] = {};
     IO::Serializer* ser = reinterpret_cast<IO::Serializer*>(buf);
     ser->_stream       = nullptr;

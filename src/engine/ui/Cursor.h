@@ -87,7 +87,7 @@ public:
     // ---- exported, NOT PORTED, no caller: declared, deliberately undefined --
     Cursor(const Cursor& src);                          // 0x18003b280
     Cursor& operator=(const Cursor& src);               // 0x18003b310
-    // 0x18003af70 — the minted record's type id (cursor.cpp).
+    // 0x18003af70 — TypeId (DECLARE_TYPE).
     // Placement is spelt `::new (p) Cursor()` (B9-5): these stay undefined.
     static void* operator new(std::size_t bytes);              // 0x18003af90
     static void* operator new(std::size_t bytes, void* place); // 0x18003b000
@@ -95,7 +95,7 @@ public:
     // Retail's factory pair (B39_RULES D2), defined and registered in cursor.cpp.
 
 public:
-    // ---- the 0x10 bytes Cursor adds (public: the doors reach them) ---------
+    // ---- the 0x10 bytes Cursor adds (public) ------------------------------
     int32_t _hotSpotX;                              // +0x20  GetHotSpotX; ctor leaves it
     int32_t _hotSpotY;                              // +0x24  GetHotSpotY; ctor leaves it
     Object::ExternalPtr<SpriteSheet> _spriteSheet;  // +0x28  GetSpriteSheet; ctor zeroes

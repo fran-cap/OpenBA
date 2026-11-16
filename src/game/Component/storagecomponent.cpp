@@ -5,10 +5,10 @@
 // PERF HOTSPOT: QueryCount is O(n*m) per citizen per tick.
 //
 // Vtable at 0x140164720. Non-trivial overrides:
-//   Shutdown  (0x14012c730) — versioned serialization of storage slot data
-//   Draw      (0x14012c640) — rebuild storage slots from building template
-//   QueryCount (0x14012cf10) — count items across all storage slots (44 xrefs)
-//   Helper_c560 (0x14012c560) — check material flag intersection
+//   Persist   (0x14012c730) — versioned serialization of storage slot data
+//   OnAdded   (0x14012c640) — rebuild storage slots from building template
+//   QueryCount (0x14012cf10) — the stored weight across all storage slots (44 xrefs)
+//   AcceptsMaterial (0x14012c560) — check material flag intersection
 //
 // Decompiled from Application-x64.exe using Ghidra.
 
@@ -24,7 +24,7 @@
 #include "object/TypeInfo.h"
 #include "Game/exe_bodies.h"
 #include "system/MemoryAllocator.h"
-#include "collection/Collection.h"   // rtcoll::SetSizeCore row (StorageComponent_DynArrayResize)
+#include "collection/Collection.h"   // rtcoll::SetSizeCore row (Collection::Array<Item>::SetSize)
 #include "Entity/CitizenBehavior.h"   // CitizenBehaviorRows::kSpec_Pod16 (declared there, defined here)
 #include "Object/factory_registration.h"
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch A
@@ -32,12 +32,12 @@
 #include <cstdlib>
 #include <new>
 #include "Component/exe_bodies.h"
-#include "Action/exe_bodies.h"   // StorageAdd
+#include "Action/exe_bodies.h"
 
 // Exe helpers, by retail address:
-//   0x140002340 Reimpl_ExternalPtr_Serialize_StringTable (item type External ref)
-//   0x14012d000 ActRm_StorageAdd_d000 (add storage slot entry)
-//   0x140004680 FloorComponent_FindResData (MapComponent)
+//   0x140002340 Object::SerializeExternal<ComponentDescription> (item type External ref)
+//   0x14012d000 StorageComponent::AddItem (add storage slot entry)
+//   0x140004680 FindComponent<MapComponent>
 // IO::Serializer vtable slot +0x98 (field3c) is the member Serialize(unsigned int&).
 
 // ============================================================
@@ -139,7 +139,7 @@ StorageComponent::StorageComponent()
 // ============================================================
 // Versioned serialization (version 1):
 //   - Serialize slot count
-//   - If loading (version==0 path), resize slot array
+//   - If loading (direction 0), resize slot array
 //   - For each slot: serialize two ints (type fields) + External ref
 //   - Serialize field38 (int) and field3c (via vtable call)
 //   - Version 0 migration: copy StorageDescription+0x28 into field3c
@@ -245,8 +245,7 @@ void StorageComponent::OnAdded() {
     // Check if storage is defined (byte at +0x21). NOTE: this early return leaves +0x38
     // (max volume capacity) at its ctor ZERO, and a zero capacity makes CanAdd refuse
     // everything and makes PickupStoredRawMaterial compute a requested count of 0 — which
-    // deposits a {resType, 0} stack that hangs the spill loop. Report the exit, don't
-    // assume it: an empty log line here would otherwise read as "capacity was set fine".
+    // deposits a {resType, 0} stack that hangs the spill loop.
     if (!storageDesc->_flagB) {
         return;
     }
@@ -284,7 +283,7 @@ void StorageComponent::OnAdded() {
     if (templateCount > 0) {
         for (int i = 0; i < templateCount; i++) {
             const StorageDescription::Volume& entry = templateArray[i];
-            AddItem(entry._resource, entry._count);   // 0x14012d000 (ActRm_StorageAdd_d000 is its forwarder)
+            AddItem(entry._resource, entry._count);   // 0x14012d000
         }
     }
 }

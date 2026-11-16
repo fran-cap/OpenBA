@@ -6,8 +6,9 @@
 // header. Implementations: SDL3 on every host since SDL-5 (src/platform/sdl/: the window
 // and its state in window_sdl.cpp, the pump in pump_sdl.cpp, geometry in display_sdl.cpp,
 // the cursor in cursor_sdl.cpp, ClipCursor in input_sdl.cpp). The Win32 bodies of step W1
-// (src/platform/win/window_win.cpp) are gone; src/platform/win/window_hook_win.cpp is
-// the Windows-only message observer the pump needs.
+// are gone: src/platform/win/window_win.cpp holds the Windows identity bodies of
+// platform_window_hooks.h, and src/platform/win/window_hook_win.cpp is the Windows-only
+// message observer the pump needs.
 //
 // W1 is a PURE MOVE: every primitive below is ONE Win32 call (plus the struct set-up that
 // call needs), with the arguments the retail-faithful callers passed. The callers keep

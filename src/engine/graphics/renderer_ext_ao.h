@@ -7,8 +7,8 @@
 // `Graphics::Renderer::_extAo` (Camera.h) is a null-by-default static DATA pointer
 // (DESIGN.md §3 hook rule 5): null = retail. The game's draw points it at this
 // frame's record for the span of its own Renderer::Draw call and nulls it again
-// right after (GameUpdateLoop::Draw step 7); nothing else ever sets it, so the
-// main-menu backdrop and the minimap paint never see it. Renderer::Draw pass 2
+// right after (GameUpdateLoop::Draw step 7), and the main-menu backdrop's draw does
+// the same (menudialogloopt.cpp); the minimap paint never sees it. Renderer::Draw pass 2
 // (wave27_lane_gfxbig.cpp) reads it ONCE per frame and, when it is set, calls
 // ExtAoAfterOpaque for the MAIN scene entry (the default render buffer, shader 0;
 // the water reflection is shader 2) between the Opaque (k = 0) and Blended
@@ -17,8 +17,9 @@
 //
 // The record is plain data (no engine type, no include) so the render-pipe
 // packet (packet.h, engine-free) can hold it by value. src/engine does not
-// include src/ext: the body of ExtAoAfterOpaque lives in the D3D backend,
-// src/render/dx11/ao/ao_pass.cpp (the only TUs that see the D3D headers).
+// include src/ext: each backend defines ExtAoAfterOpaque: D3D's is
+// src/render/dx11/ao/ao_pass.cpp (the only TUs that see the D3D headers), Vulkan's
+// src/render/vulkan/integration.cpp, Metal's src/render/metal/integration.mm.
 // ============================================================================
 #pragma once
 

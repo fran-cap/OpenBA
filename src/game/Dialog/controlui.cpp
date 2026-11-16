@@ -1,4 +1,4 @@
-// engine/src/ui/controlui.cpp
+// src/game/Dialog/controlui.cpp
 // Clean reimplementation of ControlUI panel methods.
 //
 // ControlUI (0x40 bytes): Building enable/disable toggle panel.
@@ -11,7 +11,7 @@
 #include "ui/DialogInstance.h"
 #include "object/TypeInfo.h"
 #include "Entity/exe_bodies.h"
-#include "Object/factory_registration.h"   // Object::IsDerivedFrom
+#include "Object/factory_registration.h"
 #include <cstdint>
 #include "object/Internal.h"   // ENDGAME B.3.3 step 6B
 #include "ui/Element.h"  // ENDGAME B.3.6 UI callers (K3)
@@ -28,10 +28,8 @@
 // Retail reads these through exe .rdata exrefs 0x1401514f8 (ButtonElement, tested
 // by Slot4 before storing the element at +0x30) and 0x1401516a8 (CheckElement,
 // tested by Slot4/Slot7 before touching the checked byte at elem+0xd8). In
-// standalone both live in the element-type-id table in
-// standalone/reg_element_typeids.cpp, which is GATED on BANISHED_LIVE_ELEMENT_TIDS
-// and therefore off by default — so TypeId_ButtonElement and
-// TypeId_CheckboxElement are both normally null.
+// standalone both are the class statics UI::ButtonElement::TypeId() and
+// UI::CheckElement::TypeId().
 //
 // MEASURED consequence before this fix (BANISHED_CONTROLUI_TRACE, demo pasture):
 // all three pasture ControlUIs reported `elem(+0x30)=0` with a perfectly good
@@ -43,9 +41,8 @@
 // which is why work/split/empty all sat at the element ctor default (enabled,
 // unchecked) and read as "highlighted".
 //
-// ENDGAME B.3.9: UI::ButtonElement / UI::CheckElement now have a ported TypeId() (a
-// class static, always populated), so the private-copy-vs-gated-global split above
-// collapses to the static: both arms already answered the same id.
+// UI::ButtonElement / UI::CheckElement have a ported TypeId() (a class static,
+// always populated); both helpers below return it.
 static uint32_t ControlUI_ButtonElementTypeId() {
     return UI::ButtonElement::TypeId();
 }
@@ -290,10 +287,8 @@ void ControlUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::Ev
 // The Ghidra names are wrong on all three; the vtable INDEX is authoritative.
 // (Ghidra's "ControlUI_Slot12/13/14/vslot17/vslot18" are ControlUIConfig methods.)
 //
-// Retail does NOT override idx8, but idx8 is the only slot the framework ticks
-// per frame (see the note at pastureui.cpp:425), so — exactly as the PastureUI /
-// StorageUI promotions do — idx8 here is a composite that self-heals Slot4 once
-// and then drives Slot7.
+// Retail does NOT override idx8, and neither does ControlUI (ControlUI.h declares
+// no OnUpdate).
 
 
 // create 0x140010c00: MemAlloc(0x40, 8), then the ctor (DialogController ->

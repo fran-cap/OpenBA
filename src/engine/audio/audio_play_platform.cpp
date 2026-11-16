@@ -5,33 +5,27 @@
 //
 //   ?PlayPlatform@Device@Audio@@AEAA_NHV?$ExternalPtr@VSoundBuffer@Audio@@@Object@@AEBVTime@System@@MMM@Z
 //
-// `AEAA` is PRIVATE, not unexported (reference_aeaa_is_private_not_unexported.md);
+// `AEAA` is PRIVATE, not unexported;
 // checked against the retail export directory with pefile before writing this
 // file, not assumed. It was Audio's last remaining unported BODY row: two
 // earlier lanes (WAVE28_LANE_SLOTS.md §the callback table, WAVE29_LANE_AVBODY.md
 // §6.1) sized it and declined it as "632 bytes, six indirect XAudio2 calls,
 // effects that live in the driver" -- an honest judgement call, not a
-// dependency block. Its only two unported dependencies
-// (docs/history/runtime_port/closure/unported_deps.csv) are `FUN_180127560` (a plain
-// CRT `powf`, see below) and `Audio::Stream::Play`, which THIS SAME BATCH ports
-// in `audio_stream_play.cpp`.
+// dependency block. It calls `FUN_180127560` (a plain CRT `powf`, see below) and
+// `Audio::Stream::Play`, both ported (`PowF` below, `audio_stream_play.cpp`).
 //
-// The ONE live caller in our tree is `audio_scene_update.cpp`'s
-// `Audio::Scene::Update` port, which already resolves this export BY NAME into
-// a local `PlayPlatformFn` typedef -- reproduced verbatim here so the two files
-// agree on the ABI:
-//     bool (*)(void* device, int32_t slot, void* bufferRef,
-//              const int64_t* startTime, float vol, float pitch, float third)
+// The ONE caller in our tree is `audio_scene_update.cpp`'s
+// `Audio::Scene::Update`, a direct `device->PlayPlatform(...)` member call
+// (declared in Device.h).
 //
 // ---------------------------------------------------------------------------
 // THE BODY, READ FROM THE DISASSEMBLY (not Ghidra's decompile -- it silently
-// drops the 7th argument, `third`, the way
-// reference_ghidra_c_output_vs_disassembly.md warns; the disassembly settles
+// drops the 7th argument, `third`, and its C is not authoritative for argument counts; the
+// disassembly settles
 // every register and every stack offset used below)
 // ---------------------------------------------------------------------------
-//   1800de7b4  MOV RCX,[this+0xa88]         ; IXAudio2* engine (already named
-//                                            ; `kOffXAudio2` in
-//                                            ; audio_platform_startup.cpp)
+//   1800de7b4  MOV RCX,[this+0xa88]         ; IXAudio2* engine
+//                                            ; (`Device::_xaudio2`, Device.h)
 //   1800de7c4  JNZ live ; else return false  ; no engine, no voice, nothing to undo
 //   1800de7ec  RDX = this + slot*0x20 + 0xa98            ; &VoiceCallback[slot]
 //                                                         ; (the SAME record
@@ -63,7 +57,7 @@
 // SoundBuffer embeds a WAVEFORMATEX at +0x54 (independently confirmed: it is
 // the exact `pSourceFormat` passed to CreateSourceVoice above), so the fields
 // below are read at the WAVEFORMATEX offsets +0x02/+0x04/+0x0c/+0x0e:
-//   +0x20 (byte)   loop-forever flag       -> LoopCount 0xFFFFFFFF or 0
+//   +0x20 (byte)   loop-forever flag       -> LoopCount 0xFF or 0
 //   +0x21 (byte)   "streaming" flag        -> skip SubmitSourceBuffer, and
 //                                             afterwards hand off to
 //                                             Audio::Stream::Play
@@ -160,29 +154,24 @@
 // the confirmation from the callee's side.
 //
 // `this+0xa00` is `Audio::Device`'s single embedded `Audio::Stream` --
-// consistent with `audio_device.cpp`'s own `kChannelCount * kChannelStride
-// <= kLockOffset (0xA50)` bound: 64*0x28 = 0xA00 exactly, so the channel table
-// ends exactly where the Stream begins.
+// consistent with Device.h's `offsetof(Device, _stream) == 0xa00` assert:
+// 64*0x28 = 0xA00 exactly, so the channel table ends exactly where the Stream begins.
 //
 // ---------------------------------------------------------------------------
-// FUN_180127560 IS A PLAIN CRT `powf`, AND IT IS OUT OF THIS BATCH'S SCOPE
+// FUN_180127560 IS A PLAIN CRT `powf`
 // ---------------------------------------------------------------------------
-// Decompiled to CHECK what it is, not to port it: it is the textbook
+// Decompiled to CHECK what it is: it is the textbook
 // edge-case-laden IEEE754 `powf(base, exponent)` (NaN/Inf/zero/sign special
 // cases, a log2/exp2 polynomial core, `FUN_18012a940` as the shared
-// error-code path) -- not a Banished-specific algorithm. It is not one of this
-// batch's five worklist rows, so it stays unregistered and this call reaches
-// it through `ResolveAddr`, which tries the port registry first and falls
-// back to the DLL -- the same door `audio_stream.cpp`'s
-// `ReleaseField30Buffer` opens onto 0x18000c4a0, and `audio_stream_play.cpp`
-// (this batch) opens onto 0x18000c300, for the identical reason.
+// error-code path) -- not a Banished-specific algorithm. It is `RtCrt_Powf`
+// (src/engine/crt/msvc_libm.cpp, declared in src/engine/rt_libm.h), called by name.
 //
 // 0x1801616a0 = 0x3f873c9e = 1.0594631433486938f = 2^(1/12), the semitone
 // ratio -- so `pitch` is consumed as a SIGNED SEMITONE OFFSET and this call is
 // `pow(2^(1/12), pitch)`, the standard equal-temperament pitch-to-frequency-
-// -ratio conversion. Read as the bit pattern's VALUE, matching
-// `reference_crt_coefficients_must_be_lifted_not_retyped.md`'s rule for
-// literals pulled out of `.rdata` (this one is the CONSTANT ARGUMENT, not a
+// -ratio conversion. Read as the bit pattern's VALUE, matching the rule that literals pulled out
+// of `.rdata` are lifted from the binary's bits, never retyped as decimals (this one is the
+// CONSTANT ARGUMENT, not a
 // tempering coefficient, so it is spelled as the float value rather than the
 // hex bit pattern; both name the same IEEE754 bits).
 //

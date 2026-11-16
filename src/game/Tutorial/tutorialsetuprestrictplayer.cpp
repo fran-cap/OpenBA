@@ -13,9 +13,9 @@
 //   +0x38: ExternalRef (tool restriction) — {String(8), stamp(4), pad(4), cachedPtr(8)}
 //   +0x50: ExternalRef (camera restriction) — {String(8), stamp(4), pad(4), cachedPtr(8)}
 //
-// Slot8 (Apply) computes absolute camera positions from chunk*cellSize+offset,
-// resolves ExternalRef cached pointers, writes restriction state to PlayerController.
-// Slot10 (Undo) clears the restriction state back to defaults.
+// Slot8 (Begin) computes absolute camera positions from chunk*cellSize+offset,
+// resolves ExternalRef cached pointers, writes restriction state to PlayerToolManager.
+// Slot10 (End) clears the restriction state back to defaults.
 //
 // Decompiled from Application-x64.exe using Ghidra.
 
@@ -45,7 +45,7 @@
 // ============================================================
 
 // ============================================================
-// The two ExternalRefs resolve through ResolveExternalByName_Impl (0x14001b1d0),
+// The two ExternalRefs resolve through NamedExternalRef::ResolveDescription (0x14001b1d0),
 // ExternalFactory::Find alone (0x14001b215, the import 0x140152460): find-only, no
 // load. Row 83 (B7 RES): the tree's TutRestrict_ResolveRefOrLoad added a FindOrLoad of
 // the separator-normalised name on a miss, a load retail does not do; it is gone. If a

@@ -5,7 +5,7 @@
 //
 // ── How the game gets here ──────────────────────────────────────────────────
 // FireComponent/TornadoComponent call FUN_14011e7b0 (ported as
-// FireComponent_BeginBurning_11e7b0, firecomponent_smstate.cpp), which
+// DestroyComponent::BeginBurning, firecomponent_smstate.cpp), which
 //   * refuses when the building is unfinished (BuildComponent+0x48 == 0),
 //   * stamps DestroyComponent+0x50 = 1  (the COLLAPSE flag) and
 //     DestroyComponent+0x48 = the burn Time  (the collapse COUNTDOWN),
@@ -22,14 +22,14 @@
 // +0x20 / +0x18 — so A = enter, B = update, D = trans38 (the real per-frame tick,
 // the same column state 4/5 use for their ticks):
 //
-//   enter   0x14011d4d0  Destroy_State6Enter_d4d0
+//   enter   0x14011d4d0  DestroyComponent::State6Enter
 //              cancel every citizen action that targets this building, empty its
 //              storage, then either take a rubble step (countdown already spent)
 //              or re-point the materials to the burnt set.
-//   update  0x14011d400  Destroy_State6Update_d400
+//   update  0x14011d400  DestroyComponent::State6Update
 //              one step while the countdown is still running, plus a coin-flip
 //              extra step (Random::Rand(rng, 2) == 0).
-//   trans38 0x14011d490  Destroy_State6Tick_d490
+//   trans38 0x14011d490  DestroyComponent::State6Tick
 //              per-frame: comp+0x48 -= *time; on reaching 0, clamp to 0 and take a
 //              rubble step. This is what makes a burning building visibly fall
 //              apart over its burn duration.
@@ -51,17 +51,13 @@
 //   +0x30 _minDamageLevel  rubble MESH-VARIANT floor  -> ModelComponent+0x166 min
 //
 // ── STANDALONE deviations (each logged once at runtime) ─────────────────────
-//   * ActionStack_AbortForEntity_c52c0 skips any action whose vtable slot 8/9 is
-//     null. Our action vtables are partially-filled arrays, not the exe's, so an
-//     unported slot must not be called — retail's are all real functions.
+//   * RubbleStep returns, with a one-time warning, when the DestroyComponent's
+//     description does not cast to DestroyDescription; retail derefs it unguarded.
 //
-// DEFAULT-ON via the default-on table (graduated 2026-08-23 on a fire soak: 3 buildings
-// collapsed 2 -> 1 -> 0 over 8 rubble steps, empty crash log). BANISHED_LIVE_DESTROY_COLLAPSE
-// is now a kill-switch (=0) for A/B runs.
 
 // graphics/*.h FIRST: they pull src/engine/volume/Volume.h, whose global-scope
 // `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()` once <windows.h> has
-// been seen through resolve.h.  ENDGAME B.3.5 caller batch I2.
+// been seen.  ENDGAME B.3.5 caller batch I2.
 #include "graphics/GraphicsMesh.h"
 #include "Component/ModelDescription.h"   // B.3.8 CB1a (TypeId)
 #include "Component/DestroyDescription.h"   // B.3.8 CB1a (TypeId)
@@ -108,8 +104,8 @@ static bool Milestone() { return s_milestones++ < 60; }
 //   0x140006270 StorageComponent finder  FindComponent<StorageComponent>
 //   0x140026a30 PickingComponent finder  FindComponent<PickingComponent>
 //   0x14000b630 DecalComponent finder    FindComponent<DecalComponent>
-//   0x1400c2b70 model-changed notify     ModelComponentNotify_Reimpl
-//   0x140128f50 pick-mesh rebuild        PickingComponent_RegisterMesh
+//   0x1400c2b70 model-changed notify     ComponentEntity::SendEvent
+//   0x140128f50 pick-mesh rebuild        PickingComponent::RefreshMesh
 // 0x14000f090 was Collection::Array<Bytes<0x10,8>>::SetSize monomorphised
 // into the exe (ENDGAME B.3.2 step 2: stride 0x10, align 8, zero tail) —
 // converted at its call site below.
@@ -191,7 +187,7 @@ extern "C" void ActionStack_AbortForEntity_c52c0(ActionStack* stack, ComponentEn
 // ============================================================
 // (townManager, &entityIBP). Walks the town's citizen roster (ptr @+0xa0,
 // count @+0xa8) — the same array citizen_employ_cascade.cpp and citizen_onremove.cpp
-// walk — and runs the abort above on each citizen's CitizenAIComponent action stack
+// walk — and runs the abort above on each citizen's CharacterComponent action stack
 // (citizen+0x278, list at +0x48).
 extern "C" void TownMgr_AbortCitizenActionsFor_89e30(CitizenBehavior* townMgr, ComponentEntity** pEntityIbp) {
     if (!townMgr || !pEntityIbp) return;
@@ -437,7 +433,7 @@ char DestroyComponent::State6Update() {
 // FUN_14011d490 — state 6 TICK (record slot +0x18, the per-frame column)
 // ============================================================
 // comp+0x48 is the collapse countdown in raw System::Time units, seeded by
-// FireComponent_BeginBurning_11e7b0. Subtract this frame's delta; when it reaches
+// DestroyComponent::BeginBurning. Subtract this frame's delta; when it reaches
 // zero, clamp it and take the rubble step that puts the building in its final state.
 char DestroyComponent::State6Tick(const System::Time* time) {
     int64_t remaining = burnTime._ticks;

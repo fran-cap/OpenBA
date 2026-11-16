@@ -4,14 +4,10 @@
 //   `ExternalFactory::Find`, the private cache lookup.
 // ============================================================================
 //
-// One body, one file, one Register function — the rule rt_object_port.cpp
-// states at the top, so no two lanes ever edit the same source.
 //
-// It is NOT folded into external_path.cpp for a concrete reason rather than
-// tidiness: that file needs <windows.h> for `GetFileAttributesW` and carries a
-// `_win` suffix because of it. This body needs nothing platform-specific, and
-// putting it there would drag a portable function behind the platform seam
-// (PLAN.md §4.1 decision 1).
+// It is NOT folded into src/engine/io/external_path.cpp, which reaches the
+// filesystem through Platform::PathAttributes (platform_file.h); this body needs
+// nothing from the platform seam (docs/runtime_port/PLAN.md §4.1 decision 1).
 // ============================================================================
 
 #include <cstdint>
@@ -37,7 +33,7 @@ struct FindCounters {
     uint64_t misses;
     uint64_t identDefaulted;
     uint64_t identPresent;
-    uint64_t divergent;      // pointer disagreements vs the shipped body
+    uint64_t divergent;      // no writer
 };
 extern FindCounters g_fc;
 

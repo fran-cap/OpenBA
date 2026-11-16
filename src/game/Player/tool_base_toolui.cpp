@@ -1,11 +1,8 @@
 // src/game/Player/tool_base_toolui.cpp
 // Player tool-UI dialog open helper (DragTool / PlacementTool family).
 //
-// This is an exe sub-helper resolved via ResolveAddr(Module::Exe, 0x1400ff9e0)
-// from src/game/Player/dragtool.cpp (g_fn_OpenToolDialog) and placementtool.cpp
-// (s_fn_FUN_1400ff9e0). It resolves to 0 (the guarded call is silently skipped)
-// unless registered. This file provides a faithful 1:1 reimplementation plus the
-// supporting DialogInstance child-dialog vtable that the original installs.
+// PlayerToolManager::OpenToolDialog (0x1400ff9e0), called from src/game/Player/dragtool.cpp
+// and placementtool.cpp. This file provides a faithful 1:1 reimplementation.
 //
 // Player registration wave (round 2c — tool-ui). 1:1 port of the decompiled exe
 // helper; do not "improve" behavior. Ghidra-verified against the disassembly.
@@ -49,8 +46,7 @@
 // ENDGAME B.3.9 close: the engine_funcs global `g_ToolUI_ChildDialog_Vtable` and
 // ToolUI_ChildDialogVtable(), which pointed it at the compiler table by a
 // hand-spelt `_ZTVN2UI14DialogInstanceE` symbol, are deleted: no stamper reads
-// the global any more. 0x14015f5a0 stays UNregistered (reg_player_toolui.cpp:
-// registering it makes the menu's BuildId child dispatch a real OnOpened).
+// the global any more.
 
 // ============================================================
 // OpenToolDialog (FUN_1400ff9e0)
@@ -59,7 +55,7 @@
 //   1. If param_1 (the tool's DialogInstance IBP slot) already holds a live
 //      dialog, close it (UserInterface::CloseDialog) and null the IBP.
 //   2. FindOrLoad the CreateBar dialog resource (External, type-checked vs the
-//      External type id).
+//      UI::Dialog type id).
 //   3. MemAlloc(0xB8, 8) a DialogInstance and run the DialogInstance ctor
 //      (this, ui, resource, parentIBP=null, dataSource=descriptionPtr, 0, 0);
 //      retail's inlined ctor stamps the exe's copy of its table (0x14015f5a0).
@@ -72,9 +68,8 @@
 //      for fidelity / its CheckPtr-style behaviour).
 //   7. *param_2 = *param_1; return param_2.
 //
-// Caller signatures:
-//   dragtool.cpp     : void* fn(void* dialogIBP, void* retval, uint64_t descriptionPtr)
-//   placementtool.cpp: same shape.
+// Callers: dragtool.cpp and placementtool.cpp, as the member
+//   OpenToolDialog(&ret, descriptionPtr).
 //
 // Closure (all satisfied):
 //   - UserInterface::CloseDialog / AddDialog, InternalBasePtr ctor,
@@ -82,8 +77,7 @@
 //     name; UI::DialogInstance's real ctor (block RB)
 //   - ::Object::ExternalFactory::FindOrLoad — member call (B.3.3)
 //   - g_pGameWorldSingleton, ExternalFactory::_singleton, UI::Dialog::TypeId()
-//   - DWORD_1401c7f58  — exe type-id storage global (ResolveAddr, lazily)
-//   No unregistered exe sub-calls.
+//   - DWORD_1401c7f58  — ToolbarDescription::TypeId()
 // B.4 PLAYER: param_1 is the tool's owner, the PlayerToolManager (Tool +0x10):
 // its +0x00 holds the dialog, +0x08 / +0x0C the two cached floats.
 UI::DialogInstance** PlayerToolManager::OpenToolDialog(UI::DialogInstance** ret,

@@ -33,13 +33,10 @@
 
 #include "../collection/Collection.h"
 #include "../system/Filename.h"
-// ENDGAME B.3.3 step 5: hoisted from the `#include "TypeInfo.h"` that sits at
-// FILE SCOPE INSIDE `namespace RtObject` further down (the Wave 3 integration
-// block). That placement only ever worked because every real TU reached
-// TypeInfo.h first; a TU that reached External.h first would have landed
-// `Object::Base` in `RtObject::Object::Base` and this file's own `namespace
-// Object` block would then have failed to find it. The lower include is now a
-// `#pragma once` no-op and is left in place with its explanatory banner.
+// ENDGAME B.3.3 step 5: TypeInfo.h is included here, outside every namespace.
+// Included inside `namespace RtObject`, a TU that reached External.h first would
+// land `Object::Base` in `RtObject::Object::Base` and this file's own `namespace
+// Object` block would then fail to find it.
 #include "TypeInfo.h"
 #include "resource_ext.h"   // NOT RETAIL: the ext.visit_replay / ext.find_fastpath seams (VISITREPLAY.md)
 
@@ -85,8 +82,8 @@ namespace RtObject {
 // Slot +0x28 is named by two independent uses: SaveText (0x1800bb9d0) drives it
 // with an IO::TextFileStream to write the object out as text, and
 // ExternalFactory::Add (0x1800be570) drives it with an IO::VisitorStream to
-// walk the object's resource references. See the FindOrLoad caching note in
-// src/engine/object/external.cpp.
+// walk the object's resource references. See FindOrLoad's cache-hit arm in
+// src/engine/object/external_compiled.cpp.
 // ============================================================
 // WAVE 27 LANE FRONTIER: the element is now pinned by THREE independent
 // writers, and they do not contradict each other - they split +0x08 differently
@@ -165,10 +162,9 @@ using ExternalRefArray = Collection::Array<ExternalArrayElement, Collection::Def
 //        an UpdateLoop's "load bit" is a slot rented out of this word.
 //  +0x08 int32  _generation
 //        Clean increments it once per sweep. This is the counter the exe's
-//        ResolveExternalByName cache compares against — see the ExternalRef
-//        layout comment in engine/funcs/engine_funcs.h, which describes "+0x08:
-//        cached generation counter (compared against ExternalFactory+0x08)".
-//        That comment is CONFIRMED by this port.
+//        by-name reference caches compare against, e.g.
+//        NamedExternalRef::ResolveDescription
+//        (src/game/Component/componentdescription.cpp).
 //  +0x10 Set<ResourceEntry> _resources    root +0x10, count +0x18
 //  +0x20 Set<ReferenceEntry> _references  root +0x20, count +0x28
 //  +0x30, +0x38  NOT PINNED by this lane. Zeroed by the ctor; no function in
@@ -242,7 +238,7 @@ static_assert(offsetof(ReferenceEntry, _pad) == 0x4, "ReferenceEntry::_pad");
 static_assert(offsetof(ReferenceEntry, path) == 0x08, "ReferenceEntry::path @ +0x08");
 
 // The two Set instantiations. NOTE THE WAVE 2 TRAP (WAVE2.md "Notes for later
-// waves", reference_one_bst_find_two_node_layouts.md): the node's pointer tail
+// waves"): the node's pointer tail
 // offsets are a function of sizeof(T), so these two trees have DIFFERENT node
 // layouts and MSVC emits a separate find/insert/rebalance for each. One ported
 // Set body cannot serve both.
@@ -384,8 +380,8 @@ using ExternalFactory = ::Object::ExternalFactory;
 //
 // TRIVIALLY COPYABLE AND TRIVIALLY DESTRUCTIBLE, ON PURPOSE AND BY ASSERTION.
 // `Collection::Array<{String, ExternalPtr}>` bulk-moves these eight bytes with
-// a plain qword copy and an explicit "NO refcount touch"
-// (src/engine/collection/array.cpp:983). A user-provided copy constructor or
+// a plain qword copy and no refcount touch
+// (src/engine/collection/array.cpp, MaterialTextureAssign). A user-provided copy constructor or
 // destructor here would be SILENTLY BYPASSED by every array resize in the
 // engine. There is nothing to run on copy in any case: the pointer owns
 // nothing -- `Object::ExternalFactory`'s two AVL trees own every `External*`
@@ -549,16 +545,11 @@ static_assert(std::is_trivially_destructible<ExternalPtr<External> >::value,
 // ############################################################################
 // ENDGAME B.3.3 step 5 (EXTERNAL) — the real classes, under retail's names.
 //
-// Everything in `namespace RtObject` above STAYS and stays TRIVIALLY
-// DESTRUCTIBLE where it already was: B31_RULES step 1 keeps the old PODs
-// declared until their last caller converts, and `RtObject::External` in
-// particular is held by ported bodies as `RtObject::External tmp;` with
-// `RtObject_External_Dtor(&tmp)` called BY HAND — giving that POD a destructor
-// would make the compiler run a second one (the `RtSystem::String` double-free
-// lesson, B31_RULES, restated in B33_RULES §7).
+// `namespace RtObject` above keeps only the element types (ExternalArrayElement,
+// ResourceEntry, ReferenceEntry, PathStackEntry), their containers and the
+// `ExternalFactory` alias of the real class below.
 //
-// What follows is the same bytes as real C++, cross-asserted field for field
-// against the PODs so the two descriptions cannot drift.
+// What follows are the real classes, under retail's names.
 //
 // -------------------------------------------------------------------------
 // THE SLOT LISTS ARE MEASURED. `??_7External@Object@@6B@` @ 0x1801547a0, read
@@ -566,7 +557,7 @@ static_assert(std::is_trivially_destructible<ExternalPtr<External> >::value,
 // next object — B33_RULES §1.4 independently bounds it at eight):
 //
 //   [0] +0x00  0x180006640  vector deleting dtor (elem 0x20, ~External
-//                           0x1800bc950) — deleting_dtor.cpp's own row agrees
+//                           0x1800bc950)
 //   [1] +0x08  0x1800066c0  `MOV RAX,qword[0x1801f9b40]; RET`
 //                           = ?TypeName@External@Object@@UEBAPEBDXZ
 //   [2] +0x10  0x1800066d0  `MOV EAX,dword[0x1801f9b38]; RET`
@@ -584,9 +575,8 @@ static_assert(std::is_trivially_destructible<ExternalPtr<External> >::value,
 // Entry Point` reference, i.e. the address IS in the DLL's export table, and
 // the DLL-era residue traces resolved that exact mangled string to it
 // (docs/history/runtime_port/wave9_lanes.txt:263, wave9_residue_*.txt). The tree has
-// carried the name since Wave 9 lane Y — src/engine/object/external.cpp
-// registers it by name AND at 0x1800066e0, and src/game/Goal/
-// goal_exe_helpers.cpp:218 resolves it by name. Renaming it `Slot4()` would
+// carried the name since Wave 9 lane Y — `External::Compile` is defined in
+// src/engine/object/external_class.cpp. Renaming it `Slot4()` would
 // throw away a measured export name and contradict decision 5 ("names are the
 // original ones"), so the retail name is kept and §1.4 is what needs the
 // correction.
@@ -623,7 +613,7 @@ class External : public Base {
 public:
     // `?A W4CompileResult@External@Object@@` — returned BY VALUE, but a `W4`
     // enum is four bytes, so it comes back in EAX with NO hidden return slot
-    // (reference_hidden_retslot_wild_write.md checked, not assumed). The
+    // (checked, not assumed). The
     // ENUMERATOR NAMES ARE NOT RECOVERABLE from the binary — only the value 1
     // that the base's body returns — so this is spelled as the 32-bit integer
     // it is rather than an enum with invented names.
@@ -662,8 +652,8 @@ public:
     bool SaveText(const System::Filename& path, const System::Filename& name);
 
 public:
-    // ---- the 0x18 bytes External adds, spelled as RtObject::External spells
-    // them, and the two spellings are NOT interchangeable taste:
+    // ---- the 0x18 bytes External adds, and their spellings are NOT
+    // interchangeable taste:
     //
     //  * `_path` is a `System::Filename` member (B4 X-R3, H5). Retail's ctor
     //    0x1800bc9c0 stores +0x08 = 0 (0x1800bc9f0, under its own unwind
@@ -695,8 +685,8 @@ static_assert(offsetof(External, _refs) == 0x10, "External::_refs @ +0x10 (~Exte
 // re-stamp `??_7CompiledExternal@Object@@6B@` (0x180154a30), then TAIL-JMP
 // ~External. The re-stamp is not tidying — it is what makes the base dtor
 // dispatch on CompiledExternal's own table — and a real destructor chain
-// reproduces it for free. `deleting_dtor.cpp:297` records the element size as
-// 0x20, i.e. the same as External's: this class adds no data.
+// reproduces it for free. Its deleting destructor (0x18000b7e0) records the
+// element size as 0x20, i.e. the same as External's: this class adds no data.
 // ============================================================
 class CompiledExternal : public External {
     // ?_typeInfo@CompiledExternal@Object@@0VBaseTypeInfo@2@A (0x1801f9b00):
@@ -734,11 +724,8 @@ static_assert(sizeof(CompiledExternal) == 0x20,
 //
 // ENDGAME B.3.9 OBJ (B39_RULES D1/D2): CONCRETE, and every live ExternalList
 // wears the COMPILER's table. `CreateNewObject` / `CreateInPlaceObject`
-// (retail's factory pair, registered by name and VA from external_list.cpp)
-// are MemAlloc + `::new (p) ExternalList()`, replacing the FACTREST step
-// table that stamped the minted `??_7ExternalList@Object@@6B@`. The minted
-// row, its RT_DELDTOR row 0x180007800, the ??1 door and the seven slot doors
-// are retired (tools/rt_mint_retired/obj.txt).
+// (retail's factory pair, defined in external_list.cpp) are MemAlloc +
+// `::new (p) ExternalList()`.
 // ============================================================
 class ExternalList : public External {
     // ?_typeInfo@ExternalList@Object@@0VBaseTypeInfo@2@A (retail 0x1801f9be0):
@@ -807,8 +794,8 @@ namespace detail {
 
 // Retail's tree comparisons all go through the CRT's `_stricmp`, in the "C"
 // locale (the DLL never calls setlocale), so plain ASCII case folding. Spelled
-// out here for the reason src/engine/system/filename.cpp spells it out: a
-// runtime/ header must not depend on a CRT whose locale behaviour differs
+// out here for the reason src/engine/system/filename.cpp spells it out: an
+// engine header must not depend on a CRT whose locale behaviour differs
 // between toolchains (PLAN.md §4.1).
 inline int StriCmpAscii(const char* a, const char* b) {
     for (;;) {
@@ -830,7 +817,7 @@ inline bool FilenameLess(const char* a, const char* b) {
     return StriCmpAscii(a, b) < 0;
 }
 
-// *** TWO NODE LAYOUTS, TWO FINDS — reference_one_bst_find_two_node_layouts.md.
+// *** TWO NODE LAYOUTS, TWO FINDS.
 // The resource tree's element is 0x18 wide so its node tail is parent +0x18 /
 // left +0x20 / right +0x28; the reference tree's element is 0x10 wide so its
 // tail is +0x10 / +0x18 / +0x20. A find written against the wrong layout
@@ -841,15 +828,13 @@ inline bool FilenameLess(const char* a, const char* b) {
 // These are the bodies src/engine/object/external.cpp has inlined since Wave 3
 // (`ResourceSetFind`, and the integer descent in GetPathForReferenceId), lifted
 // here unchanged so the class and the C shims cannot descend differently. They
-// are header-inline and touch nothing but pointers, so `make unit` can drive
-// them against a hand-built tree with no allocator and no registry.
+// are header-inline and touch nothing but pointers, so the unit tests
+// (`tools/build.sh unit`) can drive them against a hand-built tree with no allocator.
 //
 // Each find comes in TWO spellings: one over the tree ROOT and one over the
-// `Set` header that forwards to it. That is not convenience — a `Collection::
-// Set` object has a real `~Set` that reaches `Collection::detail::SetNodeFree`
-// in set_core.cpp, which stands on the address registry and cannot link into
-// `make unit`. The root overload is what lets the test drive these bodies at
-// all; the Set overload is what the ported call sites use.
+// `Set` header that forwards to it. The root overload is what lets the unit
+// test drive these bodies against a hand-built tree; the Set overload is what
+// the ported call sites use.
 inline ResourceSet::Node* ResourceFind(ResourceSet::Node* root, const char* key) {
     ResourceSet::Node* n = root;
     while (n != nullptr) {
@@ -900,8 +885,8 @@ inline ReferenceSet::Node* ReferenceFind(const ReferenceSet* set, uint32_t id) {
 // class has no exported `??_7`. So no vtable, no reflection record, no
 // `DECLARE_TYPE`.
 //
-// Layout is `RtObject::ExternalFactory`'s, field for field and asserted against
-// it. The class is DECLARED here and its members are one-line spellings over
+// Layout is pinned field for field by the static_asserts after the class. The
+// class is DECLARED here and its members are one-line spellings over
 // the already-ported C bodies, which is the whole of what this step changes
 // about them:
 //
@@ -926,10 +911,8 @@ public:
     // ?_singleton@ExternalFactory@Object@@0PEAV12@EA — retail 0x1801fc6c8 (note
     // the `0PEAV12@EA` spelling; the obvious `1PEAV12@A` is not an export).
     // The CLASS STATIC since ENDGAME B.3.9 OBJ (B39_RULES D7): defined in
-    // external_class_doors.cpp, and RtObjectPortInit redirects the minted row
-    // onto it, so the name door, the address door and this member are the
-    // same eight bytes. Written by the ctor door (engine/singleton_ctors.cpp).
-    // PUBLIC while foreign readers still reach the cell through the doors.
+    // external_class_doors.cpp and written by the ctor (engine/singleton_ctors.cpp).
+    // PUBLIC: code outside the class reads it directly.
     static ExternalFactory* _singleton;
 
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/STREAMCACHE.md, DESIGN.md hook rule 5):
@@ -1056,11 +1039,10 @@ static_assert(offsetof(ExternalFactory, _simpleLoadEnabled)    == 0x42, "_simple
 
 }  // namespace Object
 
-// ==== B3R W0-P0c: Runtime bodies reached by retail address ====
-// ENDGAME B.3R (B3R_RULES R5): each body below is registered at the retail
-// address in its trailing comment and read through the registry today. It is
-// declared here, copied from its definition (linkage, namespace, types), so the
-// reader can call it by name. Nothing calls it through this declaration yet.
+// ==== B3R W0-P0c: Runtime bodies called by name ====
+// ENDGAME B.3R (B3R_RULES R5): each body below is declared here, copied from its
+// definition (linkage, namespace, types), so a reader can call it by name; a
+// retail body's address is its trailing comment.
 
 namespace RtObject {
 // ---- NOT RETAIL (HITCH_SAVE, docs/extensions/handins/HITCH_SAVE.md): the per-save memo of

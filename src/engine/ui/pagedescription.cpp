@@ -25,9 +25,8 @@
 // LAYOUT: src/engine/ui/PageDescription.h — GroupDescription (0x78) plus
 // `_activePage` (+0x78); sizeof 0x80.
 //
-// ENDGAME B.3.6 block C2: every slot body is a MEMBER of `UI::PageDescription`;
-// the registered doors are one-line QUALIFIED delegations. Serialize's base
-// call (by address 0x180117d00 before) is the qualified member
+// ENDGAME B.3.6 block C2: every slot body is a MEMBER of `UI::PageDescription`.
+// Serialize's base call (by address 0x180117d00 before) is the qualified member
 // `GroupDescription::Serialize`.
 //
 // ENDGAME B.3.9 block UI-A (B39_RULES D1/D2): the class is CONCRETE; the slot
@@ -94,7 +93,7 @@ bool PageDescription::Serialize(IO::Stream& streamv) {
 // stamps GroupElement then PageElement and zeroes ONE dword at +0xc0 -- the
 // real PageElement ctor's stores (PageElement.h, ENDGAME B.3.9 UI-A).
 //
-// `Dialog::CreateElement` is reached through its registered door.
+// `Dialog::CreateElement` is a qualified member call (dialog.cpp).
 //
 // THE TAIL CALLS SetActivePage TWICE, WITH -1 FIRST. The first call forces the
 // field away from whatever the child loop left and hides every page; the second

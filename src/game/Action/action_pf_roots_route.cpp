@@ -3,36 +3,27 @@
 //
 // Faithful 1:1 ports of the four high-level routing roots that drive region routing and
 // storage-drop selection. None is runtime-exercised on the autostart path, so a wrong port
-// is undetectable silent corruption (strictly worse than leaving the addr unregistered).
+// is undetectable silent corruption.
 // Transcribed literally from the Ghidra decompile; cross-checked against the disassembly.
 #include "Action/exe_bodies.h"
 //
-// Sub-callees are called by name (B3R). Registration state of each sub-callee (confirmed from disassembly CALL targets):
-//   0x1400a00f0  WorkBase_ValidateCell      — REG (reg_work_base)
-//   0x14009d0a0  Pf_RegionSpiral            — REG (reg_pf_geom)  [Ghidra mislabels as d0a0]
-//   0x1400a5ac0  Pf_RegionPairLookup        — REG (reg_pf_geom)
-//   0x1400a8ba0  Pf_RegionPathLength        — REG (reg_pf_region; its dep 1dc00 now reg)
-//   0x1400a5b30  Pf_RegionPairCacheInsert   — REG (reg_pf_region)
-//   0x14012c560  Pf_ResourceLimitFlagTest   — REG (reg_pf_ctors)  [12cd80 dep]
-//   0x140123070  Pf_RecursiveChildSum       — REG (reg_pf_ctors)
-//   0x140122e20  Pf_EntityResolvePos        — REG (reg_pf_road)
-//   0x14009c480  ZoneRefresh                — REG (reg_pf_roots_road; the pathfinding wave landed it)
-//   0x140008830  WorkBase_CalcDistance      — REG (reg_work_base)
-//   0x14009f3e0  Reimpl_MapGetTerrainPos    — REG (address_registry M5 5c)
-//   0x140087fb0  Pf_EntityAnchorCell        — REG (reg_pf_road)
-//   0x14004edb0  Pf_PickReachableCell       — REG (reg_pf_road)
-//   0x140004680  FloorComponent_FindResData — REG (reg_component_nature)  [member-ABI FindComp]
-//   0x140002ed0  WorkBase_FindComponent_2ed0 — REG (reg_work_base)  [Position component]
-//   0x140132010  sqrtf                      — REG (reg_work_impl2)
-//
-// CLOSURE for the registrar (reg_pf_roots_route.cpp): ALL FOUR closure-satisfied → REGISTER.
-//   * 0x14009f810  SATISFIED (a8ba0/a5ac0/a5b30/9d0a0/a00f0 all reg)
-//   * 0x14012cd80  SATISFIED (12c560 + cf10 QueryCount + IsDerivedFrom)
-//   * 0x14012d5d0  SATISFIED (9c480 ZoneRefresh now reg in reg_pf_roots_road)
-//   * 0x14008d590  SATISFIED (its only code children are 12cd80/9f810/12d5d0 [this file] +
-//                  87fb0/4edb0 [reg]; 12d5d0's closure now closed)
-// NOTE: the "deferred" comment in reg_work_accessor.cpp re: 9c480 is STALE — it was landed
-//       by the pathfinding wave (reg_pf_roots_road.cpp).
+// Sub-callees are called by name (B3R), from the disassembly CALL targets:
+//   0x1400a00f0  Map::ValidateCell
+//   0x14009d0a0  Map::NearestRegionId           [Ghidra mislabels as d0a0]
+//   0x1400a5ac0  RegionPairCache::Find
+//   0x1400a8ba0  RegionGraph::PathLength
+//   0x1400a5b30  RegionPairCache::Store
+//   0x14012c560  StorageComponent::AcceptsMaterial  [12cd80 dep]
+//   0x140123070  InteractComponent::NodeCount
+//   0x140122e20  InteractComponent::NodePosition
+//   0x14009c480  Map::FillZones
+//   0x140008830  Map::CalcDistance
+//   0x14009f3e0  Map::GetTerrainPos
+//   0x140087fb0  EntityAnchorCell
+//   0x14004edb0  Component::PickReachableCell
+//   0x140004680  ComponentEntity::FindComponent<MapComponent>
+//   0x140002ed0  ComponentEntity::FindComponent<InteractComponent>
+//   0x140132010  sqrtf (inline __builtin_sqrtf)
 //
 // ---- struct offsets reverse-engineered (for the lead's verification) ----
 // g_pGameWorldSingleton + 0xf8 → the Map object (`piVar3`/`local_60`), an int*:
@@ -59,15 +50,15 @@
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "Game/Map.h"
 #include "Action/PathSearch.h"   // RegionGraph, RegionPairCache
-#include "Work/exe_bodies.h"            // WorkBase_* (a00f0, 8830, 2ed0)
-#include "Game/exe_bodies.h"            // Reimpl_MapGetTerrainPos
+#include "Work/exe_bodies.h"
+#include "Game/exe_bodies.h"
 #include "Game/exe_constants.h"         // kRdata_140172114
-#include "Component/exe_bodies.h"       // FloorComponent_FindResData
+#include "Component/exe_bodies.h"
 #include "system/MemoryAllocator.h"     // System::MemoryAllocator::MemAlloc / MemFree
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include "Object/factory_registration.h"   // Object::GetTypeIdByName (.rdata type-id fallback)
+#include "Object/factory_registration.h"
 #include "object/Internal.h"   // ENDGAME B.3.3 step 6B
 #include "Component/RawMaterialDescription.h"   // ENDGAME B.3.8 CB3: RawMaterialDescription::TypeId()
 #include "Component/StorageLocationComponent.h"   // ENDGAME B.3.8 CB3: StorageLocationComponent::TypeId()
@@ -116,8 +107,6 @@ const T* FindSubDescription(const ComponentDescription* material) {
 // hands on to 0x14001dc00 (never read).
 int Map::PathDistance(uint32_t param_2, uint32_t param_3, char param_4) {
     PfMainTimer pfTimer(PF_MAIN_PATHDISTANCE);   // [PFBENCH] one g_pfProfOn branch when the harness is off
-    // LEFT: 0x1400a00f0's C declaration (Work/exe_bodies.h, WORK-a's header) takes the
-    // Map as int*.
     uint64_t uVar4 = ValidateCell(PathBits::Walk, param_2, (int)param_3);   // 0x1400a00f0
     if ((char)uVar4 != '\0') {
         uint32_t uVar1 = static_cast<uint32_t>(cells.GetData()[(int)param_2].regionId);
@@ -222,8 +211,6 @@ int Component::FindBestAdjacentCell(uint32_t param_2, float* param_3) const {
                                     (((uVar11 & Bits(PathBits::Zoneless)) != 0 ||
                                       (((cell.zone != 0 && goal.zone != 0) &&
                                         (cell.zone == goal.zone)))))) {
-                                    // LEFT: 0x140008830's C declaration (Work/exe_bodies.h,
-                                    // WORK-a's header) takes the Map as int*.
                                     int iVar8 = map->CalcDistance(uVar14, param_2);   // 0x140008830
                                     if (iVar8 < iVar15) {
                                         uVar9 = (uint64_t)uVar14;
@@ -269,7 +256,6 @@ LAB_14012d8ce:;
                 if (iVar5 < 0) iVar5 = 0;
                 if (iVar13 <= iVar5) iVar5 = iVar13 + -1;
                 uint32_t uVar16 = iVar13 * iVar5 + iVar4b;
-                // LEFT: 0x1400a00f0's C declaration (Work/exe_bodies.h) takes the Map as int*.
                 uint64_t uVar9 = map->ValidateCell(PathBits::Walk, param_2, (int)uVar16);   // 0x1400a00f0
                 if ((char)uVar9 != '\0') {
                     int iVar4c = map->PathDistance(param_2, uVar16, '\x01');   // 0x14009f810

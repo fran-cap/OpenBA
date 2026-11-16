@@ -14,7 +14,7 @@
 //                 0x180050310, RULE B7-2) — Base, External, SoundEffect stamps.
 //
 // `??_7SoundEffect@Audio@@6B@` @ 0x180157ce0, NINE slots:
-//   [0] +0x00 0x180050820  (unexported) vector deleting dtor — RT_DELDTOR row
+//   [0] +0x00 0x180050820  (unexported) vector deleting dtor
 //   [1] +0x08 0x180050340  ?TypeName@SoundEffect@Audio@@UEBAPEBDXZ
 //   [2] +0x10 0x180050320  ?Type@SoundEffect@Audio@@UEBAIXZ
 //   [3] +0x18 0x1800e0990  ?GetFileVersion@SoundEffect@Audio@@UEBAHXZ (MOV EAX,3)

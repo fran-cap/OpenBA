@@ -1,6 +1,6 @@
 """FAA-SPIKE S5: for A2C draws into the MSAA main target, per sample, does depth change exactly
 where colour changes (depth written only for covered samples)?
-  python s5_depth.py <cap.rdc> [maxDraws]
+  python a2c_depth_check.py <cap.rdc> [maxDraws]
 """
 import os, sys, collections
 # <repo>/tools/renderdoc_mcp/runtime, derived from this file; RENDERDOC_MODULE_PATH overrides.

@@ -3,12 +3,9 @@
 // HighlightComponent EdgeMesh tessellation family (Application-x64.exe).
 //
 // This is the "yellow selection outline" that retail draws around a selected/
-// followed entity. The select->highlight hookup already exists
-// (src/game/Dialog/edittool_select.cpp resolves s_fn_c9e0 = 0x1400fc9e0 and
-// s_fn_cc90 = 0x1400fcc90); previously those were unregistered in standalone so
-// the calls no-op'd. This file provides the whole closure so, when the outline
-// is enabled (BANISHED_SELECTION_OUTLINE, default OFF — see
-// standalone/reg_player_render.cpp), the select path rebuilds and submits a
+// followed entity. src/game/Dialog/edittool_select.cpp calls EditTool::HighlightSelect
+// (0x1400fc9e0) and EditTool::HighlightClear (0x1400fcb40), whose bodies are here.
+// This file provides the whole closure: the select path rebuilds and submits a
 // terrain-conforming Graphics::EdgeMesh to the live Graphics::Scene.
 //
 // Functions ported (bottom-up), each verified against the Ghidra decompile AND
@@ -21,7 +18,6 @@
 //   TradeWork_impl_b930         0x14004b930   the full EdgeMesh builder (outline + fill)
 //   Entity_impl_c4a0            0x14004c4a0   rebuild EdgeMeshInstance + (re)add to Scene
 //   Entity_impl_cb40            0x1400fcb40   clear highlight (+0x11c=0) over UIComponents
-//   Entity_impl_cc90            0x1400fcc90   deselect: cb40 + close the info dialog
 //   Entity_impl_c9e0            0x1400fc9e0   select: cb40 + set highlight (+0x11c=1) + repaint
 //
 // The four inlined growth loops share ONE canonical helper (GrowTo) that is a
@@ -33,38 +29,27 @@
 // rtcoll::SetSizeCore, and the four locals are now real Collection::Array objects
 // (see the spec rows below the exe-helper table).
 //
-// Runtime methods go through engine_funcs fn_* pointers (resolved by mangled
-// name from Runtime-x64.dll — see engine/funcs/engine_funcs.cpp): EdgeMesh
-// ctor/Set/SetMaterials, TriangleVertex/EdgeVertex ctors, EdgeMeshInstance
-// SetMesh/ctor, Box ctor/Extend/operator=, Quaternion ctor, Vector3 ctors,
-// static MemAlloc/MemFree, Scene Add/RemoveObject, Geometry::SetTransform, Time.
-// Exe helpers (already registered) go through direct ResolveAddr(Module::Exe).
+// Runtime methods are plain C++ calls: EdgeMesh ctor/Set/SetMaterials,
+// TriangleVertex/EdgeVertex ctors, EdgeMeshInstance SetMesh/SetTransform/Update,
+// Box ctor/Extend/assign, Quaternion ctor, static MemAlloc, Scene Add/RemoveObject,
+// Time. Exe helpers are called by name too.
 //
-// STANDALONE liveness notes (both guarded/lazy, so nothing here runs on the
-// default byte-clean path — the chain is only registered when the env is set):
+// Standalone notes:
 //   * The exe overrides the new EdgeMesh's vtable with an exe .rdata vtable
-//     (0x140159a60, an EdgeMesh subclass). That address is not valid in the
-//     standalone image, so we KEEP the Runtime base EdgeMesh vtable set by the
-//     ctor (#ifndef STANDALONE_EXE guards the override). The base vtable is a
-//     complete, valid Runtime vtable — adequate for live rendering (we never
-//     serialize the mesh, which is the only thing the subclass overrides).
+//     (0x140159a60, an EdgeMesh subclass). The port KEEPS the base EdgeMesh vtable
+//     set by the ctor. The base vtable is complete and valid for live rendering
+//     (the mesh is never serialized, which is the only thing the subclass overrides).
 //   * The HighlightComponent's embedded EdgeMeshInstance at +0x28 is built by its
 //     ctor (0x14004c930) and destroyed by its dtor (0x14004c8c0), as in retail.
 //   * c4a0's ModelComponent lookup (retail: Entity_ClearPathQueue 0x140003f60)
 //     yields the model-variant indices (+0x164/+0x166) that pick the per-variant
 //     prebuilt outline mesh — the path retail uses for CITIZENS (which have no
-//     terrain footprint, so the build branch can't fire). The shared registered
-//     3f60 reads its type-id from .rdata (DWORD_1401c7a50), NULL in standalone,
-//     so it always returned null there -> variant read as (-1,-1) -> build branch
-//     -> bail. We do that FindComponent inline (FindModelComp) with the
-//     GetTypeIdByName fallback so the citizen's ModelComponent is actually found.
-//     (Still gated: whether the citizen HighlightDescription's +0x20 per-variant
-//     mesh table loaded in SA is reported by BANISHED_OUTLINE_TRACE's
-//     "PREBUILT-branch ... cellMesh=" line.)
+//     terrain footprint, so the build branch can't fire). Here that lookup is
+//     ComponentEntity::FindComponent<ModelComponent>().
 
 // The runtime type headers come FIRST: they pull src/engine/volume/Volume.h,
 // whose global-scope `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()`
-// once <windows.h> has been seen through resolve.h.  ENDGAME B.3.5 batch I2.
+// once <windows.h> has been seen.  ENDGAME B.3.5 batch I2.
 #include "graphics/Scene.h"
 #include "graphics/Mesh.h"
 #include "graphics/Material.h"   // ENDGAME B.3.5 batch K1 — Graphics::MaterialInstance
@@ -104,23 +89,19 @@
 extern "C" void* g_LastSelectStore[4];
 extern "C" int   g_LastSelectStoreIdx;
 
-// Gated diagnostic (BANISHED_OUTLINE_TRACE) — reports where the selection-outline
-// chain reaches/bails; off unless the env is set.
-
 namespace {
 
-// ---- exe .rdata float constants (NULL in standalone -> real-value fallback) ----
+// ---- exe .rdata float constants (their retail values) ----
 constexpr float kCenterBias = 0.5f;      // DAT_140172114 = 0x3f000000
 
 // ---- exe helper functions, called by name ------------------------------------
-//   0x14009f3e0 Reimpl_MapGetTerrainPos (Game/exe_bodies.h) -- cell -> world + height
-//   0x140004680 FloorComponent_FindResData -- entity footprint rect (IBP)
-//   0x140004740 InteractComponent_FindWorkplaceComponent -- entity component
-//               container (IBP) (Component/exe_bodies.h)
-//   0x1400c3470 ActHunt_NotifyEntityChanged_c3470 (Action/exe_bodies.h) -- flag-change
+//   0x14009f3e0 Map::GetTerrainPos (Game/Map.h) -- cell -> world + height
+//   0x140004680 FindComponent<MapComponent>() -- entity footprint rect
+//   0x140004740 FindComponent<MultiObjectComponent>() -- entity component
+//               container
+//   0x1400c3470 ComponentEntity::RefreshEntityFlags (Entity/ComponentEntity.h) -- flag-change
 //               notify
-// (0x140003f60 Entity_ClearPathQueue was resolved here and never called: FindModelComp
-// below does that lookup inline. The dead reader is gone.)
+//   0x140003f60 Entity_ClearPathQueue -- FindComponent<ModelComponent>()
 // ENDGAME B.3.8 callers: DAT_1401c4410 / DAT_1401c4448 / DWORD_1401c7a50 are
 // HighlightComponent / HighlightDescription / ModelComponent's type ids, read through
 // the classes (the ResolveTid ti-cell + by-name cache is gone).
@@ -522,7 +503,7 @@ void HighlightComponent::Repaint() {
         }
     }
 
-    // No per-cell mesh (both indices < 0) -> build+submit our own EdgeMesh.
+    // No per-cell mesh (either index < 0) -> build+submit our own EdgeMesh.
     if (iVar10 < 0 || iVar11 < 0) {
         MapComponent* r = _entity->FindComponent<MapComponent>();   // 0x140004680
         if (r && desc && desc->_maskMaterial != nullptr) {
@@ -565,8 +546,7 @@ add_prebuilt:
         // MeshInstance::GetNodeToWorld computes `nodeIdx * 0x38 + *(this + 0xf0)` and
         // hands it straight to Math::Transform::Lerp, so a source instance that never
         // got a mesh gives Lerp a null Scalar* and faults on `MOVSS XMM2,[R8+0x10]` —
-        // READ of 0x10, which is exactly the manual-play crash recorded in
-        // docs/history/notes/bridge_dialog_crash.log (RCX=0x1c = 0+0x1c, R8=0).
+        // READ of 0x10, which is exactly the manual-play crash (RCX=0x1c = 0+0x1c, R8=0).
         //
         // Retail can rely on the invariant "a ModelComponent's MeshInstance always has
         // its mesh"; standalone cannot. NOT because ModelComponent is inert — it has a
@@ -778,13 +758,11 @@ namespace {
 // never stays up; [Outline] trace shows cc90->c9e0 looping on one entity). In SA
 // the dialog lifecycle is owned by d3b0/OnKey (step 4 reuses/replaces the panel),
 // so the retail teardown here is both redundant and harmful. Keeping just cb40
-// gives the outline-clear without disturbing the panel. (This body is reached via
-// the registered 0x1400fcc90 under BANISHED_SELECTION_OUTLINE; the original exe cc90
-// runs the full teardown unmodified.)
+// gives the outline-clear without disturbing the panel.
 // ===========================================================================
 // B4 P2 PLAYER: the body (`Impl_cb40(self)`, nothing else) and its forwarder
 // HighlightDeselect_Impl had no caller anywhere and are deleted; the deselect paths
-// call HighlightClear_Impl (0x1400fcb40) directly.
+// call EditTool::HighlightClear (0x1400fcb40) directly.
 
 // ===========================================================================
 // HighlightFollow — per-frame transform re-sync so a MOVING selected entity's
@@ -866,16 +844,6 @@ void Impl_HighlightFollow(EditTool* self) {
 
 }  // namespace
 
-// ===========================================================================
-// Exported entry points (registered in standalone/reg_player_render.cpp when
-// BANISHED_SELECTION_OUTLINE is set). c9e0/cc90 are what edittool_select.cpp
-// resolves: c9e0 sets+paints the outline on the newly-selected entity, cc90
-// clears the previous entity's outline and closes its dialog (deselect).
-// ===========================================================================
-// B4 FORWARD: their callers (Dialog/edittool_select.cpp, Player/edittool.cpp,
-// Player/pathtool_setselected.cpp, ...) hand the tool / component over as void*.
-
 // Per-frame follow re-sync (NOT an exe address). Called directly from
-// EditTool::Update (edittool.cpp) every frame; self-gates on
-// BANISHED_SELECTION_OUTLINE so it is a no-op unless the outline is enabled.
+// EditTool::Update (edittool.cpp) every frame.
 extern "C" void HighlightFollow_Impl(EditTool* self) { Impl_HighlightFollow(self); }

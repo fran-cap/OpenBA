@@ -32,15 +32,9 @@
 //   0x140014b40 (retrace) -> 0x140015000, 0x140014ed0
 //
 // The retrace 0x140014b40 (TradeWork_impl_4b40) and the two rotation leaves
-// 0x140015000 / 0x140014ed0 (PlayerTrade_Rot_15000 / _14ed0) are the SHARED engine
-// template — already ported in src/game/Player/tool_base_highlight.cpp and
-// src/game/Player/tool_base_trade.cpp (byte-identical decompiles). We REUSE them via
-// extern decls (NOT re-defined here, to avoid duplicate symbols / drift). The rotations
-// are already registered by reg_player_trade.cpp; the retrace 0x140014b40 is registered
-// by THIS keystone's reg file (reg_keystone_a_restree.cpp) — its own closure (15000 +
-// 14ed0) is registered, so registering it is closure-safe (it was only previously
-// "held" inside reg_player_highlight because that whole batch waited on ace40, an
-// UNRELATED tessellation sibling — not a callee of 14b40).
+// 0x140015000 / 0x140014ed0 are the SHARED engine template: Avl38Retrace,
+// Avl38RotateRight and Avl38RotateLeft in src/game/Player/exe_bodies.h. This file calls
+// Avl38Retrace by name and does not re-define them.
 
 #include <cstddef>
 #include <cstdint>

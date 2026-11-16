@@ -89,24 +89,8 @@ static_assert(offsetof(CompanionData, owner) == 0x08, "CompanionData::owner at +
 using ConstantBuffer = ::Video::ConstantBuffer;
 
 // ----------------------------------------------------------------------------
-// `Video::ImageBufferData`'s POD view, MOVED HERE from
-// src/engine/video/ImageBuffer.h by ENDGAME B.3.5 block A.
-//
-// RULE B4b-1: the retail name now belongs to the real abstract class
-// `Video::ImageBufferData` further down this file, so the POD moves into the
-// `Rt*` namespace. `ImageBuffer.h` keeps a global-scope alias to this
-// declaration so its one consumer — `src/engine/video/buffers.cpp`, which
-// writes `pd->vtable` by hand in three trampolines and in the ported
-// `??1ImageBufferData` door — compiles unchanged. There is now exactly ONE
-// definition of these two fields instead of two.
-//
-// It is NOT collapsed into `CompanionData` above even though the bytes are
-// identical: `buffers.cpp` names the second field `imageBuffer`, and the whole
-// point of B4b-1 is to stop the same layout being spelled twice, not to rename
-// a live field in a file this block does not own (block C owns `ImageBuffer.h`
-// and `buffers.cpp` after this).
-//
-// Decompiled from (Wave 6 lane C):
+// Retail's constructors and destructor of `Video::ImageBufferData` (the class
+// further down this file):
 //   Ctor(ImageBuffer*):  0x1800f8c90 (??0ImageBufferData@Video@@QEAA@PEAVImageBuffer@1@@Z)
 //   Copy ctor:           0x18007dd80 (??0ImageBufferData@Video@@QEAA@AEBV01@@Z)
 //   Dtor:                0x1800f8e10 (??1ImageBufferData@Video@@UEAA@XZ)
@@ -177,11 +161,11 @@ using ConstantBuffer = ::Video::ConstantBuffer;
 // bodies recovered from the shipped VideoDX11 vtables lane by lane -- so the
 // names below are those bodies' and the signatures come from the CALLERS
 // (the slot decides, B35_RULES B5-14). Where a lane could not recover a name
-// (four `DeviceData` stubs, one `RenderBufferData` and two `VideoProgramData`
+// (four `DeviceData` stubs, one `RenderBufferData` and one `VideoProgramData`
 // slots, all of which the shipped plugin implements as a constant return) the
 // slot is spelled `SlotN` rather than given an invented name.
 
-extern "C" void _purecall();   // the CRT's (the exe's src/app/main.cpp logs it)
+extern "C" void _purecall();   // defined and logged by src/diag/win/crash_handler_win.cpp and its twins
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"   // the _purecall bodies below
@@ -738,9 +722,8 @@ public:
 };
 static_assert(offsetof(VideoProgramData, _owner) == 0x8, "VideoProgramData::_owner");
 
-// The two offsets, once per class, as the two things every one of the twelve
-// really claims: the vptr is the first qword and `owner` is the second. A
-// `sizeof` assert would be the false witness RULE B5-1.1 names.
+// The pins, once per class: the size and alignment of the two-pointer object
+// `RtVideo::CompanionData`, the vptr as the first qword and `owner` as the second.
 #define RT_VIDEO_COMPANION_PINS(CLASS)                                          \
     static_assert(sizeof(CLASS) == sizeof(RtVideo::CompanionData),              \
                   #CLASS " is the two-pointer object CompanionData pins");      \

@@ -10,9 +10,10 @@
 //
 // LIFETIME. The twins are made on first use, on the drawing thread, and live for the process. A
 // twin remembers the water program it stands in for and the parts it copied (Twin, Matches): a world
-// load or a device restart (MainLoop::OnVideoRestart) makes new water programs, nothing matches and a
-// new twin is made in the next slot. A replaced twin is left alive (a backend may still hold it in
-// cached state): two small objects per world load, sharing the one shore pixel program.
+// load makes new water programs, nothing matches and a new twin is made in the next slot. The video
+// device going away (OnVideoLost) forgets every twin and shore program; the next draw makes them again.
+// A replaced or forgotten twin is left alive (a backend may still hold it in cached state): two small
+// objects per world load, sharing the one shore pixel program.
 // ============================================================================
 
 #include "ext/better_water/better_water.h"
@@ -195,8 +196,8 @@ struct StripSlot {
 constexpr int kStripSlots = 4;
 StripSlot g_strips[kStripSlots];
 std::mutex g_stripMutex;
-// Set by the first strip built: until then the geometry seams (OnVideoError, Forget) return at once,
-// so the faithful path never takes the mutex.
+// Set when the first strip or faded water buffer takes a slot: until then the geometry seams
+// (OnVideoError, Forget) return at once, so the faithful path never takes the mutex.
 std::atomic<bool> g_anyStrip{false};
 
 StripSlot* FindStrip(const WorldGeometry& geo) {

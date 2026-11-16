@@ -4,7 +4,7 @@
 //
 // TradeWork — the trading post's work (carry goods between the post's storage and
 // the docked trader): a BST of the citizens assigned (+0x48, count +0x50; extended
-// 0x30-byte nodes: key, target, quantity, parent, left, right). A REAL class with a
+// 0x38-byte nodes: key, target, quantity, parent, left, right). A REAL class with a
 // compiler-generated vtable.
 //
 // RETAIL (B38_SLOTS.md §6): reflected "TradeWork", parent "Work", ti 0x1401c6cc0,
@@ -18,10 +18,10 @@
 //   Validate  [10] 0x1400f6c50 GetTarget  [11] 0x140029860 GetPriority (`+0x50 > 0`,
 //   shared by 13 tables)  [12] = Work (0x140006b10)
 //   TradeComponent (tradecomponent.cpp / tradecomponent_states.cpp, outside this
-//   block) builds a TradeWork BY HAND (the from-entity ctor 0x1400f6ea0) and stamps
-//   0x140161a10; that registration serves TradeWork::Vtable() (B38 D5). The default
-//   ctor here builds what the tree's factory built (Work_GenericCtor: base init, leaf
-//   fields zeroed).
+//   block) builds a TradeWork with placement new on its MemAlloc(0x58, 8) block
+//   (retail's from-entity ctor 0x1400f6ea0: the default ctor here, then
+//   Work::InitFromEntity). The default ctor builds what the tree's factory built
+//   (Work_GenericCtor: base init, leaf fields zeroed).
 // ============================================================================
 
 #include <cstdint>

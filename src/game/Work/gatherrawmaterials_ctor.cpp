@@ -5,12 +5,12 @@
 // caller-allocated 0x78 block, given the build-site entity InternalBasePtr.
 // The exe calls it as: GatherRawMaterials_Ctor(MemAlloc(0x78), &buildEntityIBP).
 //
-// Layout produced (see engine/types/BuildActions.h : GatherRawMaterials):
+// Layout produced (see Work/GatherRawMaterials.h : GatherRawMaterials):
 //   +0x00 vtable = 0x140161420
 //   +0x10..0x40 Work base (initialised by Work_Ctor25 @0x1400f72e0)
 #include "Work/exe_bodies.h"
 //   +0x48 int[] ptr  / +0x50 count(=matCount)  "amount already present per material"
-//   +0x58 int[] ptr  / +0x60 count(=matCount)  "delivered per material" (all 0)
+//   +0x58 int[] ptr  / +0x60 count(=matCount)  "in flight per material" (all 0)
 //   +0x68 BST root (0) / +0x70 count (0)
 //
 // For each material in the build entity's BuildDescription, _present[i] is seeded
@@ -29,7 +29,7 @@
 #include "Work/GatherRawMaterials.h"
 #include <new>
 #include "object/TypeInfo.h"
-#include "Dialog/dialog_exe_helpers.h"   // B3R: Dialog_FindComponent_d6c0
+#include "Dialog/dialog_exe_helpers.h"
 #include <cstdint>
 #include "Component/BuildDescription.h"   // ENDGAME B.3.8 CB3: BuildDescription::TypeId()
 #include "Component/BuildComponent.h"
@@ -39,17 +39,17 @@
 #include "Object/factory_registration.h"
 
 // FindComponent that returns the BuildComponent (holds BuildDescription at +0x18):
-// 0x14000d6c0 Dialog_FindComponent_d6c0 (Dialog/dialog_exe_helpers.h).
+// 0x14000d6c0 ComponentEntity::FindComponent<BuildComponent>.
 // FindComponent that returns the site StorageComponent (type 0x1401c7e78):
-// 0x140006270 WorkBase_FindComponent_6270 (Work/exe_bodies.h). Both called by name (B3R).
+// 0x140006270 ComponentEntity::FindComponent<StorageComponent>.
 // 0x1400021d0 (int-array SetSize) is the exe-side Collection::Array<int32>
 // monomorphisation -- ENDGAME B.3.2 step 2 converted its two call sites below to
 // member calls (now of the two Array<int32_t> members), so its resolved-pointer stand-in
 // is gone.
 
 // "BuildDescription" type-id (DWORD_1401c7040). Name verified via the .rdata
-// writer BuildDescription_Register (0x14014e5f5). GetTypeIdByName in standalone
-// (the raw .rdata global is null).
+// writer BuildDescription_Register (0x14014e5f5), read through
+// BuildDescription::TypeId().
 // ENDGAME B.3.8: read per call (the function-local lazy cache is gone, B38 D7).
 static uint32_t GRMC_BuildDescTypeId() {
     return BuildDescription::TypeId();

@@ -41,29 +41,6 @@
 extern "C" void* g_pConstructionDemoSite;
 
 
-// ============================================================
-// Type ID globals needed by BuildComponent
-// ============================================================
-
-
-// ============================================================
-// BuildComponent::Shutdown (vtable slot [3], 0x140108D80)
-// ============================================================
-// Serializes BuildComponent fields via IO::Serializer.
-// Calls Component_Serialize for base class, then two versioned blocks:
-//   - Version 0: empty (just ctor/dtor)
-//   - Version 1: buildState, buildProgress, buildFlag,
-//     entityArray1 (IBP array with IsDerivedFrom check),
-//     entityArray2 (IBP array with IsDerivedFrom check)
-
-// ============================================================
-// BuildComponent::OnCreate (vtable slot [7], 0x140108CB0)
-// ============================================================
-// Removes component from the removal queue. Creates InternalBasePtr
-// from self, searches the removal queue at GameState+0xF0+0xD0.
-
-// 0x140017550 is Collection::Array<InternalPtr<T>>::Find (Collection.h; B9 RT).
-
 
 
 
@@ -72,7 +49,7 @@ extern "C" void* g_pConstructionDemoSite;
 //   (rebuild the worker/storage child lists and refresh build progress)
 // ============================================================
 // SLOT: vtable INDEX 6 (+0x30) — the one-shot OnAdded broadcast dispatched by
-// ComponentEntity_OnAddedPass (componententity.cpp:701) at EntityList_RegisterEntity
+// ComponentEntity::OnAddedPass (componententity.cpp) at EntityList::RegisterEntity
 // time, for components whose +0x20 bit 0 is set (BuildComponent's flags are 0x83, so
 // it qualifies). It is NOT a per-frame draw-tick: verified 2026-07-27, the function's
 // only xref is 0x140162290 == vtable_BuildComponent(0x140162260) + 0x30, and +0x40
@@ -85,10 +62,9 @@ extern "C" void* g_pConstructionDemoSite;
 // PickingComponent_RegisterMesh.
 // 0x140003110 was Collection::Array<void*>::SetSize(n, fill) monomorphised
 // into the exe (ENDGAME B.3.2 step 2) — converted at its call sites below.
-// Type-id VALUES. The .rdata globals are never seeded (ResolveAddr(Exe,.rdata)==NULL)
-// so we fall back to
-// the runtime type registry by name — otherwise block 1's IsDerivedFrom is guarded out
-// and the site's ModelComponent never gets appended to +0x58 (empty mesh list).
+// Type-id VALUES, latched from each class's TypeId() (LatchDrawTypeIds below) — a zero id
+// guards block 1's IsDerivedFrom out and the site's ModelComponent never gets appended
+// to +0x58 (empty mesh list).
 //   0x1401c7a88 = ModelDescription (checked on the found ModelComponent's +0x18 desc)
 //   0x1401c7a50 = ModelComponent   (block 2 collects these into +0x58)
 //   0x1401c7c10 = PickingComponent (block 2 collects these into +0x68) — CORRECTED
@@ -147,7 +123,8 @@ void BuildComponent::FillModelLists() {
     // set — and that caller is the whole insta-build completion path.
 
     // --- Stage 1: append the site's own ModelComponent (whose +0x18 ModelDescription
-    //     has a non-empty frame group) to the +0x58 mesh list / +0x68 storage list.
+    //     has a non-empty frame group) to the +0x58 mesh list and its PickingComponent
+    //     to the +0x68 picking list.
     if (_entity->FindComponent<ModelComponent>() != nullptr) {
         Description* objBase = _entity->FindComponent<ModelComponent>()->_description;
         ModelDescription* multi = (s_tid_ModelDesc &&
@@ -166,7 +143,7 @@ void BuildComponent::FillModelLists() {
     //     ModelComponent and PickingComponent of each into the two lists.
     if (_entity->FindComponent<MultiObjectComponent>() != nullptr) {
         MultiObjectComponent* multiObj = _entity->FindComponent<MultiObjectComponent>();
-        // LEFT: the child count is the low dword of the untyped +0x50 (MultiObjectComponent.h, COMP-d)
+        // the child count is children._size (+0x50, MultiObjectComponent.h)
         int jobCount = multiObj->children._size;
         for (int j = 0; j < jobCount; j++) {
             ComponentEntity* host = multiObj->children[j].Get();

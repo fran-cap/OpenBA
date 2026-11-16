@@ -41,7 +41,7 @@
 //    are paired here only because they are the same shape.
 //
 // ----------------------------------------------------------------------------
-// NEW LANE-D ROWS THIS FILE CREATES: TWO, and they are named
+// THE TWO ExternalPtr SERIALIZERS
 // ----------------------------------------------------------------------------
 //   FUN_1800042a0  — reached by Goal::Serialize     (over Goal+0x20)
 //   FUN_180005dc0  — reached by GoalInstance::Persist (over GoalInstance+0x18)
@@ -49,12 +49,8 @@
 // Both are instantiations of the SAME template body — `Object::ExternalBasePtr
 // ::Serialize` for two different pointee types; the two decompilations are
 // line-for-line identical apart from the `_typeInfo` they compare against.
-// Neither appears in `wave9_residue_gameplay.txt` today, so these really are
-// two new rows in the hardest bucket, exactly the growth WAVE9.md measured for
-// `KeyMap::RegisterInput` (823/504 -> 825/505). They are called BY ADDRESS, the
-// way `ClearAll`, `RegisterInput` and `Audio::Scene::Serialize` already call
-// `Collection` internals — what is needed from them is the ENTRY POINT, not a
-// port. That is a real cost and it is stated rather than hidden.
+// Both are called as `Object::ExternalPtr<T>::Serialize`, over the one body in
+// src/engine/object/external_ptr_serialize.cpp.
 //
 // A CAUTION FOR WHOEVER PORTS THEM, and it is stronger than this comment's own
 // first draft said. That draft read "on the READING side (`Encoding` slot +0x10
@@ -77,12 +73,6 @@
 // by the plain load path, and a port of these two internals inherits that
 // squarely. It is not a corner.
 //
-// NONE OF THAT IS REACHABLE UNDER THIS FILE'S OWN ORACLE, which is why the two
-// ports below are verifiable and the two internals are not. The lane-S sink
-// pins `stream.direction = 1` (writing) and binds all 16 Encoding slots to a
-// recording thunk that returns the stub ReaderWriter POINTER -- never 3. Both
-// tests therefore fail on both sides of every comparison, and neither
-// FindOrLoad site is entered.
 //
 // THE ONE REPLAY HAZARD ON THE WRITE PATH, checked rather than hedged: that path
 // emits `ExternalFactory::GetReferenceId(_singleton, ext)` as a uint. If that
@@ -117,8 +107,7 @@ namespace {
 // rw`, the scalar deleting dtor with flag 1) of both bodies ARE
 // `IO::Serializer(Stream&, 0)` / `~Serializer` (serializer_class.cpp). The
 // version is ZERO: retail zeroes R8D at 0x18009ee44 / 0x18009ef94 and never
-// reloads it before the factory call. The ExternalPtr bodies still take the
-// `rt::io::Serializer` POD view of the same bytes (object/External.h).
+// reloads it before the factory call.
 
 }  // namespace
 
@@ -133,10 +122,10 @@ namespace Achievement {
 //   +0x28 _text         System::String                -> String::Serialize
 // A load therefore consumes precisely those two records. Getting the ORDER or
 // the COUNT wrong is the silent save-desync this project has paid for four
-// times (reference_slot3_wrapper_must_resolve_first.md). Always `MOV AL,1`.
+// times. Always `MOV AL,1`.
 //
-// The slot's parameter is `void*` because `Object::External` declares it so
-// (External.h); the object behind it is retail's `IO::Stream`.
+// The slot's parameter is retail's `IO::Stream&`, as `Object::External`
+// declares it (External.h).
 // ============================================================================
 bool Goal::Serialize(IO::Stream& streamv) {
     IO::Serializer ser(streamv, 0);

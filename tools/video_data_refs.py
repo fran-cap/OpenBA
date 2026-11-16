@@ -8,7 +8,8 @@ asks -- "who READS this static in the DLL, in a body we have NOT ported?" -- but
 its population is hard-wired to the twenty ``?_singleton@`` rows, and it asserts
 that count.  Lane VIDVT's subjects are
 
-  * 4 ``?_first*@`` statics  (heads of intrusive lists of live GPU resources),
+  * 4 ``?_first*@`` statics  (heads of intrusive lists of live GPU resources) and the
+    2 ``?_singleton@`` statics of Video::Configuration and Video::Device,
   * 12 ``??_7*Data@Video@@6B@`` base vtables (whose triage question is not
     "who reads it" but "who STAMPS it" -- i.e. LEA references),
 
@@ -46,8 +47,7 @@ CONTROLS
   control 3 (blind-spot)  a subject address chosen to have NO references
       (a .rdata address in the middle of a string table).  It must report 0,
       which is what distinguishes "this row has no stampers" from "the parser
-      is dead" -- the failure recorded in
-      reference_absence_screen_must_be_handed_a_shape.md.
+      is dead".
 
 PORT STATE of an owning body is read from a runtime_census.py --csv, passed
 with --census.  That is screen R1 only; this tool does NOT re-implement screen

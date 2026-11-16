@@ -6,8 +6,9 @@
 // seam: ExternalFactory::FindOrLoad's miss branch (src/engine/object/
 // external_compiled.cpp) calls `RtObject::g_extProvideSeam`, a null-by-default
 // function pointer, after External::Load found neither a loose .crs nor a
-// package entry. The first Register() points it at Provide(); the faithful
-// profile registers nothing, so the pointer stays null there and the engine
+// package entry. The first Register() points it at Provide(); a command-line
+// faithful profile registers nothing at boot, so the pointer stays null there
+// until a save with an `ext:` entry is opened (text_provider.h), and the engine
 // pays one null test per load miss. A provided object is registered by
 // FindOrLoad exactly as a loaded one (`_path = expanded`, ExternalFactory::Add).
 //
@@ -171,7 +172,7 @@ Object::External* Publish(Object::External* obj) {
 int ProvidedCount() { return g_provided; }
 
 // ---------------------------------------------------------------------------
-// The text provider: the three embedded files, parsed once at boot.
+// The text provider: the embedded files, parsed once per run.
 // ---------------------------------------------------------------------------
 namespace {
 
@@ -213,7 +214,7 @@ Object::External* ProvideText(const char* path, void* /*user*/) {
 }  // namespace
 
 void InitText() {
-    // Once per run: the ext boot calls it under every profile but the faithful
+    // Once per run: the ext boot calls it under every profile but a command-line faithful
     // one, and SaveLoadDialog::DoLoad's notice seam calls it again (under ANY
     // profile) before it shows an `ext:` entry's notice (text_provider.h).
     static bool s_done = false;

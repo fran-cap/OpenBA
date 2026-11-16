@@ -15,7 +15,7 @@
 //                    — the 8->2 transition ACTION: refund leftover materials to town stock
 //                    (townMgr+0x170) and reconfigure the site storage as OUTPUT storage.
 //
-// Node-slot mapping (recovered 2026-07-11 — see reference_construction_pipeline_map):
+// Node-slot mapping:
 //   StateMachineComponent::Update -> StateMachine::Tick(sm, time, altDraw=1, doDraw=1)
 //   EVERY frame. Tick skips its UPDATE phase (slot +0x20) unless a transition is pending,
 //   and runs the DRAW phase (slot +0x38, altDraw=1) every frame. So the PER-FRAME handler
@@ -25,12 +25,11 @@
 // A ported handler requests a transition via ControllerLive::RequestStateTransition(sm,id)
 // (replicates `node->slot08(node, sm->index, &desired); sm[+0xa/+0xb] = ...`).
 //
-// Faithful offset-by-offset port of the Ghidra decompilations. All exe-internal helpers
-// are resolved guarded; if one is unavailable the step is skipped.
+// Faithful offset-by-offset port of the Ghidra decompilations.
 
 // graphics/*.h FIRST: they pull src/engine/volume/Volume.h, whose global-scope
 // `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()` once <windows.h> has
-// been seen through resolve.h.  ENDGAME B.3.5 caller batch I2.
+// been seen.  ENDGAME B.3.5 caller batch I2.
 #include "graphics/Mesh.h"
 #include "Component/StorageDescription.h"   // B.3.8 CB1a (TypeId)
 #include "Component/ModelDescription.h"   // B.3.8 CB1a (TypeId)
@@ -54,7 +53,7 @@
 #include "object/Internal.h"   // ENDGAME B.3.3 step 6B
 #include "Component/exe_bodies.h"
 #include "Work/exe_bodies.h"
-#include "Work/BuildStructure.h"   // B4 X4-WORK: BuildStructure_CreateInPlaceFull returns the typed work
+#include "Work/BuildStructure.h"   // B4 X4-WORK: the BuildStructure class (State8Enter constructs it in place)
 #include "Action/exe_bodies.h"
 #include "Component/pickingcomponent_funcs.h"
 #include "system/MemoryAllocator.h"
@@ -72,8 +71,8 @@
 
 extern "C" void* g_pConstructionDemoSite;                            // the seeded foundation
 extern "C" void* g_pBuildStructureWork = nullptr;                    // 2c-B probe: last spawned build work
-// BuildStructure_CreateInPlace (0x1400e5a90) and BuildStructure_CreateInPlaceFull
-// (0x1400e59c0), buildstructure.cpp, are declared in Work/exe_bodies.h.
+// The BuildStructure constructors (0x1400e5a90 and the full 0x1400e59c0) are declared in
+// Work/BuildStructure.h and defined in buildstructure.cpp.
 
 // ---- demo-force gate -------------------------------------------------------------
 // Brick-2a plumbing harness: fake the citizen half so the state chain can be validated
@@ -98,7 +97,7 @@ static bool BC8_IsDemo(BuildComponent* bc) { return g_pConstructionDemoSite && b
 //   0x140128f50   PickingComponent_RegisterMesh (Entity_impl_8f50)
 //   0x140006270   FindComponent<StorageComponent>
 //   0x140002f90   FindComponent<StatusIconComponent>
-//   FUN_14012c3f0 CitizenComp_FUN_14012c3f0 (mesh finalize)
+//   FUN_14012c3f0 CitizenComp_FUN_14012c3f0 (StatusIconComponent::SetFlag)
 //   FUN_140088f90 ActRm_GetResourceCategory_88f90
 //   0x140017550   Collection::Array<InternalPtr<T>>::Find (BuildComponent_helper_7550)
 //   0x14012ec60   CitizenAI_WorkScheduler_Post (CitizenAI_impl_ec60, scheduler post)
@@ -278,7 +277,7 @@ char BuildComponent::State8Enter(StateMachine* sm) {
                             ? ::System::MemoryAllocator::MemAlloc(0x70, 8) : nullptr;
             // Construct via the FULL retail ctor (0x1400e59c0): it routes base init through
             // Work_Ctor25 (sets _entity=site entity, +0x18 WorkComponent, +0x28 target cell)
-            // AND allocates the build-position byte array field_50/field_58 from the site's
+            // AND allocates the build-position byte array _slots (+0x50/+0x58) from the site's
             // PositionComponent footprint. sub_7ae0 passes &(*(BuildComponent+0x10)) as the
             // entity IBP. Without the array, BuildStructure::Execute sees 0 unbuilt positions
             // and returns 1 (never assigns labor) — this is the 2c-B fix.
@@ -295,10 +294,10 @@ char BuildComponent::State8Enter(StateMachine* sm) {
                 if (workComp != nullptr) {
                     workComp->PostWork(0x2001, 1, &bsIBP);
 
-                    // Builders are seated by the tick-driven Builder pool
-                    // (BuilderPool_Tick) through the townMgr+0x100 registration made at
-                    // State1Enter — State8Enter must not also direct-seat, or the site
-                    // would be double-staffed.
+                    // Builders are seated through the workplace panel's workerCountUp click,
+                    // which finds the site by the townMgr+0x100 registration that
+                    // WorkPlaceComponent::EnterBuilderProfession (its state-0 enter) makes —
+                    // State8Enter must not also direct-seat, or the site would be double-staffed.
                 }
             }
         }
@@ -349,15 +348,14 @@ char BuildComponent::State8Update(StateMachine* sm) {
     int target = BC8_Target(this, matComp);
 
     if (BC8_DemoForce() && BC8_IsDemo(this)) {
-        // brick-2a harness: ramp progress toward target (~60 frames) to drive the mesh
+        // brick-2a harness: ramp progress toward target (rampFrames, below) to drive the mesh
         // progression + completion. Real BuildStructure labor = brick 2c.
         //
         // The real target = matComp[0x30] (base build effort) * bc[0x4c] (build
         // multiplier). In standalone bc[0x4c] can be 0 — FillModelLists stage 4 copies
         // it from the MultiObjectComponent's +0x58 field — so the real target is 0.
-        // Substitute a nominal positive target (base effort, or 120 frames) so the mesh
-        // progression + completion demonstrate visibly. Real BuildStructure labor (2c)
-        // computes and raises the true target.
+        // Substitute rampFrames as the target so the mesh progression + completion
+        // demonstrate visibly.
         // Ramp budget in frames (~60fps): default 600 (~10s) so the rise is easy to watch.
         // Override with BANISHED_BUILD_DEMO_FRAMES.
         static int rampFrames = -1;
@@ -367,9 +365,8 @@ char BuildComponent::State8Update(StateMachine* sm) {
             if (rampFrames < 1) rampFrames = 600;
         }
         // Demo mode ALWAYS ramps over rampFrames. The real target (matComp[0x30] *
-        // bc[0x4c]) is tiny in SA — when bc[0x4c] (build multiplier) is 0, BC8_Target
-        // falls back to the bare base effort (~30), so the foundation would complete in
-        // ~30 ticks, too fast to inspect or click. Stretching to rampFrames keeps the
+        // bc[0x4c], BC8_Target, no clamp) can be small enough that the foundation would
+        // complete too fast to inspect or click. Stretching to rampFrames keeps the
         // building visibly under construction (default 600 ≈ 10s; raise BANISHED_BUILD_DEMO_FRAMES
         // to e.g. 30000 for a leisurely click test). Real BuildStructure labor (2c) uses
         // the true target and is unaffected (this block is demo-force + demo-site only).
@@ -432,8 +429,8 @@ char BuildComponent::State8Update(StateMachine* sm) {
 
 // ==================================================================================
 // State8OneShot — sub_7600 (updateHandler for state 8; fires as state 8 exits).
-// Model mode 4 + remove site from the pending-build registry (townMgr+0xd0) + finalize
-// the site MeshInstance.
+// Model mode 4 + remove site from the pending-build registry (townMgr+0xd0) + clear
+// the site StatusIconComponent's icon bit 0 (SetFlag(0, 0)).
 // ==================================================================================
 char BuildComponent::State8OneShot(StateMachine* /*sm*/) {
     _entity->SendEvent(4);
@@ -468,14 +465,10 @@ char BuildComponent::State8OneShot(StateMachine* /*sm*/) {
 // ==================================================================================
 void BuildComponent::State8Finalize() {
     // Retail order: the 8->2 transition puts every controller into state 2, so the
-    // workplace hand-off happens alongside this storage reconfigure. Do it first and
-    // unconditionally — the storage half below early-returns on several data shapes
-    // (no StorageComponent, no StorageDescription) and the profession must clear anyway.
-    // The live WorkPlaceComponent controller links a real state node, so the SAME 8->2
-    // transition enters state 2 on it and the SM dispatches edf0 itself (the faithful
-    // path). BuildComponent_ClearBuilderWorkplace is NOT called here: running the hook
-    // too would drive the enter twice (the register half dedups, but f670's worker
-    // release does not want a second pass).
+    // workplace hand-off happens alongside this storage reconfigure: the live
+    // WorkPlaceComponent controller links a real state node, so the SAME 8->2
+    // transition enters state 2 on it and the SM dispatches edf0 itself. Nothing here
+    // calls it.
 
     // No decal event here: retail 0x140107ff0 (and the 8->2 action 0x1401075e0 that
     // calls it) sends none. The footprint decal went opaque at ClearArea state 2

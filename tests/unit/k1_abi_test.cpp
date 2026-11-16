@@ -3,12 +3,11 @@
 //
 // The ABI claims block K1 makes for the exe `Description` leaves,
 // `ComponentDescription`, `EnvironmentDescription` and `ComponentEntity`,
-// measured on the SHIPPED HEADERS (the bodies stand on the address registry
-// and cannot link into a host test; the real run and the resave gate verify
-// those):
+// measured on the SHIPPED HEADERS (the real run and the resave gate verify
+// the bodies):
 //   - sizeof / alignof against B38_RULES §1.3 (the retail create's MemAlloc);
-//   - polymorphic, concrete, single inheritance from the proved parent, NO
-//     virtual destructor (D2);
+//   - polymorphic, concrete, single inheritance from the proved parent, a
+//     virtual destructor (slot_check::DtorSlotOk);
 //   - SLOT ORDER, read off pointers to virtual members (Itanium PMF = 1 +
 //     vtable byte offset, adjustment 0): every leaf's own slots land on
 //     retail's indices, and the leaf-introduced `Construct` is the LAST slot

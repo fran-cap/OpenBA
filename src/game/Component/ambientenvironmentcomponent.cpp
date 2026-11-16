@@ -34,8 +34,6 @@
 // by worldgen), the weather sim (gameWorld+0x130), and the type-id globals
 // (registered by the factory table). The Audio::Scene is live and ticked in-game.
 //
-// Gated by BANISHED_AMBIENT_AUDIO (default ON; =0 restores the inert no-op for
-// A/B). Set BANISHED_AMBIENT_TRACE=1 for per-tick diagnostics.
 //
 
 #include "Component/AmbientEnvironmentComponent.h"

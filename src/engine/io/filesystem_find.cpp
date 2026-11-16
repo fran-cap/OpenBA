@@ -15,12 +15,8 @@
 // out of Runtime-x64.dll's export directory with `pefile` BEFORE a line of this
 // file was written — names from the name array, ordinals from the ordinal array
 // plus the ordinal base, not transcribed from a note or a decompile. Lane PKG
-// got seven of eight ordinals wrong reconstructing them by hand, and a name the
-// DLL does not contain resolves NULL silently and forever
-// (reference_resolveexport_phantom_names.md). The two internals have NO name in
-// either shipped build, which is why they are `RegisterRuntimeAddr` only.
-//
-// and leaves every call on the DLL.
+// got seven of eight ordinals wrong reconstructing them by hand. The two
+// internals have NO name in either shipped build.
 //
 // ---------------------------------------------------------------------------
 // NO NEW IMPORT LIBRARY. Read this first; it is the one thing only the
@@ -31,33 +27,22 @@
 // FindNext / FindClose since Phase D.4 THREADS E.6 (platform_file.h; the file was
 // `filesystem_find_win.cpp`). All four are KERNEL32, which MinGW links by
 // default and which this tree already depends on — GetFileAttributesW is
-// also called by filesystem_setupdirs.cpp's SetupDirectories. **SA_LIBS
-// is untouched and needs no change.** Verified by an `nm` undefined-symbol
-// cross-check of the object against the linked exe's import set, not by
-// assumption; see the report.
+// also called by filesystem_setupdirs.cpp's SetupDirectories.
 //
 // ---------------------------------------------------------------------------
 // 1. WHY THE TWO SMALL ROWS OUTRANK THE BIG ONE
 // ---------------------------------------------------------------------------
-// `?Exists@FileSystem@IO@@` is ALREADY PORTED (filesystem.cpp:151) and its body
+// `?Exists@FileSystem@IO@@` is ALREADY PORTED (filesystem.cpp:210) and its body
 // is, in full:
 //
 //     if (fs->existsInPackfileGate && ExistsInPackfile(path)) return true;
 //     if (!fs->platformExistsGate) return false;
 //     return PlatformExists(path);
 //
-// Both callees go through RT_EXPORT_ONCE — the port-aware door — and until this
-// file, NEITHER had a port or a mint entry. `FileSystem::Startup` sets the
+// Both callees are members ported below. `FileSystem::Startup` sets the
 // packfile gate at `FileSystem+0x18` to 1 before it calls `LoadPackages`, so
 // from that instant every `Exists()` in the process takes the packfile arm
-// first. That is a null call at cutover on a path essentially everything takes.
-//
-// **No instrument in this project reports it.** A satisfied-LOOKING port-aware
-// door is exactly what `rawdoor_audit` and `port_bypass_audit` are built to
-// pass — they ask "is this door port-aware", which is necessary and not
-// sufficient. Only `tools/unsatisfied_export_scan.py` asks the sufficient
-// question: does the NAME have a port or a mint entry. Both names were in its
-// output at HEAD; see the report for the before/after denominators.
+// first.
 //
 // ---------------------------------------------------------------------------
 // 2. THE INHERITED HOLDBACK, AND THE RULE IT PRODUCED
@@ -71,7 +56,7 @@
 //
 // So: **re-derive an inherited blocker against the state at YOUR call site, not
 // the state at the site it was written for**, and say which function last
-// writes that state. Every holdback this lane leaves behind (§7) names its
+// writes that state. Every holdback this lane leaves behind (§8) names its
 // state and its last writer, which is what makes a holdback re-checkable
 // instead of inherited forever.
 //
@@ -79,7 +64,7 @@
 // 3. ?ExistsInPackfile@ — 0x1800ab180
 // ---------------------------------------------------------------------------
 // Read as disassembly, never as Ghidra's C (which drops dereferences and prints
-// MOVSXD as a zero extension — reference_ghidra_c_output_vs_disassembly.md).
+// MOVSXD as a zero extension).
 //
 //     bool FileSystem::ExistsInPackfile(const Filename& path) const
 //     {
@@ -129,13 +114,12 @@
 // INVALID_FILE_ATTRIBUTES, not a HRESULT).
 //
 // **0x1800cab50 is ALREADY PORTED.** It is
-// `??0WideString@System@@QEAA@AEBVString@1@@Z`, and lane FS registered our body
-// at exactly that address — `RegisterRuntimeAddr(0x1800cab50,
-// &RtSystem_WideString_CtorFromString)` at src/engine/system/widestring.cpp:531.
-// So this row has ZERO unported dependencies, and the six lines below are the
-// same six that already sit inline at filesystem_setupdirs.cpp:365-370,
+// `??0WideString@System@@QEAA@AEBVString@1@@Z`, `System::WideString`'s ctor
+// from a String (src/engine/system/widestring.cpp:421), the ctor the body below
+// calls. So this row has ZERO unported dependencies, and the lines below are the
+// same ones that already sit inline at filesystem_setupdirs.cpp:316-321,
 // where lane FS transcribed this very body out of the MSVC-inlined copy in
-// `SetupDirectories`. Two lanes reached the same six lines from opposite
+// `SetupDirectories`. Two lanes reached the same lines from opposite
 // directions; that agreement is worth more than either derivation alone.
 //
 // ---------------------------------------------------------------------------
@@ -186,8 +170,8 @@
 //
 // It is not dead code. `AdjustDelimiters`' first phase rewrites '/' to '\\'
 // **in place, through the shared buffer** (see the port at
-// src/engine/system/filename.cpp:194 — it stores into `self->data[k]`, and
-// `self->data` here IS the caller's buffer, refcounted, not copied). The local
+// src/engine/system/filename.cpp:219 — it stores through `_data`, and
+// `_data` here IS the caller's buffer, refcounted, not copied). The local
 // exists SOLELY for that side effect on the caller's string. Dropping it as an
 // unused variable would compile, run, and silently stop normalising the
 // caller's path. Transcribed as written, with the release in retail's place.
@@ -231,8 +215,7 @@
 //     read a register the caller never set.
 //   * the element assign is a CALL, not an inlined copy: 0x180026913 calls
 //     0x1800067d0, which is `??0Filename@System@@QEAA@AEBV01@@Z` — already
-//     ported and already registered at that address
-//     (src/engine/system/filename.cpp:470). Filename's copy ctor zeroes `self`
+//     ported (src/engine/system/filename.cpp:86). Filename's copy ctor zeroes `self`
 //     before touching it, which is what makes it safe on the raw uninitialised
 //     tail slots this loop hands it.
 //   * the element destroy is 0x180009af0 (0x180061480 uses 0x180005930), so it
@@ -249,41 +232,11 @@
 // is that Enter/Free/Leave with the null test inside it, which is why the code
 // below hands it a possibly-null pointer exactly as retail does.
 //
-// I register 0x180009af0 as well as calling it, so the address is satisfied at
-// cutover. **That claim is about this ONE address.** Lane Q's J1 result — one
-// body serving eleven addresses — does NOT generalise here: a destroy loop is
-// element-typed, and another `Array<T>::Destroy` instantiation would release
-// something other than a refcounted char buffer. Nothing is claimed about any
-// other destroy address, and none is registered.
+// Lane Q's J1 result — one body serving eleven addresses — does NOT
+// generalise here: a destroy loop is element-typed, and another
+// `Array<T>::Destroy` instantiation would release something other than a
+// refcounted char buffer. Nothing is claimed about any other destroy address.
 //
-// ---------------------------------------------------------------------------
-// 7. ORACLES — one real, one real, one genuine, and its exact weakness
-// ---------------------------------------------------------------------------
-// `ExistsInPackfile` and `PlatformExists` are PURE READS (a tree walk and a
-// GetFileAttributesW), so both get a full call-ours-then-theirs comparison.
-//
-// `FindFiles` is NOT a pure read — it appends to the caller's array, so the
-// naive replay would double it. But its only mutation IS that array, and the
-// array is a PARAMETER. So the oracle hands the shipped body a SEPARATE scratch
-// array and compares the two lists: count first, then every path, in order.
-// That is a genuine independent comparison against the shipped body, not a
-// shadow, and it is the strongest oracle in this file.
-//
-// **AND HERE IS EXACTLY HOW STRONG IT IS NOT.** `FindFiles` returns a LIST, and
-// a list comparison is only worth the number and variety of its entries — the
-// project has already been burned by a ported inline `strcmp` that returned 0
-// for every distinct pair sharing a first byte and survived four waves of
-// oracles because 13 of 14 values in the population were 0. On its live call
-// site the population is `*.pkg` in the pack directory, which is a HANDFUL of
-// files SHARING A COMMON PREFIX (the directory path) and a common suffix
-// (".pkg"). If that directory yields one entry, or entries differing only in
-// the middle, a green `divergences=0` here means considerably less than it
-// looks like. The shadow prints the COUNT for exactly that reason, so a reader
-// can size the evidence instead of trusting the verdict. The `recursive=true`
-// arm has NO live caller in this tree at all and would be verified by nothing.
-//
-// **NOTHING IN THIS FILE HAS BEEN EXECUTED.** No build of the game, no run, no
-// log; this lane does not deploy. §8 is a prediction, not a report.
 //
 // ---------------------------------------------------------------------------
 // 8. HOLDBACKS — each with the state it depends on and that state's LAST WRITER
@@ -292,64 +245,11 @@
 // internals are ported. What `FindFiles` does NOT close, and why, in the form
 // §2 argues for:
 //
-//   * `??0PackageFile@IO@@QEAA@XZ` (0x1800b4440) and `?ReadPackfile@` — lane
-//     PKG's rows, not mine, and PackageFile's ctor is blocked on a MINT ROW
-//     (`??_7PackageFile@IO@@6B@`, 0x180155700, 9 slots) rather than on code.
-//     STATE: the mint table's contents. LAST WRITER: the integrator, in
-//     standalone/rt_data_mint_tables.inc, which this lane must not touch.
-//     Unchanged by anything here.
-//
 //   * The other `Array<T>::Destroy` instantiations. STATE: which element type
 //     each address serves. LAST WRITER: MSVC, at link time — there is no
 //     runtime state to re-check, so this one is closed by READING each body,
 //     not by re-deriving a condition. Deliberately not attempted here.
 //
-// ---------------------------------------------------------------------------
-// 9. PREDICTION FOR ATTEMPT 13, AND WHAT WOULD FALSIFY IT
-// ---------------------------------------------------------------------------
-// `FindFiles` returns cleanly and `LoadPackages` proceeds into LOOP 1, so the
-// next fault is **`??0PackageFile@IO@@QEAA@XZ`** (0x1800b4440, ord 289), EXEC
-// of 0, symbolising in **`RtIo_FileSystem_LoadPackages`** — the SAME enclosing
-// function as attempt 12, at a HIGHER offset than +0x111 — and **the frame
-// count STAYS THE SAME** (#1 LoadPackages, #2 Startup, #3 Engine::Startup).
-// It stays because `FindFiles` is a leaf as far as the ladder is concerned: it
-// returns, it does not add a frame under the fault.
-//
-// THE EFFECTIVENESS CONTROL, which is cheap and which this lane asks for by
-// name. Lane PKG's control (commit cda4cc2) established the pattern: a kill
-// switch that restores the PREVIOUS rung's exact fault is the cheapest strong
-// evidence that the port, and nothing else that changed between builds, caused
-// the advance. So run attempt 13 twice on the SAME binary:
-//
-//   the old DLL-era switch unset -> ??0PackageFile@,  #1 RtIo_FileSystem_LoadPackages
-//   the old DLL-era switch     -> ?FindFiles@,      #1 RtIo_FileSystem_LoadPackages +0x111
-//
-// The =0 arm must reproduce attempt 12 EXACTLY — same symbol, same function,
-// same +0x111, same frame count. If it does not, the advance was not this
-// lane's doing, whatever the unset arm shows. Note this lane's control is
-// WEAKER than lane PKG's in one specific way and I would rather say so than
-// let it be read as equally strong: PKG's switch moved a FRAME, which is a
-// structural change no coincidence produces, whereas mine moves only the
-// SYMBOL within one frame.
-//
-// FALSIFIERS, in the order they are worth reading:
-//
-//  * **A fault still naming `?FindFiles@` falsifies this hardest**, and points
-//    at the REGISTRATION rather than the body — check that
-//    `[RtPort] IO: N exports registered` moved by 3, and that
-//    the old DLL-era switch is not set to 0 in the run's environment.
-//  * A fault naming `?ReadPackfile@` instead means `??0PackageFile@` is
-//    satisfied from somewhere this lane did not find — good news, two rows in
-//    one step, and it would mean lane PKG's mint holdback (§8) is already met.
-//  * A CRASH rather than an `EXEC of 0` — particularly a read fault inside
-//    `SetSizeCore` — means the element spec below is wrong, and the first thing
-//    to check is the stride: an `Array<Filename>` grown at stride 0x10 would
-//    corrupt the heap without ever calling a null pointer.
-//  * NO fault and the boot proceeding past `FileSystem::Startup` entirely would
-//    mean the pack directory is EMPTY, so LOOP 1 never runs and neither
-//    `??0PackageFile@` nor `?ReadPackfile@` is reached. The tell is the
-//    LoadPackages shadow printing `found=0`; that is a different and much more
-//    interesting bug than a missing symbol.
 // ============================================================================
 
 #include <cstdint>
@@ -368,7 +268,7 @@
 #include "io/packfile_fold_index.h"   // block PATHINDEX: the hash index beside _packfileIndex
 
 #include <new>        // placement new into a raw Array<Filename> element
-#include <utility>    // std::move -- the pointer steal out of a POD out-param
+#include <utility>
 
 // ENDGAME B.3.1 step 2: the two Wave-2 / lane-FS entry points this file
 // forward-declared here — `RtSystem_Filename_CtorCopy` (0x1800067d0) and
@@ -381,18 +281,14 @@
 namespace RtIO {
 
 
-// Retail's `Collection::Array<Filename>` — {_data, _size, _capacity}, the same
-// 16-byte header every Array in this engine has (src/engine/collection/
-// Collection.h). Spelled locally with the element type so the append code below
-// reads as what it is; lane PKG's `FoundArray` in filesystem_packages.cpp is
-// the identical shape and is what the live call site passes.
-// `FilenameArray` (the 16-byte out-parameter header) is defined in
-// src/engine/io/FileSystem.h, with the 0x180026880 pins that stood here.
+// `FilenameArray` (the 16-byte out-parameter header, retail's
+// `Collection::Array<Filename>`) is defined in src/engine/io/FileSystem.h,
+// with the 0x180026880 pins.
 
 
 
 // Case-insensitive ASCII compare, sign-preserving. Duplicated from
-// filesystem.cpp for the reason that file gives: runtime/src stays free of a
+// filesystem.cpp for the reason that file gives: src/engine stays free of a
 // CRT `_stricmp` whose locale behaviour differs between toolchains (PLAN.md
 // §4.1). Retail calls the CRT's at 0x18007eefc, in the "C" locale (the DLL
 // never calls setlocale), where it is plain ASCII case folding.
@@ -481,7 +377,7 @@ static void AppendFilename(FilenameArray* out, const System::Filename* value) {
 
 // ============================================================================
 // ?ExistsInPackfile@FileSystem@IO@@QEBA_NAEBVFilename@System@@@Z  0x1800ab180
-// See §3. DIFF: full oracle — read-only on both sides.
+// See §3.
 // ============================================================================
 
 }  // namespace RtIO
@@ -491,8 +387,7 @@ static void AppendFilename(FilenameArray* out, const System::Filename* value) {
 // ============================================================================
 // Defined outside `namespace RtIO` because a member of `IO::X` must appear in a
 // namespace ENCLOSING the class (B34_BRIEFS section A.2); these bodies reach
-// this translation unit's `RtIO`-scoped names — `StriCmpAscii`, `AsString`,
-// `WideString` and the three `RtSystem_WideString_*` entry points — as
+// this translation unit's `RtIO`-scoped names — `StriCmpAscii` — as
 // `RtIO::X`. Every POD is spelled `RtIO::` or `RtSystem::` and every real class
 // `System::` (B34_RULES section 7.2).
 //
@@ -569,9 +464,7 @@ bool FileSystem::ExistsInPackfile(const System::Filename& pathRef) const {
 
 // ============================================================================
 // ?PlatformExists@FileSystem@IO@@AEBA_NAEBVFilename@System@@@Z    0x1800adc70
-// See §4. PRIVATE (AEBA), not QEBA — the QEBA spelling is not an export and
-// would resolve NULL forever. DIFF: full oracle; GetFileAttributesW is a stat,
-// so running both sides mutates nothing.
+// See §4. PRIVATE (AEBA) in retail, not QEBA.
 // ============================================================================
 bool FileSystem::PlatformExists(const System::Filename& pathRef) const {
     const System::Filename* const path = &pathRef;
@@ -591,7 +484,7 @@ bool FileSystem::PlatformExists(const System::Filename& pathRef) const {
 
 }  // namespace IO
 
-// `FindFilesImpl` and the `FindFiles` door go back inside `namespace RtIO`:
+// `FindFilesImpl` goes back inside `namespace RtIO`:
 // the helper is file-local, recursive and RtIO-scoped, and reopening the
 // namespace keeps it exactly where it was rather than moving a section-D-bound
 // recursive body. `IO::FileSystem::FindFiles` follows, after it.
@@ -599,13 +492,12 @@ namespace RtIO {
 
 // ============================================================================
 // ?FindFiles@FileSystem@IO@@QEBAX…                                0x1800ad7a0
-// See §5. The diff lives in the wrapper below, not here, because the oracle
-// needs to substitute the OUT ARRAY and this body must stay re-entrant (it
-// recurses into itself).
+// See §5. The member `IO::FileSystem::FindFiles` below calls this body, which
+// recurses into itself.
 // ============================================================================
 // ENDGAME B.3.1 step 2: this helper is file-local and recursive, so its two
-// String parameters are the classes. The REGISTERED entry point below keeps its
-// retail POD signature and bridges into this one.
+// String parameters are the classes. The member `IO::FileSystem::FindFiles`
+// below bridges into this one.
 static void FindFilesImpl(const void* fs, const System::String* dir,
                           const System::String* pattern,
                           bool recursive, FilenameArray* out) {

@@ -1,18 +1,13 @@
 // src/game/Player/tool_base_tile.cpp
-// Player wave (round 2) — "tile" sub-batch. Shared PlacementTool tile/footprint
-// helpers resolved via ResolveAddr(Module::Exe, 0xADDR) from src/game/Player/*.cpp.
-//
-// These resolve to 0 (silently skipped) unless registered. This file provides
-// faithful 1:1 reimplementations and a single registration point
-// (RegisterPlayerTileBatch in standalone/reg_player_tile.cpp) so the call sites
-// fire real logic.
+// "tile" sub-batch. Shared PlacementTool tile/footprint helpers, called by name from
+// src/game/Player/*.cpp and src/game/Component/*.cpp.
 //
 // Each function is a 1:1 port of the decompiled+disassembled exe helper; do not
 // "improve" behavior.
 
 // The runtime type headers come FIRST: they pull src/engine/volume/Volume.h,
 // whose global-scope `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()`
-// once <windows.h> has been seen through resolve.h.  ENDGAME B.3.5 batch I2.
+// once <windows.h> has been seen.  ENDGAME B.3.5 batch I2.
 #include "graphics/Mesh.h"
 #include <new>
 #include "object/External.h"
@@ -29,10 +24,10 @@
 #include "Object/factory_registration.h"
 #include "Component/ModelComponent.h"   // ModelComponent::TypeId (scoped find)
 #include "Component/ModelDescription.h"
-#include <cstdio>                            // BANISHED_TOOL_DIAG place-model trace
-#include <cstdlib>                           // std::getenv
-#include <cstring>                           // std::strcmp (BANISHED_CLEAR_PLACE_OVER)
-#include <climits>                           // INT_MIN (reject-trace dedupe)
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <climits>
 #include "object/Internal.h"   // ENDGAME B.3.3 step 6B
 #include "Player/exe_bodies.h"
 #include "Player/PlacementTool.h"
@@ -154,7 +149,7 @@ uint64_t Map::FootprintValidity(int param_2, int param_3, int param_4, int param
 // ============================================================
 // 0x1400fd650 — PlacementTool::CreateAt (validate + create the placed entity)
 // ============================================================
-// Validates the rectangle via ToolTile_FootprintValidity_d580; on success spawns a
+// Validates the rectangle via Map::FootprintValidity (0x14009d580); on success spawns a
 // placed ComponentEntity (0x1400c3720), writes its MapComponent footprint rect
 // (+0x28..+0x2E), orientation (+0x30 normalised into [0,0x168)), sets its
 // ModelComponent transform (0x140003870), fixes up its model, registers it in the
@@ -325,7 +320,7 @@ uint64_t PlacementTool::CreateAt(int param_2, int param_3, int param_4, int para
     // NB there is deliberately NO map-cell occupancy write here: retail's chain is
     // MapComponent::Draw (slot 6) -> gate `MapDescription+0x30 != 0` -> 41b0 -> dc20,
     // and +0x30 is 0 for a WoodHouse. A building claims its cells LATER, when its
-    // ClearArea reaches state 2 (MapComponent_Slot12VSlot, mapcomponent.cpp).
+    // ClearArea reaches state 2 (MapComponent::OnEvent, mapcomponent.cpp).
 
     // 0x1400fd960's body is void: every caller of this function reads only AL (= 1).
     // EXT SEAM (NOT RETAIL, docs/android/P11_TOUCH_POINTER.md section 2): ext.touch_pointer's Shift toggle keeps

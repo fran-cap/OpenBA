@@ -23,8 +23,8 @@
 // The spatial bucketing does NOT affect the transform write; it only governs proximity
 // queries + culling. If the real ctor is later found, replace levels/worldSize here.
 //
-// Gated behind BANISHED_LIVE_CHARACTER_MOVETICK (the env that enables the move-tick tail).
-// Default builds stay byte-unchanged.
+// Called from gameupdateloop_load.cpp with no flag test: before the worldgen citizen spawn and,
+// on the load-from-save path, before SaveRestore.
 
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree

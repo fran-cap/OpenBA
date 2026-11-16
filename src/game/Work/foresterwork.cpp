@@ -23,7 +23,7 @@
 #include "math/Math.h"
 #include "Action/exe_bodies.h"      // B3R: bodies called by name
 #include "Component/exe_bodies.h"   // B3R: bodies called by name
-#include "Player/exe_bodies.h"      // B3R: 0x14009f5d0
+#include "Player/exe_bodies.h"
 #include "Game/exe_constants.h"     // B3R: kRdata_*
 #include <cstring>
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch C
@@ -58,42 +58,42 @@
 // Sub-functions, called by name (B3R; the module exe_bodies.h headers)
 // ============================================================
 //   0x1400e3db0  Work::TryAutoPickup
-//   0x140003050  WorkBase_FindComponent_3050
-//   0x140002f90  WorkBase_FindComponent_2f90
-//   0x14012c3f0  CitizenComp_FUN_14012c3f0
+//   0x140003050  ComponentEntity::FindComponent<WorkComponent>
+//   0x140002f90  ComponentEntity::FindComponent<StatusIconComponent>
+//   0x14012c3f0  StatusIconComponent::SetFlag
 //   0x14012e5c0 WorkComponent::CalcMaxWorkers
 //   0x140132010  WorkImpl_Sqrtf_132010
-//   0x14000c3c0  WorkLeaf_FindGrowthDescription_c3c0
-//   0x140087fb0  Pf_EntityAnchorCell_7fb0
-//   0x14009c480  Pf_ZoneRefresh_9c480
-//   0x140008830  WorkBase_CalcDistance_8830
-//   0x14009ccf0  WorkGrid_FindCell_9ccf0
-//   0x1400a00f0  WorkBase_ValidateCell_a00f0
-//   0x1400052c0  WorkBase_FindComponent_52c0
-//   0x140006330  WorkAcc_FindComponent_6330
-//   0x14009f5d0  PlayerPath_CharComp_f5d0
-//   0x14009f3e0  Reimpl_MapGetTerrainPos
-//   0x140120c30  WorkLeaf_FootprintOwnerCheck_120c30
+//   0x14000c3c0  ComponentDescription::FindDescription<GrowthDescription>
+//   0x140087fb0  EntityAnchorCell
+//   0x14009c480  Map::FillZones
+//   0x140008830  Map::CalcDistance
+//   0x14009ccf0  Map::FindCell
+//   0x1400a00f0  Map::ValidateCell
+//   0x1400052c0  ComponentEntity::FindComponent<NaturalResourceComponent>
+//   0x140006330  FindSubComponentInList<RawMaterialDescription> (the inlined scan)
+//   0x14009f5d0  Map::TestPlacement
+//   0x14009f3e0  Map::GetTerrainPos
+//   0x140120c30  GrowthDescription::CheckFootprint
 //   0x1400be6e0  WorkAct_PlantWorkCtor_be6e0
 //   0x1400c2490  WorkAct_PlayAnimationCtor_c2490
 //   0x1400c1eb0  WorkAct_PerformWorkCtor_c1eb0
 //   0x140021a30  WorkBST_RegisterWork_1a30
-//   0x140115e60  CitizenAI_State_LongTermPlan
-//   0x140006270  WorkBase_FindComponent_6270
+//   0x140115e60  CitizenComponent::LongTermPlan
+//   0x140006270  ComponentEntity::FindComponent<StorageComponent>
 //   0x14012cf10  StorageComponent::QueryCount
 //   0x1400296b0  WorkBST_BST_Serialize_296b0
 //   0x1400f7100  Work::ValidateTask
 //   0x14001a6e0  WorkBST_BSTRemove_a6e0
 //   0x140025520  WorkBST_BSTFindRemove_25520
-//   0x1400c5400  WorkBase_TaskListCleanup_c5400
-//   0x140002e10  AttendanceComponent_GetJobHostComponent
-//   0x140014c30  WorkBase_TreeNodeFree_14c30
+//   0x1400c5400  ActionStack::Clear
+//   0x140002e10  ComponentEntity::FindComponent<WorkPlaceComponent>
+//   0x140014c30  WorkBase_TreeNodeFree
 //   0x140172184  kRdata_140172184 (.rdata)
 //   0x140172248  kRdata_140172248 (.rdata)
 //   0x14017213c  kRdata_14017213c (.rdata)
 //   0x140172114  kRdata_140172114 (.rdata)
 //   0x14017214c  kRdata_14017214c (.rdata)
-//   0x1401260f0  ActCNR_RemoveNatRes_1260f0 (the force-harvest harness only)
+//   0x1401260f0  NaturalResourceComponent::RemoveResource (the force-harvest harness only)
 //
 // Vtable pointers for dtor chain
 //
@@ -167,8 +167,7 @@ static void AssignWorkToEntity(ForesterWork* self, CitizenComponent** citizenIBP
         citizen->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
     }
 
-    // Register work with citizen AI subsystem at self+0x48 (the tree helper takes the
-    // container as uintptr_t*: LEFT)
+    // Register work with citizen AI subsystem at self+0x48 (the tree helper takes the Set)
     WorkCitizenSetNode* inserted;   // the out-node slot (retail reuses workEntity's)
     WorkBST_RegisterWork_1a30(&self->_citizens, &inserted, citizenIBP);
 }
@@ -181,7 +180,7 @@ static void AssignWorkToEntity(ForesterWork* self, CitizenComponent** citizenIBP
 // Algorithm:
 // 1. Check if citizen already has auto-pickup assignments
 // 2. Find WorkComponent, ForesterComponent / ForesterDescription, RadiusDescription
-// 3. Check if material count has reached capacity (return 1 = done if so)
+// 3. Check if material count has reached capacity (sets status icon flag 2; no return)
 // 4. Calculate search radius from workplace radius
 // 5. Random iteration over grid cells in radius
 // 6. For each valid cell:
@@ -253,8 +252,7 @@ int ForesterWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
     // Get tree count (the assigned count, self+0x50)
     int treeCount = _citizens._count;
 
-    // If the worker capacity cache is 0, calculate it (the tree's port of 0x14012e5c0
-    // called here takes the component as an integer: LEFT)
+    // If the worker capacity cache is 0, calculate it (WorkComponent::CalcMaxWorkers, 0x14012e5c0)
     if (matDesc->workState == 0) {
         int maxWorkers = matDesc->CalcMaxWorkers();
         matDesc->workState = maxWorkers;
@@ -366,7 +364,7 @@ int ForesterWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
                 uint32_t combinedBits = testTerrainBit | entityTerrainBit;
                 uint32_t fullMask = combinedBits | Bits(PathBits::Walk);
 
-                // Both cells must be passable
+                // Retail's test (0x1400eb344): the mask holds both cells' own bits, so it never rejects
                 if ((fullMask & testTerrainBit) == 0) goto next_attempt;
                 if ((fullMask & entityTerrainBit) == 0) goto next_attempt;
 
@@ -405,7 +403,7 @@ int ForesterWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
 
                 if (plantEnabled && resourceEntity == nullptr) {
                     // PLANT PATH: empty cell, check if we can plant here
-                    bool canPath = static_cast<uint8_t>(map->ValidateCell(PathBits::Walk, testCell, citizenGridCell));   // the door read AL
+                    bool canPath = static_cast<uint8_t>(map->ValidateCell(PathBits::Walk, testCell, citizenGridCell));   // the low byte (AL) is the bool
                     if (canPath) {
                         // Check terrain suitability for planting
                         bool terrainOk = map->TestPlacement(   // 0x14009f5d0 (the Map* overload; the int* forwarder went)
@@ -413,7 +411,7 @@ int ForesterWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
                             fMinGrowthVal, fMaxHeight, 0.0f, 0, 0, nullptr);
                         if (terrainOk) {
                             // Check natural resource density limits (0x140120c30)
-                            bool densityOk = static_cast<uint8_t>(natResDesc->CheckFootprint(testCellX, testCellY));   // the door read AL
+                            bool densityOk = static_cast<uint8_t>(natResDesc->CheckFootprint(testCellX, testCellY));   // the low byte (AL) is the bool
                             if (densityOk) {
                                 // Reset fail counter
                                 _failedSearchCount = 0;
@@ -500,7 +498,7 @@ int ForesterWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
                             if (nearestCell < 0) goto next_attempt;
 
                             // Check path to the nearest passable cell
-                            bool canPath2 = static_cast<uint8_t>(map->ValidateCell(PathBits::Walk, nearestCell, citizenGridCell));   // the door read AL
+                            bool canPath2 = static_cast<uint8_t>(map->ValidateCell(PathBits::Walk, nearestCell, citizenGridCell));   // the low byte (AL) is the bool
                             if (!canPath2) goto next_attempt;
 
                             // Reset fail counter
@@ -519,7 +517,7 @@ int ForesterWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
 
                             // ── PHASE 5 PRODUCE VERIFICATION (env BANISHED_FORCE_HARVEST, default OFF) ──
                             // The organic delivery of a citizen to the tree is gated on the pathfinder
-                            // MoveTo/arrival keystone (project_citizen_pathfinding_zero_dest) — citizens
+                            // MoveTo/arrival keystone — citizens
                             // currently drift via walk-anim root-motion and never arrive. To verify the
                             // Phase-5 PRODUCTION chain (RemoveNaturalResource::Main → FUN_1401260f0 →
                             // RegisterRawMaterial) end-to-end independent of that movement blocker, this
@@ -542,8 +540,8 @@ int ForesterWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
                                     fflush(stderr);
                                     // 0x1401260f0 (was its ActCNR_RemoveNatRes_1260f0 forwarder)
                                     nrc->RemoveResource(workIBPbuf, 1);
-                                    // With BANISHED_PRODUCE_SPAWN_ENTITY the force-produce just
-                                    // REMOVED the tree (dirty-list -> freed next EntityList tick).
+                                    // The force-produce just REMOVED the tree (dirty-list ->
+                                    // freed next EntityList tick).
                                     // Do NOT also queue the real cut sequence on it: its pending
                                     // AnimateNaturalResource/PerformWork children would execute
                                     // against the freed entity (retail order runs all tree-touching
@@ -615,7 +613,6 @@ int ForesterWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
             citizenEnt2->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
         }
 
-        // (the tree helper takes the container as uintptr_t*: LEFT)
         WorkCitizenSetNode* inserted;   // the out-node slot (retail reuses workEnt's)
         WorkBST_RegisterWork_1a30(&_citizens, &inserted, citizenIBP);
 
@@ -654,7 +651,7 @@ void ForesterWork::Persist(IO::Stream& stream) {
     // Create second serializer (version=0) for BST + int
     IO::Serializer serializer2(stream, 0);
 
-    // Serialize BST at self+0x48 (the helper takes the container as uintptr_t*: LEFT)
+    // Serialize BST at self+0x48
     WorkBST_BST_Serialize_296b0(&_citizens, &serializer2);
 
     // Serialize int field at self+0x58
@@ -663,11 +660,10 @@ void ForesterWork::Persist(IO::Stream& stream) {
 
 
 // ============================================================
-// ForesterWork::Slot6 (0x1400EAEA0) — NOT HOOKABLE
+// ForesterWork::Slot6 (0x1400EAEA0)
 // 20-byte thunk: sub rsp,0x28; add rcx,0x48; call CitizenAI_impl_5520;
 //                xor al,al; add rsp,0x28; ret
 // Removes entity from BST at self+0x48, returns false.
-// Standalone exe only. (The tree helper takes the container as uintptr_t*: LEFT.)
 // ============================================================
 int ForesterWork::OnComplete(CitizenComponent** param2, ComponentEntity** /*arg2*/, int /*arg3*/) {
     WorkBST_BSTFindRemove_25520(&_citizens, param2);
@@ -676,10 +672,9 @@ int ForesterWork::OnComplete(CitizenComponent** param2, ComponentEntity** /*arg2
 
 
 // ============================================================
-// ForesterWork::Slot7 (0x1400EAE90) — 9-byte thunk, too small to hook.
+// ForesterWork::Slot7 (0x1400EAE90) — 9-byte thunk.
 // Thunk: add rcx,0x48; jmp CitizenAI_impl_5520
 // Calls BSTFindRemove on the BST at self+0x48.
-// Standalone exe only.
 // ============================================================
 int ForesterWork::OnCancel(CitizenComponent** param2, ComponentEntity** /*arg2*/, int /*arg3*/) {
     WorkBST_BSTFindRemove_25520(&_citizens, param2);
@@ -811,8 +806,7 @@ int ForesterWork::Validate() {
                     treeNode = treeNode->left;
                 } else {
                     if (searchKey <= nodeKey) {
-                        // Found -- remove this node (the helper takes the container as
-                        // uintptr_t*: LEFT)
+                        // Found -- remove this node
                         WorkBST_BSTRemove_a6e0(&_citizens, treeNode);
                         break;
                     }

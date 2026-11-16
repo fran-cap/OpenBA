@@ -1,6 +1,5 @@
 #pragma once
-// Function declarations for deeply reimplemented UI dialog methods.
-// These are clean game logic functions called from engine/reimpl/ wrappers.
+// Includes Dialog/Dialogs.h; the notes below say where the dialog methods live.
 
 #include "Dialog/Dialogs.h"
 #include <cstdint>

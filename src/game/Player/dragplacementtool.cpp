@@ -4,12 +4,12 @@
 // DragPlacementTool (0x48 bytes) extends DragTool (0x38 bytes).
 // Handles rectangular area placement (e.g., stockpile, marketplace).
 //
-// Vtable at 0x140161b90 (15 slots). The whole vtable is reimplemented in this file:
-//   Slot0  Dtor    (0x14002d900) — scalar deleting destructor
+// Vtable at 0x140161b90 (15 slots), built by the compiler (DragPlacementTool.h):
+//   Slot0  Dtor    (0x14002d900) — scalar deleting destructor (defaulted in DragPlacementTool.h)
 //   Slot4  Startup (0x1400fc3e0) — find description components on entity
-//   Slot13 CalcPath(0x1400fb5c0) — commits the dragged area on drag-release
+//   Slot13 CalcPath(0x1400fb900) — commits the dragged area on drag-release
 //   Slot14 CalcCost(0x1400fbae0) — validate area and calculate cost
-//   plus Draw and the remaining slots, all wired in the vtable at the foot of the file.
+//   plus Draw (Slot8) in this file; the remaining slots are in DragPlacementTool.h or inherited.
 //
 // This banner used to end with "Remaining slots (Draw, CalcPath) are too complex
 // (terrain validation, entity creation, scene rendering) and are not yet
@@ -94,10 +94,10 @@ void DragPlacementTool::Startup() {
 }
 
 // ============================================================
-// Helpers, called by name (Player/exe_bodies.h)
+// Helpers
 // ============================================================
 
-// PlayerPath_CharComp_f5d0 (0x14009f5d0): terrain validation for a single cell.
+// Map::TestPlacement (0x14009f5d0): terrain validation for a single cell.
 // Checks terrain mask, height constraints, overlap flags. Params: (map, col, row,
 // terrainMask, 0.0f, heightTol, 0.0f, allowOverlap, hasExisting, entityTemplate).
 // (Confirmed by the CALL at 0x1400fbcac in DragPlacementTool::CalcCost.)
@@ -396,8 +396,8 @@ void DragPlacementTool::Draw(Video::Context* context, char param3) {
 // ============================================================
 // CalcPath helpers, called by name: 0x1401018d0
 // DragPlacementTool_ClearPathEntities_1018d0 (clears existing path entities and
-// sets up the grid range), 0x1400c3720 ComponentEntity_CtorFromDescription (clone
-// an entity from its description), 0x1400c48a0 EntityList_RegisterEntity_Impl.
+// sets up the grid range), 0x1400c3720 ComponentEntity(ComponentDescription*) (clone
+// an entity from its description), 0x1400c48a0 EntityList::RegisterEntity.
 // ============================================================
 
 // ============================================================

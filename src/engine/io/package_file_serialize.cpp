@@ -8,10 +8,8 @@
 // **Runtime-x64.dll** (retail), read instruction by instruction. Not the
 // profile build, and not Ghidra's decompiled C — this body is nothing but
 // indirect vtable calls through byte offsets, which is exactly the shape
-// Ghidra's C output drops arguments at
-// (reference_ghidra_c_output_vs_disassembly.md), and IO vtable offsets are the
-// one family measured to DIFFER between the two builds
-// (reference_encoding_vtable_offsets_differ_between_builds.md). Every slot
+// Ghidra's C output drops arguments at, and IO vtable offsets are the
+// one family measured to DIFFER between the two builds. Every slot
 // number here comes from `rt::io::rw_vtbl` / `rt::io::encoding_vtbl`, which
 // Wave 4 pinned against the shipped retail bytes.
 //
@@ -70,55 +68,37 @@
 //
 // The `[reading only]` guard is retail's, at 0x1800b6175 / 0x1800b61b5 /
 // 0x1800b6234: `CMP dword ptr [ser.stream + 0x8],0x0 ; JNZ past`. `direction ==
-// 0` is reading (src/engine/io/Serializer.h:230).
+// 0` is reading (`rt::io::kDirectionReading`, src/engine/io/Serializer.h).
 //
 // ---------------------------------------------------------------------------
-// CALLEES — what is ours, what is a DOOR, and what this port COSTS
+// CALLEES
 // ---------------------------------------------------------------------------
 //   0x1800c9930  ?Serialize@String@System@@QEAAXAEAVSerializer@IO@@@Z
-//                DOOR, by address. The same door goal_serialize.cpp:147 and
-//                elementdescription_serialize.cpp:155 already open — not a new
-//                edge on the cutover surface, an existing one reused.
+//                System::String::Serialize.
 //   0x180029a80  Array<String>::SetSize (unexported, two-argument form)
-//                PORTED — src/engine/collection/array.cpp:2055 registers it,
-//                so ResolveAddr (registry-first) hands back OUR body.
+//                rtcoll::RtColl_ArraySetSize_180029a80 (collection/Collection.h).
 //   0x180029510  Array<uint>::SetSize (unexported)
-//                PORTED — array.cpp:2002.
+//                rtcoll::RtColl_ArraySetSize_180029510.
 //   0x180029bb0  Array-of-String serialize (unexported, ~680 bytes)
-//                PORTED — BATCH 8b, src/engine/io/text_codec.cpp registers it,
-//                so ResolveAddr (registry-first) hands back OUR body. It WAS a
-//                new address door this file opened, and the door was honest;
-//                it is now closed rather than merely declared.
+//                RtIo_SerializeStringArray, src/engine/io/text_codec.cpp.
 //
 // SO THIS PORT GREW THE CUTOVER SURFACE BY ONE FUNCTION for a day, and that was
-// stated here rather than discovered later: the pattern is
-// reference_porting_can_grow_the_cutover_surface.md. The trade it weighed —
+// stated here rather than discovered later: porting a caller makes its unported
+// callees newly called. The trade it weighed —
 // "reproducing a 680-byte UTF-8/UTF-16 transcoder to avoid one door is not a
 // better trade" — was the right call at the time and is now moot: the
 // transcoder came with the four text-codec internals, which had to be ported
 // anyway for TextFileStream.
 //
 // ---------------------------------------------------------------------------
-// ORACLE — the emission oracle, WRITING direction, FULL replay
+// THE WRITE PATH MUTATES NOTHING
 // ---------------------------------------------------------------------------
-// "No oracle possible" has been wrong four times across three waves for exactly
-// this shape (reference_write_path_serialize_is_replayable.md), and it is wrong
-// here too. On the write path this body mutates NOTHING:
+// On the write path this body changes no field:
 //   * the three `SetSize` calls are behind retail's own reading-only guard;
 //   * `String::Serialize` on the write path emits and does not touch the field;
 //   * 0x180029bb0 on the write path takes its `direction != 0` arm at
 //     0x180029c44 and 0x180029c66 and reduces to `kScalarUInt(len|0x80000000)`
 //     then `kArrayChar(len, data)` per element — emission only.
-// So NO PREFIX STOP is needed; the whole body replays.
-//
-// **NO GAMEPLAY ROUTE, AND THAT IS NOT THE SAME AS NO ORACLE**
-// (reference_no_route_is_not_no_oracle.md). Nothing in the game writes a .pkg —
-// that is the ToolKit's job — so this body has no natural caller and would
-// report `calls=0` forever. It is therefore driven from
-// `RtIo_PackageFile_SweepProbe` (package_file.cpp), which runs at the tail of
-// LoadPackages with every mounted package fully populated, i.e. against REAL
-// subjects rather than a fabricated one. The probe is gated on
-// the old DLL-era switch and does nothing otherwise.
 // ============================================================================
 
 #include <cstdint>
@@ -207,8 +187,8 @@ int32_t CountTheStreamCanHold(const ::IO::Stream* s, int32_t n) {
 namespace IO {
 
 bool PackageFile::Serialize(IO::Stream& streamv) {
-    // LEFT: the slot's parameter is `void*` (Object::External's slot 5 in
-    // src/engine/object/External.h, read-only to this block).
+    // The slot's parameter is `IO::Stream&` (Object::External's slot 5 in
+    // src/engine/object/External.h).
     Serializer ser(streamv, 0);          // 1800b60ca..e6
     ReaderWriter* const rw = ser._readerWriter;
 

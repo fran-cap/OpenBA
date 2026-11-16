@@ -9,8 +9,8 @@
 // slot (every field and the sizeof are static_asserted). Every slot is an
 // `override` in retail order with the retail address in its trailing comment; the
 // compiler builds the vtable (two destructor slots, so retail slot N >= 1 is
-// compiler slot N + 1 -- nothing indexes these tables). See ../README.md for the
-// status board and ../../decomp/videodx11.md for the derivation.
+// compiler slot N + 1 -- nothing indexes these tables). See src/render/dx11/README.md for the
+// status board and decomp/videodx11.md for the derivation.
 //
 // Fields are named only where a decompiled function proves the meaning;
 // everything else stays a raw slot so the layout stays honest. Do not guess.
@@ -198,7 +198,7 @@ static_assert(offsetof(DeviceData, trackedCapacity) == 0x6c, "DeviceData::tracke
 // Resource *Data subclasses.
 //
 // All twelve vtables were walked 2026-07-24, so each class's slot count is
-// exact (the override lists below and the status board in ../README.md). Fields named
+// exact (the override lists below and the status board in src/render/dx11/README.md). Fields named
 // here are proven by a decompiled slot; the rest stay raw. Do not guess.
 //
 // Every resource class except ContextData reaches D3D11 the same way — it does
@@ -544,7 +544,7 @@ static_assert(offsetof(VertexBufferData, locked) == offsetof(IndexBufferData, lo
 // ??0VertexLayoutData@Video@@QEAA@PEAVVertexLayout@1@@Z. The Video::VertexLayout
 // fields slot 2 reads (element array @ +0x20/+0x28, input signature @
 // +0x38/+0x40) and the 0x20-byte Element layout are pinned with static_asserts
-// in src/render/dx11/dx11_backend_access.h.
+// in src/engine/video/VertexLayout.h.
 //
 // B5 RES: a real C++ subclass of `Video::VertexLayoutData`; the compiler builds
 // its vtable (retail slot N >= 1 is compiler slot N + 1, which nothing indexes).
@@ -584,7 +584,7 @@ static_assert(offsetof(VertexLayoutData, inputLayout) == 0x10, "VertexLayoutData
 // fallback when the requested permutation was never compiled. The permutation
 // byte code lives on the owner: Video::ShaderProgram+0x40 is a
 // Collection::Array<Collection::Array<unsigned char>>, one blob per
-// permutation, pinned with static_asserts in src/render/dx11/dx11_backend_access.h.
+// permutation, pinned with static_asserts in src/engine/video/ShaderProgram.h.
 // Owner type confirmed by the Runtime ctor export
 // ??0VertexProgramData@Video@@QEAA@PEAVVertexProgram@1@@Z.
 //
@@ -663,7 +663,7 @@ static_assert(sizeof(PixelProgramData::variants) == 0x20, "4 shader permutations
 // The +0x08 owner is a Video::RenderState; its field map (the source of every
 // state-desc value) is the real class's (src/engine/video/RenderState.h),
 // read by name in src/render/dx11/renderstatedata.cpp, and is described in the
-// "RenderState -> D3D11 state objects" section of ../../decomp/videodx11.md.
+// "RenderState -> D3D11 state objects" section of decomp/videodx11.md.
 //
 // B5 RES: a real C++ subclass of `Video::RenderStateData`; the compiler builds
 // its vtable. `_owner` (+0x08, `Video::RenderState*`) is the base's and replaces
@@ -743,8 +743,9 @@ static_assert(offsetof(VideoProgramData, _owner) == 0x08, "VideoProgramData::_ow
 // "0 private bytes" is true of the class but NOT of the code: slots 2 and 3
 // reach real D3D11 views through the owner. Video::RenderBuffer is a
 // (colour, depth) Video::ImageBuffer pair at +0x00/+0x08 and each ImageBuffer
-// carries its VideoDX11::ImageBufferData at +0x60 — all pinned with
-// static_asserts in src/render/dx11/dx11_backend_access.h. Owner type confirmed by
+// carries its VideoDX11::ImageBufferData at +0x60 — pinned with static_asserts in
+// src/render/dx11/dx11_backend_access.h (the pair) and src/engine/video/ImageBuffer.h
+// (+0x60). Owner type confirmed by
 // ??0RenderBufferData@Video@@QEAA@PEAVRenderBuffer@1@@Z, and the pair shape by
 // ?Create@RenderBuffer@Video@@QEAA_NPEBVImageBuffer@2@0@Z.
 //

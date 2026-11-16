@@ -7,8 +7,8 @@
 //   slot  method                retail       where
 //   ----  --------------------  -----------  ---------------------------------
 //    0    vector deleting dtor  0x18003fed0  EditElement.h (the class's own)
-//    1    TypeName              0x18003fae0  here
-//    2    Type                  0x18003fac0  here
+//    1    TypeName              0x18003fae0  EditElement.h (DECLARE_TYPE)
+//    2    Type                  0x18003fac0  EditElement.h (DECLARE_TYPE)
 //    4    ComputeSize           0x1800d0c10  here
 //    5    ComputeLayout         0x1800d0ab0  here
 //    6    Draw                  0x1800d0820  here
@@ -19,7 +19,7 @@
 // B.3.9 UI-A: the class is concrete; its real ctor ??0 0x1800d0f10 is in the
 // header, and the copy-ctor door, which had no caller, is retired).
 //
-// Slots 4/5/6/7 are ALSO NumberEditElement's (it inherits them); registered
+// Slots 4/5/6/7 are ALSO NumberEditElement's (it inherits them); defined
 // once, here.
 //
 // *** THE VTABLE IS THIRTEEN SLOTS, NOT TWELVE. *** `?FinalizeText@` is slot 12
@@ -29,13 +29,12 @@
 // ENDGAME B.3.6 block C3: every slot body is a `UI::EditElement` member
 // (src/engine/ui/EditElement.h — the 0xf8 layout, pinned from the ctor
 // 0x1800d0f10; the old header's "size not asserted" and NumberEditElement.h's
-// 0xE8 are gone). The registered doors delegate with a QUALIFIED call. The
-// base `Element::Update` call is the qualified member; slot 12 is a C++
-// virtual call (it reads the MINTED table, exactly as retail's
-// `CALL [RAX+0x60]`); Font / SpriteContext calls are direct member calls.
+// 0xE8 are gone). The base `Element::Update` call is the qualified member;
+// slot 12 is a C++ virtual call (retail's `CALL [RAX+0x60]`); Font /
+// SpriteContext calls are direct member calls.
 //
-// NOT HERE: `?SetText@EditElement@UI@@` (widgets_input.cpp's door) and
-// `?SelectCharacter@` (element_bodies_b5.cpp's door, reached by address); the
+// NOT HERE: `?SetText@EditElement@UI@@` (widgets_input.cpp) and
+// `?SelectCharacter@` (element_bodies_b5.cpp, a member called by name); the
 // constructor 0x1800d0f10 (EditElement.h since B.3.9).
 // ============================================================================
 #include <cstring>
@@ -435,7 +434,7 @@ void EditElement::Update(const System::Time& time, UserInterface* ui,
 // ============================================================================
 // A bare `RET`. It exists so `UI::NumberEditElement` can override it
 // (0x1800d4a60) and clamp its value when the box loses focus. Ported as the
-// empty body it is — see reference_retail_ships_empty_bodies.md.
+// empty body it is.
 void EditElement::FinalizeText() {}
 
 }  // namespace UI

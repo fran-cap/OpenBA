@@ -10,8 +10,8 @@
 //     consume-list append 0x1400c64b0                     -> consumerawmaterial.cpp
 //   PickupStoredRawMaterial ctor + door 0x1400ca520 and its
 //     carrier-list transfer 0x1400ca230                   -> pickupstoredrawmaterial.cpp
-//   the StateMachineComponent find 0x14000b6f0 (ComponentEntity FindComponent<T>)
-//                                                          -> Entity/entity_findcomponent.cpp
+//   the ConsumeProduceComponent find 0x14000b6f0 (ComponentEntity FindComponent<T>)
+//                                                          -> Entity/ComponentEntity.h
 #include "Action/exe_bodies.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include <cstdint>

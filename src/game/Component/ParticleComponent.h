@@ -3,9 +3,8 @@
 // src/game/Component/ParticleComponent.h — ENDGAME B.3.8 block CIT
 //
 // `ParticleComponent` (a building's particle emitters: chimney smoke, fire) as a
-// real C++ class with a compiler-generated vtable (B38_RULES.md D1-D4). The
-// engine/types POD is a forwarder to this file. (The `Tornado` Graphics::Particle
-// class is block LOOP's, not this.)
+// real C++ class with a compiler-generated vtable (B38_RULES.md D1-D4). (The
+// `Tornado` Graphics::Particle class is block LOOP's, not this.)
 //
 // RETAIL (Application-x64.exe, B38_SLOTS.md §6):
 //   reflected "ParticleComponent", parent "Component", ti 0x1401c4720
@@ -34,7 +33,7 @@
 namespace Graphics { class ParticleInstance; }
 
 // One emitter's live state: an element of ParticleComponent's +0x38 array
-// (stride 0x18; resize 0x14000a640 builds {0, -1, 0, 0}; the retail dtor
+// (stride 0x18; resize 0x14000a640 builds instance 0, sceneId -1, fadeRate 0; the retail dtor
 // 0x140053310 destroys `instance` through its slot 0). Fields from Place
 // 0x140052560, StartEmitter 0x140052a50, StartEmitterFade 0x140053660 and Tick
 // 0x140052b30.

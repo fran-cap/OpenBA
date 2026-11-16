@@ -15,9 +15,8 @@
 // PART C — SHAPE. polymorphic, NOT abstract (every class here is concrete in
 //   retail), a virtual destructor (B3X W1; was "none", ENDGAME decision 2), the proved parent.
 //
-// NOT PROVEN HERE: the member bodies (they stand on the address registry and
-// the UI runtime and cannot link into a host test). The real run and the resave
-// gate verify those.
+// NOT PROVEN HERE: the member bodies (they stand on the UI runtime and cannot
+// link into a host test). The real run and the resave gate verify those.
 // ============================================================================
 #include "unit.h"
 #include "slot_check.h"

@@ -573,7 +573,7 @@ UNIT_TEST(ext_stream_cache_consolidate_keeps_exactly_the_live_records) {
     CHECK(b.AddChunk(gen0));
     CHECK(!ShouldConsolidate(b));   // one chunk: nothing to merge
     CHECK(b.AddChunk(gen1));
-    CHECK(ShouldConsolidate(b));    // generation 0 is all dead: under half the bytes are live
+    CHECK(ShouldConsolidate(b));    // generation 0 is all dead: at least a quarter of the bytes are dead
     CHECK(b.AddChunk(gen2));
     CHECK_EQ(b.Records(), static_cast<size_t>(41));
     CHECK_EQ(b.Chunks(), static_cast<size_t>(3));

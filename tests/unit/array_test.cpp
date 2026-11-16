@@ -288,7 +288,7 @@ UNIT_TEST(array_destructor_destroys_the_live_elements_then_frees) {
 // COLLECTION_INVENTORY.md §2: a live game session only ever GROWS the packfile
 // entry directory, so `SetSizeCore`'s shrink-tail branch is the one arm of this
 // row nothing exercises. It is driven here through the same explicit-spec
-// instantiation the registered shim uses.
+// instantiation RtColl_ArraySetSizeFill_1800298f0 (array.cpp) uses.
 //
 // The row's two element operations are the Filename copy ctor (0x1800067d0)
 // and the string-release range helper (0x180026b50), and B3R RT-Core calls
@@ -319,7 +319,7 @@ UNIT_TEST(array_pkgentry_shrink_arm_destroys_the_tail_in_place) {
                                   System::Filename("three"), System::Filename("four") };
 
     {
-        // The instantiation the registered 0x1800298f0 shim uses.
+        // The instantiation RtColl_ArraySetSizeFill_1800298f0 (array.cpp) uses.
         rtcoll::ArrayWithSpec<&rtcoll::kSpec_PkgEntry> a;
         a.SetSize(4);                       // grow: exact fit, capacity 4
         CHECK_EQ(a.GetCapacity(), 4);
@@ -366,7 +366,7 @@ UNIT_TEST(array_pkgentry_shrink_arm_destroys_the_tail_in_place) {
 // ============================================================================
 //
 // `operator=` is now retail's 0x18001cdf0 family, i.e. `rtcoll::ArrayAssignCore`
-// (array_destroy.cpp) with `Array<T>::ClearCallback` as the clear. The shape,
+// (Collection.h) with `Array<T>::ClearCallback` as the clear. The shape,
 // read out of 0x180014c70 and confirmed at 0x180005770 and 0x180033f30:
 //
 //     if (this == &src) return this;

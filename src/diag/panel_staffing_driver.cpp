@@ -86,14 +86,14 @@ void Init() {
         // keyboard. An attended session must keep its own agency over staffing.
         //
         // BANISHED_AUTOSTART is NOT part of that test, despite naming an automated
-        // thing. It means only "skip the menu and start a game" — `make sa-run` sets
+        // thing. It means only "skip the menu and start a game" — `tools/build.sh run` sets
         // it for every ordinary interactive session, so treating it as "no player"
         // armed this driver underneath a human
         // and made every panel in the game close by itself.
         //
         // The cost of that miscategorisation was entirely diagnostic: SeatViaPanel
         // acquires the SHARED EditTool, selects its own subject and then calls
-        // EditTool_CloseInfoDialog, so it silently destroyed whatever panel the player
+        // EditTool::CloseInfoDialog, so it silently destroyed whatever panel the player
         // had open, roughly every five seconds. It logs only when it actually gains a
         // seat, so a workplace permanently under capacity (roster 6 of cap 12) re-ran
         // the whole open/click/close cycle forever while printing nothing at all —
@@ -199,8 +199,7 @@ int SeatViaPanel(PlayerToolManager* entityUI, ComponentEntity* ent, WorkPlaceCom
 
 }  // namespace
 
-// The tool manager (gameupdateloop.cpp hands its `m_toolManager`; its local
-// declaration still spells the parameter void*).
+// The tool manager (gameupdateloop.cpp hands its `m_toolManager`).
 extern "C" void PanelStaffingDriver_Tick(PlayerToolManager* entityUI, int frameNum) {
 
     Init();

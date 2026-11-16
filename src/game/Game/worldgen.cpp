@@ -1,38 +1,33 @@
 // src/game/Game/worldgen.cpp
 // ============================================================================
-// M5 5b — in-game procedural TERRAIN BUILD (first-light slice).
+// M5 5b — in-game procedural TERRAIN BUILD.
 // ============================================================================
 //
 // Implements the new-game worldgen chain reached from GameUpdateLoop::Load
-// step 31 (project_newgame_path_roadmap):
+// step 31:
 //
 //   FUN_1400b0230  (TerrainBuild_Dispatcher)            -> WorldGen_BuildTerrain
-//     -> TradeWork_impl_c4b0 (orchestrator)             -> wg_TradeCore_c4b0
+//     -> TradeWork_impl_c4b0 (orchestrator)             -> WorldGeometry::BuildFromHeightfield
 //        -> ConsumeProduceComponent_impl_f390 (pipeline) -> wg_HeightmapPipeline_f390
 //           -> ConsumeProduceComponent_impl_e5d0         -> wg_BaseHeightmap_e5d0
 //        -> [reuse] sub_c890 / sub_c780 / sub_c1e0 / sub_f0a0   (already reimpl'd)
-//        -> FUN_1400cf440 (blend texture)                -> wg_BlendTexture_cf440_stub
+//        -> FUN_1400cf440 (blend texture)                -> wg_BlendTexture_cf440
 //     -> FUN_1400175d0 (FreePatchListVector)            -> wg_FreePatchList
 //
-// FIRST-LIGHT SCOPE (this slice):
+// SCOPE:
 //   * e5d0 base perlin heightmap (radial-falloff valley: low buildable center,
 //     mountainous edges — authentic Banished terrain)
+//   * feature stages cd090/cd150/ccf60/cd460/e910/cc080/ec50 (coastline, rivers,
+//     mountain ranges, erosion) + c350 smoothing (worldgen_f390_*.cpp)
 //   * quantize float heightmap -> int16 (WorldGeom+0xd8)
-//   * stubbed cf440 blend texture (flat splat buffer; real cf440 = next layer)
+//   * cf440 blend texture (rock/grass/AO splat; the flat stub is its fallback)
 //   * reuse the already-reimplemented base mesh (sub_c1e0 -> VB+0x100/IB+0x120)
 //     + height-texture upload (sub_c780 -> +0x148)
-//   * SKIP the detail mesh (b260): the Geometry draw path (geometry_draw.cpp
-//     GeomDraw_CollectDraw) gates every detail draw on wg+0x1c8/+0x1d8/+0x1f8/
-//     +0x208 counts, which stay 0 when b260 doesn't run -> no detail draw items
-//     -> +0x160/+0x180 never touched. Safe.
+//   * b260 water mesh (WorldGeometry::BuildWaterMesh -> VB+0x160/IB+0x180)
 //
-// DEFERRED (later slices; see docs/history/notes/WORLDGEN_TERRAIN_BLUEPRINT.md):
-//   * feature stages cd090/cd150/ccf60/cd460/e910/cc080/ec50 (coastline, rivers,
-//     mountain ranges, erosion) + c350 smoothing
-//   * real cf440 (rock/grass/AO splat) — surface texturing only, geometry same
-//   * b260 detail/cliff mesh
+// Not in this file (see docs/history/notes/WORLDGEN_TERRAIN_BLUEPRINT.md):
 //   * CreateNaturalResource (trees/stone — spawns worker threads)
-//   * FUN_1400a3300 start-town + initial-citizen spawn (needs full ECS)
+//   * FUN_1400a3300 start-town + initial-citizen spawn
 //
 // All field offsets verified against Ghidra disassembly via the worldgen recon
 // workflow (docs/history/notes/WORLDGEN_TERRAIN_BLUEPRINT.md, 2026-05-30).
@@ -65,7 +60,7 @@
 #include "ext/river_channel/river_channel.h"   // EXT SEAM: Ext::RiverChannel::Apply
 
 // ============================================================
-// Reused helpers from sibling reimpl TUs (already registered/defined)
+// Reused helpers from sibling reimpl TUs (already defined)
 // ============================================================
 // The array resizes are Array<T>::SetSize through RawArraySetSize (Action/PathSearch.h, B8 RT2):
 // 0x14001c890 (int16 heightmap @wg+0xd8), 0x140023a00 (float heightmap @hf+0x08), 0x14001f0a0
@@ -178,7 +173,7 @@ static void wg_BaseHeightmap_e5d0(TerrainHeightfield* hf) {
 }
 
 // ============================================================
-// f390 — heightmap pipeline. First-light = e5d0 only.
+// f390 — heightmap pipeline: e5d0, then the feature stages (kFullPipeline).
 // Verified order (blueprint §0): hf[0]=sizeRow[0]*2; e5d0; [feature stages...]
 // ============================================================
 
@@ -238,8 +233,8 @@ static void wg_HeightmapPipeline_f390(TerrainHeightfield* hf) {
 // ============================================================
 // cf440 STUB — blend/splat texture. Returns a flat RGBA (dim*dim*4) buffer so
 // WorldGeom+0x140 is non-null (sub_c780 uploads it to the +0x148 texture, which
-// the base-mesh draw binds). Real cf440 (rock/grass/AO splat) is the next layer;
-// it changes only surface texturing, not geometry.
+// the base-mesh draw binds). wg_BlendTexture_cf440 below returns it when its inputs
+// are missing or an allocation fails; it changes only surface texturing, not geometry.
 // ============================================================
 // The splat buffer is WorldGeometry::_heightBytes: 4 bytes per cell, R rock /
 // G grass / B AO / A.
@@ -249,7 +244,7 @@ static uint8_t* wg_BlendTexture_cf440_stub(const TerrainHeightfield* hf) {
     uint64_t n = (uint64_t)dim * (uint64_t)dim;
     uint8_t* buf = static_cast<uint8_t*>(System::MemoryAllocator::MemAlloc(n * 4, 4));
     if (buf) {
-        // Neutral mid splat weights (R rock / G grass / B AO, A=0xff). With null
+        // Neutral mid splat weights (0x80 in every byte: R rock / G grass / B AO / A). With null
         // materials the shader falls back to a flat surface — visible terrain.
         for (uint64_t i = 0; i < n * 4; ++i) buf[i] = 0x80;
     }
@@ -266,7 +261,8 @@ static uint8_t* wg_BlendTexture_cf440_stub(const TerrainHeightfield* hf) {
 //   G (byte1) = GRASS weight  — slope band on the cell normal.z: full (0xff) on
 //               slopes (nz ≤ 0.85), feathering to 0 toward flat (nz → 0.999),
 //               plus a height ramp where height > 7.0.
-//   B (byte2) = AMBIENT-OCCLUSION — 21×21 circular normal kernel: 1 − mean of
+//   B (byte2) = AMBIENT-OCCLUSION — r² ≤ 100 circular normal kernel over dx -10..10,
+//               dz -10..9 (the dz = +10 row is never visited): 1 − mean of
 //               max(dot(centerNormal, dirToNeighbour), 0), scaled by a 3×3
 //               smoothed normal.z.
 //   A (byte3) = 0 (matches the original — it never writes byte3).
@@ -340,8 +336,6 @@ static void wg_ResolveMaterial_fd10(NamedExternalRef* ref) {
 
 // ============================================================
 // FreePatchListVector (FUN_1400175d0) + scalar list teardown.
-// First-light lists are empty (no feature stages), so these are effectively
-// no-ops, but they stay faithful for when the feature stages come online.
 //
 // ENDGAME B.3.2 step 2: wg_FreePatchList is `Collection::Array<>::~Array` over
 // the `kSpec_WgPathVec` row that worldgen_f390_coastline.cpp defines for this
@@ -376,7 +370,7 @@ static void wg_FreeScalarList(Collection::Array<T>* list) {
 
 // ============================================================
 // c4b0 — TradeWork core orchestrator. Verified from TradeWork_impl_c4b0
-// @0x1400ac4b0 (blueprint §0). First-light skips b260 (detail mesh).
+// @0x1400ac4b0 (blueprint §0).
 // ============================================================
 void WorldGeometry::BuildFromHeightfield(TerrainHeightfield* hf) {
     int N = _heightRowStride;     // dim*2+1

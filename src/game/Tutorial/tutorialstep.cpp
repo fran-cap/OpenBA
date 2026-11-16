@@ -35,9 +35,9 @@
 
 // ============================================================
 // Exe helpers, called by name: 0x14000bf40 ExternalPtr<StringTable>::Serialize
-// (Reimpl_ExternalPtr_Serialize_StringTable) and 0x140001bb0 the DynArray resize
-// (Reimpl_Array_Resize_Stride08), Game/exe_bodies.h; the three ExternalPtrArray
-// serializers (TutBase_Serialize*Array), Tutorial/exe_bodies.h.
+// (Object::SerializeExternal<UI::StringTable>) and the three ExternalPtrArray
+// serializers (Object::SerializeExternalArray<T>), object/External.h; 0x140001bb0
+// the DynArray resize (Reimpl_Array_Resize_Stride08), Game/exe_bodies.h.
 // ============================================================
 
 // ============================================================

@@ -19,10 +19,10 @@
 //   shared by 13 tables)  [12] = Work (0x140006b10)
 //   ctors: the default one (the tree built it with Work_GenericCtor: base init, leaf
 //   fields zeroed — kept) and the from-entity one 0x1400f5a80 (tendarea_ctor.cpp) that
-//   OrchardComponent's state 10 (orchardcomponent_states.cpp, block MI-B) reaches
-//   through the door TendArea_CtorFromEntity. CropFieldComponent's state machine
-//   (cropfieldcomponent_states.cpp, block MI-B) builds a TendArea BY HAND and stamps
-//   0x140161990; that registration serves TendArea::Vtable() (B38 D5).
+//   OrchardComponent's state 10 (orchardcomponent_states.cpp, block MI-B) calls by
+//   name on its MemAlloc(0x60, 8) block (OrchardPostTendArea). CropFieldComponent's state
+//   machine (cropfieldcomponent_states.cpp, block MI-B) builds a TendArea with placement
+//   new (CF_MakeTendArea: the default ctor, then Work::InitFromEntity).
 // ============================================================================
 
 #include <cstdint>

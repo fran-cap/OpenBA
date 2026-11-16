@@ -20,8 +20,8 @@
 //
 // Field layout (0x30 bytes):
 //   +0x00-0x1F: Action base (vtable, Internal base, entity ptr, status byte)
-//   +0x20: InternalBasePtr  sourceBuilding  (building to pick up from)
-//   +0x28: InternalBasePtr  sourceEntity    (entity carrying the raw material)
+//   +0x20: InternalBasePtr  _citizen        (the citizen picking up)
+//   +0x28: InternalBasePtr  _pile           (the raw-material pile entity)
 //
 // Decompiled from Application-x64.exe using Ghidra.
 
@@ -31,7 +31,7 @@
 #include "Component/StorageComponent.h"
 #include "Entity/EntityList.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
-#include "Action/exe_bodies.h"   // ActRm_*, ActHunt_* helpers
+#include "Action/exe_bodies.h"
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch C
 #include "Component/CitizenComponent.h"
 #include "Entity/ComponentEntity.h"
@@ -42,10 +42,10 @@
 
 // ============================================================
 // Helpers, called by name (B3R)
-//   0x1400223c0 ActRm_FindComponent_223c0 -- FindComponent for the RawMaterial component
+//   0x1400223c0 ComponentEntity::FindComponent<RawMaterialComponent> -- the RawMaterial component
 //               (type ID DAT_1401c7c80): (entity, retval_IBP), returns the IBP
-//   0x14012d000 ActRm_StorageAdd_d000 -- StorageComponent::AddItem(storage, itemType, count)
-//   0x1400c2ea0 ActHunt_MarkEntityRemoval_c2ea0 -- entity flag set (sets bit 0x400 on entity
+//   0x14012d000 StorageComponent::AddItem(itemType, count)
+//   0x1400c2ea0 ComponentEntity::MarkForRemoval -- entity flag set (sets bit 0x400 on entity
 //               +0x40 flags, optionally exits components)
 //
 // FUN_140003110 (DynArrayPush 8-byte elements, used to add the entity to the game

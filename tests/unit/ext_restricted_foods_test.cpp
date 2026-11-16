@@ -2,7 +2,7 @@
 // tests/unit/ext_restricted_foods_test.cpp -- ext.restricted_foods
 // ============================================================================
 // src/ext/restricted_foods/restricted_foods.{h,cpp}, save_state.cpp without the game: the registry row
-// (class C, off by default), the list of blocked foods (template paths, case-insensitive), the save-tail
+// (class C, on by default), the list of blocked foods (template paths, case-insensitive), the save-tail
 // codec (round trip with awkward names, empty state, every kind of damaged payload, a refused payload
 // leaving the old list alone), the resolution of the list into the flat array the seams scan, `g_on`
 // following the row, and the lock-owner rule for the reset. The seams themselves and the factory walk are
@@ -80,7 +80,7 @@ UNIT_TEST(ext_restricted_foods_registry_row) {
     CHECK(e->formatVersion == 1);
     CHECK(Ext::SettingsKey(*e) == "ext.restricted_foods");
     CHECK(std::string(kId) == e->id);
-    CHECK(ResolveText("").ext.restricted_foods);   // ON by default (ruled 2026-11-08 for 1.0.3)                      // absent key = the default (off)
+    CHECK(ResolveText("").ext.restricted_foods);   // ON by default (ruled 2026-11-08 for 1.0.3)
     CHECK(ResolveText("ext.restricted_foods=1\n").ext.restricted_foods);
     CHECK(!ResolveText("profile=faithful\n").ext.restricted_foods);   // the faithful profile turns it off
     CHECK(TheCodec() != nullptr);                                      // class C: it has a state codec

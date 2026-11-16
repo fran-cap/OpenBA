@@ -7,8 +7,8 @@
 // THE ROSTER (docs/extensions/handins/THREADRESEARCH.md §7.4, THREADPLAN.md §1 rows
 // 4-6). Every thread count of the extensions comes from these three functions of
 // `n` = the PHYSICAL cores inside the process affinity mask (Cpu::Get().physical,
-// topology.h) and whether ext.render_pipe is on. There are no numeric settings keys:
-// the registry stays bools.
+// topology.h) and whether ext.render_pipe is on. No settings key sets a thread
+// count.
 //
 //   n                      1  2  3  4  5  6  7  8  ...
 //   RenderThread(n)        0  0  1  1  1  1  1  1        n >= 3
@@ -23,8 +23,8 @@
 // caller + n - 1 workers. It runs during loads only (world generation), when the
 // render thread / path workers / cull helpers are idle, so it does not subtract them.
 //
-// `renderPipe` is the caller's: pass the ACTIVE ext.render_pipe (RENDERPIPE-1 wires
-// it; until then the path-worker call site passes false). PathWorkers ignores
+// `renderPipe` is the caller's: pass the ACTIVE ext.render_pipe (the path-worker and
+// cull-helper call sites pass Ext::Ext().render_pipe). PathWorkers ignores
 // whether a render thread really exists at n < 3 (it then is the sequential path and
 // costs no core); the clamp to >= 1 covers it.
 //
@@ -47,8 +47,8 @@
 // largest in the mask, which separates a prime or performance cluster from an
 // efficiency cluster on every SoC seen (prime 1024 / performance 700-900 / efficiency
 // 300-500). Uniform or unknown capacities (every PC, Windows, macOS) keep the whole mask,
-// so nothing changes off a phone. The main, render, audio and loader threads are not
-// pinned: the mask only sizes the roster.
+// so nothing changes off a phone. The mask pins no thread: it only sizes the roster (on
+// Android, AttachThread in perf_hint_android.cpp pins the main and render threads).
 // ============================================================================
 #pragma once
 

@@ -296,7 +296,7 @@ std::vector<VkImageMemoryBarrier2> g_barriers;
 // Texture slots of the draw being issued that sample an attachment of the bound render buffer.
 uint32_t g_hazardSlots = 0;
 // P7, THE DEPTH DISCARD (tilers: docs/android/PERF_P7.md §2 row 2). Nothing reads the main depth after
-// the frame's last pass on it (the AO pass is the one reader, and it asks for a readable depth first),
+// the frame's last pass on it (every reader asks for a readable depth first: draw.h DepthReader),
 // so that pass may end with STORE_OP_DONT_CARE and the tile's depth is never written out. The store op
 // is fixed when the pass begins, before it is known to be the last, so the last one is PREDICTED from
 // the frame's structure signature (depth_discard.h, P8): BeginPass notes every pass, DrawResolve and
@@ -862,8 +862,8 @@ VkImageView TextureView(const ImageBufferData* image, bool cube, bool hazard) {
 
 VkSampler TextureSampler(const ImageBufferData* image) {
     if (!image || !image->sampler) return DefaultSampler();
-    // EXT SEAM (NOT RETAIL): ext.point_sampling's switch (dx11 imagebufferdata.cpp Bind), never on a
-    // comparison sampler.
+    // EXT SEAM (NOT RETAIL): ext.sharp_ui's point-sampling switch (dx11 imagebufferdata.cpp Bind), never
+    // on a comparison sampler.
     if (Video::ImageBufferData::_extPointSampling &&
         (image->_owner->_flags & Video::ImageBuffer::kShadowMap) == 0 && image->pointSampler) {
         return image->pointSampler;
@@ -1317,7 +1317,7 @@ void TouchBound(CreateOnDemand::DrawScope& lazy, const ShaderEntry* ps, bool ind
     }
 }
 
-// P4, NOT RETAIL (ext.foliage_aa, shader_rewrites.h): the A2C clone of a non-blending render state
+// P4, NOT RETAIL (ext.better_trees, shader_rewrites.h): the A2C clone of a non-blending render state
 // (src/render/dx11/better_trees/foliage_aa_stage.cpp CloneOf): alpha to coverage, colour ONE / ZERO / ADD,
 // alpha ZERO / ZERO / ADD, every channel written.
 StateBlock CoverageClone(StateBlock s) {

@@ -11,7 +11,7 @@
 #include "CompleteTask.h"
 #include "object/TypeInfo.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
-#include "Action/exe_bodies.h"   // ActCt_* task helpers
+#include "Action/exe_bodies.h"
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch C
 #include <cstdio>
 #include <cstdint>
@@ -28,11 +28,11 @@
 
 // ============================================================
 // Helpers, called by name (B3R)
-//   0x1400f8760 ActCt_TryCompleteTask_8760 -- try complete task
-//   0x1400f8e30 ActCt_TaskCleanup_8e30     -- cleanup after task completion
-//   0x1400f8800 ActCt_TaskReassign_8800    -- task reassignment (used by CheckEntity)
+//   0x1400f8760 WorkScheduler::TryCompleteTask -- try complete task
+//   0x1400f8e30 WorkScheduler::TaskCleanup     -- cleanup after task completion
+//   0x1400f8800 WorkScheduler::TaskReassign    -- task reassignment (used by CheckEntity)
 // DAT_1401c3dd8 (the game state singleton; the task manager is *(it+0x118)) is read
-// through g_pGameWorldSingleton, the engine_funcs global bound to the same cell.
+// through GameUpdateLoop::_singleton (m_tutorial, the WorkScheduler at +0x118).
 // ============================================================
 
 // ============================================================

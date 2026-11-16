@@ -6,22 +6,17 @@
 //
 //   1. The walk from the Video::Device singleton down to ID3D11Device /
 //      ID3D11DeviceContext, reproduced exactly as the shipped DLL does it.
-//   2. Partial, offset-pinned views of the *Runtime-side* owner objects
-//      (Video::ShaderProgram, Video::RenderBuffer) that the ported slots read
-//      fields out of. `Video::VertexLayout`'s view went in ENDGAME B.3.5 block A
-//      and `Video::ImageBuffer`'s in block C (RULE B5-2): both are real classes
-//      in `src/engine/video/` now, and this file includes those headers
-//      instead of restating four offsets.
+//   2. The *Runtime-side* owner types the ported slots read fields out of
+//      (Video::ShaderProgram, Video::RenderBuffer, Video::VertexLayout,
+//      Video::ImageBuffer): all four are real classes in `src/engine/video/`,
+//      and this file includes those headers instead of restating offsets.
 //
 // It deliberately does NOT live in src/render/dx11/VideoDX11Data.h: that file is the
-// home of the twelve VideoDX11-defined *Data layouts and is being edited
-// concurrently by several porting lanes. Everything here describes Runtime-side
-// types instead, which VideoDX11Data.h does not currently model at all. If
-// another lane needs these, include this header rather than duplicating it.
+// home of the twelve VideoDX11-defined *Data layouts. Everything here describes
+// Runtime-side types instead. Include this header rather than duplicating it.
 //
 // Every offset below is proven by a decompiled VideoDX11 function; the proof is
-// cited inline. Nothing here is guessed. Unknown regions stay as `opaque`
-// arrays so the layouts remain honest about what has actually been recovered.
+// cited inline. Nothing here is guessed.
 
 #include <windows.h>
 #include <d3d11.h>
@@ -30,19 +25,17 @@
 #include <cstddef>
 #include <mutex>
 
-#include "collection/Collection.h"   // Collection::Array<T> (runtime/types)
-// ENDGAME B.3.5 block A — the real `Video::VertexLayout` (runtime/types), which
+#include "collection/Collection.h"   // Collection::Array<T> (src/engine)
+// ENDGAME B.3.5 block A — the real `Video::VertexLayout` (src/engine/video/), which
 // replaces this file's former `VertexLayoutOwner` / `VertexLayoutElement`
 // views. B35_RULES 1.2: `src/render/dx11/` compiles with the shared include set
-// (`-Iruntime/types -Iruntime/funcs`), so no Makefile change is needed and this
-// is the fifth `runtime/types` header dx11 includes.
+// (BANISHED_INCLUDES in CMakeLists.txt, which has `src/engine`).
 #include "video/VertexLayout.h"
 // ENDGAME B.3.5 block B — the real `Video::ShaderProgram` / `VertexProgram` /
 // `PixelProgram`, which replace this file's former `ShaderProgramOwner` view.
 #include "video/ShaderProgram.h"
 // ENDGAME B.3.5 block C, RULE B5-2.1 — the real `Video::ImageBuffer`, which
-// replaces this file's former `ImageBufferOwner` view. Sixth `runtime/types`
-// header dx11 includes.
+// replaces this file's former `ImageBufferOwner` view.
 #include "video/ImageBuffer.h"
 // ENDGAME B.3.5 block D2, RULE B5-2.3 — the real `Video::RenderBuffer`
 // (0x30 bytes), which replaces this file's former `RenderBufferOwner` view.
@@ -75,7 +68,7 @@ namespace VideoDX11 {
 // is from src/render/dx11/VideoDX11Data.h, itself proven by the CreateTexture2D
 // calls in 0x1800052b0 / 0x180005350.)
 //
-// We resolve the singleton's *address* once and re-read its contents on every
+// We take the singleton's *address* (the class static) and re-read its contents on every
 // call, exactly like the original: Video::Device::_singleton can in principle
 // be re-pointed, and DeviceData+0x20/+0x28 are definitely replaced across a
 // device reset, so caching either would be a behavioural change.
@@ -160,17 +153,13 @@ inline ID3D11DeviceContext* Dx11Context() {
 std::recursive_mutex& Dx11PresentMutex();
 
 // D7: `IDXGISwapChain* Dx11SwapChain()` — the swap chain (+0x18) by name, for
-// src/app/main.cpp's two probes, which do not include this header (it pulls
+// swap_probe_dx11.cpp's two probes, which do not include this header (it pulls
 // <d3d11.h> and the runtime type headers). Declared in VideoDX11Plugin.h
 // (included above), defined in dx11_backend_access.cpp as
 // `Dx11DeviceData()->swapChain`.
 
-// One-time sanity check that ResolveAddr(Module::Runtime, 0x1801fe7a8) really
-// is the same variable the shipped DLL reads through its own IAT. Both are
-// meant to be Runtime's Video::Device::_singleton; if they ever disagree, one
-// of the two module deltas is wrong and every ported slot would be reading a
-// different Device than the un-ported ones. Returns true when they agree (or
-// when the IAT slot could not be resolved, which is not evidence of a problem).
+// Returns true when the address of Video::Device::_singleton is non-null.
+// VideoDX11-x64.dll is never mapped, so there is no IAT-held copy to compare with.
 bool Dx11VerifyDeviceSingleton();
 
 // ============================================================

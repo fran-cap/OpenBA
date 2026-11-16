@@ -308,8 +308,8 @@ bool SortPlainImpl(RendererDrawItem* data, int32_t count, const Key* keys,
         return GroupLess(x, y);
     });
 
-    // RADIXPLAIN: steps (3)-(5) as one radix sort when the packed word fits (see the
-    // function's comment below); the same seg[] words in the same order.
+    // RADIXPLAIN: steps (3)-(5) as one radix sort when the packed word fits (see
+    // RadixPlain's comment above); the same seg[] words in the same order.
     if (kRadix && count >= kRadixMinCount) {
         const int r = RadixPlain(count, keys, groupCount, gks);
         if (r >= 0) {

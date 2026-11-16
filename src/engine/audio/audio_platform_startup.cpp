@@ -4,9 +4,8 @@
 //   ?PlatformShutdown@Device@Audio@@AEAAXXZ   retail 0x1800de690  (Phase D.4 A1)
 // ============================================================================
 //
-// The cutover boot wall AFTER Video's. Our ported `Engine::Startup` calls it at
-// engine_lifecycle.cpp:730 and a null there ends the boot with
-// `g_startupFailAt == 12`. `AEAA` is PRIVATE, not unexported; ordinal and
+// `Engine::Startup` calls it at engine_lifecycle.cpp:658, after Video's, and a false
+// return there ends the boot with `g_startupFailAt == 12`. `AEAA` is PRIVATE, not unexported; ordinal and
 // address were read out of the shipped export directory with pefile before a
 // line was written.
 //
@@ -54,7 +53,8 @@
 // IT ALWAYS RETURNS TRUE
 // ----------------------
 // Every failure path — CoCreateInstance failing, Initialize failing,
-// CreateMasteringVoice failing — nulls the slots and returns TRUE. A machine
+// CreateMasteringVoice failing — nulls the engine slot (the master slot too when
+// CreateMasteringVoice fails) and returns TRUE. A machine
 // with no XAudio2 2.7 redistributable boots silently without audio rather than
 // failing `Engine::Startup`. That is retail's design and it is why this
 // function is safe to port even where the component is absent.

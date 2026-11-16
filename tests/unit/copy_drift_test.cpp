@@ -41,7 +41,7 @@ bool ReadFile(const char* path, std::string& out) {
     return true;
 }
 
-// The region between the two markers, every whitespace byte removed. `pinned`
+// The region between the two markers, every whitespace byte removed. `copies`
 // names the copy a reader must re-sync (printed on a mismatch).
 struct Region {
     const char* file;
@@ -91,10 +91,10 @@ const Region kRegions[] = {
      0xf4d6a15ed9a13bd8ull},
     {"src/game/Action/moveto.cpp",
      "ext_walk_batch_test.cpp (ExecuteRef)",
-     0xf1f494f1cf93423full},
+     0x8aea9303ad95b9c8ull},
     {"src/game/Game/worldgeometry_ray.cpp",
      "still_terrain_test.cpp (World::SampleHeight, World::RayTri)",
-     0xac5163ca36755eeaull},
+     0x69d5e3a787d8ad57ull},
 };
 
 }  // namespace

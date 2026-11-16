@@ -205,8 +205,7 @@ struct FileInfo {
     // the TOP BYTE (`MOVZX R10D,byte [RDX+3]`).
     int32_t  handle;
     int32_t  copiedUnwrittenWord;      // +0x04 — never initialised by OpenFile; see the note
-                          //         in filesystem_openfile.cpp on why the
-                          //         oracle must exclude it.
+                          //         in filesystem_openfile.cpp.
     int32_t  size;        // +0x08 — byte size of the file or of the pack entry
     int32_t  cursor;      // +0x0C — READ POSITION, advanced by ReadFile
     int32_t  baseOffset;  // +0x10 — a pack entry's offset within the .pkg; 0 for loose
@@ -231,16 +230,15 @@ static_assert(offsetof(FileInfo, _name0)     == 0x20, "OpenFile: MOV [RBP-0x10],
 static_assert(offsetof(FileInfo, _name1)     == 0x28, "OpenFile: MOV [RBP-0x8],0");
 
 // ---- Collection::Array<System::Filename>, as FindFiles' out-parameter ------
-// DECLARED, NOT DEFINED, and deliberately so. The 16-byte {_data,_size,
-// _capacity} header is DEFINED in src/engine/io/filesystem_find.cpp, with
-// its own three `static_assert`s pinned to 0x180026880's instructions, and that
-// file reaches it through `rtcoll::AsArray<&kSpec_Filename>` — a HAND-DERIVED
+// The 16-byte {data, size, capacity} header, pinned to 0x180026880's
+// instructions. src/engine/io/filesystem_find.cpp reaches it through
+// `rtcoll::AsArray<&kSpec_Filename>` — a HAND-DERIVED
 // element spec that deliberately does NOT match
 // `rtcoll::SpecFor<System::Filename>()` (see the note at `kSpec_Filename`).
-// Naming `Collection::Array<System::Filename>` in the declaration below would
+// Naming `Collection::Array<System::Filename>` here would
 // invite exactly the silent substitution that comment forbids, so
-// `IO::FileSystem::FindFiles` takes a pointer to this incomplete type instead —
-// which is all the declaration needs and all the retail signature pins.
+// `IO::FileSystem::FindFiles` takes a pointer to this type instead —
+// which is all the retail signature pins.
 //
 // B.4 P2 R-IO: DEFINED here now, so FindFiles' four callers (FileSystem::
 // LoadPackages, Modification::RefreshList, the save-list job and FindFilesImpl
@@ -329,8 +327,7 @@ static_assert(offsetof(FilenameArray, capacity) == 0x0c, "0x180026880: CMP ESI,[
 // Design: B34_RULES.md §1.5 rule 1, §4.3; B34_BRIEFS.md §E.4.
 //
 // *** IT HAS NO VTABLE. *** There is no `??_7FileSystem@IO@@6B@` in the retail
-// export table, no row for it in `standalone/rt_data_mint_tables.inc` and no
-// `deleting_dtor.cpp` row; every exported member is `QEAA`/`QEBA`/`AEBA`. So,
+// export table; every exported member is `QEAA`/`QEBA`/`AEBA`. So,
 // like `IO::Serializer` and `IO::Modification`, converting a
 // member here cannot change which table any live object wears.
 //
@@ -350,11 +347,7 @@ static_assert(offsetof(FilenameArray, capacity) == 0x0c, "0x180026880: CMP ESI,[
 //                                 filesystem_win.cpp, the file that held it,
 //                                 is deleted.)
 // Everything else in `src/engine/io/filesystem*.cpp` is a member of the class
-// below. The NON-`IO::FileSystem` bodies that share those files stay free
-// functions on purpose: `RtIo_FileInfo_CopyCtor` / `RtIo_FileInfo_Assign` are
-// `FileInfo`'s, and `RtIo_PackageFile_GetFileInfo` / `RtIo_PackageFile_GetFileName`
-// are `IO::PackageFile`'s — a POLYMORPHIC class whose conversion is its own
-// commit with its own qualified-call rule (B34_BRIEFS §A.1).
+// below.
 //
 // *** COMMIT 5a UPDATE (second PACKAGE+FS owner). *** The four NON-§D files are
 // converted: `filesystem_setupdirs.cpp` (SetupDirectories, GetRootDirectory),
@@ -376,8 +369,8 @@ static_assert(offsetof(FilenameArray, capacity) == 0x0c, "0x180026880: CMP ESI,[
 //
 // *** AND ONE FACT IN THE COMMIT-4 BANNER WAS WRONG, CORRECTED HERE. *** It said
 // `??1FileSystem@IO@@` lives in `iobase_vtables.cpp` and is outside PACKAGE+FS's
-// file set. It does not and it is not: `RtIo_FileSystem_Dtor` is, and always was,
-// in `filesystem_createfile.cpp` (which registers 0x1800ac6d0 there), and
+// file set. It does not and it is not: `FileSystem::~FileSystem` (0x1800ac6d0) is
+// in `filesystem_createfile.cpp`, and
 // `iobase_vtables.cpp` contains no occurrence of the string "FileSystem" at all
 // (grepped). B34_RULES §6.2 carried the same wrong attribution and is corrected
 // in the same commit. The destructor therefore DOES convert, and §4.3's "no real
@@ -387,20 +380,11 @@ static_assert(offsetof(FilenameArray, capacity) == 0x0c, "0x180026880: CMP ESI,[
 // table ("Serializer is NON-polymorphic. It has no vptr, so converting its ctor
 // cannot change any table").
 //
-// THE CONSTRUCTOR (`??0FileSystem@IO@@QEAA@XZ`, 0x1800ac7c0) IS STILL NOT PORTED
-// ANYWHERE IN THE TREE and is not invented here. `~FileSystem()` being real does
-// not make the class default-constructible into a valid state; every live
-// FileSystem is still the one the singleton points at.
-//
-// *** THE TWO CACHED SINGLETON POINTERS (§E.4) ARE NOT RECONCILED HERE, AND
-// *** THAT IS ON PURPOSE. *** `engine/funcs/engine_funcs.h` caches the same
-// exported data symbol `?_singleton@FileSystem@IO@@0PEAV12@EA` (0x1801fc6a8)
-// TWICE — `g_pFileSystemSingleton` and `g_pFileSystemSingleton2`, the latter
-// annotated "separate exref for GetDataDirectory calls". A real
-// `FileSystem::Get()` has to reconcile them, and `engine/funcs/` is NOT in this
-// block's file set, so no `Get()` is declared: inventing one here would create
-// a third spelling of a pointer that already has two. Whoever adds it must
-// check BOTH cells, not assume one.
+// THE CONSTRUCTOR (`??0FileSystem@IO@@QEAA@XZ`, 0x1800ac7c0) is not declared on
+// the class: `rtengine::Ctor_FileSystem` in src/engine/engine/singleton_ctors.cpp
+// transcribes it, and Engine::Startup calls it (engine_lifecycle.cpp). `~FileSystem()`
+// being real does not make the class default-constructible into a valid state;
+// every live FileSystem is still the one the singleton points at.
 //
 // *** THE THREE DIRECTORIES ARE `System::Filename` MEMBERS (B4 X-R3, H5). ***
 // Every reader treats them as Filenames: GetSourceDirectory (0x180007b90),
@@ -453,11 +437,8 @@ public:
     // ?GetPackfileId@FileSystem@IO@@QEBAIAEBVFilename@System@@@Z  0x1800ab050
     uint32_t GetPackfileId(const System::Filename& path) const;
 
-    // ---- commit 5a: the members whose doors live in the four NON-§D files --
-    // Each keeps retail's name; the door keeps its own name, its registration
-    // lines and its signature (several are called cross-file by
-    // file_stream.cpp, text_file_stream.cpp, persistence_saveinfo_job.cpp
-    // and persistence_worker.cpp) and delegates here.
+    // ---- commit 5a: the members in the four NON-§D files -------------------
+    // Each keeps retail's name.
 
     // -- filesystem_setupdirs.cpp ---------------------------------------
     // ?GetRootDirectory@FileSystem@IO@@QEAA?AVFilename@System@@XZ 0x1800ad650
@@ -485,13 +466,8 @@ public:
     //                                                             0x1800ade60
     // ?PlatformCloseFile@FileSystem@IO@@AEAAXAEAUFileInfo@12@@Z    0x1800ae020
     // Both are `AEAA` — PRIVATE in retail, and this DLL exports its private
-    // members (reference_aeaa_is_private_not_unexported.md). They are declared
-    // PUBLIC here because each has its OWN registered door (0x1800ade60 and
-    // 0x1800ae020 are separately registered by name and by address in
-    // filesystem_createfile.cpp) and a door is a free function, which a
-    // private member would not let in. Making the doors `friend`s instead would
-    // hide a real fact — that these two are reachable from outside the class in
-    // our tree — behind a keyword.
+    // members. They are declared
+    // PUBLIC here.
     bool PlatformCreateFile(RtIO::FileInfo& info, const System::Filename& path);
     void PlatformCloseFile(RtIO::FileInfo& info);
     // ?CreateFileW@FileSystem@IO@@QEAA?AUFileInfo@12@AEBVFilename@System@@@Z
@@ -502,7 +478,7 @@ public:
     RtIO::FileInfo CreateFileW(const System::Filename& path);
     // ?CloseFile@FileSystem@IO@@QEAAXAEAUFileInfo@12@@Z            0x1800accc0
     void CloseFile(RtIO::FileInfo& info);
-    // ---- commit 5b: the members whose doors live in the THREE §D-BOUND files
+    // ---- commit 5b: the members in the THREE §D-BOUND files
     // B34_BRIEFS §D binds `filesystem_openfile.cpp`, `filesystem_packages.cpp`
     // and `filesystem_find.cpp` to byte-faithfulness while the two-loader
     // race (LOADER_READ_SPIN.md) has its own pending fix. These nine bodies
@@ -536,7 +512,7 @@ public:
     bool PackedEntryOrigin(const RtIO::FileInfo& fi, Platform::FileHandle* package, int64_t* offset) const;
     // ?PlatformOpenFile@FileSystem@IO@@AEAA_NAEAUFileInfo@12@AEBVFilename@System@@@Z
     //                                                             0x1800adce0
-    // `AEAA`, private in retail, public here for the door reason above.
+    // `AEAA`, private in retail, public here.
     bool PlatformOpenFile(RtIO::FileInfo& fi, const System::Filename& name);
 
     // -- filesystem_packages.cpp --------------------------------------------
@@ -551,30 +527,27 @@ public:
     // ?ExistsInPackfile@FileSystem@IO@@QEBA_NAEBVFilename@System@@@Z 0x1800ab180
     bool ExistsInPackfile(const System::Filename& path) const;
     // ?PlatformExists@FileSystem@IO@@AEBA_NAEBVFilename@System@@@Z   0x1800adc70
-    // `AEBA`, private in retail; the `QEBA` spelling is not an export at all
-    // and would resolve NULL forever. Public here for the door reason above.
+    // `AEBA`, private in retail; the `QEBA` spelling is not an export at all.
+    // Public here.
     bool PlatformExists(const System::Filename& path) const;
     // ?FindFiles@FileSystem@IO@@QEBAXAEBVString@System@@0_NAEAV?$Array@VFilename@System@@@Collection@@@Z
     //                                                             0x1800ad7a0
-    // The out-parameter is `RtIO::FilenameArray`, declared incomplete above;
-    // that comment says why it is not `Collection::Array<System::Filename>`.
-    // The two String parameters keep the POD spelling the registered door has,
-    // because the door IS this body and the recursion lives in the file-local
-    // `FindFilesImpl`, which is where the class spellings already are.
+    // The out-parameter is `RtIO::FilenameArray`, defined above; that comment
+    // says why it is not `Collection::Array<System::Filename>`. The recursion
+    // lives in the file-local `FindFilesImpl`.
     void FindFiles(const System::String& dir, const System::String& pattern,
                    bool recursive, RtIO::FilenameArray* out) const;
 
     // ??1FileSystem@IO@@QEAA@XZ                                    0x1800ac6d0
     // A REAL destructor — see the banner. It is `QEAA`, non-virtual, and the
     // class has no vtable, so converting it cannot change what any live object
-    // wears. There is deliberately NO constructor: 0x1800ac7c0 is unported.
+    // wears. There is deliberately NO constructor: 0x1800ac7c0 is
+    // `rtengine::Ctor_FileSystem` (engine/singleton_ctors.cpp).
     ~FileSystem();
 
     // ?_singleton@FileSystem@IO@@0PEAV12@EA (0x1801fc6a8) -- the class static
-    // (ENDGAME B.3.9 IO, B39_RULES D7). Defined in filesystem.cpp;
-    // RtIoPortInit redirects the minted row onto it, so the name door, the
-    // address door, the manifest publish and this member are the same eight
-    // bytes. Written by the ??0FileSystem door (engine/singleton_ctors.cpp).
+    // (ENDGAME B.3.9 IO, B39_RULES D7). Defined in filesystem.cpp; written by
+    // `rtengine::Ctor_FileSystem` (engine/singleton_ctors.cpp).
     // PUBLIC while foreign readers still reach it (retail: private `0`).
     static FileSystem* _singleton;
 
@@ -654,10 +627,9 @@ public:
 };
 static_assert(offsetof(FileSystem, _pad1A) == 0x1A, "FileSystem::_pad1A");
 
-// The POD carries no `sizeof` assert because its tail is opaque padding and
-// nothing pins the total size; the class inherits that honestly. A class MAY
+// No `sizeof` assert: nothing in this header pins the total size. A class MAY
 // keep opaque padding, but it may never invent a field and may never shrink or
-// grow the struct — so every offset below is the POD's, cross-asserted.
+// grow the struct — so every offset below is asserted.
 static_assert(offsetof(FileSystem, _sourceDirectory)      == 0x00, "GetSourceDirectory's `(Filename*)this`");
 static_assert(offsetof(FileSystem, _dataDirectory)        == 0x08, "GetDataDirectory's `this+8`");
 static_assert(offsetof(FileSystem, _packDirectory)        == 0x10, "GetPackDirectory 0x180007c10");
@@ -691,11 +663,9 @@ void PackedMapRelease(Platform::FileHandle h);
 
 }  // namespace IO
 
-// ==== B3R W0-P0c: Runtime bodies reached by retail address ====
-// ENDGAME B.3R (B3R_RULES R5): each body below is registered at the retail
-// address in its trailing comment and read through the registry today. It is
-// declared here, copied from its definition (linkage, namespace, types), so the
-// reader can call it by name. Nothing calls it through this declaration yet.
+// ==== B3R W0-P0c: Runtime bodies called across files ====
+// Each body below is declared here, copied from its definition (linkage,
+// namespace, types), so callers outside its file call it by name.
 
 namespace RtIO {
 // ---- io/filesystem_find.cpp

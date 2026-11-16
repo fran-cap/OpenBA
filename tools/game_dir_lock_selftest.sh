@@ -260,8 +260,9 @@ test_defect3() {
 # Wave 25 lane ALLOC: lock broken as stale at 1802s while its process was alive
 # and had written to the protected directory 1 second before the check.
 #
-# Every cell below uses the SAME lock age. Only the liveness evidence differs,
-# so nothing but the evidence can explain a difference in verdict.
+# The dead-holder cell and the four live-holder cells use the SAME lock age
+# (7200s). Only the liveness evidence differs between them, so nothing but the
+# evidence can explain a difference in their verdicts.
 #
 # `stale_cell <label> <age> <expect BREAK|KEEP> <legacy BREAK|KEEP> <env...>`
 # builds a scratch game dir, plants a lock of the given age owned by 'laneA',
@@ -476,7 +477,7 @@ identity_cell() {
     scratch="$(new_scratch)"
     printf 'ORIGINAL-BUILD' > "$scratch/OpenBA.exe"
 
-    # The wrapped command stands in for `make sa-run`: optionally mark a run as
+    # The wrapped command stands in for `tools/build.sh run`: optionally mark a run as
     # live, optionally overwrite the deployed exe, take long enough for the
     # 1s-interval watcher to sample either side of the change.
     cat > "$scratch/cmd.sh" <<CMDEOF

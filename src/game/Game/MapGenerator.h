@@ -132,13 +132,13 @@ public:
     int32_t  initialFuelCount;           // +0x110
     int32_t  initialClothingCount;           // +0x114
 
-    ExternalRef riverAmbient;        // +0x118: terrain description ref
+    ExternalRef riverAmbient;        // +0x118: emitter template spawned along the contour outlines (starttown.cpp)
     float    riverAmbientSpacing;   // +0x130: default 6.0f
     uint8_t  _pad134[4];         // +0x134
-    ExternalRef mapAmbient;        // +0x138: climate description ref
+    ExternalRef mapAmbient;        // +0x138: ambient volume template spawned on a mapAmbientSpacing grid (starttown.cpp)
     int32_t  mapAmbientSpacing;          // +0x150: default 16
     uint8_t  _pad154[4];         // +0x154
-    ExternalRef windAmbient;        // +0x158: vegetation description ref
+    ExternalRef windAmbient;        // +0x158: the one global ambient emitter template (starttown.cpp)
     float    windAmbientHeight;           // +0x170: last serialized field
     uint8_t  _pad174[4];         // +0x174: padding to 0x178
     void SeedStartingResources();   // 0x1400a1f00 (Game/town_storage_seed.cpp)

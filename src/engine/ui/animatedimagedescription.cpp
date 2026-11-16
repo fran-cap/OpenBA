@@ -38,8 +38,8 @@
 // Reconstruct spell it. The FACTUI1 row and its door are retired.
 //
 // ENDGAME B.3.6 block C2: every slot body is a MEMBER of
-// `UI::AnimatedImageDescription`; the registered doors are one-line QUALIFIED
-// delegations. Converted: the base Serialize (by address 0x1801184b0) and the
+// `UI::AnimatedImageDescription`. Converted: the base Serialize (by address
+// 0x1801184b0) and the
 // applier (a direct call of the extern "C" door `RtUi_ImageDescription_
 // ApplyToElement`) are qualified `ImageDescription::` member calls — the
 // applier is name-hidden by this class's slot-8 override; the per-frame

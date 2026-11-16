@@ -10,39 +10,25 @@
 // None of these three classes is polymorphic, so there is no slot order to
 // check. What there IS, and what would be silent if it broke:
 //
-//   1. THE 0x2168-BYTE LAYOUT, unchanged by the conversion. Nine files outside
-//      block D1 read `Video::Context`'s fields by name and four more read it by
-//      RAW OFFSET (`src/render/dx11/contextdata.cpp`'s `Ctx::k*`, `src/engine/
-//      graphics/lights_vtable.cpp`'s `kCtxViewport`, `src/engine/ui/
-//      userinterface_draw.cpp`'s `C + 0x408`, and the three raw-offset regions
-//      the ported bodies keep). The header asserts every offset at compile time;
-//      this file asserts the ones the OTHER files hard-code, so a future field
-//      reshuffle inside Context.h cannot pass its own asserts while breaking
-//      them.
+//   1. THE 0x2168-BYTE LAYOUT. `Context.h` asserts every offset and the size at
+//      compile time, the seven embedded ConstantBuffers included; this file
+//      checks no offset of its own.
 //   2. TRIVIAL COPYABILITY, which is what makes `memcpy`/`memset` over a
 //      Context and a ConstantBuffer defined behaviour. `Context.h` and
 //      `ConstantBuffer.h` assert it; asserting it again from a translation unit
 //      that includes nothing else is what catches an accidental member with a
 //      destructor being added to either class later (RULE B5-4).
-//   3. THE SEVEN EMBEDDED ConstantBuffers ARE 0x48 APART AND ARE THE REAL
-//      CLASS. That stride IS the evidence for `sizeof(ConstantBuffer)`, so the
-//      two facts have to be checked against each other rather than each against
-//      itself.
-//   4. THE MEMBER-CALL ROUND TRIP. A door delegates with a QUALIFIED
-//      non-virtual call on a `Context*` that was `reinterpret_cast` from
-//      MemAlloc'd bytes; that only works if the class is standard-layout and
-//      `this` is the first byte. Checked by driving a real `Viewport` member and
-//      a real `Context` field write through a pointer built the same way the
-//      doors build theirs.
+//   3. THE VIEWPORT FIELD ORDER (x, y, width, height), asserted through a
+//      brace-init, and the two comparison operators' shape, through a local
+//      mirror (PART D).
 //
-// WHAT IS NOT HERE, AND WHY. `Video::Context`'s ported members are registered
-// doors in `src/engine/video/`, which stand on the port registry, the address
-// registry and (through the backend forwarders) a live `ContextData` vtable, so
-// they cannot link into a host test. `Video::Viewport::operator==` /
-// `operator!=` CAN — they touch nothing but four ints — so those two are driven
-// for real, out of `src/engine/video/context.cpp`. That file is not on
-// UNIT_TREE_SRCS (it pulls in the whole registry), so this file declares the two
-// operators' shape and checks it against a local mirror instead; see PART D.
+// WHAT IS NOT HERE, AND WHY. `Video::Context`'s ported members live in
+// src/engine/video/context.cpp, src/engine/video/context_bind.cpp,
+// src/engine/video/context_ctor.cpp and src/engine/video/context_lifecycle.cpp,
+// none of which is on UNIT_TREE_SRCS, so they are not driven here.
+// `Video::Viewport::operator==` / `operator!=` touch nothing but four ints, but
+// they are defined in src/engine/video/context.cpp, so this file declares the
+// two operators' shape and checks it against a local mirror instead; see PART D.
 // ============================================================================
 #include <cstdint>
 #include <cstddef>
@@ -65,7 +51,7 @@ UNIT_TEST(video_context_and_members_stay_trivially_copyable) {
     CHECK(std::is_trivially_copyable<Video::Viewport>::value);
     CHECK(std::is_trivially_copyable<Video::ConstantBuffer>::value);
 
-    // Standard layout is what every `offsetof` above and every
+    // Standard layout is what every `offsetof` in Context.h and every
     // `reinterpret_cast` onto MemAlloc'd bytes depends on.
     CHECK(std::is_standard_layout<Video::Context>::value);
     CHECK(std::is_standard_layout<Video::Viewport>::value);
@@ -80,7 +66,7 @@ UNIT_TEST(video_context_and_members_stay_trivially_copyable) {
     // `Context` is NOT trivially default-constructible, and that is correct
     // rather than a slip: its `Math::Matrix` and `Math::Vector4` members carry
     // retail's zeroing default constructors. Nothing default-constructs a
-    // Context — `??0Context@Video@@` takes a `Device*` and is a registered door.
+    // Context — `??0Context@Video@@` takes a `Device*` (`RtVideo_Context_Ctor`).
     CHECK(!(std::is_trivially_default_constructible<Video::Context>::value));
 
     // No vtable, on any of the three (`?GetFrameIndex@` and friends are
@@ -91,14 +77,12 @@ UNIT_TEST(video_context_and_members_stay_trivially_copyable) {
 }
 
 // ---------------------------------------------------------------------------
-// PART D — `Video::Viewport`'s two comparison operators, and the door's
-// `reinterpret_cast`-onto-raw-bytes round trip.
+// PART D — `Video::Viewport`'s two comparison operators.
 //
-// The real operators live in `src/engine/video/context.cpp`, which cannot link
-// here (port registry + address registry). What is under test is the SHAPE the
-// doors rely on, so the mirror below is declared exactly as the real class is
-// and the assertions run against both: the mirror's behaviour, and the real
-// class's layout and triviality.
+// The real operators live in `src/engine/video/context.cpp`, which is not on
+// UNIT_TREE_SRCS. What is under test is the SHAPE, so the mirror below is
+// declared exactly as the real class is and the assertions run against both:
+// the mirror's behaviour, and the real class's size and field order.
 // ---------------------------------------------------------------------------
 struct ViewportMirror {
     int32_t x, y, width, height;

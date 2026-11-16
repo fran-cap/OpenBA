@@ -17,7 +17,7 @@
 //                           FruitComponent_Startup's own sibling lookup via
 //                           FUN_1400052c0, see fruitcomponent.cpp).
 //   +0x30  float            ripeness accumulator (FruitComponent_Update's
-//                           `field30`).
+//                           `ripeness`).
 //   +0x34  bool             fruitFlag (fruit-bearing-season latch).
 //
 // Serializer facts reused from animalwave_serialize.cpp / growthcomponent_serialize.cpp

@@ -1,7 +1,7 @@
 // ============================================================================
 // src/render/common/better_trees/receiver_rewrite.cpp -- receiver_rewrite.h
 // ============================================================================
-// NOT RETAIL (ext.billboard_shadow). Standard C++ only: the unit tests link it.
+// NOT RETAIL (ext.better_trees). Standard C++ only: the unit tests link it.
 // ============================================================================
 #include "better_trees/receiver_rewrite.h"
 

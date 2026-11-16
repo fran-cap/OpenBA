@@ -8,9 +8,9 @@
 // own, and the dtor tail-jumps to `??1ImageBuffer@Video@@UEAA@XZ`.
 //
 // The SIZE is confirmed three independent ways, none of which is this header:
-//   * `src/engine/save/saveload_draw.cpp:451` allocates exactly 0x88 for one
+//   * `src/engine/save/saveload_draw.cpp:400` allocates exactly 0x88 for one
 //     through `??2FrameCopyImageBuffer@Graphics@@SAPEAX_K@Z`;
-//   * `src/game/Game/w2_takescreenshot.cpp:229` MemAllocs 0x88 for one,
+//   * `src/game/Game/w2_takescreenshot.cpp:121` MemAllocs 0x88 for one,
 //     transcribed from exe 0x140095da0;
 //   * the ctor (Runtime 0x1800a3d10) writes +0x68, +0x70, +0x78 and +0x80 and
 //     nothing past it.
@@ -37,7 +37,7 @@
 // +0x68 is a plain int LATCH, not a flag: Generate compares it with its own
 // `int` argument and only does the copy when they differ, then stores the
 // argument. The ctor zeroes it. Both live callers pass 1
-// (saveload_draw.cpp:479, w2_takescreenshot.cpp), so on those routes it fires
+// (saveload_draw.cpp:437, w2_takescreenshot.cpp), so on those routes it fires
 // once per object.
 // ============================================================================
 
@@ -78,9 +78,8 @@
 
 // ############################################################################
 // THE REAL CLASS — `Graphics::FrameCopyImageBuffer`.
-// ENDGAME B.3.5 block C. The POD above STAYS: `src/engine/graphics/
-// wave23_lane_gfxbody.cpp` (block H1's) holds this class's ctor, dtor, `Create`
-// and `Generate` and still spells it `RtGraphics::FrameCopyImageBuffer`.
+// ENDGAME B.3.5 block C. `src/engine/graphics/wave23_lane_gfxbody.cpp` (block
+// H1's) holds this class's ctor, dtor, `Create` and `Generate`.
 // ############################################################################
 
 #include "GeneratedImageBuffer.h"
@@ -116,11 +115,6 @@ namespace Graphics {
 // ============================================================
 class FrameCopyImageBuffer : public GeneratedImageBuffer {
 public:
-    // Slot 0's body is a `src/engine/object/deleting_dtor.cpp` table row
-    // (0x18001eee0's sibling for this class) and is defined in no translation
-    // unit, so it stays PURE — see `Video::ImageBuffer`'s slot-0 banner for why
-    // a non-pure declaration does not link.
-    //
     // ENDGAME B.3.8 block RB (B38_RULES D1/D2): the exe instantiates the class
     // itself (its table copy 0x14015e370, ModDialog's 0x140095da0), so slot 0
     // is CONCRETE: the exe copy's scalar deleting dtor 0x140019d50
@@ -145,9 +139,7 @@ public:
     Object::External* Construct() override;                        // [ 8] 0x18001f150
     // [ 9] 0x1800a3b70 — ITS OWN, see the banner. DEFINED AS A MEMBER in
     // `wave23_lane_gfxbody.cpp` since ENDGAME B.3.5 block GC, so the `= 0` that
-    // stood in for "the body is not a member yet" is GONE. That does NOT make the
-    // class constructible: slot 0 (`DeletingDtor`) is still pure, for the reason
-    // its own banner gives, so `FrameCopyImageBuffer` stays abstract.
+    // stood in for "the body is not a member yet" is GONE.
     bool Create(ImageType type, Usage usage, Format format, uint32_t flags,
                 int32_t width, int32_t height, FilterMode filter,
                 AddressMode addressU, AddressMode addressV,
@@ -155,7 +147,7 @@ public:
     // [10] 0x1800a3b20 — likewise a member in `wave23_lane_gfxbody.cpp` now.
     void Generate(void* context, int32_t generation) const override;
     // [11] 0x1800a3b10 — `RET`. One byte in the shipped build, ported as an
-    // empty body (reference_retail_ships_empty_bodies.md).
+    // empty body.
     void Render(Renderer& renderer, const Scene& scene, const Camera& camera,
                 int32_t generation) const override;
 

@@ -3,29 +3,22 @@
 //
 // Lands 0x140100380 (Entity_impl_0380) — computes an entity's screen-space bounding
 // rectangle by transforming its world bounding-box corners and projecting them through
-// the camera. Resolved via ResolveAddr(Module::Exe, 0x140100380) from
-// src/game/Player/edittool.cpp (EditTool_Startup positions the tool dialog near the
-// selected entity's on-screen rectangle). It resolves to 0 (silently skipped) unless
-// registered.
+// the camera. Called by name from src/game/Player/edittool.cpp (EditTool::Update
+// positions the tool dialog near the selected entity's on-screen rectangle) and from
+// src/game/Tutorial/tutorialhighlightdialog.cpp.
 //
-// This file provides faithful 1:1 reimplementations of the four-function closure and a
-// single registration point (RegisterPlayerScreenRectBatch in
-// standalone/reg_player_screenrect.cpp).
-//
-// Closure (registered bottom-up):
-//   0x1400fec70 CharacterComponent_impl_ec70  -> CharacterComponent_impl_f3e0 (0x14009f3e0, REG)
-//   0x140098210 cameraWorldToScreen           -> Math dispatch slots (registered locally)
-//   0x1400fe960 boundsAccumulate              -> 0x140098210 + Vector2 Min/Max/*= slots
+// This file provides faithful 1:1 reimplementations of the four-function closure:
+//   0x1400fec70 CharacterComponent_impl_ec70  -> CharacterComponent_impl_f3e0 (0x14009f3e0)
+//   0x140098210 cameraWorldToScreen           -> Math members
+//   0x1400fe960 boundsAccumulate              -> 0x140098210 + Vector2 Min/Max/*=
 //   0x140100380 Entity_impl_0380              -> 0x1400fec70, 0x1400fe960,
-//                                                Entity_ClearPathQueue (0x140003f60, REG),
-//                                                FUN_140004680 (0x140004680, REG),
-//                                                + Volume/Vector3/Transform/Box slots
+//                                                Entity_ClearPathQueue (0x140003f60),
+//                                                FUN_140004680 (0x140004680),
+//                                                + Volume/Vector3/Transform/Box calls
 //
-// The Math operations are invoked through exe IAT dispatch slots (0x14015xxxx). Each was
-// decoded from the exe's name table (slot RVA + 2-byte hint -> mangled string) and is a
-// pure Runtime export. The bodies resolve them via ResolveExport so they work whether or
-// not the slot is filled; reg_player_screenrect.cpp ALSO registers the slots (a local
-// slot-storage registrar) for any other standalone caller that reads the .rdata slot.
+// Retail invokes the Math operations through exe IAT dispatch slots (0x14015xxxx). Each
+// was decoded from the exe's name table (slot RVA + 2-byte hint -> mangled string) and is
+// a pure Runtime export, called here by name.
 //
 // All value-returning Math members use the MS x64 member struct-return ABI:
 //   RCX=this, RDX=&retbuf, R8/R9.. = args. The retbuf pointer is returned in RAX.
@@ -52,11 +45,9 @@
 #include "Component/MapComponent.h"
 #include "Entity/ComponentEntity.h"
 #include "graphics/Camera.h"
-// One-shot screen-rect projection diagnostics (BANISHED_TOOL_DIAG). A/B-safe: only
-// emits when the placement pick chain is active + the env is set. Bounded line count.
 
 // ============================================================
-// Locally-resolved Math/Volume dispatch-slot exports (value-return, member ABI).
+// Math/Volume dispatch-slot exports (value-return, member ABI).
 // ============================================================
 // Each is a Runtime export decoded from the exe dispatch-slot name table:
 //   0x140151f00 ??0Vector4@Math@@QEAA@AEBVVector3@1@AEBVScalar@1@@Z   Vector4(Vector3&,Scalar&)
@@ -78,7 +69,7 @@
 // RtVolume_Rectangle_Ctor / RtVolume_Box_GetCorners (src/engine/volume/Volume.h).
 
 // CharacterComponent_impl_f3e0 (0x14009f3e0) = grid->world conversion:
-// Reimpl_MapGetTerrainPos (Game/exe_bodies.h), called by name.
+// Map::GetTerrainPos (Game/Map.h), called by name.
 
 // ============================================================
 // FUN_1400fec70 — build 4 footprint corners
@@ -185,7 +176,7 @@ uint8_t PlayerController::WorldToScreen(const Math::Vector3* param_2,
 // ============================================================
 // FUN_1400fe960 — accumulate projected corners into a screen rectangle
 // ============================================================
-// Projects each of param_2 (count) world corners through WorldToScreen_098210, tracks
+// Projects each of param_2 (count) world corners through PlayerController::WorldToScreen, tracks
 // the per-axis min/max in screen space (seeded with +/-1e6), clamps the result to the
 // display [0..W]x[0..H], scales by (GameSettings::uiScale / 100.0), and writes the
 // resulting rectangle (min.xy, max.xy) to param_4. Returns true when at least one

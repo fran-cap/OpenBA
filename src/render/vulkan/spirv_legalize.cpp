@@ -1,13 +1,15 @@
 // ============================================================================
 // src/render/vulkan/spirv_legalize.cpp -- lowering of OpBitFieldInsert (spirv_legalize.h)
 // ============================================================================
-// NOT RETAIL. Two word-level SPIR-V passes. LowerBitFieldInsert:
+// NOT RETAIL. Three word-level SPIR-V passes. LowerBitFieldInsert:
 //   1. index the 32-bit integer scalar types and the 32-bit OpConstant values;
 //   2. replace each OpBitFieldInsert on such a type with constant offset and count by
 //      OpShiftLeftLogical / OpBitwiseAnd / OpBitwiseAnd / OpBitwiseOr (the last keeps the result id);
 //   3. declare the two mask constants of each before the first function.
 // DowngradeSpirv (the 1.1 path): index the variables' storage classes and the capabilities, rewrite
 // (version, extensions, entry-point interface, demote / terminate to OpKill), then fix the OpPhis.
+// WidenInputs (the 1.1 path's linked pixel module): widens each plain pixel input to the width of the
+// vertex output at its Location (spirv_legalize.h).
 // ============================================================================
 #include "spirv_legalize.h"
 

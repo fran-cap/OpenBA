@@ -9,7 +9,7 @@
 // The pair-cache caches region-to-region path lengths: RegionPairCache (Action/PathSearch.h,
 // 0x38 bytes) — the clock, the lifetime, the ring's write / expiry indices, the ring
 // (RawArray<RegionPairEntry> at +0x18) and the AVL index at +0x28. FUN_14001cca0 resizes
-// the ring to 0x20000 entries of stride 0x18 (~6 MB), which is faithful/correct.
+// the ring to 0x20000 entries of stride 0x18 (~3 MB), which is faithful/correct.
 //
 // The lifetime is seeded via System::Time::Time(&tmp, DAT_140172210) with
 // DAT_140172210 = 120.0f (see the builder below).
@@ -23,7 +23,7 @@
 #include <cstdio>
 #include <cstdlib>
 
-// 0x14001ca60 - the shared intrusive-AVL delete, WorkCellBST_Remove_ca60 (Work/exe_bodies.h).
+// 0x14001ca60 - the shared intrusive-AVL delete, WorkCellBST_Remove_ca60 (Work/CellBst.h).
 
 // ---- FUN_14001cca0: resize the region-pair ring to 0x20000 entries (stride 0x18): the
 // exe's Array<RegionPairEntry>::SetSize(0x20000), new entries {-1, -1, -1, <0x0C>, 0}.
@@ -138,7 +138,7 @@ extern "C" RegionPairCache* Pf_RegionPairCache_Build() {
 // Faithfulness notes:
 //  - Retail's slot reset stores 8 bytes at entry+0x08 whose low half is 0xFFFFFFFF and
 //    whose high half is an uninitialized stack slot (the decompiler's uStack_1c). We
-//    transcribe the pad as 0, matching how the insert port handles its uStack_3c.
+//    transcribe the pad as 0; the insert port (RegionPairCache::Store) leaves +0x0C unwritten.
 //  - The outer test is `> lifetime` (retail JLE skips the whole loop), and the loop repeats
 //    on the same strict `>` after advancing - so an entry exactly AT the window survives.
 void RegionPairCache::Expire(const int64_t* dt) {

@@ -36,10 +36,11 @@
 //    slot below keeps that OS-side behaviour: a destroyed handle's slot holds no
 //    cursor, so Destroy does nothing and Set selects "no cursor" (SDL_DestroyCursor and
 //    SDL_SetCursor would also ignore a freed SDL_Cursor*: both look it up in SDL's list
-//    of live cursors first, SDL_mouse.c). Nor can the order happen in this tree: all three slot-3 callers
-//    (src/engine/video/device_startup.cpp: CreateVideoInterface, the failed-create arm of
-//    PlatformStartup, PlatformShutdown) delete the DeviceData right after Shutdown, so
-//    slot 8 never runs on a DeviceData that slot 3 has shut down.
+//    of live cursors first, SDL_mouse.c). The three slot-3 callers in
+//    src/engine/video/device_startup.cpp (CreateVideoInterface, the failed-create arm of
+//    PlatformStartup, PlatformShutdown) delete the DeviceData right after Shutdown; the DX11
+//    device-lost recoveries (src/render/dx11/contextdata.cpp, render_pipe_finish.cpp) run
+//    slot 3 and then slot 2 on the same DeviceData.
 //  * The handle: platform_window.h's CursorHandle is a pointer to Platform::CursorObject,
 //    which this backend defines as a slot holding the SDL_Cursor*. Destroy clears the
 //    slot and returns it to a free list, so a stale handle reaches a slot whose cursor is
@@ -169,7 +170,7 @@ void Show(bool show) {
     else      SDL_HideCursor();
 }
 
-// The only caller is the Metal backend (src/render/metal, the renderer PR).
+// The callers are the Vulkan and Metal backends (src/render/vulkan/device.cpp, src/render/metal/backend.mm).
 void SetFromTexels(const uint32_t* texels, int32_t hotX, int32_t hotY) {
     static CursorHandle current = nullptr;
     uint8_t andPlane[4 * 32];

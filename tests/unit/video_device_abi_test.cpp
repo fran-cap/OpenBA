@@ -14,25 +14,23 @@
 //                                      deviceData at +0x100
 //   Video::Device::{RefreshRate, DisplayMode, Adapter, GraphicsInterface,
 //                   InterfaceSlot}     8 / 0x18 / 0x38 / 0x18 / 0x18 strides
-//   Video::Configuration               0x44 INFERRED — see PART B
+//   Video::Configuration               0x44 (allocated at 0x1800dbc1c) — see Device.h
 //   Video::RenderBuffer                0x30
 //   Video::{Index,Vertex}Buffer        0x20 each
 //
 // None of them is polymorphic, so the whole risk is the opposite of block A's:
 // not "does GCC put slot N at N*8", but "did giving these PODs member functions,
 // nested classes and a namespace change one single byte of their layout". That is
-// what PART A and PART C assert, and PART C asserts it in the form that would
+// what Device.h's static_asserts and PART C assert, and PART C asserts it in the form that would
 // actually break — a vptr appearing at +0x00 and shifting every field by eight.
 //
-// WHY NO TREE SOURCE LINKS. Every ported body in this block stands on something a
-// host test cannot have: `src/engine/video/device.cpp` on `RT_DATA_SLOT` and
-// `IO::Persistence`, `device_startup.cpp` on the exe's `ResolveAddr` and the
-// Application singleton, `video_interfaces_win.cpp` and the three `_win` twins on
-// `<windows.h>`, `buffers.cpp` and `dynamic_resources.cpp` on the port registry
-// and dx11's live vtables. So the real classes' LAYOUT is checked directly
-// (sizes and offsets are Device.h's own static_asserts; what is here is the
-// relations the header leaves unsaid) and the hidden-return-slot door shape
-// the block relies on is checked on a class declared here in the same shape.
+// WHAT LINKS. Of this block's ported bodies only `src/engine/video/device_enum_types.cpp`
+// is on tests/unit/sources.cmake (PART F runs it); `device.cpp`, `device_startup.cpp`,
+// `video_interfaces_win.cpp`, `buffers.cpp` and `dynamic_resources.cpp` are not. So the
+// real classes' LAYOUT is checked directly (sizes and offsets are Device.h's own
+// static_asserts; what is here is the relations the header leaves unsaid) and the
+// hidden-return-slot shape the block relies on is checked on a class declared here
+// in the same shape.
 // ============================================================================
 #include <cstdint>
 #include <cstddef>
@@ -175,15 +173,14 @@ UNIT_TEST(video_device_pod_spellings_are_the_same_type_not_a_copy) {
 }
 
 // ===========================================================================
-// E2: THE HIDDEN-RETURN-SLOT DOOR, RULE B5-12 as amended.
+// E2: THE HIDDEN-RETURN-SLOT SHAPE, RULE B5-12 as amended.
 //
 // `Device::GetDisplayMode` and `Device::GetDLLForInterface` return a class BY
 // VALUE. GCC's ms_abi and MSVC do NOT agree on where the hidden pointer goes
-// relative to `this`, so the amendment's rule is: the MEMBER may return by value
-// only because the REGISTERED DOOR keeps retail's explicit `(this, ret, args)`
-// signature, placement-constructs the member's prvalue into the caller's slot and
-// returns that slot pointer. Both of this block's retslot doors are written that
-// way; this test proves the shape does what it claims:
+// relative to `this`, so the amendment's rule is: the MEMBER returns by value and
+// the caller placement-constructs its prvalue into its own uninitialised slot
+// (`FillSwapChainDesc` in src/render/dx11/devicedata.cpp). This test proves that
+// shape on a mirror whose door returns the slot it was handed:
 //   * the caller's slot is never READ (it arrives uninitialised, and C++17
 //     guarantees the prvalue is built in place rather than copied in);
 //   * the door returns exactly the slot it was handed, which is retail's

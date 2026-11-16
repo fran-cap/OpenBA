@@ -9,15 +9,14 @@
 //   (B38_SLOTS.md §2), its back-pointer at off+0x18, the own fields the ported
 //   bodies read raw.
 // PART B — SHAPE. ResourceProduceComponent is abstract (slot 18 pure); every leaf
-//   is concrete, `final`, single inheritance, polymorphic, NO virtual destructor.
+//   is concrete, `final`, single inheritance, polymorphic, a virtual destructor.
 // PART C — SLOT ORDER, read off pointers to VIRTUAL members (Itanium PMF =
 //   1 + vtable byte offset, adjustment 0): every override lands on the retail
 //   index of B38_SLOTS.md §6 — RP's 18-21 included (22 slots).
 // PART D — the shared RP member: a raw retail-shaped dispatch through
 //   `TableController<RPCtrlTag>` reaches the handler with RCX = the owner.
 //
-// NOT PROVEN HERE: the bodies and the constructors (they stand on the address
-// registry and cannot link into a host test). Slot 18 (CreateWork) takes its
+// NOT PROVEN HERE: the bodies and the constructors. Slot 18 (CreateWork) takes its
 // InternalBasePtr slot as an explicit
 // pointer (RCX = this, RDX = out), not as a hidden return: no retslot here.
 // ============================================================================

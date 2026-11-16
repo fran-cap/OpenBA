@@ -83,13 +83,13 @@ constexpr uint32_t kDirMask  = 7u;
 
 constexpr int kMaxBuckets = 1 << 16;
 
-// The heuristic modes (FindPath :373-388): octile with 8 directions, else
+// The heuristic modes (FindPath :375-390): octile with 8 directions, else
 // Manhattan or Chebyshev with 4.
 constexpr int kOctile    = 0;
 constexpr int kManhattan = 1;
 constexpr int kChebyshev = 2;
 
-// R1: Neighbour 0x1400a5ec0's direction order (action_pf_geom.cpp:66):
+// R1: Neighbour 0x1400a5ec0's direction order (PathSearch.h:374-384):
 // 0 col+1, 1 col-1, 2 row+1, 3 row-1, 4 col+1 row+1, 5 col+1 row-1,
 // 6 col-1 row-1, 7 col-1 row+1. 0-3 orthogonal, 4-7 diagonal.
 constexpr int kDx[8] = { +1, -1,  0,  0, +1, +1, -1, -1 };
@@ -97,8 +97,8 @@ constexpr int kDy[8] = {  0,  0, +1, -1, +1, -1, -1, +1 };
 
 inline int Abs(int v) { return v < 0 ? -v : v; }
 
-// Heuristic 0x1400a6030 (action_pf_geom.cpp:101), inlined in FindPath at
-// action_pf_astar.cpp:367-388, at unit cost.
+// Heuristic 0x1400a6030 (action_pf_geom.cpp:61), inlined in FindPath at
+// action_pf_astar.cpp:369-390, at unit cost.
 template <int kMode>
 inline int32_t UnitDistance(int dx, int dy) {
     if (kMode == kOctile) {
@@ -141,7 +141,7 @@ void Searcher::Prepare(int cellCount, int bucketCount) {
         cells_.assign(cellCount, CellState{0, 0u});
         gen_ = 0;
     }
-    // Retail bumps PathSearch::generation per run (Run 0x14001ce00, :415) and
+    // Retail bumps PathSearch::generation per run (Run 0x14001ce00, :420) and
     // never clears its node array; so do we, resetting on the wrap. Tag 0 is
     // generation 0, which no search uses.
     if (++gen_ >= kGenLimit) {
@@ -164,9 +164,9 @@ SearchResult Searcher::Run(const SearchInput& in, int32_t* path) {
     }
 
     // R2 + R3 folded into one table over the whole flag byte: the walkable
-    // test of Neighbour (action_pf_geom.cpp:85-88: `respectBlocked == 0 ||
+    // test of Neighbour (PathSearch.h:389-392: `respectBlocked == 0 ||
     // (b & 0x80) == 0`, then `(passableTypes >> (b & 0x1f)) & 1`) and the cost
-    // index of FindPath (action_pf_astar.cpp:351: `cellFlags[nb] & 0x7f`).
+    // index of FindPath (action_pf_astar.cpp:353: `cellFlags[nb] & 0x7f`).
     int32_t cost[256];
     int32_t maxCost = 0;
     for (int b = 0; b < 256; ++b) {
@@ -203,7 +203,7 @@ SearchResult Searcher::Run(const SearchInput& in, int32_t* path) {
     while (buckets <= span) buckets <<= 1;
 
     Prepare(cellCount, buckets);
-    // FindPath :336-338: 4 directions, or 8 when allowDiagonal; :373-388 the heuristic.
+    // FindPath :337-340: 4 directions, or 8 when allowDiagonal; :375-390 the heuristic.
     if (in.allowDiagonal) return RunMode<kOctile>(in, path, cost, buckets, static_cast<uint32_t>(span));
     if (in.manhattan) return RunMode<kManhattan>(in, path, cost, buckets, static_cast<uint32_t>(span));
     return RunMode<kChebyshev>(in, path, cost, buckets, static_cast<uint32_t>(span));
@@ -233,7 +233,7 @@ SearchResult Searcher::RunMode(const SearchInput& in, int32_t* path, const int32
     // An interior cell (not on the border) has all 8 neighbours in the grid.
     const unsigned inner = static_cast<unsigned>(w - 2);
 
-    int32_t sequence = 0;   // PathSearch::sequence, reset per FindPath (:300)
+    int32_t sequence = 0;   // PathSearch::sequence, reset per FindPath (:302)
     int liveOpen = 0;       // PathOpenSet::count
 
     // Relax 0x14001d320: set parent / g, mark open, push (cell, g) at f. The old
@@ -248,13 +248,13 @@ SearchResult Searcher::RunMode(const SearchInput& in, int32_t* path, const int32
         ++sequence;
     };
 
-    // FindPath :308-309: Relax(start, -1, 0, Heuristic(start, goal)).
+    // FindPath :310-311: Relax(start, -1, 0, Heuristic(start, goal)).
     int32_t cur = s * UnitDistance<kMode>(Abs(start % w - gx), Abs(start / w - gy));
     relax(start, 0u, 0, cur);
 
     bool found = false;
     for (;;) {
-        // R8: FindPath :313-315: an empty open set is "no path".
+        // R8: FindPath :315-317: an empty open set is "no path".
         if (liveOpen < 1) break;
         // R7: the minimum f, newest first. Live entries lie in [cur, cur + span].
         int32_t e = head[cur & bucketMask];
@@ -267,12 +267,12 @@ SearchResult Searcher::RunMode(const SearchInput& in, int32_t* path, const int32
         const int cell = top.cell;
         CellState& here = cells[cell];
         if ((here.tag & ~kDirMask) != openTag || here.g != top.g) continue;   // stale
-        // R4: FindPath :324-326: the goal is tested when POPPED.
+        // R4: FindPath :326-328: the goal is tested when POPPED.
         if (cell == goal) {
             found = true;
             break;
         }
-        // FindPath :327-332: delete, close.
+        // FindPath :329-334: delete, close.
         --liveOpen;
         here.tag = closedTag | (here.tag & kDirMask);
         ++out.expanded;
@@ -285,7 +285,7 @@ SearchResult Searcher::RunMode(const SearchInput& in, int32_t* path, const int32
         for (int dir = 0; dir < kDirs; ++dir) {
             const int nx = x + kDx[dir];
             const int ny = y + kDy[dir];
-            // R1: Neighbour's bounds test (action_pf_geom.cpp:81), only on the border.
+            // R1: Neighbour's bounds test (PathSearch.h:385), only on the border.
             if (!interior && (static_cast<unsigned>(nx) >= static_cast<unsigned>(w) ||
                               static_cast<unsigned>(ny) >= static_cast<unsigned>(w))) {
                 continue;
@@ -299,17 +299,17 @@ SearchResult Searcher::RunMode(const SearchInput& in, int32_t* path, const int32
                 }
                 continue;   // R2: Neighbour returned -1
             }
-            // R3: FindPath :352-356: |dcol| + |drow| == 1 -> * 10, else * 14.
+            // R3: FindPath :354-358: |dcol| + |drow| == 1 -> * 10, else * 14.
             const int32_t t = gHere + c * (dir < 4 ? 10 : 14);
             CellState& n = cells[nb];
             uint32_t state = n.tag & ~kDirMask;
-            // R5: FindPath :360-363: closed and not cheaper -> skip; cheaper ->
+            // R5: FindPath :362-365: closed and not cheaper -> skip; cheaper ->
             // un-close (closedStamp - 1) and fall through to the open test.
             if (state == closedTag) {
                 if (n.g <= t) continue;
                 state = 0u;
             }
-            // R6: FindPath :365-366, Relax :389: relax when not open, or strictly cheaper.
+            // R6: FindPath :367-368, Relax :391: relax when not open, or strictly cheaper.
             if (state != openTag || t < n.g) {
                 const int32_t f = t + s * UnitDistance<kMode>(Abs(nx - gx), Abs(ny - gy));
                 // The bucket bound (header): a violation means the scale broke
@@ -326,13 +326,13 @@ SearchResult Searcher::RunMode(const SearchInput& in, int32_t* path, const int32
     out.inserted = sequence;
     out.openLeft = liveOpen;
     if (!found) {
-        out.status = Status::NotFound;   // Run :417-419: return 0
+        out.status = Status::NotFound;   // Run :422-424: return 0
         return out;
     }
     out.status = Status::Found;
     out.cost = cells[goal].g;
 
-    // R9: Run 0x14001ce00 (:420-451): count the chain from the goal; with a
+    // R9: Run 0x14001ce00 (:425-456): count the chain from the goal; with a
     // buffer, write it back to front keeping indices < 0x4000, clamp the count.
     int len = 1;
     for (int c = goal; c != start; c -= off[cells[c].tag & kDirMask]) ++len;

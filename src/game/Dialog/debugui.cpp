@@ -13,7 +13,7 @@
 
 // The runtime type headers come FIRST: they pull src/engine/volume/Volume.h,
 // whose global-scope `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()`
-// once <windows.h> has been seen through resolve.h.  ENDGAME B.3.5 batch I2.
+// once <windows.h> has been seen.  ENDGAME B.3.5 batch I2.
 #include "ui/TextElement.h"   // ENDGAME B.3.6 UI callers (K2)
 #include "ui/ComboElement.h"   // ENDGAME B.3.6 UI callers (K2)
 #include "ui/NumberElement.h"   // ENDGAME B.3.6 UI callers (K2)
@@ -59,15 +59,15 @@
 #include "engine/MainLoop.h"   // ENDGAME B.3.9 SS2: Engine::MainLoop::_singleton
 #include "video/Context.h"     // Video::Context's submit counters (+0x2150..+0x215C)
 #include "Component/exe_bodies.h"             // B3R: the bodies called by name
-#include "Action/exe_bodies.h"                // B3R: Pf_RecursiveChildSum_123070
+#include "Action/exe_bodies.h"
 #include "Entity/ComponentEntity.h"   // ComponentEntity(ComponentDescription*) (0x1400c3720)
 #include "Entity/EntityList.h"        // EntityList::RegisterEntity (0x1400c48a0)
-#include "Component/firecomponent_funcs.h"    // B3R: FireComponent_Ignite_610
-#include "Component/diseasecomponent_funcs.h" // B3R: DiseaseComp_Infect
+#include "Component/firecomponent_funcs.h"    // FireComponent::Ignite (Component/FireComponent.h)
+#include "Component/diseasecomponent_funcs.h" // DiseaseComponent::Infect (Component/DiseaseComponent.h)
 #include "Entity/CitizenBehavior.h"            // B4 DLG-a: the town lists
 #include "Component/PastureComponent.h"
 #include "Component/PopulationComponent.h"
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc
 #include "ui/SliderElement.h"          // B4 DLG-a: the typed DebugUI fields
 #include "ui/CheckElement.h"
 #include "ui/ImageElement.h"
@@ -225,9 +225,8 @@ void DebugUI::OnDrawComboChanged() {
 // Original: 0x1400608A0
 // ============================================================
 void DebugUI::OnWeatherComboChanged() {
-    // The DrawGeometry ctor / init are 0x1400d3f10 WeatherParticle_GeoCtor and
-    // 0x1400d3f80 WeatherParticle_Config, called by name (B3R; the old
-    // "not reimplemented" bail-out never ran: both are registered).
+    // The DrawGeometry ctor / init are 0x1400d3f10 (WeatherParticleGeometry's ctor) and
+    // 0x1400d3f80 (WeatherParticleGeometry::Configure), called by name.
 
     // Get selected combo index
     int selectedIdx = comboWeather->_currentItem;
@@ -256,7 +255,7 @@ void DebugUI::OnWeatherComboChanged() {
                 void* geomMem = System::MemoryAllocator::MemAlloc(0xf0, 8);
                 WeatherParticleGeometry* geometry = nullptr;
                 if (geomMem) {
-                    // 0x1400d3f10, the ctor (WeatherParticle_GeoCtor's body; its null
+                    // 0x1400d3f10, the WeatherParticleGeometry ctor (its null
                     // test is the `if` above)
                     geometry = ::new (geomMem) WeatherParticleGeometry();
                 }
@@ -317,14 +316,14 @@ void DebugUI::OnWeatherComboChanged() {
     }
 }
 
-// SetEngineNextLoop — now inline in engine_funcs.h as SetEngineNextLoop()
-// (was static SetEngineNextLoop_Impl here, promoted to shared inline)
+// SetEngineNextLoop is GameUpdateLoop::SetEngineNextLoop (Game/GameUpdateLoop.h, defined in
+// Game/worldsetup_reload.cpp).
 
 // ============================================================
 // Game_DestroyAllRawMaterials (FUN_140060000)
 // Iterates ExternalFactory for all entities with ComponentDescription (DAT_1401c7318).
 // For each entity, searches components for RawMaterialDescription (DAT_1401c7cb8).
-// If found, destroys the entity via Game_DestroyEntity.
+// If found, registers the description with the town (CitizenBehavior::RegisterRawMaterial).
 // ============================================================
 static void Game_DestroyAllRawMaterials_Impl() {
     ::Object::ExternalFactory* factory = ::Object::ExternalFactory::_singleton;
@@ -351,11 +350,8 @@ static void Game_DestroyAllRawMaterials_Impl() {
                 Description* rawComp = compArray[i];
                 bool isRawMat = ::Object::IsDerivedFromNullSafe(rawComp, RawMaterialDescription::TypeId());
                 if (isRawMat && rawComp != nullptr) {
-                    // Destroy the entity (re-read the list from the global each time)
-                    // The door was named fn_Game_DestroyEntity; it is bound to
-                    // 0x140091e60 RawMaterialComponent_RegisterRawMaterial (B3R: the
-                    // binding decides, INVENTORY_E §5.8).
-                    // (RawMaterialComponent_RegisterRawMaterial's member.)
+                    // Register the description with the town (re-read the list from the
+                    // global each time): 0x140091e60 CitizenBehavior::RegisterRawMaterial.
                     GameUpdateLoop::_singleton->m_citizenList->RegisterRawMaterial(buildEntity);
                 }
                 break;
@@ -398,7 +394,7 @@ static void Game_SpawnItemsInStorage_Impl() {
 
             // Spawn one item
             AnimalComponent* noParent = nullptr;   // the InternalBasePtr(nullptr) retail builds
-            storage->SpawnLivestock(&noParent);   // 0x140128670 (door misnamed fn_StorageComponent_SpawnItem)
+            storage->SpawnLivestock(&noParent);   // 0x140128670
         }
     }
 }
@@ -471,9 +467,9 @@ static void Game_SpawnCitizenAt(System::Random* random, const Math::Vector3* pos
 
 // ============================================================
 // Game_SpawnCitizens (FUN_140060380)
-// Spawns up to 4 new citizens at buildings that have residence
-// components with available capacity. Iterates all buildings,
-// spawning multiple citizens per building until full or 4 total.
+// Spawns up to 4 new citizens at the use nodes of the storage locations'
+// InteractComponents. Iterates all storage locations, spawning multiple
+// citizens per building until its nodes are used or 4 total.
 // ============================================================
 static void Game_SpawnCitizens_Impl() {
     GameUpdateLoop* game = GameUpdateLoop::_singleton;
@@ -520,9 +516,7 @@ static void Game_SpawnCitizens_Impl() {
                                 int si = 0;
                                 do {
                                     const Object::InternalPtr<InteractComponent>* pChild = childArrayBase + si;
-                                    // 0x140123070 InteractNodeCount (the forwarder
-                                    // Pf_RecursiveChildSum_123070's body; door misnamed
-                                    // fn_ResidenceComponent_GetOccupantCount)
+                                    // 0x140123070 InteractComponent::NodeCount
                                     int occResult = pChild->Get()->NodeCount(0);
                                     capacityAccum += occResult;
                                     si++;
@@ -534,8 +528,7 @@ static void Game_SpawnCitizens_Impl() {
 
                             // Get spawn point for this slot
                             Vector3Slot spawnPos;
-                            // 0x140122e20 Pf_EntityResolvePos_2e20 (door misnamed
-                            // fn_ResidenceComponent_GetSpawnPoint)
+                            // 0x140122e20 InteractComponent::NodePosition
                             resComp->NodePosition(&spawnPos.v, 0, spawnedHere, nullptr);
 
                             // Check if we've reached the global limit of 4
@@ -577,8 +570,8 @@ static void Game_SpawnCitizens_Impl() {
 
 // ============================================================
 // DebugUI::TriggerDisasterOnBuilding (FUN_14005FF30)
-// Picks a random building from the building list, reads disease
-// combo selection, and applies disease disaster to the building.
+// Picks a random citizen from the citizen list, reads the disease
+// combo selection, and infects the citizen with that disease.
 // ============================================================
 void DebugUI::TriggerDisasterOnBuilding() {
     GameUpdateLoop* game = GameUpdateLoop::_singleton;
@@ -606,7 +599,7 @@ void DebugUI::TriggerDisasterOnBuilding() {
     if (!building) return;
 
     // Apply disease to building
-    building->Infect(diseaseDesc);   // 0x140116b90 (door named fn_DisasterComponent_Infect)
+    building->Infect(diseaseDesc);   // 0x140116b90 (CitizenComponent::Infect)
 }
 
 // ============================================================
@@ -671,7 +664,8 @@ static void Game_SpawnTornado_Impl() {
 
 // ============================================================
 // Game_InfectRandomCitizen (FUN_14005FE10)
-// Picks a random citizen from the citizen list, infects them.
+// Picks a random DiseaseComponent (a building's crop / livestock disease) from the
+// town's disease list, infects it.
 // ============================================================
 static void Game_InfectRandomCitizen_Impl() {
     GameUpdateLoop* game = GameUpdateLoop::_singleton;
@@ -690,7 +684,7 @@ static void Game_InfectRandomCitizen_Impl() {
     if (!citizen) return;
 
     // Infect citizen's disease component
-    citizen->Infect();   // 0x1400483a0 (DiseaseComp_Infect's member)
+    citizen->Infect();   // 0x1400483a0 (DiseaseComponent::Infect)
 }
 
 // ENDGAME B.3.9: every global the old debugui_sa::EnsureGlobals() healed now has a
@@ -701,7 +695,7 @@ static void Game_InfectRandomCitizen_Impl() {
 // TypeId_DrawableType, cell 0x1401c47c8 -- Table 1's authority), CitizenComponent
 // (0x1401c7158), and UI::Element (was TypeId_Element, healed here under the WRONG
 // by-name guess "Internal" -- the cell is exref 0x140151660, UI::Element's own
-// _typeInfo per Table 1 / standalone/reg_element_typeids.cpp, matching this file's
+// _typeInfo per Table 1, matching this file's
 // OWN correct comment on the FindElemBase guard further down). The lazy-cache
 // namespace is dead.
 
@@ -862,7 +856,8 @@ void DebugUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::Even
     if (a != UI::EventId::Activated)
         return;
 
-    // Range check: element IDs 300 (0x12C) through 339 (0x153)
+    // Range check: element IDs 300 (0x12C) through 357 (0x165); only 300-339 have arms,
+    // 340-357 take the jump table's default (return)
     if ((unsigned)(b - 300) > 0x39)
         return;
 
@@ -899,13 +894,13 @@ void DebugUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::Even
     case 321:  Game_TriggerDisasterByType_Impl(0); return;  // Trigger disaster type 0
     case 322:  Game_TriggerDisasterByType_Impl(1); return;  // Trigger disaster type 1
     case 323:  Game_TriggerDisasterByType_Impl(2); return;  // Trigger disaster type 2
-    case 324:  Game_DestroyAllRawMaterials_Impl();  return;  // Destroy all loose raw material entities
+    case 324:  Game_DestroyAllRawMaterials_Impl();  return;  // Register every raw-material template
     case 325:  Game_SpawnItemsInStorage_Impl();    return;  // Spawn items in all storage
     case 326:  Game_SpawnCitizens_Impl();          return;  // Spawn new citizens
     case 327:  TriggerDisasterOnBuilding();        return;  // Disaster on random building
     case 328:  Game_StartRandomFire_Impl();        return;  // Start random fire
     case 329:  Game_SpawnTornado_Impl();           return;  // Spawn tornado
-    case 330:  Game_InfectRandomCitizen_Impl();    return;  // Infect random citizen
+    case 330:  Game_InfectRandomCitizen_Impl();    return;  // Infect a random DiseaseComponent (cropDiseaseButton)
 
     // --- Debug render flag toggles (checkboxes) ---
     // `element` points at the caller's InternalPtr (the checkbox element).
@@ -990,8 +985,8 @@ static UI::Element* DebugUI_FindAndSetId(UI::Element* parentElem, const char* na
 
 // [4] 0x1400619e0
 void DebugUI::OnCreated() {
-    // Slot4 unconditionally dereferences ObjectInternal (every FindElemBase),
-    // DiseaseDescription (diseaseCombo populate) and DrawableType (drawCombo
+    // Slot4 unconditionally dereferences UI::Element's type id (every FindElemBase),
+    // Disease's (diseaseCombo populate) and PopulationDescription's (drawCombo
     // populate). Skip the whole setup rather than fault if any failed to
     // resolve; all three reliably resolve post-Engine::Startup.
     if (!UI::Element::TypeId() || !Disease::TypeId() || !PopulationDescription::TypeId()) {

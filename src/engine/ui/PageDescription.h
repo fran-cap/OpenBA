@@ -9,7 +9,7 @@
 //
 // PARENT `UI::GroupDescription` — READ, not inferred (B36_SLOTS.md section 3):
 //     ?_ParentTypeName@PageDescription@UI@@CAPEBDXZ  @0x180046eb0 -> "GroupDescription"
-// RULE B5-15 / B6-7 — the two literals, RECORDED, NOT USED:
+// RULE B5-15 / B6-7 — the two literals, RECORDED; DEFINE_TYPE (pagedescription.cpp) returns both:
 //     ?_TypeName@PageDescription@UI@@CAPEBDXZ        @0x180046ea0 -> "PageDescription"
 //     ?_ParentTypeName@PageDescription@UI@@CAPEBDXZ  @0x180046eb0 -> "GroupDescription"
 // The derivation is also visible in the bytes: ~PageDescription (0x1800d54b0)

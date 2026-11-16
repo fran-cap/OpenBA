@@ -27,8 +27,8 @@
 
 namespace {
 
-// MemAlloc/MemFree shorthands matching the decompile's
-// System::MemoryAllocator::MemAlloc(size, align) / MemFree(ptr) free-function form.
+// MemAlloc shorthand matching the decompile's
+// System::MemoryAllocator::MemAlloc(size, align) free-function form.
 static inline void* MemAlloc(int64_t size, int align) {
     return System::MemoryAllocator::MemAlloc(size, align);
 }
@@ -299,6 +299,3 @@ void RegionGraph::Init(Map* mapArg, uint32_t blocksWideArg, int blocksHighArg) {
         }
     }
 }
-
-// B4 FORWARD: 1 outside caller (Game/region_seed.cpp) holds the graph as int* and the Map
-// as an integer. Returns the graph, as retail's ctor does.

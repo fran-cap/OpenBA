@@ -1,8 +1,8 @@
 // ============================================================
-// The DX9 PLACEHOLDER slot -- cutover only
+// The DX9 PLACEHOLDER slot
 //
-// VideoDX9-x64.dll imports Runtime-x64.dll, so with the Runtime DLL absent it
-// cannot load and slot 0 stays empty. Retail then appends nothing for it and
+// The ported InitializeInterfaces loads no plugin DLL (VideoDX9-x64.dll imports
+// Runtime-x64.dll), so slot 0 stays empty. Retail then appends nothing for it and
 // the Device's GraphicsInterface array holds ONE entry (ours, DX11) while the
 // configuration's interface index -- a SLOT index, 1 -- stays 1: the Options
 // dialog's PopulateResolutionCombo (retail 0x140073ec0) does
@@ -14,7 +14,7 @@
 // both). Its Create() returns false, so choosing it in Options leaves the
 // fallback loop in Device::PlatformStartup to step back to DX11. Filled only by
 // VideoInterfaceFillDx9Placeholder (src/app/video_interface.cpp), which the
-// ported InitializeInterfaces calls only when the DLL is absent.
+// ported InitializeInterfaces calls when slot 0 is empty (it loads no DLL).
 //
 // B5 DEV-A (B5_RULES D5, C3): a real C++ subclass of `Video::DeviceData`. It was
 // a 16-byte POD wearing a four-entry hand-built vtable array, which
@@ -29,7 +29,7 @@
 // ============================================================
 
 #include "VideoDX11Plugin.h"
-#include "video/CompanionData.h"   // -Iruntime/types: Video::DeviceData
+#include "video/CompanionData.h"   // src/engine: Video::DeviceData
 
 namespace VideoDX11 {
 namespace {

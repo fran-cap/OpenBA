@@ -6,8 +6,7 @@
 // Six trivial, non-Win32 bodies: five one-instruction field reads and one
 // empty function. None of the five touches the Win32 API directly (they
 // return opaque HWND/HINSTANCE-shaped `void*`, never call into it), so per
-// PLAN.md §4.1 decision 1 they belong here rather than in application_win.cpp
-// — <windows.h> stays out of this file.
+// PLAN.md §4.1 decision 1 they belong here — <windows.h> stays out of this file.
 //
 //   ?Get@Application@1@SAPEAV11@XZ                    retail 0x18000a2f0  (static)
 //   ?GetInstance@Application@1@QEBAPEAUHINSTANCE__@@XZ retail 0x18009fb90
@@ -39,10 +38,8 @@ using App = Application::Application;
 // `SA` in the mangling: STATIC, no `this`. It returns the same
 // `?_singleton@Application@1@0PEAV11@EA` slot at 0x1801fc678 the ctor
 // publishes into (Application.h's `_windowHandle` comment; also
-// `src/engine/engine/singleton_ctors.cpp`'s `SlotApplication()`, which is
-// file-local there and not reused from here — this accessor reads the same
-// exported slot through its own RT_DATA_SLOT call instead of depending on
-// that file's internal linkage).
+// `src/engine/engine/singleton_ctors.cpp`'s `Ctor_Application`, which stores
+// it): the class static `_singleton` defined below.
 // ============================================================================
 Application::Application* Application::Application::_singleton = nullptr;   // 0x1801fc678
 
@@ -96,13 +93,6 @@ void* Application::Application::GetWindow() const {
 // normalises to 1, so a stored 2 became 1. Wave 12 lane VERIFY's orphan probe
 // measured that as 144 raw-AL divergences over a 216-state sweep.
 //
-// The reason it survived lane A's own review is worth keeping: the oracle
-// below USED TO DECLARE `Fn` as returning `bool` and to hold `theirs` in a
-// `bool`, so the C++ conversion normalised BOTH sides before the comparison.
-// The instrument was structurally incapable of expressing the defect it was
-// pointed at -- it could not have failed. `uint8_t` on both sides is what
-// makes this a real comparison.
-//
 // No live state can hold a value above 1 today (the ctor's word store writes
 // 0x00 and `EnableCursor` stores a C++ bool), so this was not a live bug. It
 // is fixed anyway: faithful-first is the project rule, and "unreachable
@@ -113,7 +103,7 @@ uint8_t Application::Application::IsCursorEnabled() {
 }
 
 // ============================================================================
-// Application::Application::PlatformIsPaused() const      retail 0x18009fe80  (private)
+// Application::Application::PlatformIsPaused()            retail 0x18009fe80  (private)
 // ?PlatformIsPaused@Application@1@AEAA_NXZ
 // ----------------------------------------------------------------------------
 //   18009fe80: XOR EAX,EAX
@@ -124,7 +114,7 @@ uint8_t Application::Application::IsCursorEnabled() {
 // Byte-identical in SHAPE to the already-ported `IsPaused`
 // (`?IsPaused@Application@1@QEAA_NXZ`, 0x18009f4e0, application.cpp) — both
 // read `this[0x11] == 0`. They are two DISTINCT exports (`Is` vs `PlatformIs`,
-// different ordinals) and both are registered here; this is not an alias of
+// different ordinals); this is not an alias of
 // the other, it is its own port reading the same byte.
 // ============================================================================
 bool Application::Application::PlatformIsPaused() {
@@ -140,10 +130,9 @@ bool Application::Application::PlatformIsPaused() {
 //
 // An empty function — this IS the whole body, not a truncated read. It is
 // the Win32 platform seam's no-op counterpart to `PlatformConstruct` (lane
-// B), which is why it lives here and not in application_win.cpp: it never
-// touches <windows.h> because retail's own body never does either. A real
-// port of a real (if trivial) function; it belongs on the wave's checklist
-// and is registered exactly like the rest.
+// B, application_cursor_launch.cpp): it never touches <windows.h> because
+// retail's own body never does either. A real port of a real (if trivial)
+// function.
 // ============================================================================
 void Application::Application::PlatformDestruct() {
 }

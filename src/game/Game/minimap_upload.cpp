@@ -32,10 +32,6 @@
 // see src/game/Game/serialize_image_upload.cpp for the sibling single-buffer
 // upload this mirrors.
 
-// ENDGAME B.3.5 batch K1: the runtime type headers come FIRST. Neither reaches
-// src/engine/volume/Volume.h, but the house rule (a runtime type header ahead of
-// resolve.h's <windows.h>, whose <wingdi.h> `Rectangle()` hides Volume.h's global
-// `struct Rectangle`) is kept so a later include change cannot break it silently.
 #include "Game/Minimap.h"
 #include "video/ImageBuffer.h"
 #include "video/Device.h"
@@ -82,9 +78,9 @@ Video::ImageBuffer* CreateAndUploadOne(Video::ImageBuffer** dst, uint32_t* pixel
 // ============================================================
 // Minimap::CreateAndUpload — create + upload both minimap ImageBuffers.
 // ============================================================
-// Idempotent: if a buffer already exists it re-uploads (matches the retail
-// Serialize which re-creates on every load). Safe no-op if the allocator or the
-// device is missing or the size is invalid.
+// Each call creates and uploads two new buffers into terrainImage / overlayImage
+// (matches the retail Serialize which re-creates on every load). Safe no-op if the
+// allocator or the device is missing or the size is invalid.
 void Minimap::CreateAndUpload() {
     static bool s_trace = Opt().mapTrace != nullptr;
 

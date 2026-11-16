@@ -5,21 +5,12 @@
 // ============================================================================
 //
 // Writes a 24-bit bottom-up BMP. The one caller is
-// `src/game/Game/w2_takescreenshot.cpp:270`, the screenshot path.
+// `src/game/Game/w2_takescreenshot.cpp`, the screenshot path.
 //
 // ---------------------------------------------------------------------------
-// PORTING THIS DOES NOT CLOSE THE SCREENSHOT'S CUTOVER HOLE. Say it here so a
-// reader cannot infer otherwise from the row being ported.
+// THE IO CALLEES
 // ---------------------------------------------------------------------------
-// The body below reaches four IO functions that nothing in this tree has
-// ported, through `RT_EXPORT_ONCE` — and `ResolveExport` falls through to the
-// raw DLL implementation for an unported symbol
-// (`reference_converting_a_door_is_not_satisfying_it.md`). With the DLL absent
-// those four resolve to null and the screenshot path dies exactly as it did
-// before this file existed. Porting moves the hole from "no implementation" to
-// "an implementation with four unresolved dependencies"; it does not close it.
-//
-// The four, named so the IO wave inherits them rather than rediscovering them:
+// The body below calls four IO members, all ported in src/engine/io/:
 //
 //     ?CreatePath@FileSystem@IO@@QEBA_NAEBVFilename@System@@@Z     0x1800ae430  ord 2130
 //     ??0BinaryFileStream@IO@@QEAA@XZ                              0x1800a8200  ord   55
@@ -27,32 +18,27 @@
 //     ?CloseFile@FileSystem@IO@@QEAAXAEAUFileInfo@12@@Z            0x1800accc0  ord 1726
 //
 // plus `??1BinaryFileStream@IO@@UEAA@XZ` (0x180023c80, ord 532), which is a
-// five-instruction thunk onto `??1FileStream@IO@@UEAA@XZ` (0x1800aaab0). All
-// five are IO rows, and IO is Wave 19's declared subject.
+// five-instruction thunk onto `??1FileStream@IO@@UEAA@XZ` (0x1800aaab0).
 //
 // `IEAA` on `?Create@FileStream@` means PROTECTED and `AEAA` on
-// `?AdjustDelimiters@Filename@` means PRIVATE — neither means unexported. This
-// DLL exports both (`reference_aeaa_means_private_not_unexported.md`), so every
-// door below is a NAME door and not one of them is an address door.
+// `?AdjustDelimiters@Filename@` means PRIVATE — neither means unexported.
 //
 // ---------------------------------------------------------------------------
 // THE WAVE 6 HOLDBACK NOTE THIS REPLACES WAS SELF-CONTRADICTORY
 // ---------------------------------------------------------------------------
 // `src/engine/video/buffers.cpp:1415` held this row back with three reasons.
-// Re-checked before inheriting any of them
-// (`reference_holdback_blockers_are_stale_check_them_first.md`), and the note
+// Re-checked before inheriting any of them, and the note
 // **disagreed with itself inside one comment block**: its opening line says
 // *"One caller (src/game/Game/w2_takescreenshot.cpp, the screenshot path)"*
 // and its closing paragraph says *"w2_takescreenshot.cpp calls a different,
 // already-ported capture path — so leaving this on the DLL costs nothing."*
 // Both halves sat in the same comment for four waves. The call site settles it:
-// line 165 resolves this exact mangled name and line 270 calls it. "Grep the
+// w2_takescreenshot.cpp calls this exact function directly. "Grep the
 // call site" is the cheap lesson; "the note already refuted itself" is cheaper.
 //
 // Its other two reasons:
 //   * *"file I/O side effect — not diffable."* Not a real blocker: two
-//     subjects, two paths, byte-compare the two files. That is the oracle in
-//     `video_resources_probe.cpp` case 9.
+//     subjects, two paths, byte-compare the two files.
 //   * *"Wave 4 (IO) and System::String territory."* Half stale. The
 //     `System::Filename` / `System::String` / allocator half is ported today,
 //     and — the part that collapsed most of the work —
@@ -65,10 +51,8 @@
 // TWO ABI DETAILS THE DISASSEMBLY SETTLES AND A SIGNATURE WOULD GET WRONG
 // ---------------------------------------------------------------------------
 // 1. FOUR OF THE CALLEES RETURN A CLASS BY VALUE, so each has a HIDDEN RETURN
-//    SLOT that does not appear in the C++ signature. Omitting it from the
-//    typedef is a wild write that still returns the right answer
-//    (`reference_hidden_retslot_wild_write.md`), so the slot is in every
-//    typedef below. The disassembly also settles WHERE it goes, which differs
+//    SLOT that does not appear in the C++ signature. The disassembly settles
+//    WHERE it goes, which differs
 //    between the member and the free functions:
 //      * members  (`GetPathFilename`, `GetPathDirectory`): RCX = `this`,
 //        RDX = the return slot. 0x1800f288b/0x1800f2887 pass them that way.
@@ -76,8 +60,7 @@
 //        RDX and R8 = the operands.
 // 2. `?GetPathFilename@` takes a `bool` in R8B, set to 1 here
 //    (0x1800f2877 `MOV R8B,0x1`). It does NOT mean "with the extension" — see
-//    the next section, which is what the disassembly actually says. The
-//    argument name in the typedef below is `requireExtension` for that reason.
+//    the next section, which is what the disassembly actually says.
 //
 // ---------------------------------------------------------------------------
 // IT SUBSTITUTES THE EXTENSION, IT DOES NOT APPEND ONE
@@ -172,14 +155,7 @@ static_assert(kBmpInfoHeaderSize == sizeof(BmpInfoHeader), "biSize");
 // so the shrink and regrow arms are the same code even though this call site
 // only ever drives the fresh-array arm.
 //
-// It is NOT REGISTERED at its address, for the reason array_destroy.cpp gives
-// for the eight helpers it also declines to register: retail's only call to it
-// here is an in-DLL `rel32` that our registry cannot intercept, nothing in this
-// tree resolves 0x180053da0, and a registration with no caller dilutes the
-// census's dead-port signal (`reference_uncalled_port_is_not_verified.md`). It
-// is also NOT added to lane Q's spec table in array.cpp: that file is another
-// lane's, and this is a byte-element instantiation with a FILL, which none of
-// its existing rows carries.
+// The same instantiation is the kSpec_Fill1 row of the spec table in array.cpp.
 //
 // The growth rule is retail's, including the branch that looks like a typo and
 // is not: appending EXACTLY ONE element to a NON-EMPTY array trebles the
@@ -218,9 +194,7 @@ void ArraySetSizeByte(rtcoll::ArrayHdr* a, int32_t newSize, uint8_t fill) {
 // ============================================================================
 // The body — now the STATIC member `Video::ImageBuffer::SaveImageToFile`
 // (ENDGAME B.3.5 block C). Retail's `SA_N` says static, and the first parameter
-// is `AEBVFilename@System@@`, a REFERENCE; the old free function took a pointer
-// because the registered door's ABI hands one over, and that pointer-to-reference
-// step now happens in the door at the bottom of this file, where it belongs.
+// is `AEBVFilename@System@@`, a REFERENCE.
 // ============================================================================
 namespace Video {
 
@@ -379,8 +353,8 @@ bool ImageBuffer::SaveImageToFile(const System::Filename& pathRef,
     // *** RETAIL INLINES THE DESTRUCTOR; THIS RUNS THE CLASS'S OWN ONE, AND THE
     // TWO WERE COMPARED INSTRUCTION BY INSTRUCTION BEFORE THE SUBSTITUTION. ***
     // Porting a destructor by assuming an exported body matches an inlined one
-    // is how a prior lane nearly shipped a leak under a byte-identity claim
-    // (`reference_a_written_recipe_can_be_wrong.md`), so the check came first:
+    // is how a prior lane nearly shipped a leak under a byte-identity claim,
+    // so the check came first:
     //
     //   ??1BinaryFileStream@IO@@UEAA@XZ (0x180023c80) is five instructions and
     //   tail-jumps to ??1FileStream@IO@@UEAA@XZ (0x1800aaab0), which does, in

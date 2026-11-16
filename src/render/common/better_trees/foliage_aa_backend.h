@@ -2,7 +2,7 @@
 
 #include "render_impl.h"   // BANISHED_RENDER_IMPL_BEGIN / _END (several backends in one exe)
 // ============================================================================
-// src/render/common/better_trees/foliage_aa_backend.h -- ext.foliage_aa's render side, as the
+// src/render/common/better_trees/foliage_aa_backend.h -- ext.better_trees' smooth-edge render side, as the
 // extension sees it (docs/extensions/FOLIAGE_AA.md, handins/FAA-CORE.md)
 // ============================================================================
 // NOT RETAIL. No D3D types: src/ext/better_trees/better_trees.cpp includes it (the AO precedent,
@@ -15,7 +15,7 @@
 namespace FaaBackend {
 BANISHED_RENDER_IMPL_BEGIN
 
-// The extension's one call (Ext::FoliageAA::Sync, main thread). `mode` 0 = off, 1 = smooth edges,
+// The extension's one call (Ext::BetterTrees::Sync, main thread). `mode` 0 = off, 1 = smooth edges,
 // 2 = smooth edges + distance fill with `fillK`, applied only where the sampled alpha >= `fillFloor`
 // (0 = no floor). Idempotent: the same (mode, k, floor) twice is a no-op.
 //   on   points the seam (VideoDX11::g_extFoliageAA) at the stage now; the transformed shaders and

@@ -15,9 +15,10 @@
 // GCC emits a class's vtable in the translation unit that defines its KEY
 // FUNCTION (the first non-inline, non-pure virtual), and for these classes that
 // is `src/engine/io/memory_stream.cpp`, `file_stream.cpp`,
-// `compressedstream.cpp` and `text_file_stream.cpp` — files that stand on
-// the port registry, the allocator and <windows.h> and cannot link into a host
-// test (tests/unit/README.md, B31_RULES rule 6).
+// `compressedstream.cpp` and `text_file_stream.cpp`. `memory_stream.cpp` and
+// `compressedstream.cpp` are linked (tests/unit/sources.cmake); `file_stream.cpp`
+// and `text_file_stream.cpp` are not, so their bodies are stubbed here
+// (tests/unit/README.md, B31_RULES rule 6).
 //
 // THE CLASS IS STILL THE REAL ONE. What is stubbed here is only the BODY of
 // each member: the declarations, their order and their signatures come from
@@ -66,7 +67,7 @@ namespace IO {
 // Create in compressedstream.cpp).
 
 // ---- IO::FileStream (src/engine/io/file_stream.cpp + file_stream_write.cpp) --
-// Slot 0 is PURE on this class, so there is nothing to stub for it.
+// Slot 0 (~FileStream) is with the lifecycle bodies below.
 System::String FileStream::GetSource() const     { StubReached("FileStream::GetSource"); }
 bool     FileStream::Write(int, const void*)     { StubReached("FileStream::Write"); }
 bool     FileStream::Read(int, void*)            { StubReached("FileStream::Read"); }
@@ -76,12 +77,11 @@ uint32_t FileStream::GetSize() const             { StubReached("FileStream::GetS
 bool     FileStream::Open(const System::Filename&) { StubReached("FileStream::Open"); }
 
 // ---- IO::BinaryFileStream --------------------------------------------------
-// Its ONE override, slot 0, whose real body is the registered thunk at
-// 0x180023d80 in file_stream.cpp.
+// Its ONE override, slot 0 (retail's deleting dtor 0x180023d80).
 // ENDGAME B.3.9 IO: BinaryFileStream's slot 0 is its own destructor now (retail's
 // vector deleting dtor). The three out-of-line lifecycle bodies below are
-// file_stream.cpp's, which stands on the FileSystem singleton and the port
-// registry; the host versions touch no file. ~FileStream's host body releases
+// file_stream.cpp's, which stands on the FileSystem singleton; the host
+// versions touch no file. ~FileStream's host body releases
 // nothing because no probe opens a file or names one. The TextFileStream
 // ctor makes retail's own-field stores but installs NO encoding and skips
 // SetObject (the probes read neither).
@@ -95,7 +95,7 @@ TextFileStream::~TextFileStream() {}
 // The real bodies are linked (compressed_stream_{open,read,write,release}.cpp and
 // compressedstream.cpp, since save_metadata_hardening_test.cpp drives
 // LoadMetaData). CompressedFileStream's destructor stands on file_stream.cpp (the
-// FileSystem singleton and the port registry); no probe opens a file, so its host
+// FileSystem singleton); no probe opens a file, so its host
 // body has nothing to release.
 CompressedFileStream::~CompressedFileStream() {}
 
@@ -104,7 +104,7 @@ CompressedFileStream::~CompressedFileStream() {}
 // package_file_read_test.cpp's in-memory FileSystem fake; no metadata test closes a file.
 
 // ---- IO::TextFileStream (src/engine/io/text_file_stream.cpp) ----------
-// Slot 0 is PURE on this class. Slots 1 and 7 are FileStream's, above. What is
+// Slot 0 is ~TextFileStream, above. Slots 1 and 7 are FileStream's, above. What is
 // left is the seven this class overrides or adds — note that slot 8 is
 // `OpenWithFormat`, NOT a second `Open`: retail overloads `Open` across the
 // base/derived boundary and B34_RULES section 1.3 gives the derived one its own
@@ -122,8 +122,8 @@ bool     TextFileStream::Create(const System::Filename&, Text::Format, Text::For
 }
 
 // ---- IO::VisitorStream (src/engine/io/iobase_vtables.cpp) -----------------
-// The null sink. Slot 0 is PURE and slot 1 is IO::Stream's own GetSource, so
-// these five are the whole class.
+// The null sink. Slot 0 is the inline defaulted destructor and slot 1 is
+// IO::Stream's own GetSource, so these five are the whole class.
 bool     VisitorStream::Write(int, const void*) { StubReached("VisitorStream::Write"); }
 bool     VisitorStream::Read(int, void*)        { StubReached("VisitorStream::Read"); }
 bool     VisitorStream::SetCurrentPos(int)      { StubReached("VisitorStream::SetCurrentPos"); }
@@ -133,7 +133,7 @@ uint32_t VisitorStream::GetSize() const         { StubReached("VisitorStream::Ge
 // ---- IO::PackageFile (src/engine/io/package_file*.cpp) --------------------
 // ENDGAME B.3.9 IO: the class is concrete, so the b39_io_packagefile test
 // builds the REAL class and the link needs its vtable (key function
-// GetFileVersion, in package_file.cpp, which stands on the port registry). The
+// GetFileVersion, in package_file.cpp, which is not linked here). The
 // constructor and slot 0 are inline and real; the destructor's host body
 // releases nothing because a freshly built package holds nothing. Slots 1/2
 // are DECLARE_TYPE's inline bodies over the class's record (ENDGAME B.3.9

@@ -46,9 +46,8 @@
 // prev at +0x1c, interpolated from prev towards cur", which is a second witness
 // written by a different lane from a different body.
 //
-// It is a HIDDEN-RETSLOT export (`?AVTransform@Math@@` after `QEBA`), so the
-// registered door keeps the `(this, ret, args)` signature and the member returns
-// the prvalue in C++.
+// It is a HIDDEN-RETSLOT export (`?AVTransform@Math@@` after `QEBA`); it is not a
+// vtable slot, so the member returns the prvalue in C++.
 //
 // ----------------------------------------------------------------------------
 // NOT SETTLED BY THIS HEADER — do not read more into it than it says
@@ -135,9 +134,8 @@ public:
 //
 // It is defined HERE, `inline`, rather than in a .cpp, for two reasons: a
 // template's members belong beside the template, and the explicit specialisation
-// has to be visible before anything triggers the implicit instantiation (the
-// registered door in `animationstate_transforms.cpp` calls it, so a definition
-// that came after would be rejected as "specialization after instantiation").
+// has to be visible before anything triggers the implicit instantiation (a definition
+// that came after a call would be rejected as "specialization after instantiation").
 // Defined for `Math::Transform` ONLY, deliberately — see the banner for retail's
 // other four instantiations.
 template <>

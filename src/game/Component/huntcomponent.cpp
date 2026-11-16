@@ -2,9 +2,9 @@
 // Clean reimplementation of HuntComponent::Update from Application-x64.exe.
 //
 // HuntComponent (0x58 bytes) extends ResourceProduceComponent. The Update
-// reads the terrain speed ratio from the entity's components, scales the
-// delta time by that ratio, and accumulates the result into the hunt
-// progress accumulator at +0x50.
+// reads the staffing ratio (the workplace's worker count over the work
+// component's cached worker capacity), scales the delta time by that ratio,
+// and accumulates the result into the hunt progress accumulator at +0x50.
 //
 // Original: 0x140122740
 // Decompiled from Application-x64.exe using Ghidra.
@@ -27,10 +27,10 @@
 // Helpers, called by name (B3R):
 //   0x140002e10 FindComponent<WorkPlaceComponent>
 //   0x140003050 FindComponent<WorkComponent>
-//   0x14012e5c0 WorkComponent_CalcMaxWorkers — the description-derived, footprint-scaled
+//   0x14012e5c0 WorkComponent::CalcMaxWorkers — the description-derived, footprint-scaled
 //     worker capacity, cached at workComp+0x30. HuntComponent::Update reuses that same cache
 //     as its speed divisor (the old name here was "ComputeTerrainSpeed"). The single body
-//     lives in src/game/Tutorial/tutorial_base.cpp.
+//     lives in src/game/Component/workcomponent.cpp.
 // ============================================================
 
 // ============================================================
@@ -51,7 +51,7 @@ void HuntComponent::Persist(IO::Stream& stream) {
     huntProgress.Serialize(ser);
 }
 
-// NOTE on slot 9: HuntComponent::Update is implemented above (0x140122740). Hunt is
+// NOTE on slot 9: HuntComponent::Update is implemented below (0x140122740). Hunt is
 // the only ResourceProduceComponent subclass that overrides slot 9, and its ctor
 // (0x1401228e0) ORs capability bit 8 into +0x20 precisely to opt into per-frame
 // update ticking; Fishing and Herbalist do neither. The slot receives a `const Time*`:

@@ -6,8 +6,9 @@
 // side, as the extension sees it (docs/extensions/handins/CREATEONDEMAND.md, issue #13)
 // ============================================================================
 // NOT RETAIL. No graphics types (the share_gpu_data_backend.h precedent). The DX11 body is
-// src/render/dx11/create_on_demand/, the Metal body src/render/metal/create_on_demand/; the
-// backend-neutral parts are beside this file (payload.h, lazy_table.h, stream_locate.h, pending_levels.h).
+// src/render/dx11/create_on_demand/, the Vulkan body src/render/vulkan/create_on_demand/, the Metal
+// body src/render/metal/create_on_demand/; the backend-neutral parts are beside this file (payload.h,
+// lazy_table.h, stream_locate.h, pending_levels.h).
 //
 // Retail creates every static GPU buffer and texture while its resource file loads: a MegaMod
 // set makes ~9.8 GB of them, of which well under 1 % is ever drawn in a session. With the row on, a
@@ -25,8 +26,8 @@ BANISHED_RENDER_IMPL_BEGIN
 // `idleMinutes` > 0: a made object unused that long is given back and re-made at its next use.
 void Request(bool on, int idleMinutes);
 
-// False when the backend has no deferred path (none today: DX11 and Metal both have one): the request is
-// then ignored.
+// False when the backend has no deferred path (none today: DX11, Vulkan and Metal all have one): the
+// request is then ignored.
 bool Supported();
 
 // Queue the deferred create of an engine companion (a Video::VertexBuffer / IndexBuffer's platform

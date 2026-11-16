@@ -25,7 +25,7 @@
 // whole 0x128-byte layout, including the two description handles this file
 // used to carry as file-local constants). `?AddItem@`, `?RemoveAllItems@`,
 // `?SetCurrentItem@`, the three getters and `?UpdateText@` are declared on the
-// class and stay DOORS in src/engine/ui/widgets_input.cpp (fragment pass).
+// class and defined in src/engine/ui/widgets_input.cpp.
 // ============================================================================
 #include "element_common.h"
 #include "ui/ComboElement.h"
@@ -42,15 +42,6 @@
 using namespace rtuielem;
 
 namespace {
-
-// UI::TextElement (block C3's class), the per-item element the list is filled
-// with — reached at raw offsets.
-
-// UI::ListElement (block C4's class)
-
-// UI::DialogInstance (block B's class)
-
-// UI::UserInterface (block E's): the open-dialog array at +0x28 {data, size, capacity}.
 
 constexpr int kDialogSize = 0xd0;
 
@@ -80,12 +71,10 @@ namespace UI {
 // `??0Dialog@UI@@QEAA@XZ` (0x180112db0) and `??1Dialog@UI@@UEAA@XZ`
 // (0x180112e40) are the SAME two bodies out of line — src/engine/ui/
 // dialog_ctor_dtor.cpp transcribes them instruction for instruction — so they
-// are CALLED here rather than re-inlined. That is the same deliberate departure
-// src/engine/object/deleting_dtor.cpp's banner records for its 22 inlined
-// destructors: identical computation, one extra call.
+// are CALLED here rather than re-inlined: identical computation, one extra call.
 //
 // The two descriptions' slot 8 is a VIRTUAL call on `UI::ElementDescription`
-// through the description's own (minted) table, with the hidden return slot in
+// through the description's own vtable, with the hidden return slot in
 // retail order (RULE B6-2).
 //
 // ---------------------------------------------------------------------------
@@ -95,9 +84,9 @@ namespace UI {
 //     `pLVar10` for the list (0x1801127fc reads `+0xe8` off it) and `pDVar` for
 //     each item. Retail relies on the descriptions being the right types. No
 //     guard is added.
-//  2. The item's text is written into `_parameters[i]` — the TextElement's
-//     parameter array at +0xc8 — and ONLY when that array is non-empty
-//     (`if (_paramCount > 0)`). An item description with no parameter slot
+//  2. Item i's text (`_strings[i]`) is written into slot 0 of `_params` — the
+//     TextElement's parameter array at +0xc8 — and ONLY when that array is
+//     non-empty (`_params._size > 0`, +0xd0). An item description with no parameter slot
 //     silently shows its own default text.
 //  3. The dirty walk around the text write happens BEFORE the assignment
 //     (0x180112750), not after it.

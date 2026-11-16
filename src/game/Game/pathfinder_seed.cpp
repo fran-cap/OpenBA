@@ -23,7 +23,7 @@
 #include "Game/Map.h"
 #include "Action/PathSearch.h"
 #include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
-#include "Action/exe_bodies.h"   // Pf_WorkerApplyCmd_a6430, Pf_EnqueueCmd1_a6a30, Pf_ArrayResize18_d830
+#include "Action/exe_bodies.h"
 #include <cstdint>
 #include <new>
 #include <cstdio>
@@ -31,9 +31,9 @@
 #include "system/Thread.h"     // ENDGAME B.3.4b System caller batch (CriticalSection/Thread)
 #include "ext/path_workers/path_workers.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/PATHWORKERS.md): Ext::PathWorkers::Engaged / Dispatch
 
-// A* / pathfinder helpers (reimplemented + registered elsewhere) — called by name through
-// Action/exe_bodies.h: Pf_WorkerApplyCmd_a6430 (0x1400a6430), Pf_EnqueueCmd1_a6a30
-// (0x1400a6a30), Pf_ArrayResize18_d830 (0x14001d830).
+// A* / pathfinder helpers, called by name: PathfinderThread::ApplyCommand (0x1400a6430),
+// PathfinderThread::SetStepCost (0x1400a6a30), SearchNodesResize (0x14001d830,
+// Action/PathSearch.h).
 // Runtime-DLL functions, called by name: ??0CriticalSection@System@@QEAA@XZ is the
 // +0x30 member's own ctor (B6 row 50); ?MemFree@MemoryAllocator@System@@ ->
 // System::MemoryAllocator::MemFree.
@@ -52,11 +52,11 @@
 //
 // Worker run-loop — faithful 1:1 port of FUN_1400a6360. Pop the head command node under the
 // pathfinder CS (+0x30), unlink + free it, then apply via a6430 (runs the A* for cmd type 5
-// and publishes the result slot). a6430's param_3/param_4 are dead for the queued path
-// (Pf_AstarRun_ce00 `(void)param_4`s the only consumer), so pass null — matching ThreadFunc,
-// which invokes slot 0 with `this` only. The command-node MemAlloc (a6c10/a6240) and this
-// MemFree, plus the result-array resize, all run under the now-thread-safe global allocator
-// lock (standalone/allocator_lock.cpp), so the worker can't race the main thread on the
+// and publishes the result slot). a6430 reads RCX and RDX only, so ApplyCommand takes the
+// command alone — matching ThreadFunc, which invokes slot 0 with `this` only.
+// The command-node MemAlloc (a6c10/a6240) and this MemFree, plus the result-array resize,
+// all take the allocator lock (MemoryAllocator::lock, +0x640), so the worker can't race the
+// main thread on the
 // engine free-list. Queue: tail@+0x60, head@+0x68, count@+0x70; node qwords [0]=cmd{type,arg1}
 // [1]=cmd{arg2,arg3} [2]=next(+0x10) [3]=prev(+0x18).
 // NOT RETAIL (UB fix, found by clang -Wthread-safety): every access to queueCount is atomic

@@ -10,11 +10,10 @@
 // ---------------------------------------------------------------------------
 // ABSENCE ESTABLISHED BEFORE A LINE WAS WRITTEN
 // ---------------------------------------------------------------------------
-// `reference_grep_for_the_port_before_writing_it.md` (three lanes in one wave
-// re-ported what the tree already had) and
-// `reference_half_registered_port_reads_as_absent.md` (a body ported but never
-// REGISTERED is indistinguishable from an absent one to the census). So the
-// grep was by ADDRESS *and* by NAME, scoped to the source roots:
+// A port often exists already, and a second copy leaves one of the two bodies
+// dead (three lanes in one wave re-ported what the tree already had); and a body
+// ported but never REGISTERED is indistinguishable from an absent one to the
+// census. So the grep was by ADDRESS *and* by NAME, scoped to the source roots:
 //
 //   grep -rn '??2SpriteSheet@UI@@SAPEAX' runtime/ code/ standalone/ engine/ src/render/dx11/
 //     -> exactly ONE hit, and it is a CONSUMER:
@@ -28,9 +27,9 @@
 // measured that exact inflation at 22x).
 //
 // The one hit is also this port's ROUTE: `saveload_draw.cpp` builds the
-// save/load screen's one-sprite sheet and asks for 0x58 bytes. So this row is
-// not merely registerable — it is ENTERED, by our own tree, on the save/load
-// path, which is what the attendance counter below reports.
+// save/load screen's one-sprite sheet and asks for 0x58 bytes and calls this body
+// directly, so it is ENTERED, by our own tree, on the save/load path, which is
+// what the attendance counter below reports.
 //
 // ---------------------------------------------------------------------------
 // THE BODY, AND WHY IT IS NOT ASSUMED FROM ITS SIBLING
@@ -50,8 +49,7 @@
 // mnemonic and every immediate matches — including the one that matters,
 // `MOV R8D,0x8`. The only bytes that differ are the rel32 and RIP-relative
 // displacement fields, which encode a DISTANCE from the instruction and so MUST
-// differ between two copies at different addresses
-// (reference_position_only_diffs_hide_one_body.md).
+// differ between two copies at different addresses.
 //
 //     PUSH RDI / SUB RSP,0x30 / MOV [RSP+0x20],-2       MSVC unwind marker
 //     MOV RBX,RCX                                       save `bytes`
@@ -70,17 +68,9 @@
 // `?MemAlloc@MemoryAllocator@System@@SAPEAX_KH@Z` (0x1800c7a50) with the
 // alignment frozen to the immediate 8 — the identity tooltipdialog.cpp proved
 // instruction for instruction and context_ctor.cpp uses too. The LOCK is
-// therefore NOT reproduced here: it lives INSIDE MemAlloc, which is the door
-// being called. Reproducing it here as well would take the allocator's
-// critical section twice.
-//
-// MemAlloc is reached BY ADDRESS because `ResolveAddr` consults the PORT
-// REGISTRY FIRST (reference_resolveaddr_consults_port_registry_first.md), so
-// this goes through our allocator body. That is the same door
-// tooltipdialog.cpp:184 and context_ctor.cpp already use, and it is what keeps
-// this body from being the wrapper that calls a ported allocator DIRECTLY —
-// the defect `reference_off_by_default_was_not_true.md` records, where an
-// UNARMED run mutated retail's arena because one wrapper bypassed the door.
+// therefore NOT reproduced here: it lives INSIDE MemAlloc, which this body
+// calls directly (System::MemoryAllocator::MemAlloc). Reproducing it here as well
+// would take the allocator's critical section twice.
 //
 // ============================================================================
 
@@ -99,8 +89,7 @@ namespace {
 // ATTENDANCE — entries, and NOT a verification of anything.
 // ---------------------------------------------------------------------------
 // Counted unconditionally on every build, exactly as tooltipdialog.cpp does. A green
-// readiness screen is not a route (reference_a_green_readiness_screen_is_not_a_
-// route.md); a zero here means the row is registered and DEAD.
+// readiness screen is not a route; a zero here means the body was not entered in this run.
 uint64_t g_newEntries  = 0;
 uint64_t g_newBytes    = 0;   // control: the size retail's caller asks for (0x58)
 uint64_t g_newNull     = 0;   // control: the allocator refused
@@ -149,8 +138,7 @@ extern "C" void* RtUi_SpriteSheet_OperatorNew(uint64_t bytes) {
 }
 
 // ============================================================================
-// UI leftovers batch (docs/history/runtime_port/closure/WORKLIST.md) — ~SpriteSheet
-// and its class's three per-TU `operator delete` copies.
+// UI leftovers batch (docs/history/runtime_port/closure/WORKLIST.md) — ~SpriteSheet.
 // ============================================================================
 
 

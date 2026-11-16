@@ -11,7 +11,7 @@
 //   TradeWork_impl_ccf0_sub_ceb0 (0x14002ceb0) — 0x38-node copy-ctor
 //   FUN_14002cfb0 (0x14002cfb0)        — recursive 0x30-node subtree deep-copy
 //
-// The remaining callees are already registered in standalone:
+// The remaining callees, called by name:
 //   a8c0 (0x14001a8c0) primary-AVL rebalance, 3480 (0x140013480) category-AVL rebalance,
 //   9a40 (0x140029a40) id-map insert, 4b40 (0x140014b40) entity-tree rebalance,
 //   e320 (0x14000e320) node-free, ead0 (0x14012ead0)/eb50 (0x14012eb50) work-slot ops.
@@ -31,7 +31,7 @@
 #include <cstdlib>
 #include <cstring>
 #include "Component/exe_bodies.h"
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"   // B3R: System::MemoryAllocator
 #include "Action/exe_bodies.h"
 #include "Action/PathAvl.h"   // AvlRebalance (0x140013480)
 #include "Work/exe_bodies.h"
@@ -474,16 +474,13 @@ int WorkScheduler::Insert(Object::InternalPtr<Work>* workRef, uint32_t code,
     }
 
     // The flat id-map at sched+0x30 is filed here (the 9a40 call above) and is the thing
-    // f8400 needs to find a work item by id. It was recorded as "never populates"; report its
-    // root and count right where it is written so that claim is measured at the source rather
-    // than inferred from the re-key's downstream "NOT in the sched+0x30 id-map" miss. NB most
-    // posts reach this function DIRECTLY (exe 0x1400f88a0), not through the ec60 wrapper — a
-    // trace placed only in the wrapper sees nothing.
+    // f8400 needs to find a work item by id. NB most posts reach this function DIRECTLY
+    // (exe 0x1400f88a0), not through the ec60 wrapper.
     return id;
 }
 
 // ==================================================================================
-// CitizenAI_impl_ec60 — post wrapper. workComp = the WorkComponent, code = 0x2001,
+// CitizenAI_impl_ec60 — post wrapper. workComp = the WorkComponent, code = the category bitmask,
 // flag = param_3, pWorkIBP = the work IBP.
 // ==================================================================================
 void WorkComponent::PostWork(uint32_t code, char flag, Object::InternalPtr<Work>* pWorkIBP) {
@@ -506,7 +503,7 @@ void WorkComponent::PostWork(uint32_t code, char flag, Object::InternalPtr<Work>
     workId = assignedId;
 
     // Walk the sched+0x30 id-map (trees[0]) for the assigned id; on match write back
-    // workComp+0x2c = the work's stored priority (Work +0x24). On miss, 0.
+    // workComp+0x2c = the work's stored priority (Work +0x24); a miss reads through null (below).
     WorkSchedulerIdNode* p = sched->trees[0].root;
     Work* payload = nullptr;
     while (p != nullptr) {
@@ -521,11 +518,6 @@ void WorkComponent::PostWork(uint32_t code, char flag, Object::InternalPtr<Work>
     // On a miss retail builds a NULL InternalPtr (0x14012ed09..0x14012ed1b) and reads
     // [RAX+0x24] through it (0x14012ed2b): no test, a null read, not a 0 (B6 row 200).
     workFlags = payload->_queueOrder;
-    // The id-map half of the post is the one nothing downstream can see going wrong: a miss
-    // here silently writes priority 0 into workComp+0x2c and makes the f8400 re-key a no-op
-    // ("NOT in the sched+0x30 id-map"). Report the map's own state next to the lookup result
-    // so "the id-map never populates" is a measured fact and not an inference from a
-    // downstream symptom.
 }
 
 // ==================================================================================

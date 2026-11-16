@@ -4,7 +4,7 @@
 //
 // `??_7SliderElement@UI@@6B@` (retail 0x180157580):
 //
-//   0  vector deleting dtor  0x18004a180  -> deleting_dtor.cpp row (this batch)
+//   0  vector deleting dtor  0x18004a180  the compiler's (virtual ~SliderElement)
 //   1  TypeName              0x180049d20  here
 //   2  Type                  0x180049d00  here
 //   4  ComputeSize           0x1800d7380  here
@@ -14,16 +14,16 @@
 //
 // plus ??0SliderElement (0x1800d7570) and ??1SliderElement (0x180049ee0).
 //
-// NOT HERE: `?UpdateNumber@SliderElement@UI@@AEAAXXZ` (0x1800d6c20) — on the
-// UI non-slot callee list; Update tail-calls it by address. Nor
+// NOT HERE: `?UpdateNumber@SliderElement@UI@@AEAAXXZ` (0x1800d6c20) — its body
+// is in element_bodies_b5.cpp; Update calls the member. Nor
 // ?GetSliderBounds@ (0x1800d7270) or ?SetParameter@ (0x1800d6ca0).
 //
 // LAYOUT: src/engine/ui/SliderElement.h (sizeof 0x130, every field a
 // store in the ctor at 0x1800d7570).
 //
 // ENDGAME B.3.6 block C5: the six slot bodies MOVED into the members of the
-// real `UI::SliderElement`; each registered door is a one-line QUALIFIED
-// delegation. The ctor / dtor stay doors (B4b-2).
+// real `UI::SliderElement`. The ctor is inline in SliderElement.h; the dtor is
+// below.
 //
 // ~SliderElement destroys nothing and does NOT restamp the vtable — five
 // instructions at 0x180049ee0, a bare tail jump to ~Element.
@@ -63,8 +63,8 @@ static_assert(kHovered     == offsetof(UI::SliderElement, _hovered), "");
 static_assert(kValue       == offsetof(UI::SliderElement, _value), "");
 
 
-// ?UpdateNumber@SliderElement@UI@@AEAAXXZ (0x1800d6c20) — its body is
-// element_bodies_b5.cpp's door (fragment pass); reached by address.
+// ?UpdateNumber@SliderElement@UI@@AEAAXXZ (0x1800d6c20) — its body is in
+// element_bodies_b5.cpp; a member call.
 
 
 // The thumb travel, computed identically by ComputeLayout, Draw and Update:
@@ -227,7 +227,7 @@ void SliderElement::Draw(SpriteContext& context, uint8_t alpha) const {
         return;
     }
 
-    // UI::SpriteContext::AddSprite (block D's class) — by address, doors stay.
+    // UI::SpriteContext::AddSprite (block D's class), called as a member.
     context.AddSprite(_trackStart, left, ty, c);
 
     const int32_t midH = _trackMiddle.Height();

@@ -28,8 +28,8 @@ std::atomic<int64_t> g_keptBytes{0};
 std::atomic<int64_t> g_kept[kVerdictCount];   // images read with every level, by verdict
 std::atomic<int>     g_logged[kVerdictCount];
 
-// The first images of each kind that keep their levels are named in the log (the rule's check:
-// sprite sheets, fonts and small textures must be among them, world textures must not).
+// The first images of each verdict, dropped ones included, are named in the log (the rule's check:
+// sprite sheets, fonts and small textures must be among the kept ones, world textures must not).
 constexpr int kLogPerVerdict = 12;
 
 int64_t g_lastDropped = -1;

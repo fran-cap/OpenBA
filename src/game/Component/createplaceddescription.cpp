@@ -104,22 +104,21 @@ bool CreatePlacedDescription::Serialize(IO::Stream& stream) {
     ser.Serialize(count, nullptr);
     
     // Retail gates the resize on its load flag: `if (*(int*)(local_20 + 8) == 0)`, where
-    // local_20 is the Serializer's first qword = the Stream, so the test is stream+8
-    // ([[reference_serializer_plus8_is_encoding_not_loading_flag]]).
+    // local_20 is the Serializer's first qword = the Stream, so the test is stream+8.
     //
     // [STANDALONE DEVIATION] We resize on the INVARIANT that gate exists to guarantee —
     // "the array is big enough before the element loop" — instead of on the flag itself.
     // Measured: our resource pipeline reaches this function with passes where stream+8 is
     // non-zero on an instance whose array is still null (the re-parse / reference-mode
-    // behaviour documented in [[reference_reference_mode_corrupts_first_parse]] and
-    // builddescription.cpp). Trusting the flag there left arr == null with count == 2, so
-    // the element loop was skipped, the stream desynced, and the process crashed.
+    // behaviour documented in builddescription.cpp). Trusting the flag there left arr == null
+    // with count == 2, so the element loop was skipped, the stream desynced, and the process
+    // crashed.
     // Resizing only when the array cannot already hold `count` keeps an already-parsed
     // array — values intact — which is the whole point of the fix above.
     uint32_t* arr = _placeArray._data;
     if (count > 0 && !arr) {
         // No buffer yet: allocate directly instead of going through the shared resize.
-        // Reimpl_Array_Resize_Stride04 (our 0x1400021D0) reads the RECORDED count as
+        // Collection::Array<uint32_t>::SetSize (our 0x1400021D0) reads the RECORDED count as
         // `oldCount` and copies that many elements from the old pointer, so handing it a
         // null data pointer with a non-zero count makes it read from address 0. Retail
         // never sees that state; ours could, so keep the shared helper off this path.

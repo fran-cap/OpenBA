@@ -11,8 +11,7 @@
 // EVERY offset below was read out of a decompiled or disassembled RETAIL
 // Runtime-x64.dll body, and the function plus the instruction that pins it is
 // named next to the field. Nothing here is taken from the profile build: PLAN
-// §6 warns that profile NAMES win but profile OFFSETS must not
-// (reference_encoding_vtable_offsets_differ_between_builds.md).
+// §6 warns that profile NAMES win but profile OFFSETS must not.
 //
 // The full write-up is docs/history/runtime_port/WAVE6_LANE_E.md.
 //
@@ -29,11 +28,11 @@
 
 // Graphics::Geometry is Wave 6 LANE D's type and lives in its header. lane E
 // only embeds it (MeshInstance and EdgeMeshInstance both derive from it) and
-// must not re-declare it: two definitions of RtGraphics::Geometry in one
+// must not re-declare it: two definitions of Graphics::Geometry in one
 // namespace across two translation units is an ODR violation, and the drift
 // between them would be invisible until a field moved.
 #include "AnimationState.h"                 // Graphics::AnimationState, MeshInstance::_animation
-#include "Geometry.h"                       // RtGraphics::Geometry (lane D)
+#include "Geometry.h"                       // Graphics::Geometry (lane D)
 // ENDGAME B.3.5 block G: the real `Graphics::EdgeMesh` at the bottom of this
 // file derives from `Object::External` and holds four `Object::ExternalPtr<T>`.
 #include "../object/External.h"
@@ -135,8 +134,8 @@ static_assert(offsetof(MeshNode, _local)  == 0x0c, "GraphicsMesh::Node::_local @
 // the class is far larger and no lane-E function constructs one, so this is a
 // read-only overlay, not a definition. Do not `sizeof` it.
 //
-//   +0x50 Array<DetailLevel>, element 0xb0 — AddDrawItems (held back, see the
-//         .cpp) indexes it by `level * 0xb0` and reads the level count at +0x58.
+//   +0x50 Array<DetailLevel>, element 0xb0 — AddDrawItems (mesh.cpp)
+//         indexes it by `level * 0xb0` and reads the level count at +0x58.
 //   +0x60 Array<Node>, element 0x48 — GetNodeIndexFromName walks buffer +0x60
 //         with count +0x68; MeshInstance::SetMesh resizes the instance node
 //         array to `*(int*)(mesh+0x68)`; PlayAnimation passes `mesh + 0x60` as
@@ -281,10 +280,9 @@ static_assert(offsetof(VideoBufferHeader, _deviceData) == 0x08, "Video buffer _d
 // outline follows — holding whatever the allocator handed back, and only
 // EdgeMeshInstance::SetMesh (0x1800a3a20) ever fills it in. This is the same
 // class of finding as Wave 5's `RemoveMesh` leaving `Entry::_userValue2`
-// uninitialised (reference_shadow_predicate_must_name_its_failing_term.md).
+// uninitialised.
 // The port MUST NOT zero it: doing so would make our default ctor differ from
-// retail's on a field a copy ctor propagates, and PLAN §4.1 decision 5 requires
-// both implementations to be able to operate on one shared object.
+// retail's on a field a copy ctor propagates.
 // ============================================================================
 // (B.4 Z MIRROR2 GFX: the `RtGraphics::EdgeMeshInstance` POD this banner
 // described had no reader left and is deleted; the class is below.)
@@ -296,25 +294,17 @@ static_assert(offsetof(VideoBufferHeader, _deviceData) == 0x08, "Video buffer _d
 // `Graphics::EdgeMeshInstance`, the REAL C++ classes
 // ############################################################################
 //
-// Both derive from the real `Graphics::Geometry` (Geometry.h). RULE B5-5: the
-// `Geometry _base` embedded member of the two PODs above becomes a real base
-// class in the same commit as `Geometry`, and it is the INHERITANCE that is
-// real here — the PODs' `_base` was always "single inheritance written as
-// embedding" (B35_RULES §3 says so in as many words).
+// Both derive from the real `Graphics::Geometry` (Geometry.h).
 //
 // (B.4 Z MIRROR2 GFX: the `RtGraphics::MeshInstance` POD, `MeshAnimationState`,
 // `MeshAnimationLayer` and `InterpolatedTransform` had no reader left and are
-// deleted.) The PODs keep their names and their out-of-block users (`batchc_gfx_leaves.cpp`
-// is not this block's file), so both descriptions coexist and every offset is
-// cross-asserted. `GraphicsMeshView`, `EdgeMesh`, `MeshNode`, `TriangleVertex`,
+// deleted.) `GraphicsMeshView`, `MeshNode`, `TriangleVertex`,
 // `EdgeVertex` and `VideoBufferHeader` above are NOT this block's classes —
 // `Graphics::GraphicsMesh` and `Graphics::EdgeMesh` are block G's and
 // `Graphics::AnimationState` is block H1's — and are left exactly as they are.
 //
-// ABSTRACT, per B34_BRIEFS §A.4's amended rule: nothing in the tree holds
-// either class BY VALUE as a C++ member, and slot 0's body is a row in
-// `src/engine/object/deleting_dtor.cpp` (which B35_RULES §11 forbids retiring
-// in step 5 and which is not this block's file), so slot 0 stays `= 0`.
+// CONCRETE: both destructors are real (`~MeshInstance` and
+// `~EdgeMeshInstance`, both in mesh.cpp), so slot 0 is not `= 0`.
 // ############################################################################
 
 namespace Graphics {
@@ -323,7 +313,7 @@ namespace Graphics {
 // Graphics::MeshInstance : Graphics::Geometry — 0x120, NINE slots.
 //
 // `??_7MeshInstance@Graphics@@6B@` @ 0x180154dc0 (B35_SLOTS.md):
-//   [0] 0x180017330  (unexported) vector deleting dtor   deleting_dtor.cpp row
+//   [0] 0x180017330  (unexported) vector deleting dtor   the compiler's
 //   [1] 0x180100800  ?Update@…                  wave29_lane_slots.cpp
 //   [2] 0x180100960  ?Draw@…MHHH@Z              meshinstance_draw.cpp
 //   [3] 0x180100f20  ?AddDrawItems@…            mesh.cpp
@@ -336,15 +326,11 @@ namespace Graphics {
 // `MeshInstance` overrides BOTH retslot slots (5 and 6), where
 // `EdgeMeshInstance` overrides only slot 6 (B35_RULES §2.3 item 6).
 //
-// THE TWO UNEXPORTED `.data` STATICS `MeshInstance::Update` READS STAY
-// (B35_RULES §9, §6.1): the guard byte at 0x1801ff30c and the 48-entry identity
-// `Transform` table at 0x1801ff310, minted as `EXTRA_STORAGE_BY_ADDR`. They are
-// NOT in the cutover manifest and so are NOT protected by the manifest gate;
-// `wave29_lane_slots.cpp` carries both `ResolveAddr` rows forward explicitly and
-// `MeshInstance::Update` still declines the whole update when either resolves
-// NULL. `?_rootOnlyUpdates@MeshInstance@Graphics@@0_NA` (0x1801fc70b) likewise
-// stays an `RT_DATA_SLOT` read — RULE B4b-4 owes it a `MintStorageCell()`
-// redirect at the class-static conversion, the END of B.3, not here.
+// THE TWO UNEXPORTED `.data` STATICS `MeshInstance::Update` READS: the guard
+// dword at 0x1801ff30c and the 48-entry identity `Transform` table at
+// 0x1801ff310 are file statics in `wave29_lane_slots.cpp` (`g_updateInitGuard`,
+// `g_identityTable`). `?_rootOnlyUpdates@MeshInstance@Graphics@@0_NA`
+// (0x1801fc70b) is the class static `_rootOnlyUpdates` below.
 // ============================================================================
 class MeshInstance : public Geometry {
 public:
@@ -373,7 +359,7 @@ public:
     // retired; the class keeps the exe's SCALAR arm (D1.2).
     // `??1MeshInstance@Graphics@@UEAA@XZ` @ 0x180017060, `UEAA` because retail's
     // is virtual — the non-virtual `QEAA` spelling is a name the DLL does not
-    // contain (reference_phantom_dtor_mangling_qeaa_vs_ueaa.md). NON-VIRTUAL
+    // contain. NON-VIRTUAL
     // here (ENDGAME decision 2). The body is empty (B.4 Z MIRROR2 GFX): the
     // implicit member dtors run in reverse declaration order -- ~_nodes
     // (0x18001c550), ~_animation (0x1800fe380 inlined: 0x18001c480),
@@ -417,15 +403,11 @@ public:
     // Each is one to a dozen instructions in retail over offsets this header
     // already pins. Declared so no later block or caller batch edits this file.
     //
-    // *** TWO OF THE MEMBERS UNDER THIS HEADING ARE PORTED, AND THE HEADING WAS
-    // *** STALE. Corrected by ENDGAME B.3.5 block GC, 2026-09-19:
-    //   `Serialize`  (0x1800ff680) is a MEMBER, in `wave28_lane_gfxbody.cpp` —
-    //                block G moved it and recorded that this note was stale but
-    //                belonged to block E's header, so it left it for a closing
-    //                pass. This is that pass.
+    // *** TWO OF THE MEMBERS UNDER THIS HEADING ARE PORTED: ***
+    //   `Serialize`  (0x1800ff680) is a MEMBER, in `wave24_lane_gfxmat.cpp`.
     //   `GetBones`   (0x180100070) is a MEMBER, in
-    //                `animationstate_transforms.cpp` — block GC moved it.
-    // Both keep their registered doors, which delegate. Every OTHER declaration
+    //                `animationstate_transforms.cpp`.
+    // `GetMesh` below is defined inline. Every OTHER declaration
     // under this heading really is undefined on purpose.
     // 0x180016a20: the ExternalPtr at +0xc0 through the hidden return slot.
     // B.4: PORTED, inline, with retail's return type.
@@ -457,10 +439,8 @@ public:
 
     // ?_rootOnlyUpdates@MeshInstance@Graphics@@0_NA  0x1801fc70b — retail's
     // PRIVATE static bool (`0`). ENDGAME B.3.9 block GFX (B39_RULES D7 row A22):
-    // the class static, defined in mesh.cpp and REDIRECTED onto the mint's
-    // storage row by RtGraphicsPortInit, so the name / address doors the
-    // foreign readers use (citizenai_executor.cpp, address_registry.cpp,
-    // render_culling.cpp) and this member are ONE byte. Public because its
+    // the class static, defined in mesh.cpp; gameupdateloop.cpp writes it and
+    // citizenai_executor.cpp and render_culling.cpp read it by name. Public because its
     // reader in this block is a free-function body (wave29_lane_slots.cpp).
     static bool _rootOnlyUpdates;
 
@@ -498,8 +478,9 @@ public:
     // the class's own `operator new` / `operator delete`. They are exported and
     // unported, and they are deliberately NOT declared: a declared-but-undefined
     // `operator new` would make any future `new MeshInstance` a link error at
-    // best and a silently different allocator at worst, and nothing in the tree
-    // news one as a C++ object (see the ABSTRACT banner above). Recorded here so
+    // best and a silently different allocator at worst, and every builder in the
+    // tree spells `::new (p) MeshInstance()`, which bypasses a class `operator new`.
+    // Recorded here so
     // the omission is a decision, not a gap.
 
 
@@ -551,7 +532,7 @@ static_assert(offsetof(MeshInstance, _mesh) == sizeof(Geometry),
 // Graphics::EdgeMeshInstance : Graphics::Geometry — 0xd0, NINE slots.
 //
 // `??_7EdgeMeshInstance@Graphics@@6B@` @ 0x180154d70 (B35_SLOTS.md):
-//   [0] 0x1800175d0  (unexported) vector deleting dtor   deleting_dtor.cpp row
+//   [0] 0x1800175d0  (unexported) vector deleting dtor   mesh.cpp
 //   [1] 0x1800a39b0  ?Update@…                  mesh.cpp
 //   [2] 0x1800a3150  ?Draw@…MHHH@Z              meshinstance_draw.cpp
 //   [3] 0x1800a2fd0  ?AddDrawItems@…            mesh.cpp
@@ -567,14 +548,14 @@ static_assert(offsetof(MeshInstance, _mesh) == sizeof(Geometry),
 // below therefore declares slot 6 and NOT slot 5.
 //
 // `_followed` (+0xc8) IS LEFT UNINITIALISED BY THE DEFAULT CONSTRUCTOR and the
-// port must not zero it — see the POD's banner above.
+// port must not zero it — see the banner above.
 //
 // ENDGAME B.3 step 9 (block GFX, B39_RULES D1): CONCRETE. A real public ctor
 // (retail 0x1800a3ab0: `_mesh = 0` and nothing else), a real member copy ctor
 // (0x1800174f0), its own VECTOR slot 0; the ??0 / copy ??0 / ??1 doors, the
-// RT_DELDTOR row 0x1800175d0 and the minted table are retired
-// (tools/rt_mint_retired/gfx.txt). The exe's HighlightComponent builds its
-// embedded +0x28 instance with `::new (p) EdgeMeshInstance()`.
+// RT_DELDTOR row 0x1800175d0 and the minted table are retired. The exe's
+// HighlightComponent holds the instance as a real member at +0x28
+// (src/game/Component/HighlightComponent.h).
 // ============================================================================
 class EdgeMeshInstance : public Geometry {
 public:
@@ -643,10 +624,7 @@ static_assert(offsetof(EdgeMeshInstance, _mesh) == sizeof(Geometry),
 // ENDGAME B.3 step 5 (block G) — `Graphics::EdgeMesh`, the REAL C++ class
 //
 // This is BLOCK G's class, appended beside block E's two instance classes above
-// and touching neither. The `RtGraphics::EdgeMesh` POD keeps living (B4b-1:
-// `RtGraphics` is a SIBLING of `Graphics`, so nothing has to move) and has users
-// outside block G's file set; every offset is cross-asserted so the two cannot
-// drift.
+// and touching neither. Every offset is asserted below against its retail getter.
 //
 // PARENT `Object::External`, read from
 // `?_ParentTypeName@EdgeMesh@Graphics@@CAPEBDXZ` @0x180012c60 -> "Object::External"
@@ -670,10 +648,8 @@ static_assert(offsetof(EdgeMeshInstance, _mesh) == sizeof(Geometry),
 //     ?_TypeName@EdgeMesh@Graphics@@       -> "EdgeMesh"
 //     ?_ParentTypeName@EdgeMesh@Graphics@@ -> "Object::External"
 //
-// ABSTRACT (B34_BRIEFS A.4 as amended): nothing holds an `EdgeMesh` BY VALUE as
-// a C++ member, and slot 0's body (0x1800134b0) is a row in
-// `src/engine/object/deleting_dtor.cpp` that B35_RULES section 11 forbids
-// retiring, so slot 0 stays `= 0`.
+// CONCRETE: slot 0 (0x1800134b0) is `~EdgeMesh`, defined in
+// `src/engine/graphics/batchc_gfx_leaves.cpp`.
 //
 // NO REAL CONSTRUCTOR (B4b-2): `??0EdgeMesh@Graphics@@QEAA@XZ` (0x1800a2830) is a
 // registered door in `src/engine/graphics/mesh.cpp` that open-codes the base
@@ -682,14 +658,10 @@ static_assert(offsetof(EdgeMeshInstance, _mesh) == sizeof(Geometry),
 // `Video::{Vertex,Index}Buffer::PlatformConstruct`. A member constructor would
 // stamp GCC's tables into an object the mint owns.
 //
-// ⚠ ZERO CALLERS ON A PLAIN RUN, AND THAT IS NOT VERIFICATION.
-//   `edgemesh_vtable.cpp`'s banner already says it: the selection-outline chain
-//   (`standalone/address_registry.cpp`, `RegisterPlayerRenderBatch`) is the only
-//   consumer of `EdgeMesh` and it is gated default-OFF on
-//   `BANISHED_SELECTION_OUTLINE`. A run that does not set that variable exercises
-//   none of these bodies. The conversion below is a layout-and-slot change with a
-//   static gate and a unit test behind it; the bodies themselves are as verified
-//   as they were before it, which is to say by that one gated route.
+// The consumer is the HighlightComponent outline in
+//   `src/game/Player/tool_base_render.cpp`, which builds an `EdgeMesh` with
+//   `EdgeMesh()`, `Set` and `SetMaterials` and hands it to an `EdgeMeshInstance`
+//   (`SetMesh`).
 // ############################################################################
 
 // Classes other blocks own; taken by reference / pointer under their real retail
@@ -716,12 +688,9 @@ class MaterialInstance;   // block G  (src/engine/graphics/Material.h)
 //   [7] +0x38  0x180012e40  ?Destruct@…
 //   [8] +0x40  0x180012e30  ?Construct@…  — INTRODUCED HERE (RULE B5-16)
 //
-// THE FIELD NAMES ARE RETAIL'S GETTERS', NOT THE POD'S. Twelve one-instruction
-// exports name all twelve non-trivial fields, and three of the four buffer pairs
-// were named by guess in the POD above (`_edgeVerts` is the SKIN pair,
-// `_capVerts` is the EDGE pair, `_extraVerts` is the EDGE-SKIN pair). Every
-// offset is cross-asserted against the POD below, so the rename cannot move a
-// byte.
+// THE FIELD NAMES ARE RETAIL'S GETTERS'. Twelve one-instruction exports name
+// all twelve non-trivial fields, and every offset is asserted below against the
+// getter that reads it.
 // ============================================================================
 class EdgeMesh : public Object::External {
 public:
@@ -758,8 +727,7 @@ public:
     virtual Object::External* Construct();                  // [8] 0x180012e30 — B5-16
 
     // ---- PORTED non-virtual members ---------------------------------------
-    // Bodies in `src/engine/graphics/mesh.cpp`; the doors keep their
-    // registrations and delegate.
+    // Bodies in `src/engine/graphics/mesh.cpp`.
     //
     // `?SetMaterials@EdgeMesh@Graphics@@QEAAXV?$ExternalPtr@VMaterialInstance@
     //  Graphics@@@Object@@000@Z` 0x1800a2760. THE ARGUMENT ORDER IS
@@ -804,9 +772,6 @@ public:
     //
     // B.4 wave Y: the two list parameters are retail's
     // `PEBUTriangleList@GraphicsMesh@2@` (the arrays they fill are typed).
-    // `engine/funcs/engine_funcs.h` carried a SECOND transcription of these same
-    // 25 slots in a symmetric "four groups of five" shape; it is ABI-identical
-    // and it retires with its last caller.
     bool Set(int triCount, const GraphicsMesh::TriangleList* triLists,
              int edgeCount, const GraphicsMesh::TriangleList* edgeLists,
              int i0, uint16_t* ib0, int v0s, void* vb0, int v0n, int v0x,
@@ -846,8 +811,9 @@ public:
     EdgeMesh& operator=(const EdgeMesh& src);               // 0x180013230  not ported
 
     // The reflection block's five statics. ENDGAME B.3.9 GFX: the factory pair
-    // is the class's own (edgemesh_vtable.cpp, B39_RULES D2); the three
-    // operators stay declared and undefined (placement is `::new`).
+    // is the class's own (edgemesh_vtable.cpp, B39_RULES D2); the two `operator new`s
+    // stay declared and undefined (placement is `::new`); `operator delete` is
+    // inline over `InternalMemFree`.
     static void* operator new(std::size_t bytes);            // 0x180012ca0
     static void* operator new(std::size_t bytes, void* place);// 0x180012d10
     static void  operator delete(void* p) { ::Object::detail::InternalMemFree(p); }                   // 0x180012d20
@@ -858,7 +824,7 @@ public:
     // (ENDGAME B.3.9 GFX; mesh.cpp): External() and the three stamps are the
     // compiler's chain; the body is the retired door's -- the five zeroed
     // pointers, the eight (header, PlatformConstruct) pairs, the two lists and
-    // the empty box. The "NO REAL CONSTRUCTOR" paragraph above is history.
+    // the empty box.
     EdgeMesh();
 
     // EXT SEAM (NOT RETAIL, docs/android/P13_OVERLAP.md section 2.8, DESIGN.md hook rule 5):
@@ -909,10 +875,7 @@ static_assert(alignof(EdgeMesh) == 8, "Graphics::EdgeMesh aligns to 8 (the vptr)
 static_assert(offsetof(EdgeMesh, _reserved20) == sizeof(Object::External),
               "EdgeMesh's own fields begin at the end of the Object::External base");
 
-// Cross-asserts against the POD, field for field, INCLUDING the three pairs the
-// POD names differently — which is the whole point of asserting them.
-
-// And against the retail getters directly, so a POD edit cannot move both.
+// Every offset, asserted against its retail getter directly.
 static_assert(offsetof(EdgeMesh, _maskMaterial)         == 0x28,  "EdgeMesh::_maskMaterial @ +0x28 (0x180012ef0)");
 static_assert(offsetof(EdgeMesh, _skinMaskMaterial)     == 0x30,  "EdgeMesh::_skinMaskMaterial @ +0x30 (0x180012f10)");
 static_assert(offsetof(EdgeMesh, _edgeMaterial)         == 0x38,  "EdgeMesh::_edgeMaterial @ +0x38 (0x180012f00)");
@@ -935,10 +898,9 @@ static_assert(sizeof(EdgeMesh::EdgeVertex)     == 16, "EdgeMesh::EdgeVertex is 1
 }  // namespace Graphics
 
 // ==== B3R W0-P0c: Runtime bodies reached by retail address ====
-// ENDGAME B.3R (B3R_RULES R5): each body below is registered at the retail
-// address in its trailing comment and read through the registry today. It is
-// declared here, copied from its definition (linkage, namespace, types), so the
-// reader can call it by name. Nothing calls it through this declaration yet.
+// ENDGAME B.3R (B3R_RULES R5): each body below is declared here, copied from its
+// definition (linkage, namespace, types), so its callers call it by name; the
+// trailing comment is its retail address.
 
 // ---- graphics/closure_batch2b.cpp
 // B.4: typed -- the context is the `IO::Serializer`, the data the

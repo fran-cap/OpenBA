@@ -3,10 +3,6 @@
 // Engine::Engine ctor / dtor / Startup / Shutdown  (+ 4 helpers they need)
 // ============================================================================
 //
-// These four are the wall cutover boot attempts 04, 05 and 06 all died on:
-// with Runtime-x64.dll absent, `src/game/Game/game_main.cpp` resolves all four
-// to null and returns 1 or 2 out of `RunGameMain` before the engine ever
-// starts. Nothing else in Wave 9 can be measured past that point.
 //
 //   | Export                              | Retail      | Ord  | This file |
 //   |-------------------------------------|-------------|------|-----------|
@@ -25,7 +21,6 @@
 // written. The addresses and ordinals above are that query's output. There are
 // no phantom names here.
 //
-// Kill switch: RT_ENGINELIFE=0.
 //
 // ---------------------------------------------------------------------------
 // 1. THE "ALLOCATOR, NO-GO" HOLDBACK WAS REAL WHEN IT WAS WRITTEN AND IS NOW
@@ -86,9 +81,7 @@
 // same order, ending in the same error string (read at 0x180155e48 and
 // byte-compared with the literal in `rtalloc::Startup`). This body therefore
 // calls `?Startup@MemoryAllocator@System@@QEAA_N_K0@Z` and does not re-derive
-// them. That is not a shortcut: it is what keeps the DLL-PRESENT path honest
-// too, because with `RT_ALLOC` unset that name resolves to the DLL's
-// own 0x1800c7620 and the arena is created by retail's code exactly as before.
+// them.
 //
 // The alternative — "arm from Startup and stop arming early" — was considered
 // and rejected at the time: the allocator's registration had to run inside the
@@ -107,11 +100,10 @@
 // nothing on the very first boot.
 //
 // Ten of them are `?_singleton@…` DATA exports, and MSVC inlined the
-// constructor that owns each one straight into `Engine::Startup`. Wave 9 lane X
-// ported those constructors as standalone bodies and registered them, and each
-// publishes its slot through `RT_DATA_SLOT` — the port-aware door — so the
-// store follows lane C2's mint at cutover. This body therefore CALLS the
-// constructor by its exported name instead of replaying the inlined stores.
+// constructor that owns each one straight into `Engine::Startup`. Those
+// constructors are ported as standalone bodies (rtengine::Ctor_* in
+// singleton_ctors.cpp), and this body CALLS them instead of replaying the
+// inlined stores.
 // That is byte-equivalent, checked one at a time: e.g. `??0Configuration@Video@@`
 // (0x1800f6f10) is instruction-for-instruction the block at 0x1800dbc2f-c87,
 // singleton store included, and the same holds for FileSystem, Modification,
@@ -134,10 +126,10 @@
 //                              to 0x1800ca860). Called by name; Wave 9 lane B3
 //                              owns the storage, so it is ours already.
 //   0x1801fe748                `?_singleton@Engine@1@0PEAV11@EA`, ord 4808 —
-//                              an exported DATA symbol, reached with
-//                              RT_DATA_SLOT like the other ten.
+//                              an exported DATA symbol, the class static
+//                              `Engine::Engine::_singleton`.
 //   0x1801fc709                `?_hideDisplay@Error@System@@0_NA`, ord 4791 —
-//                              likewise.
+//                              the class static `System::Error::_hideDisplay`.
 //   0x1801fc6d0                NOT exported, and the ONE address in these four
 //                              bodies with no name. It is a plugin HMODULE that
 //                              Shutdown FreeLibrary's; see the note at that
@@ -154,41 +146,13 @@
 // against the shipped body is not a comparison here, it is a second side
 // effect.
 //
-// What they get instead is a SHADOW on post-conditions the body did not compute
-// directly, plus a did-work counter, per
-// reference_probe_needs_an_effectiveness_control.md. The load-bearing terms are
-// the ones written by somebody ELSE's code:
+// What they get instead is a did-work counter per body, printed by
+// RtEngineLifecycleSummary(); nothing checks their post-conditions at run time.
+// Two further limits, stated rather than buried:
 //
-//   ctor      `*?_singleton@Engine@1@ == this` (through the exported slot, so a
-//             ctor that stamped the wrong global fails), and the allocator
-//             sub-object's ctor post-conditions minBin==0xbf / pageSize==0 /
-//             ranges==null — all three written by rtalloc::Construct, not here.
-//   Startup   `_startupComplete == 1`, `rangeCount >= 1` and
-//             `totalReserved >= minRangeSize` (written by AddNewMemoryRange),
-//             `minRangeSize == (u64)minMB << 20` (the one shift that could be
-//             wrong), and all sixteen subsystem pointers non-null (written by
-//             the sixteen constructors we called, not by us).
-//   dtor      both singleton slots null.
-//   Shutdown  every subsystem pointer that was non-null on entry has had its
-//             teardown run, counted; and `ranges == nullptr` is NOT asserted
-//             because `MemoryAllocator::Shutdown` releases the ranges without
-//             nulling the pointer (allocator.cpp) — asserting it would be the
-//             reference_oracle_must_not_compare_unwritten_bytes.md mistake.
-//
-// A shadow is weaker than a byte diff and this file says so plainly. Two
-// further limits, stated rather than buried:
-//
-//   * `Engine::Shutdown`'s `calls=` is ZERO and will stay zero. game_main.cpp
-//     resolves `?Shutdown@Engine@1@QEAAXXZ` only to satisfy its own null guard
-//     (line 426) and then calls its own `ShutdownEngineStaged()` instead (line
-//     924). Nothing in this project calls the real one. It is ported because
-//     the guard demands a non-null pointer and because leaving it null is what
-//     was blocking the boot — NOT because it is verified. It is not.
-//   * Arming this lane DISABLES the allocator shadow driver. `RtAllocShadowInstall`
-//     detours the DLL's `Engine::Startup` at 0x1800db8a0 to arm the replica; our
-//     port never executes those bytes, so the detour never fires and the driver
-//     reports `skipped_pre_startup=N`, i.e. INVALID. Any run of
-//     `RT_ALLOC_SHADOW=1` must also set `RT_ENGINELIFE=0`.
+//   * `Engine::Shutdown` runs zero times. game_main.cpp calls its own
+//     `ShutdownEngineStaged()` instead. Nothing in this project calls the real
+//     one, and it is NOT verified.
 // ============================================================================
 
 #include <new>   // B7 LX: placement-construct System::Configuration
@@ -222,11 +186,8 @@
 #include "platform_gfx.h"
 #include "load_time.h"     // [LoadTime] stamps (NOT RETAIL, print-only; block LOADSTAMP)
 
-// singleton_ctors_lock.cpp (Wave 9 lane X). `??0MemoryAllocator@System@@` routes
-// to `rtalloc::Construct`, whose first act is `g_plat.lockInit(self->lock)`;
-// `g_plat` is filled by `RtSystemAllocatorInstallPlatform()` and on a run with
-// `RT_ALLOC` unset NOBODY calls it, so that would be an EXEC of 0.
-// This lane checks the seam at REGISTRATION time, not in the body.
+// singleton_ctors_lock.cpp: installs the allocator platform seam
+// (`RtSystemAllocatorInstallPlatform()`) when `g_plat.lockInit` is still null.
 bool RtLaneXEnsureAllocatorPlatform();
 
 // ENDGAME B.3.7: `Engine::Engine` is the real class; a global
@@ -238,7 +199,7 @@ using EngineT = ::Engine::Engine;
 typedef rt::system::MemoryAllocator RtMemoryAllocator;
 
 // The unexported Input::KeyMap scalar deleting destructor 0x180053440, ported
-// and registered by address in src/engine/input/keymap_save.cpp (block B5).
+// in src/engine/input/keymap_save.cpp (block B5).
 Input::KeyMap* RtInput_KeyMap_DeletingDtor(Input::KeyMap* self);
 
 namespace {
@@ -280,9 +241,9 @@ unsigned g_startupFailAt = 0;   // 0 == reached the end
 // ============================================================================
 // ??0AchievementManager@Achievement@@QEAA@XZ               retail 0x18009eb00
 // ============================================================================
-// Lane X's #16, and the one that matters most of the two: two files under
+// Lane X's #16, and the one that matters most of the two: files under
 // src/game/ read `?_singleton@AchievementManager@Achievement@@0PEAV12@EA` at
-// runtime, so at cutover an unwritten mint row is a null in live game code.
+// runtime, so an unwritten singleton is a null in live game code.
 //
 // Eight qwords and a dword, then the singleton. Identical to the inlined block
 // at 0x1800dbe55-0x1800dbe83.
@@ -393,10 +354,10 @@ Engine::Engine::Engine(void* platformHandle) {
 //
 // The last two lines are `MemoryAllocator::~MemoryAllocator` (0x1800c7960)
 // inlined: that body is `MOV [0x1801fc718],0` + the same tail jump, and
-// `rtalloc::Destruct` is its port. Calling the exported dtor rather than
-// replaying the two stores is what routes the singleton null through the
-// port-aware slot; the ORDER is preserved (Engine's global first, then the
-// allocator's), which matters only in that nothing observes between them.
+// `rtalloc::Destruct` is its port. This body calls it through
+// `rtengine::Dtor_MemoryAllocator` rather than replaying the two stores; the
+// ORDER is preserved (Engine's global first, then the allocator's), which
+// matters only in that nothing observes between them.
 //
 // The Engine object itself is NOT freed here: game_main.cpp holds it on the
 // stack, exactly as retail's caller did.
@@ -434,7 +395,7 @@ Engine::Engine::~Engine() {
 //     Shutdown. Only the allocator failure sets the error text. So a failed
 //     Startup leaves a half-built Engine that the caller must still destroy,
 //     and `_startupComplete` stays 0, which is what arms the launcher dialog
-//     on the next run (Engine.h, CLAUDE.md "Launcher Dialog").
+//     on the next run (Engine.h, docs/reference/engine_architecture.md).
 //
 // The `unsigned` return is 1 on success and 0 on every failure.
 uint32_t Engine::Engine::Startup(const char* cmdLine, uint32_t minRangeMB,
@@ -630,7 +591,7 @@ uint32_t Engine::Engine::Startup(const char* cmdLine, uint32_t minRangeMB,
     // --- 0x1800dbd94: the launcher dialog ------------------------------------
     // `PlatformConfigure(this, true, this->_platformHandle)`. On refusal retail
     // sets `?_hideDisplay@Error@System@@0_NA` (the player pressed Quit, so no
-    // error box) and returns 0. CLAUDE.md's "Launcher Dialog" section and
+    // error box) and returns 0. docs/reference/engine_architecture.md and
     // src/app/main.cpp's HarnessGuardUnattendedBoot both depend on this
     // branch being reached exactly when `_noConfigure` is false; it is.
     if (!_noConfigure) {
@@ -689,11 +650,9 @@ uint32_t Engine::Engine::Startup(const char* cmdLine, uint32_t minRangeMB,
 // ?Shutdown@Engine@1@QEAAXXZ                               retail 0x1800db4f0
 // ============================================================================
 // *** THIS BODY HAS calls=0 AND IS NOT VERIFIED. READ §4 OF THE BANNER. ***
-// game_main.cpp resolves the name only to satisfy its own null guard and then
-// runs its own `ShutdownEngineStaged()` instead. Nothing in this project calls
-// the real one, so no run this wave can exercise a single line below. It is
-// ported because a null here is what returned 2 out of `RunGameMain` on cutover
-// attempts 04-06, and because a written body makes the remaining gap legible.
+// game_main.cpp runs its own `ShutdownEngineStaged()` instead. Nothing in this
+// project calls the real one, so no run can exercise a single line below. It is
+// ported because a written body makes the remaining gap legible.
 //
 // The order is retail's and it is not arbitrary: EVERY subsystem is asked to
 // SAVE its state (phase 1) before ANY of them is destroyed (phase 2). Interleave
@@ -704,10 +663,8 @@ uint32_t Engine::Engine::Startup(const char* cmdLine, uint32_t minRangeMB,
 // matched to the exported destructor that consists of exactly those calls —
 // e.g. `??1Factory@Object@@` (0x1800071a0) is `JMP 0x180008110` and nothing
 // else, `??1AchievementManager@Achievement@@` (0x18009eab0) is the null store
-// at 0x1801fc670 plus the same three calls in the same order. Using the
-// exported name is byte-equivalent AND port-aware; using the raw address would
-// be dead memory at cutover. The one place that was NOT reducible to an export
-// is flagged inline.
+// at 0x1801fc670 plus the same three calls in the same order. The one place
+// that was NOT reducible to an export is flagged inline.
 void Engine::Engine::Shutdown() {
 
     ++g_shutdownRuns;
@@ -732,12 +689,9 @@ void Engine::Engine::Shutdown() {
         p->Save();
         // 0x1800db55d: destroy the object hanging off the config's first field.
         // 0x180053440 is an unnamed scalar deleting destructor (a two-node BST
-        // teardown plus MemFree) with NO export in either build, so it can only
-        // be reached by address. ENDGAME B.3.7 callers (K5): that address door
-        // resolved (registry-first) to `RtInput_KeyMap_DeletingDtor`, ported in
-        // src/engine/input/keymap_save.cpp and registered there BY ADDRESS, so
-        // it is a direct call now — the same conversion block B5 made in
-        // Input::Configuration::Startup's re-entry arm.
+        // teardown plus MemFree) with NO export in either build. Its port is
+        // `RtInput_KeyMap_DeletingDtor` (src/engine/input/keymap_save.cpp), called
+        // directly, as Input::Configuration::Startup's re-entry arm also does.
         if (::Input::KeyMap* inner = p->_keyMap) {
             RtInput_KeyMap_DeletingDtor(inner);
         }
@@ -832,7 +786,7 @@ void Engine::Engine::Shutdown() {
     }
     if (Audio::Configuration* p = _audioConfiguration) {
         // ~Configuration is a REAL non-virtual member (audio.cpp: the null store
-        // to _singleton); ??1Configuration@Audio@@ is its door. B.3.7 close.
+        // to _singleton), ??1Configuration@Audio@@.
         p->Audio::Configuration::~Configuration();
         MemFree(p);
     }
@@ -884,8 +838,7 @@ void Engine::Engine::Shutdown() {
 
     // 0x1800db877: release every arena range. NOTE it does NOT null
     // `_allocator.ranges` — allocator.cpp's Shutdown releases the table and
-    // leaves the pointer dangling, exactly as retail does, so the shadow below
-    // must not assert on it.
+    // leaves the pointer dangling, exactly as retail does.
     _allocator.Shutdown();                                  // 0x1800c75b0
 
     // 0x1800db88b: the tail jump, `JMP qword ptr [0x18014b610]` (ole32!CoUninitialize).
@@ -898,9 +851,8 @@ void Engine::Engine::Shutdown() {
 // ============================================================================
 // Summary — the effectiveness control
 // ============================================================================
-// Each of the four runs at most once per process, so `divergences=0` from the
-// diff harness says almost nothing on its own: what matters is whether the body
-// executed at all. Printed beside .
+// Each of the four runs at most once per process, so what matters is whether
+// the body executed at all.
 extern "C" void RtEngineLifecycleSummary() {
     if (g_ctorRuns == 0 && g_startupRuns == 0 &&
         g_dtorRuns == 0 && g_shutdownRuns == 0) return;
@@ -918,6 +870,5 @@ extern "C" void RtEngineLifecycleSummary() {
     std::fflush(stdout);
 }
 
-// ?_singleton@Engine@1@0PEAV11@EA (0x1801fe748) -- the class static (ENDGAME B.3.9 ENG, B39_RULES D7);
-// RtEnginePortInit redirects the minted storage row onto it.
+// ?_singleton@Engine@1@0PEAV11@EA (0x1801fe748) -- the class static (ENDGAME B.3.9 ENG, B39_RULES D7).
 ::Engine::Engine* ::Engine::Engine::_singleton = nullptr;

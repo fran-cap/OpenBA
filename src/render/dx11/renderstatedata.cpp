@@ -74,8 +74,8 @@
 //    which is legal and means "default state". Reproduced deliberately.
 //  * The original does not release a previously-created state object if Create
 //    runs twice. Reproduced (Runtime pairs Create with PlatformDestruct).
-//  * The original does not bounds-check any of the six enum lookups. Neither do
-//    we: clamping would silently diverge on malformed .rsc data.
+//  * The original does not bounds-check any of the six enum lookups. Here an
+//    out-of-range field takes its constructor default (RenderState::TableIndex).
 
 #include "better_trees/foliage_aa_stage.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/BETTER-TREES.md, FAA-CORE.md): ext.better_trees' foliage_aa stage, VideoDX11::g_extFoliageAA
 #include <cstring>

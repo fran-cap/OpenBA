@@ -5,7 +5,7 @@
 // `StatusIconComponent` as a real C++ class with a compiler-generated vtable
 // (B38_RULES.md D1-D4, D6), and its embedded billboard as a REAL
 // `Graphics::Geometry` subclass (B38_RULES §1.2: the unreflected exe table
-// 0x14015f0c0). The engine/types POD is a forwarder to this file.
+// 0x14015f0c0).
 //
 // RETAIL (Application-x64.exe, B38_SLOTS.md §6):
 //   reflected "StatusIconComponent", parent "Component", ti 0x1401c7e08
@@ -88,7 +88,7 @@ public:
     void Tick(const System::Time* time) override;                               // [8]  0x14012bbd0
     void Slot11() override;                                       // [11] 0x14012bf40 = ShowAfterLoad
 
-    // 0x14012c3f0 (the tree's CitizenComp_FUN_14012c3f0): set / clear icon bit
+    // 0x14012c3f0: set / clear icon bit
     // `flagIndex` in the billboard's activeMask (+0xF0); an empty mask removes the
     // geometry from the scene, a non-empty one adds it (settings permitting) and
     // repositions it through Tick; the +0x20 flag 4 follows, and a change notifies

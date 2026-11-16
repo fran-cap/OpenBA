@@ -2,7 +2,7 @@
 // ============================================================================
 // src/ext/map_overlays/overlay_math.h -- ext.map_overlays: blur and colour (standard C++ only)
 // ============================================================================
-// NOT RETAIL. docs/extensions/handins/MAPOVERLAYS.md §5. Unit tested (tests/unit/ext_map_overlays_test.cpp).
+// NOT RETAIL. docs/extensions/handins/MAPOVERLAYS.md §5. Unit tested (tests/unit/ext_map_overlays_math_test.cpp).
 // ============================================================================
 #include <cstdint>
 #include <vector>

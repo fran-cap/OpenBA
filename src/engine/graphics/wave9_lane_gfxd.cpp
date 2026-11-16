@@ -25,12 +25,8 @@
 //     0x1800fe7f0   ??0Camera@Graphics@@QEAA@XZ          (default constructor)
 //     0x180017c40   ??4Camera@Graphics@@QEAAAEAV01@AEBV01@@Z  (operator=)
 //
-// A FOURTH CORRECTION FALLS OUT OF THE SAME LOOKUP, and it is a live one:
-// renderer.cpp's registration block is headed "Graphics::Camera (all five of
-// the class's exports)". **`Graphics::Camera` has THIRTEEN exports**, listed in
-// WAVE9_LANE_GFXD.md §2. Five of them were ported by lane F; two more are
-// ported here; six remain. Nothing depended on the wrong count, but a lane
-// reading that comment would have believed the class was closed.
+// A FOURTH CORRECTION FALLS OUT OF THE SAME LOOKUP: **`Graphics::Camera` has
+// THIRTEEN exports**, listed in docs/history/runtime_port/WAVE9_LANE_GFXD.md §2.
 //
 // ---------------------------------------------------------------------------
 // A FACT NEITHER RECORD CARRIED: `Renderer::Reset`'s own closure
@@ -58,7 +54,7 @@
 // the `newSize == _size` early return, the `newSize > _capacity` grow with the
 // `* 3` bump on a by-one append from non-empty, the `realloced ? 0 : oldSize`
 // loop start, the realloc-destroy arm and the shrink-tail arm. So they are
-// registered as new `ArraySpec` rows against lane Q's body.
+// new `ArraySpec` rows over lane Q's body.
 //
 // They are declared HERE rather than in array.cpp, which is where lane GFX3 and
 // lane UIF put theirs. That precedent's stated reason is "a private second copy
@@ -72,7 +68,7 @@
 // ---------------------------------------------------------------------------
 // UNWRITTEN BYTES — three separate holes, all real, none of them modelling laziness
 // ---------------------------------------------------------------------------
-// `reference_oracle_must_not_compare_unwritten_bytes.md`. Each arm below leaves
+// An oracle comparing bytes neither side writes would fail every call. Each arm below leaves
 // bytes alone that retail also leaves alone, and the probe excludes exactly
 // those and no others:
 //
@@ -89,27 +85,15 @@
 //
 // `ArraySpec` carries ONE assign window and ONE init window, and kSpec_SceneEntry
 // needs two and three. That limit is already filed against kSpec_Sprite38 and
-// kSpec_SpriteDraw. Rather than widen a shared struct under another lane, this
-// file sets both windows to "none" and its OWN probe carries the real hole
-// lists — which is sound because the only consumer of those two fields is a
-// probe, and this spec's probe is here. Stated as an honest limit rather than
-// left to be discovered: **if a future caller drives kSpec_SceneEntry through
-// array_probe.cpp, that probe will compare bytes neither side writes and report
-// a divergence that is not one.** WAVE9_LANE_GFXD.md §6 limit 3.
+// kSpec_SpriteDraw. This file sets both windows to "none"; the real hole lists
+// are the `really` comments on the spec rows below
+// (docs/history/runtime_port/WAVE9_LANE_GFXD.md §6 limit 3).
 //
 // ---------------------------------------------------------------------------
 // WHAT THIS LANE DOES *NOT* CLAIM
 // ---------------------------------------------------------------------------
-// Nothing in our tree calls `Renderer::Reset` or `Renderer::AddScene` today —
-// the only live door on this class is `?Draw@Renderer@Graphics@@`
-// (src/game/Game/gameupdateloop.cpp:627 and engine/funcs/engine_funcs.cpp:3599),
-// and `Draw` is still the DLL's, so the DLL's own internal `CALL 0x180105110`
-// reaches the DLL's `Reset`, not ours. These registrations are therefore INERT
-// today and their `calls=` is 0 by construction, not by accident
-// (`reference_uncalled_port_is_not_verified.md`). The oracle is the probe at the
-// bottom of this file, and the probe is the ONLY thing that executes these
-// bodies before cutover. That is exactly lane X's situation and it is stated the
-// same way.
+// `Renderer::Draw` (wave27_lane_gfxbig.cpp) and ext.render_pipe's passes.cpp call
+// `Renderer::Reset` and `Renderer::AddScene` as qualified member calls.
 // ============================================================================
 
 #include <cstdint>
@@ -129,31 +113,15 @@ using rtcoll::ArrayHdr;
 using rtcoll::ArraySpec;
 
 // ============================================================================
-// The two DLL internals this lane CALLS rather than ports.
-//
-// Both spell their address as a LITERAL inside ResolveAddr, and must keep doing
-// so: tools/runtime_census.py scans for that literal at the call site, and
-// hiding an edge behind a one-line helper is how an edge goes missing from the
-// census (reference_census_cannot_see_the_macro_doors.md).
-//
-// Both are ALREADY OURS — ResolveAddr consults the port registry first
-// (reference_resolveaddr_consults_port_registry_first.md), and lane Q registered
-// both — so neither is a cutover residue row. Neither caches a null: a miss is
-// retried, per the contract in rt_resolve_cache.cpp.
+// The lane Q array body this lane calls rather than ports.
 // ============================================================================
 
 // Collection::Array<int32>::operator= — retail 0x18001cdf0, lane Q's
 // RtColl_I32ArrayAssign_18001cdf0. The tail call of SceneEntry's copy-assign.
 //
 // ENDGAME B.3.2 step 2 (callers) — NOT converted to a member call.
-// `RendererSceneEntry::drawableIds` (Camera.h) is a real `Collection::
-// Array<int32_t>`, but the class's `operator=` is presently `=default` (a
-// SHALLOW bitwise copy — Collection.h's Array banner: the deep
-// `ArrayAssignCore` arrives as `operator=` only once the last bitwise copier
-// converts). Rewriting the call below as `dst->drawableIds =
-// src->drawableIds;` would silently swap this deep, allocator-owning assign
-// for a shallow one — sharing `_data` between the two records and double-
-// freeing it. B3R: a call of that SAME ported body by name,
+// `RendererSceneEntry::_drawableIds` (Camera.h) is a real `Collection::
+// Array<int32_t>`; the call below is the ported body by name,
 // `rtcoll::RtColl_I32ArrayAssign_18001cdf0`.
 // (B.4 Z RT2: the one-line `RtArrayAssignI32(void*, const void*)` forwarder
 // is gone; its caller below calls the typed body.)
@@ -204,8 +172,7 @@ Graphics::Camera* RtGraphics_Camera_CopyCtor(Graphics::Camera* self,
 // ??0Camera@Graphics@@QEAA@XZ — retail 0x1800fe7f0. Returns `this`.
 //
 // Both float constants were LIFTED AS RAW BITS out of the shipped .rdata rather
-// than retyped as decimals (reference_crt_coefficients_must_be_lifted_not_
-// retyped.md): 0x18016175c is 0xbf800000 and 0x18016169c is 0x3f800000. Both
+// than retyped as decimals: 0x18016175c is 0xbf800000 and 0x18016169c is 0x3f800000. Both
 // happen to be exactly representable, so the two spellings agree here — the
 // discipline is kept anyway, because "it looked exact" is not a check.
 //
@@ -215,8 +182,8 @@ Graphics::Camera* RtGraphics_Camera_CopyCtor(Graphics::Camera* self,
 // MOVSS stores below. The reorder to plain ascending order is safe *for this
 // specific pass only*, because all twelve stores write the SAME constant (zero)
 // to DISJOINT addresses; no float arithmetic is reassociated anywhere in this
-// function, so the "moved term" hazard does not arise
-// (reference_moved_term_hides_where_terms_cancel.md).
+// function, so the "moved term" hazard (a regrouped float sum differs in the last bit
+// where terms cancel) does not arise.
 //
 // B.4: on the real class's fields. The twelve zero qwords over +0x00..+0x5f are
 // dead stores retail overwrites with the 24 plane floats, so the planes are
@@ -317,20 +284,19 @@ uint8_t* SceneEntryInit(uint8_t* dstv) {
 // Retail 0x18001ce90 — destroy a RANGE of SceneEntries: free each element's
 // inner Array buffer at +0x100 and clear its 16-byte header, unconditionally.
 // That is exactly lane DESTROY's BODY A with kD_InnerArr_110, which is the spec
-// row already written for THIS address (array_destroy.cpp:255). Registered
-// below, which lane DESTROY did not do — it registered only 0x18001c7e0, the
-// `~Array` that CALLS this.
+// row already written for THIS address (array_destroy.cpp:270). Retail calls it
+// from 0x18001c7e0, the `~Array` of Array<RendererSceneEntry>.
 void SceneEntryDestroyRange(void* /*ignoredThis*/, uint8_t* base, int count) {
     rtcoll::FreeInnerArraysCore(base, count, &rtcoll::kD_InnerArr_110);
 }
 
 // `ArraySpec`'s ElemAssign/ElemInit are VOID-returning, and retail's two
 // bodies both return `this` in RAX (0x18001be52 `MOV RAX,RDI`, 0x1800628bc
-// `MOV RAX,RBX`). The REGISTERED entry points must keep that return, because a
-// by-address caller reads it; the spec gets these two thin adapters instead.
+// `MOV RAX,RBX`). SceneEntryAssign / SceneEntryInit keep that return; the spec
+// gets these two thin adapters instead.
 // Bending the port's signature to fit the table would have been the wrong way
-// round -- an fn_* typedef that drops part of the ABI is the
-// reference_hidden_retslot_wild_write.md shape.
+// round -- an fn_* typedef that drops part of the ABI is the shape of an omitted hidden
+// return slot, a self-consistent wild write.
 void SceneEntryAssignSpec(uint8_t* dst, const uint8_t* src) { SceneEntryAssign(dst, src); }
 void SceneEntryInitSpec(uint8_t* dst) { SceneEntryInit(dst); }
 
@@ -375,7 +341,7 @@ void DrawableInit(uint8_t* dst) { rtcoll::InitAs<Graphics::RendererDrawable, &Dr
 //
 // The unwritten windows are 0/0 ("none") on kSpec_SceneEntry and kSpec_DrawItem
 // because both need MORE THAN ONE window and the struct carries one; the real
-// hole lists live in this file's probe. See the banner. kSpec_Drawable's init
+// hole lists are the `really` comments on the rows. kSpec_Drawable's init
 // hole fits and is spelled properly.
 // ============================================================================
 
@@ -402,7 +368,7 @@ const ArraySpec kSpec_Drawable = {            // 0x180062c40
     /*seed zero       */ 0, 0 };
 
 // ============================================================================
-// The registered array entry points.
+// The array entry points.
 //
 // Two of the three are the CONSTANT-FOLDED one-argument shape lane UIF
 // documented at 0x1800783d0: retail's `newSize` is the immediate 0 and the body
@@ -439,62 +405,13 @@ extern "C" void RtGfxd_SceneArraySetSizeFill(void* a, int n, const void* fill) {
 // Retail 0x1800626a0 — clear one DrawGroup's three per-pass item arrays, then
 // zero the group's first qword (`MOV qword ptr [R12],R13` at 0x180062819, with
 // R13 still the zero it was XOR'd to at entry). The three arrays sit at
-// group+0x1c0 with stride 0x10, which is what RendererDrawGroup::items already
+// group+0x1c0 with stride 0x10, which is what RendererDrawGroup::_items already
 // records.
 extern "C" void RtGfxd_DrawGroupClearPasses(Graphics::RendererDrawGroup* group) {
     for (int i = 0; i < 3; ++i)
         rtcoll::AsArray<&kSpec_DrawItem>(&group->_items[i])->SetSize(0);
     group->_renderBuffer = nullptr;                    // the first qword
 }
-
-// ============================================================================
-// ?Reset@Renderer@Graphics@@QEAAXXZ — retail 0x180105110.
-//
-// Store order is retail's, and it is not the order a reader would guess: +0x34
-// is set to -1 FIRST, before the group loop, and +0x40 and +0x38 are cleared
-// LAST, after both arrays. +0x40 is `frameAlpha`, a float, and retail writes it
-// with `MOV dword ptr [RBX+0x40],0x0` — an integer store of the zero bit
-// pattern, which is +0.0f. It is spelled as a dword here for that reason.
-//
-// The loop re-reads `_drawGroups._size` from memory on every iteration
-// (`CMP EDI,dword ptr [RBX+0x18]` at 0x180105145), which is faithful and also
-// harmless: the callee cannot change it.
-//
-// NOTE WHAT RESET DOES NOT DO. It does not touch `_drawGroups`' own header at
-// all — the group objects are cleared in place and the array keeps its size and
-// its buffer, so the next frame's BeginDrawGroup reuses them. Only `_scenes` and
-// `_drawables` are emptied, and even they keep their capacity.
-// ============================================================================
-
-// ============================================================================
-// ?AddScene@Renderer@Graphics@@QEAAXPEBVScene@2@PEBVRenderBuffer@Video@@
-//                                  AEBVCamera@2@HHHI@Z — retail 0x180105700.
-//
-// *** THE FOUR STACK ARGUMENTS ARE NOT STORED IN SOURCE ORDER, AND THAT IS THE
-// ONE THING IN THIS FUNCTION A READER WILL GET WRONG. *** Read off the four
-// `[RSP+0x1xx]` loads at 0x18010572c..0x18010576f:
-//
-//     arg5 (H, [RSP+0x170])  ->  entry +0xe8
-//     arg6 (H, [RSP+0x178])  ->  entry +0xf8      <-- out of order
-//     arg7 (H, [RSP+0x180])  ->  entry +0xec      <-- out of order
-//     arg8 (I, [RSP+0x188])  ->  entry +0xf0
-//
-// and +0xf4 is the immediate -1 (the entry's drawGroupIndex, which Draw writes
-// back later from Renderer+0x34).
-//
-// `rec` IS DELIBERATELY UNINITIALISED. Retail builds this record on the stack
-// and never writes +0xfc, nor the Camera's +0xd5..+0xd7 tail at +0xe5..+0xe7;
-// the assign then copies those uninitialised bytes into the array element. A
-// port that zeroed them would be "helpful" and WRONG in the one way that shows
-// up as a byte divergence against a DLL-built Renderer
-// (reference_oracle_must_not_compare_unwritten_bytes.md, and the same reasoning
-// renderer.cpp's Renderer ctor gives for leaving +0x3c and +0x4c alone).
-//
-// The trailing `~Array<int32>` on `rec+0x100` is retail's (0x18010579c). It is
-// not redundant: SetSize's assign copy-constructs a fresh buffer into the array
-// element, so the record's own buffer — allocated by the Array's operator= at
-// 0x18001cdf0 — has to be released before the record leaves scope.
-// ============================================================================
 
 }  // namespace rtgfxd
 
@@ -505,18 +422,15 @@ extern "C" void RtGfxd_DrawGroupClearPasses(Graphics::RendererDrawGroup* group) 
 // `Graphics::Renderer` is a real C++ class as of block F
 // (`src/engine/graphics/Camera.h`), so `Reset` and `AddScene` — the two of
 // `Renderer::Draw`'s four portable-export callees this lane ported — move onto
-// it. The two `Graphics::Camera` CONSTRUCTORS above DO NOT MOVE: RULE B5-4 keeps
-// ctor doors as doors, and both bodies are byte-faithful PARTIAL writes (the copy
-// ctor leaves +0xd5..+0xd7 alone; the default ctor leaves +0x61..+0x63 and
-// +0xd5..+0xd7 alone) that a C++ constructor with an initialiser list cannot
-// express. They stay where they are, on the `RtGraphics::Camera` POD, and the
-// three `ArraySpec` rows and their four registered entry points stay with them.
+// it. The `Graphics::Camera` copy constructor above is the class's own (its
+// mem-initialisers leave +0xd5..+0xd7 alone); the default constructor stays the
+// byte-faithful PARTIAL write `rtgfxd::RtGraphics_Camera_DefaultCtor` (it leaves
+// +0x61..+0x63 and +0xd5..+0xd7 alone), and the three `ArraySpec` rows and their
+// four entry points stay with it in `namespace rtgfxd`.
 //
-// NAME-LOOKUP HYGIENE (B34B_RULES §7.2): the `using RtGraphics::Camera;` /
-// `Renderer;` declarations above live inside `namespace rtgfxd`, so they are not
-// visible here at all; inside `namespace Graphics` a bare `Camera`, `Renderer` or
-// `RendererSceneEntry` binds the REAL CLASS. Everything this lane owns is reached
-// with an explicit `rtgfxd::` qualifier.
+// NAME-LOOKUP HYGIENE (B34B_RULES §7.2): inside `namespace Graphics` a bare
+// `Camera`, `Renderer` or `RendererSceneEntry` binds the REAL CLASS. Everything
+// this lane owns is reached with an explicit `rtgfxd::` qualifier.
 // ############################################################################
 
 namespace Graphics {
@@ -568,15 +482,15 @@ void Renderer::Reset() {
 // and +0xf4 (`_drawGroupIndex`) is the immediate -1, which `Draw` writes back
 // later from `Renderer::_currentDrawGroup`. The C++ parameter list below is
 // spelled in RETAIL'S DECLARATION ORDER (…, shaderDetail, detailId, shader,
-// materialTypeFlags) so the door is a straight pass-through and the swap stays
-// visible exactly once, here, where the assignments are.
+// materialTypeFlags) so callers pass the arguments straight through and the swap
+// stays visible exactly once, in the `RendererSceneEntry` constructor (Camera.h).
 //
 // THE RECORD IS DELIBERATELY NOT ZEROED. Retail builds this record on the stack and
 // never writes +0xfc, nor the Camera's +0xd5..+0xd7 tail (which lands at
 // +0xe5..+0xe7); the assign then copies those uninitialised bytes into the array
 // element. A port that zeroed them would be "helpful" and WRONG in the one way
 // that shows up as a byte divergence against a DLL-built Renderer
-// (reference_oracle_must_not_compare_unwritten_bytes.md, and the same reasoning
+// (the port must leave bytes retail never stores unwritten, not zero them, by the same reasoning
 // renderer.cpp's Renderer ctor gives for leaving +0x3c and +0x4c alone). B.4 S4
 // GFX2: the record is a `RendererSceneEntry` built by retail's SceneGroup ctor
 // (0x1800628d0), whose Camera member is built by Camera's copy ctor (retail's
@@ -604,35 +518,3 @@ void Renderer::AddScene(const Scene* scene, const Video::RenderBuffer* renderBuf
 }
 
 }  // namespace Graphics
-
-// ============================================================================
-// REGISTRATION
-//
-// FOUR EXPORTS and ELEVEN ADDRESSES. Every mangled name is spelled as a
-// LITERAL, never through a named constant: tools/runtime_census.py matches
-// `RegisterRuntimeExport("<lit>"` and cannot see through a constant, which is
-// how Wave 3's Object count read 21/41 when it was really 27/41
-// (reference_census_cannot_see_nonliteral_registrations.md).
-//
-// EVERY ONE OF THE ELEVEN ADDRESSES WAS CHECKED FOR AN EXISTING REGISTRATION
-// FIRST. A duplicate is last-binding-wins and silently turns one of the two
-// bodies into dead code, which review does not catch and a diff table does
-// (reference_grep_for_the_port_before_writing_it.md). All eleven came back with
-// zero `RegisterRuntime*` hits across runtime/, standalone/, code/, engine/ and
-// src/render/dx11/; the only pre-existing mentions are five COMMENTS, listed in
-// WAVE9_LANE_GFXD.md §5.
-//
-// THESE REGISTRATIONS ARE INERT TODAY and that is stated rather than implied.
-// No door in the tree resolves any of the four names or any of the eleven
-// addresses, so nothing changes in a live run and every site's `calls=` is 0.
-// They are what a lane porting `Draw` needs to exist, and they are cheap
-// insurance in the sense lane GFXR's limit 3 describes — NOT evidence of
-// anything, and they must not be read as closing a residue row.
-//
-// ONE OF THE ELEVEN IS SOMEONE ELSE'S PROOF. 0x18001ce90 is `FreeInnerArraysCore`
-// with lane DESTROY's kD_InnerArr_110 — the spec row written for THIS address
-// (array_destroy.cpp:255) — and array_destroy_probe.cpp:729 already drives that
-// exact pairing against the shipped body. Lane DESTROY verified it and
-// registered only 0x18001c7e0, the `~Array` that calls it. This lane registers
-// the callee, and does not re-prove what that probe proved.
-// ============================================================================

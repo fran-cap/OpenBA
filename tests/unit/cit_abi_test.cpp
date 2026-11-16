@@ -5,15 +5,15 @@
 // SHIPPED HEADERS (src/game/Component/<Class>.h):
 //
 // PART A — LAYOUT. sizeof / alignof / first-level offsets are each header's
-//   static_asserts; the sub-field offsets the ported bodies read raw are here.
+//   static_asserts; this file adds no layout check.
 // PART B — SHAPE. Every class is concrete, `final`, single inheritance from
 //   `Component` (so from Object::Internal), polymorphic, a virtual destructor (B3X W1).
 // PART C — SLOT ORDER, read off pointers to VIRTUAL members (Itanium PMF =
 //   1 + vtable byte offset, adjustment 0): each override lands on the retail
 //   index of B38_SLOTS.md §6, and slot 0 is the destructor (B3X W1: D1 + D0).
 //
-// NOT PROVEN HERE: the bodies (they stand on the address registry and cannot
-// link into a host test; the real run and the resave gate verify the classes).
+// NOT PROVEN HERE: the bodies (they cannot link into a host test; the real
+// run and the resave gate verify the classes).
 // There is no retslot or hidden-pointer member in
 // this block (every slot returns void, a pointer or an int in RAX).
 // ============================================================================

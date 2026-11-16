@@ -1,47 +1,31 @@
 // src/game/Component/citizenai_findtarget.cpp
 //
 // Faithful 1:1 port of the CitizenAI "find-best-target" linchpin helper
-// CitizenAI_State_sub_dd30 (0x14008dd30) plus its only UNREGISTERED sub-callee
-// CitizenAI_sub_78c0 (0x1400178c0). dd30 is needed by 6 CitizenAI state handlers
+// CitizenAI_State_sub_dd30 (0x14008dd30), CitizenBehavior::FindBestTarget; it reaches CitizenAI_sub_78c0
+// (0x1400178c0) as FindComponent<MarketLocationComponent>. dd30 is needed by 6 CitizenAI state handlers
 // (Gather / Education / GrowUp / SeekHappiness etc.) — it scans two candidate
 // lists (a "primary" list at param_1[2]/[3] and a "fallback" list at param_1[0]/[1]),
 // path-distance-ranks each candidate with BuildStructure_impl_f810 / FUN_140132010,
 // and returns (via out-params) the best entity + a target vec3 + a found component.
 //
-// IMPORTANT ADDRESS CORRECTIONS (the task brief used wrong addresses):
-//   BuildStructure_impl_f810 is actually at 0x14009f810 (NOT 0x14008f810) and is
-//       ALREADY REGISTERED as Pf_IsDstReachable_f810 (reg_pf_roots_route.cpp).
-//   CitizenAI_sub_edb0      is actually at 0x14004edb0 (NOT 0x14008edb0) and is
-//       ALREADY REGISTERED as Pf_PickReachableCell_edb0 (reg_pf_road.cpp).
-//   CitizenAI_sub_78c0      is actually at 0x1400178c0 (NOT 0x1400878c0) and is
-//       the ONLY function in this set that was unregistered → ported here.
-//
-// So this file ports exactly TWO functions:
-//   CitizenAI_FindBestTarget_dd30  (0x14008dd30)  — the main helper
-//   CitizenAI_sub_78c0             (0x1400178c0)  — find MarketLocationComponent on an entity
-//
-// All other sub-callees are already registered and called via ResolveAddr:
-//   0x14009f810 Pf_IsDstReachable_f810        (BuildStructure_impl_f810; path cost)
-//   0x14004edb0 Pf_PickReachableCell_edb0     (CitizenAI_sub_edb0; pick reachable goal)
-//   0x140087fb0 Pf_EntityAnchorCell_7fb0      (Entity_impl_7fb0; entity -> cell idx)
-//   0x14008ef40 CitizenComp_Entity_impl_ef40  (Entity_impl_ef40; pick free slot)
-//   0x14012d5d0 Pf_FindBestAdjacentCell_d5d0  (FUN_14012d5d0; cost-to-adjacent)
-//   0x140132010 WorkImpl_Sqrtf_132010         (FUN_140132010; sqrtf)
-//   0x140006270 WorkBase_FindComponent_6270   (Entity_FindComponent_Storage)
+// Sub-callees, called by name (Component/Action/Work exe_bodies.h and the class headers):
+//   0x14009f810 Map::PathDistance                (BuildStructure_impl_f810; path cost)
+//   0x14004edb0 Component::PickReachableCell     (CitizenAI_sub_edb0; pick reachable goal)
+//   0x140087fb0 EntityAnchorCell                 (Entity_impl_7fb0; entity -> cell idx)
+//   0x14008ef40 CitizenComp_Entity_impl_ef40     (Entity_impl_ef40; pick free slot)
+//   0x14012d5d0 Component::FindBestAdjacentCell  (FUN_14012d5d0; cost-to-adjacent)
+//   0x140132010 WorkImpl_Sqrtf_132010            (FUN_140132010; sqrtf)
+//   0x140006270 ComponentEntity::FindComponent<StorageComponent>         (Entity_FindComponent_Storage)
+//   0x1400178c0 ComponentEntity::FindComponent<MarketLocationComponent>  (CitizenAI_sub_78c0)
 //
 // TYPE-ID GLOBALS (.rdata BaseTypeInfo, the first DWORD = the runtime CRC type id).
-// In standalone these are UNFILLED (0xFFFFFFFF) so the original's type-matched
-// component scans would find NOTHING and then dereference a NULL result (crash).
-// Fix (project "Brick" pattern): resolve each one self-contained via
-// Object::GetTypeIdByName("<TypeName>") so the scans actually match. TypeNames
+// The port reads each one from its class's TypeId() (EnsureInit). TypeNames
 // recovered from each global's *_RegisterType writer (Ghidra-verified):
 //   DWORD_1401c4870 -> "RadiusDescription"          (RadiusDescription_RegisterType)
 //   DWORD_1401c7cb8 -> "RawMaterialDescription"     (RawMaterialDescription_Register)
 //   DAT_1401c7ee8   -> "StorageLocationComponent"   (StorageLocationComponent_RegisterType)
 //   DAT_1401c7f20   -> "StorageLocationDescription" (StorageLocationDescription_Register)
 //   DAT_1401c4560   -> "MarketLocationComponent"    (MarketLocationComponent_RegisterType; used by 78c0)
-// Every dereference of a scan-result pointer is additionally NULL-guarded so the
-// port is crash-safe even if a type id is unresolvable.
 //
 
 
@@ -67,9 +51,9 @@
 
 namespace {
 
-// --- registered exe sub-callees: called by name (Component/Action/Work exe_bodies.h) ---
+// --- exe sub-callees: called by name (Component/Action/Work exe_bodies.h) ---
 
-// --- type ids (self-contained via GetTypeIdByName; see header note) ---
+// --- type ids (each class's TypeId(); see header note) ---
 static uint32_t s_tid_RadiusDescription      = 0;  // DWORD_1401c4870
 static uint32_t s_tid_RawMaterialDescription = 0;  // DWORD_1401c7cb8
 static uint32_t s_tid_StorageLocationComp    = 0;  // DAT_1401c7ee8
@@ -96,7 +80,7 @@ static inline uint32_t CompTypeId(const Object::Base* comp) {
 } // namespace
 
 // ============================================================
-// CitizenAI_FindBestTarget_dd30 (0x14008dd30)
+// CitizenBehavior::FindBestTarget (0x14008dd30)
 //   param_1 = candidate-list pair struct:
 //             param_1[0]=fallbackArr, param_1[1]=fallbackCount,
 //             param_1[2]=primaryArr,  param_1[3]=primaryCount
@@ -113,7 +97,7 @@ static inline uint32_t CompTypeId(const Object::Base* comp) {
 //   candidate entity: +0x28 -> component-list2 holder; +0x30 -> component array (count at +0x38)
 //   component-list2 holder +0x28 -> array, +0x30 -> count (RadiusDescription scan)
 //   matched RadiusDescription (pvVar12) +0x28 -> a comparison threshold (iVar15)
-//   matched RadiusDescription (pvVar12) +0x5c -> a flag bitmask (2nd phase)
+//   matched RawMaterialDescription (pvVar12, 2nd phase) +0x5c -> a flag bitmask
 //   StorageLocationDescription sub-object: (found+0x18) -> base for IsDerivedFrom(+0x20 mask)
 //   if mask==0: Entity_FindComponent_Storage(found+0x10) -> *ptr +0x3c = mask
 // ============================================================

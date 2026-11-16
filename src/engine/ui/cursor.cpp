@@ -15,7 +15,7 @@
 // plus ??1Cursor@UI@@UEAA@XZ 0x1800cd1c0 and the factory pair, here.
 //
 // LAYOUT, sizeof 0x30 (`MOV EDX,0x30` in the deleting destructor's array arm at
-// 0x18003b3d2, and the `Allocate(0x30, 8)` in the already-ported factory row):
+// 0x18003b3d2, and the locked MemAlloc of 0x30 in CreateNewObject, 0x18003b070):
 //     +0x00  vtable        Object::Base -> Object::External -> UI::Cursor
 //     +0x08 .. +0x1f       Object::External's three words
 //     +0x20  int32         serialized, NOT initialised by the constructor
@@ -26,9 +26,7 @@
 // written by Serialize, and the constructor (0x18003b1f6..0x18003b22a, seven
 // stores, the last of them `[RCX+0x28] = 0`) never touches them: a freshly
 // constructed Cursor carries whatever the allocator left there until something
-// deserialises into it. That is retail's behaviour, not a transcription slip —
-// the stores were counted against the already-ported `kCursor` table in
-// src/engine/ui/factory_ui1_tables.inc, which has the same seven and no more.
+// deserialises into it. That is retail's behaviour, not a transcription slip.
 //
 // ~Cursor DOES NOT RELEASE +0x28. Its whole body is a vtable restamp and a tail
 // jump to ??1External@Object@@ (0x1800cd1d2..0x1800cd1e0, four instructions);
@@ -116,8 +114,8 @@ bool Cursor::Serialize(IO::Stream& streamv) {
     IO::Serializer ser(*stream, 0);
     IO::ReaderWriter* rw = ser._readerWriter;
 
-    // LEFT: the ExternalPtr<T>::Serialize thunk takes RtObject::External** and
-    // the rt::io::Serializer POD (External.h, block R-IO).
+    // ExternalPtr<UI::SpriteSheet>::Serialize (0x180004590) over the real
+    // IO::Serializer (External.h).
     _spriteSheet.Serialize(ser);  // 1800cd15b
 
     rw->SerializeInt(_hotSpotX, nullptr);

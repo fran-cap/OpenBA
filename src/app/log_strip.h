@@ -1,11 +1,11 @@
 // Compiled-out debug logging for release builds.
 //
-// Auto-included via -include in the Makefile when BANISHED_STRIP_LOGS is set
-// (release DLL + standalone exe targets). When the flag is on, every printf
+// Auto-included via -include from CMakeLists.txt (BANISHED_STRIP_LOGS) in the
+// perf and release flavours. When the flag is on, every printf
 // call site in the project becomes ((void)0) at preprocess time, so format
 // strings are never parsed and no I/O happens — zero runtime cost.
 //
-// Debug builds leave printf alone, so existing logs to patch_debug.log /
+// The debug and og flavours leave printf alone, so the logs to
 // standalone_debug.log keep working during development.
 //
 // Notes:

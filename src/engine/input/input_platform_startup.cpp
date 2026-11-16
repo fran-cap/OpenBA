@@ -7,7 +7,7 @@
 // ============================================================================
 //
 // The LAST of the four `PlatformStartup` members our ported `Engine::Startup`
-// calls: engine_lifecycle.cpp:741, `g_startupFailAt == 13`. `AEAA` is PRIVATE,
+// calls: engine_lifecycle.cpp:668, `g_startupFailAt == 13`. `AEAA` is PRIVATE,
 // not unexported; every name in this file was read out of the shipped export
 // directory with pefile before a body was written:
 //
@@ -18,23 +18,6 @@
 //   | ?OnLostFocusMessage@Device@Input@@CAHPEAUHWND__@@I_K_J@Z | 0x1800e17d0 | 3276 |
 //   | ?OnMouseWheelMessage@Device@Input@@CAHPEAUHWND__@@I_K_J@Z | 0x1800e17a0 | 3277 |
 //   | ?PlatformUpdate@Device@Input@@AEAAXXZ                  | 0x1800e2130 | 3411 |
-//
-// A CORRECTION THIS LANE OWES THE TREE
-// ------------------------------------
-// `src/platform/win/input_win.cpp`'s registration block says, of the last row:
-//
-//     "PlatformUpdate (0x1800E2130) is NOT registered by name — it has no
-//      mangled export in either the retail or the profile DLL (checked against
-//      the export directory with pefile before writing a line of this file)."
-//
-// THAT IS FALSE. It is ordinal 3411 in retail and ordinal 3564 in the profile
-// build, at 0x1800e2130 and 0x1800e27b0 respectively — re-checked with pefile
-// against BOTH files by this lane before saying so. It is the `AEAA` trap:
-// private, and this DLL exports its private members. The consequence was live,
-// not cosmetic — any resolve of that NAME fell through to the DLL, and the
-// three callbacks below are exactly such callers. The missing
-// `RegisterRuntimeExport` is added in input_win.cpp by this lane and the
-// comment corrected there.
 //
 // PHASE D.4 SDL I1: THE DIRECTINPUT CODE MOVED OUT
 // ------------------------------------------------
@@ -151,7 +134,7 @@ int Device::OnMouseWheelMessage(void*, uint32_t, uint64_t wParam, int64_t) {
 // ============================================================================
 // Retail's shape:
 //
-//   if (Configuration::_singleton->_noDirectInput) goto tail;   // 0x1800e1899
+//   if (Configuration::_singleton->_legacy) goto tail;          // 0x1800e1899
 //   DirectInput8Create(hinst, 0x800, IID_IDirectInput8W, &_di8, NULL);
 //   ... seven HRESULT checks, each with its own Error::SetText and `return false`
 //   ...
@@ -163,7 +146,7 @@ int Device::OnMouseWheelMessage(void*, uint32_t, uint64_t wParam, int64_t) {
 //   PlatformUpdate(this);
 //   GetCursorPos(&p); ScreenToClient(app->_windowHandle, &p);
 //   _lastCursorX = p.x; _lastCursorY = p.y;
-//   if (!Configuration::_singleton->_noDirectInput) { keyboard->Acquire(); mouse->Acquire(); }
+//   if (!Configuration::_singleton->_legacy) { keyboard->Acquire(); mouse->Acquire(); }
 //   return true;
 //
 // FOUR DETAILS WORTH THE INK
@@ -171,7 +154,7 @@ int Device::OnMouseWheelMessage(void*, uint32_t, uint64_t wParam, int64_t) {
 //  1. EVERY HRESULT TEST IS `TEST EAX,EAX ; JZ`, an EQUALITY test against S_OK,
 //     not `JS`. A DirectInput call that succeeded with a non-zero success code
 //     would take the failure branch. Reproduced.
-//  2. The `_noDirectInput` flag is re-read from the singleton at the END
+//  2. The `_legacy` flag is re-read from the singleton at the END
 //     (0x1800e1b0a) rather than reused from the entry test, so a value that
 //     changed in between changes which Acquire branch runs. Kept as two reads.
 //  3. The tail runs even when DirectInput was skipped entirely — the message
@@ -181,11 +164,6 @@ int Device::OnMouseWheelMessage(void*, uint32_t, uint64_t wParam, int64_t) {
 //     Releases nothing before returning false. Faithful; `Engine::Startup`
 //     ends the process on that path anyway.
 //
-// NO ORACLE, and the reason is not shyness. A replay would create a SECOND
-// IDirectInput8 with two more devices and Acquire them against the same window,
-// and would re-run three RegisterMessageCallback calls into the LIVE Set. The
-// one substitution that is not a transcription — the data formats — is measured
-// separately and honestly by RtLanePlatInputFormatProbe().
 // ============================================================================
 namespace Input {
 

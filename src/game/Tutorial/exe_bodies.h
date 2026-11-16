@@ -2,12 +2,10 @@
 // src/game/Tutorial/exe_bodies.h -- declarations of the exe bodies DEFINED in
 // src/game/Tutorial/ (ENDGAME B.3R, block W0-P0c, B3R_RULES R5).
 //
-// Every body the registry reaches by retail address, declared once, copied
-// from its DEFINITION (linkage included), grouped by defining file; the
-// retail address(es) it is registered under are the trailing comment. The
-// defining .cpp includes this header so the compiler checks each pair.
-// Readers call these by name (W1); nothing here changes what runs. Making
-// them members is B.4's work.
+// Each body here is declared once, copied from its DEFINITION (linkage
+// included), grouped by defining file; its retail address is the trailing
+// comment. The defining .cpp includes this header so the compiler checks
+// each pair. Readers call these by name.
 //
 // Also here: the declarations and inline bodies of this module that lived in
 // engine/funcs/engine_funcs.h, moved verbatim with their comments (that
@@ -41,7 +39,6 @@ namespace IO { class Serializer; }
 namespace UI { class Dialog; }
 class PlayerToolManager;
 class ComponentDescription;
-// A PlayerToolManager member in retail (GAME-b's class): kept free.
 
 // ---- inline bodies (moved from engine/funcs/engine_funcs.h; no .cpp)
 

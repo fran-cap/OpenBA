@@ -6,7 +6,7 @@
 // Vtable at 0x14015d250.
 //
 //   +0x20  int  RESOURCE INDEX for this row:
-//               Log=0 Stone=1 Iron=2 Herbs=3 Tools=4 Fuel=5 Food=6 Clothing=7
+//               Log=0 Stone=1 Iron=2 Fuel=3 Tools=4 Food=5 Herbs=6 Clothing=7
 //               Alcohol=8 Coal=9 Textile=10, then the custom limits Custom0..Custom9 = 11..20
 //               ->  townMgr(gw+0xf0)+0x170[idx*0x20+8]
 //
@@ -22,7 +22,7 @@
 //               (`MOV RCX,[RSP+0x30]; CALL [RAX+0x98]` — serializer+8 is the stream
 //               impl, 0x98/8 = vtable idx 19). Dispatch slot 0x140152ac8 IS that
 //               non-inlined helper; ControlUIConfig's Serialize (0x14005fb70) calls it
-//               directly and was verified live this session, so we use the slot.
+//               directly, and so does this body (IO::Serializer::Serialize).
 //
 // The ResourceLimitUI controller reads this index (idx5 below fills it from the .rsc) as retail's
 // Slot4 / Slot7 / Slot9 do: IsDerivedFrom(config) ? config : null, then +0x20 unguarded, no bound.

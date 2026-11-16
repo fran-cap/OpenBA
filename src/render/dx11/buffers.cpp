@@ -42,8 +42,8 @@
 //
 // In the shipped DLL this reads the import slot at VideoDX11 0x1800134b8,
 // which the loader fills with the address of that same Runtime variable — see
-// "The one global" in decomp/videodx11.md. We resolve the Runtime variable
-// directly, which is the same object with one less indirection to get wrong.
+// "The one global" in decomp/videodx11.md. This port reads the class static
+// `Video::Device::_singleton` directly, the same object with one less indirection to get wrong.
 // B5 BUF: through the shared `Dx11Device()` / `Dx11Context()` walk in
 // dx11_backend_access.h (this file's private third copy of it is gone; same
 // chain, same loads, no cache).
@@ -154,8 +154,8 @@ inline ::Video::Device* VideoDeviceObject() {
 // are field-identical). B5 BUF: `_owner` is typed per class, so the shared
 // bodies below are TEMPLATES over the owner type and each instantiation reads its
 // own class's named `size` / `dynamic` — the alias, and the cross-type cast it
-// needed, are gone. `tests/unit/video_device_abi_test.cpp` still restates the
-// field identity at runtime.
+// needed, are gone. The static_asserts below pin `size` / `dynamic` at the same
+// offsets in both classes.
 //
 // Video::ConstantBuffer — ENDGAME B.3.5 block VC, RULE B5-2's duplicate-view
 // collapse. This was the FIFTH view of this one class: a 0x40-byte prefix with its
@@ -219,9 +219,9 @@ static_assert(offsetof(::Video::VertexBuffer, dynamic) == 0x04, "VertexBuffer::d
 // pulling src/engine/io/Serializer.h into the VideoDX11 replacement for one
 // expression — a module-boundary decision, not a caller batch's".
 //
-// B35_RULES §5.5 SETTLES THAT DECISION and block VC acts on it: dx11 now includes
-// seven runtime/types headers, this file four of them, so the boundary argument no
-// longer holds. The body is `IO::Serializer::GetDirection()` (retail 0x180006210,
+// B35_RULES §5.5 SETTLES THAT DECISION and block VC acts on it: dx11 includes
+// runtime/types headers in many files, this file six of them, so the boundary argument
+// does not hold. The body is `IO::Serializer::GetDirection()` (retail 0x180006210,
 // `MOV RAX,[RCX] / MOV EAX,[RAX+8] / RET` — exactly the two loads that were
 // written out here), and that retires a SIXTH duplicate offset view.
 //

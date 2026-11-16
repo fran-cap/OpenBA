@@ -1,7 +1,6 @@
 // src/diag/orchard_workers_harness.cpp
 // BANISHED_ORCHARD_WORKERS=<n> — orchard STAFFING stand-in: the one player action the
-// chain still lacks. Direct analogue of BANISHED_PASTURE_HERDERS (src/diag/pasture_harness.cpp),
-// pointed at OrchardComponent instead of PastureComponent.
+// chain still lacks, pointed at OrchardComponent.
 //
 // WHY THIS IS NEEDED AND NOT A CHEAT: the periodic employment allocator (0x1400d43b0,
 // citizen_assign_citizens.cpp) gates on WPC+0x60 != 0 — the LIVE ROSTER COUNT — so it
@@ -48,7 +47,7 @@
 #include "Entity/ComponentEntity.h"           // B4: components by name, FindComponent<T>
 #include "Entity/EntityList.h"                // B4: GameUpdateLoop::m_entityList
 
-// The seat cascade (src/game/Component/citizen_employ.cpp) — the headless equivalent of
+// The seat cascade (src/game/Component/citizen_employ_cascade.cpp) — the headless equivalent of
 // the per-worker inner loop of CitizenComponent_impl_dd10.
 
 namespace {
@@ -111,8 +110,8 @@ void Fire(int frameNum) {
         return;
     }
 
-    // Shared component finder — the same one the pasture herder stand-in uses to reach a
-    // WorkPlaceComponent from an entity (see reference_misnamed_component_finders: 0x140002e10
+    // Shared component finder — the one that reaches a
+    // WorkPlaceComponent from an entity (0x140002e10
     // is FindComponent_WorkPlace, whatever Ghidra called it). Body:
     // AttendanceComponent_GetJobHostComponent.
 

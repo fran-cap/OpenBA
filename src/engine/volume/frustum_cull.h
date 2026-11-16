@@ -18,7 +18,7 @@
 // unused). The fast test reads only the table's own copy of the planes, so its
 // answer is a pure function of the plane bits at Prepare time: the caller must
 // Prepare after the last write to the frustum and before the first test (the
-// one hot caller, Scene::AddCulledDrawItems, Prepares its two locals right
+// scene cull, Scene::AddCulledDrawItems, Prepares its two locals right
 // after `operator*` fills them; nothing writes them afterwards).
 //
 // The fast body is INLINE here (not in frustum.cpp) so the scene cull loop

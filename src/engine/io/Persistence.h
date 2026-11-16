@@ -3,13 +3,13 @@
 // src/engine/io/Persistence.h — IO::Persistence (Wave 4, lane C)
 // ============================================================================
 //
-// Retail Runtime-x64.dll, image base 0x180000000. Layout is PARTIAL: only the
-// two fields this lane's five ported functions actually touch are pinned.
-// Everything else in the object is unknown and left as opaque padding — do
-// not extend this struct from a decompile without a static_assert, and do not
-// allocate a Persistence from this declaration; every instance this lane
-// deals with is the live DLL singleton (`?_singleton@Persistence@IO@@0PEAV12@EA`,
-// exported data, retail 0x1801fc6b8 — see WAVE4_LANE_C.md §"the singleton").
+// Retail Runtime-x64.dll, image base 0x180000000. IO::Persistence (below) holds
+// three typed members: the settings Set at +0x00, the embedded save/load worker
+// at +0x10 and the save path at +0x90. Do not extend it from a decompile without
+// a static_assert. Engine's startup allocates and constructs the one instance
+// (engine_lifecycle.cpp); the constructor stores it in the class static
+// `_singleton` (`?_singleton@Persistence@IO@@0PEAV12@EA`, exported data,
+// retail 0x1801fc6b8 — see docs/history/runtime_port/WAVE4_LANE_C.md §6).
 //
 // FIELDS PINNED
 // -------------
@@ -40,12 +40,10 @@
 //          arm at 0x18000f824 writes the identical pair. Nothing this lane
 //          read pins +0x0C.
 //
-// Offsets 0x0C..0x8F are UNKNOWN. ReadSettings/WriteSettings construct their
-// own `Registry` helper object on the STACK (`Registry::Registry(&local, 0)`),
-// not through a field of `this`, so whatever else lives in that gap is not
-// evidenced by any function this lane read. Held-back functions (see the wave
-// doc) may need it; a future lane extending this struct must repin it with
-// its own static_assert, not assume this comment's gap is empty.
+// Offsets 0x0C..0x0F are NOT pinned; +0x10..+0x8F is the embedded worker
+// (IO::PersistenceWorker below). Retail's ReadSettings/WriteSettings construct
+// their own `Registry` helper object on the STACK (`Registry::Registry(&local, 0)`),
+// not through a field of `this`.
 // ============================================================================
 
 #include <atomic>
@@ -117,12 +115,12 @@ static_assert(kBlockDescBytes == sizeof(BlockDesc), "the on-disk row is the stru
 //       //   command   0x1800b78b7 movl $3,0x4c(rbx) 0x1800b741e movl $2,0x3c(rdi)
 //       //
 //       // The `flags` bit-0 test is the FIRST instruction of all seven public
-//       // entry points this lane ports; retail treats it as "the worker is dead /
-//       // persistence unavailable" and refuses the request. It is NOT a
-//       // busy flag: BeginGetSaveGameList (0x1800b7b30) tests it too and issues
-//       // straight away.
+//       // entry points this lane ports, and a set bit refuses the request. It is
+//       // the worker's BUSY bit: Thread::ThreadFunc (0x1800ca440) sets it
+//       // (`OR [RBX+0x8],0x1`, 0x1800ca483) before the job and clears it
+//       // (`AND [RBX+0x8],0xfffffffe`, 0x1800ca499) after OnCompleted.
 //       void*            workerVtable;      // +0x10 — 0x180155860
-//       uint32_t         flags;             // +0x18 — bit 0 == unavailable
+//       uint32_t         flags;             // +0x18 — bit 0 == mid-job
 //       uint8_t          _pad1c[0x04];      // +0x1C — NOT pinned
 //       // +0x20 and +0x30 were `_pad` until the WAVE 19 lane PERSIST post-report
 //       // tranche, and what pinned them is the WORKER DESTRUCTOR, 0x1800b7740 —
@@ -159,7 +157,7 @@ static_assert(kBlockDescBytes == sizeof(BlockDesc), "the on-disk row is the stru
 //       // disk into the SAME three fields and checks them (fileHeader's high
 //       // 16 bits against `blockCount` above, `magic` against the sentinel
 //       // 0x80808080, `crc` against a freshly recomputed checksum). Whoever
-//       // enqueues a SAVE (BeginSaveGame, not yet ported) must pack
+//       // enqueues a SAVE (RtIo_PersistenceWorker_EnqueueSave, 0x1800b75c0) must pack
 //       // `fileHeader = version | (blockDescCount << 16)` and preset
 //       // `crc = 0xFFFFFFFF` before signalling the worker — neither job writes
 //       // those two on entry, only reads them.
@@ -228,7 +226,7 @@ static_assert(offsetof(SaveBlock, data) == 0x0, "SaveBlock::data");
 // `GetSaveInfo(this, SaveGameInfo* hiddenSlot, int index)` with the index in
 // R8D, which is what 0x1800c1fe3..0x1800c1fed does register for register.
 // A typedef that omits that slot is a wild write that still returns the right
-// answer (reference_hidden_retslot_wild_write.md).
+// answer.
 //
 // BOTH FIELDS ARE PINNED BY ONE READER, ?UpdateList@SaveLoad@Save@@ state 1:
 //   +0x00  1800c1ff5  MOV RCX,[RAX]    -> copied into SaveInfo+0x30, which the
@@ -275,7 +273,7 @@ static_assert(offsetof(SaveGameInfo, sortKey) == 0x0, "SaveGameInfo::sortKey");
 // `RtIO` as in `FileSystem.h`.
 //
 // *** IT HAS NO VTABLE OF ITS OWN. *** There is no `??_7Persistence@IO@@6B@`;
-// the only Persistence row of the mint tables is the singleton pointer
+// the only exported Persistence data is the singleton pointer
 // `?_singleton@Persistence@IO@@0PEAV12@EA` (0x1801fc6b8). Every exported
 // member is `QEAA` / `QEBA` / `AEBA`. The vptr at +0x10 is the EMBEDDED
 // worker's: `??0Persistence@IO@@QEAA@XZ` (0x1800b8020) runs
@@ -388,7 +386,7 @@ class Persistence;
 // and the compiler's call into the base destructor is the second.
 //
 // The worker's Thread fields seen from Persistence: `_runFlags` (+0x18; bit 0
-// == "persistence unavailable", the first test of every public entry point),
+// == a job is running (IsWorking), the first test of every public entry point),
 // `_hThread` (+0x20), `_hStart` (+0x28, the "work" event), `_hStop` (+0x30),
 // `_hFinished` (+0x38, the "done" event).
 class PersistenceWorker : public System::Thread {
@@ -451,8 +449,8 @@ public:
 
 protected:
     // 0x1800b7740's first half (see the banner): all four releases are the
-    // members' destructors, so the body is empty. The compiler then runs
-    // ~Thread. Non-virtual: the table has no dtor slot.
+    // members' destructors; the body adds only a NOT RETAIL WaitForFinish before
+    // them. The compiler then runs ~Thread. Non-virtual: the table has no dtor slot.
     // Out of line in persistence_worker.cpp.
     ~PersistenceWorker();
 
@@ -488,7 +486,7 @@ static_assert(!std::has_virtual_destructor<PersistenceWorker>::value,
 //                                BeginDelete, BeginLoad, ~Persistence
 //   persistence_begin_saveinfo.cpp    BeginGetSaveGameInfo
 //   persistence_startup.cpp      Startup
-//   singleton_ctors.cpp          Persistence()
+//   persistence.cpp              Persistence()
 //
 // The size is not independently pinned by an enumeration of the members;
 // Engine's startup allocates 0x98 (`MemAlloc(0x98, 4)`, engine_lifecycle.cpp),

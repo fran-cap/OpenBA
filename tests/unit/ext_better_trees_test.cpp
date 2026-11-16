@@ -14,7 +14,7 @@
 // clip position from cb0[0..3], the shadow output from cb2[10..13]), not any shader's content. A tiny
 // interpreter for the instructions used here runs the original and the rewritten program and checks
 // the rewrite's MEANING: the clip output is unchanged, and the shadow position is the drawn position
-// moved along the light direction to the card centre's depth minus k |C - P| (TS-FIX2).
+// moved along the light direction by basis dot(C - P, L) - e |C - P| (receiver_rewrite.h).
 //
 // faa:
 // src/render/common/better_trees/dxbc.{h,cpp} (the DXBC container, its checksum, the

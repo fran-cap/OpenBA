@@ -12,7 +12,7 @@
 // Random and Time each have a user-declared constructor, so a by-value return
 // of either (there are none in this lane's scope, but future ports must not
 // assume otherwise) would be returned BY MEMORY with the hidden slot as an
-// explicit argument. Every member port here is a plain free function.
+// explicit argument.
 //
 // ENDGAME B.3.4b SYSTEM (4c) CORRECTS THE NEXT PARAGRAPH ON BOTH COUNTS.
 // `System::DateTime` IS modelled below (it is a FILETIME; see its banner), and
@@ -80,15 +80,13 @@ static_assert(sizeof(Random) == 2500, "System::Random must be 2500 (0x9c4) bytes
 // Pinned by ??0Time@System@@QEAA@M@Z (0x1800078c0): writes one qword.
 //   +0x00: int64 ticks
 // The float<->ticks conversion is Timer::SecondsToTicks/TicksToSeconds
-// (Timer is out of this lane's scope and not ported here); our ctor and
-// AsSeconds delegate to those two exports via the registry rather than
-// duplicating Timer::_secondsPerTick, which is a runtime-computed global
-// (QueryPerformanceFrequency-derived) and not a compile-time constant.
+// (src/engine/system/timer.cpp); our ctor and AsSeconds call those two by
+// name rather than duplicating Timer::_secondsPerTick.
 //
 // ENDGAME B.3.3 step 6B — THE DEFINITION IS NOT HERE ANY MORE, AND THAT IS A
-// BUG FIX, NOT A TIDY. `engine/types/common.h:12` defines the same global
+// BUG FIX, NOT A TIDY. `src/engine/global_types.h` defines the same global
 // `struct Time` (identical: one `int64_t ticks`, asserted at 8 bytes in both
-// places), and `src/engine/math/Math.h:529` includes that header for its
+// places), and `src/engine/math/Math.h` includes that header for its
 // `Vector2/3/4` aliases. So ANY translation unit that included both
 // `src/engine/math/Math.h` and this file was a hard `redefinition of
 // 'struct Time'` error — the two headers could never meet, which is why no
@@ -129,7 +127,7 @@ static_assert(sizeof(Color) == 4, "System::Color must be 4 bytes");
 // `Thread.h` had to move its PODs because they sat inside `namespace System`
 // and occupied the classes' own names. The PODs here do NOT: `Random` and
 // `Color` are at GLOBAL scope above, and `Time` is the global `struct Time`
-// that `engine/types/common.h:12` owns and shares with the exe tree. So
+// that `src/engine/global_types.h` owns. So
 // nothing is renamed, nothing outside `runtime/` is touched, and the four
 // classes below are cross-asserted against PODs that stay exactly where they
 // are. Spell the POD `::Random` / `::Time` / `::Color` everywhere inside a
@@ -139,17 +137,12 @@ static_assert(sizeof(Color) == 4, "System::Color must be 4 bytes");
 // one of the two gains a member.
 //
 // *** WHY `System::Time` COULD BE DECLARED HERE AT ALL. ***
-// `::Time` lives in `engine/types/common.h`, which `src/engine/math/Math.h`
+// `::Time` lives in `src/engine/global_types.h`, which `src/engine/math/Math.h`
 // includes and which therefore reaches most of the tree; B.3.3 step 6B
-// deliberately de-duplicated it there (see the banner above) and moving it
-// would be an `engine/` edit. It does not have to move: `System::Time` is a
-// NEW name in a NEW namespace over the SAME eight bytes, cross-asserted
-// against `::Time` below. Every one of the ~68 files that reaches a Time
-// function does so through a `void*` door — `fn_Time_Ctor_Float`,
-// `fn_Time_AsSeconds`, `g_fn_Time_Serialize` (engine_funcs.h:1827, 1083, 5475;
-// all three typedefs take `void*`) — and every `System::Time` spelling under
-// `code/Game` is a COMMENT. So the class costs ZERO edits outside `runtime/`,
-// and `::Time` keeps its single definition.
+// deliberately de-duplicated it there (see the banner above). It does not have
+// to move: `System::Time` is a NEW name in a NEW namespace over the SAME eight
+// bytes, cross-asserted against `::Time` below, and `::Time` keeps its single
+// definition.
 //
 // *** NONE OF THE FOUR GETS A REAL CONSTRUCTOR IN 4b, AND THE REASON IS NOT
 // *** THREAD'S. *** B34_RULES §4.3 forbids a ctor door converting when the
@@ -170,7 +163,7 @@ static_assert(sizeof(Color) == 4, "System::Color must be 4 bytes");
 //               factory's RNG, i.e. a determinism change with no build error.
 //               `Graphics::Particle::_rng` (0x1801fe7f0) is a second by-value
 //               instance with its own seeding path.
-//   `Time`    — its ~132 `fn_Time_Ctor_Float` call sites construct into RAW
+//   `Time`    — its `RtSystem_Time_Ctor` call sites construct into RAW
 //               BYTE BUFFERS and convert as placement-new (B34_RULES §7.3),
 //               which is caller-batch work gated behind the 4a closing pass.
 //               The constructor converts WITH them, not before.
@@ -181,9 +174,8 @@ static_assert(sizeof(Color) == 4, "System::Color must be 4 bytes");
 //               `??0…@QEAA@U_FILETIME@@@Z` (0x1800c5800) and `??1…` (0x1800c5860)
 //               have no body anywhere in this tree.
 //
-// So every class below declares its PORTED members only, the registered doors
-// keep their addresses and delegate, and each class stays trivially
-// destructible so no implicit destructor can run beside a hand-written one.
+// So every class below declares its PORTED members only, and each class stays
+// trivially destructible so no implicit destructor can run beside a hand-written one.
 // ============================================================================
 
 namespace System {
@@ -225,8 +217,9 @@ public:
 
     // ?NextGroup@Random@System@@AEAAXXZ    0x1800c7dd0
     // `AEAA` is the PRIVATE spelling, not the unexported one — it is a real
-    // export (ord 3245) and it is registered. PUBLIC here rather than private
-    // because its registered door calls it, and access control is not ABI.
+    // export (ord 3245). PUBLIC here rather than private because callers outside
+    // the class call it (audio_scene_update.cpp, wave27_lane_gfxpart.cpp,
+    // wave28_lane_partsys.cpp), and access control is not ABI.
     void NextGroup();
 
     // ?Serialize@Random@System@@QEAAXAEAVSerializer@IO@@@Z  0x1800c7cf0
@@ -260,9 +253,8 @@ class Time {
 public:
     // ?AsSeconds@Time@System@@QEBAMXZ  0x180007900
     // Delegates to `Timer::TicksToSeconds` BY NAME rather than duplicating
-    // `Timer::_secondsPerTick`, which is a QueryPerformanceFrequency-derived
-    // runtime global and one of the eleven CUTOVER_REQUIRED cells
-    // (B34B_RULES §4.1) — not a compile-time constant.
+    // `Timer::_secondsPerTick`, a static member initialised to 1.0 / 1000000.0
+    // and stored again by `Timer::Startup` (timer.cpp).
     float AsSeconds() const;
 
     // ?Serialize@Time@System@@QEAAXAEAVSerializer@IO@@@Z  0x1800ca740
@@ -271,7 +263,7 @@ public:
     // member call. It used to hand-inline the ReaderWriter's +0x90 slot because
     // `IO::Serializer` declared no int64 scalar overload; that overload now
     // exists (`?Serialize@Serializer@IO@@QEAAXAEA_JPEBD@Z` @ 0x180035000,
-    // `standalone/rt_export_addrs.inc:1204`), and THIS SITE IS WHAT JUSTIFIED
+    // `src/engine/io/serializer_class.cpp`), and THIS SITE IS WHAT JUSTIFIED
     // ADDING IT — B34B_RULES §3 sequenced it after the 4a closing pass because
     // the member body belongs in `src/engine/io/serializer_class.cpp`. Still
     // do NOT route these eight bytes through the four-byte int door: +0x90 and
@@ -296,10 +288,9 @@ static_assert(std::is_trivially_destructible<Time>::value,
 // System::Color — 4 bytes, NO vtable. One packed uint32, byte-addressed B,G,R,A.
 // ----------------------------------------------------------------------------
 // The eight accessors and three constructors retail exports are NOT declared
-// here: none is ported and none is registered, and an uncalled port is an
-// unverified port. Their addresses are in B34B_RULES §1.1 for whoever ports
-// them. `?Serialize@` is the whole live surface — six CALL sites, all through
-// `fn_System_Color_Serialize`.
+// here: none is ported, and an uncalled port is an unverified port. Their
+// addresses are in B34B_RULES §1.1 for whoever ports them. `?Serialize@` is
+// the whole ported surface.
 class Color {
 public:
     // ?Serialize@Color@System@@QEAAXAEAVSerializer@IO@@@Z  0x1800c4150
@@ -342,9 +333,9 @@ static_assert(std::is_trivially_destructible<Color>::value, "B4b-2");
 //
 // The two halves are spelled separately rather than as a `uint64_t` so the
 // header stays honest about the shape AND stays free of <windows.h>
-// (PLAN.md §4.1 decision 1). `src/engine/system/value_types.cpp` is the only
-// file that casts them to a real `FILETIME`, and it is the platform-side half
-// that already includes the header.
+// (PLAN.md §4.1 decision 1). `Platform::FormatLocalDateTime` (platform_file.h)
+// reads the two halves in place, and `src/platform/win/file_win.cpp` casts
+// them to a real `FILETIME`.
 //
 // NO LAYOUT WAS INVENTED: there is no third field, because 8 bytes is all
 // `FileTimeToLocalFileTime` reads and all `AsFileTime` returns.
@@ -357,13 +348,10 @@ public:
     // ⚠ ALL THREE RETURN `System::String` BY VALUE, WHICH IS A HIDDEN RETURN
     // SLOT AT THE ABI. Retail's is `String* f(const DateTime* this, String* ret)`
     // — RCX = this, RDX = ret — and Ghidra DROPS the second parameter and the
-    // return for all three (`reference_ghidra_c_output_vs_disassembly.md`;
-    // `value_types.cpp` quotes the three instructions that prove it). The
-    // registered DOORS keep that two-argument shape and placement-new the
-    // member's prvalue into the caller's slot; the MEMBERS return by value,
-    // which is what retail's source said. Never register a member directly and
-    // never reach one from a raw slot caller — that is
-    // `reference_hidden_retslot_wild_write.md`.
+    // return for all three (`value_types.cpp` quotes the three instructions that
+    // prove it). The MEMBERS return by value, which is what retail's source said.
+    // Never reach one from a raw slot caller: omitting the hidden return slot is
+    // a self-consistent wild write.
     String AsString() const;
     String DateAsString() const;
     String TimeAsString() const;
@@ -387,11 +375,10 @@ static_assert(std::is_trivially_destructible<DateTime>::value, "B4b-2");
 
 }  // namespace System
 
-// ==== B3R W0-P0c: Runtime bodies reached by retail address ====
-// ENDGAME B.3R (B3R_RULES R5): each body below is registered at the retail
-// address in its trailing comment and read through the registry today. It is
-// declared here, copied from its definition (linkage, namespace, types), so the
-// reader can call it by name. Nothing calls it through this declaration yet.
+// ==== B3R W0-P0c: Runtime bodies called by name ====
+// The body below is defined in src/engine/system/value_types.cpp; its retail
+// address is in its trailing comment. It is declared here, copied from its
+// definition (linkage, namespace, types), so its callers call it by name.
 
 // ---- system/value_types.cpp
 System::Time* RtSystem_Time_Ctor(System::Time* self, float seconds);  // 0x1800078c0

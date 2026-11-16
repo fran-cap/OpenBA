@@ -36,20 +36,19 @@
 //   W4ImageType@12@W4Usage@12@W4Format@12@IHHW4FilterMode@12@W4AddressMode@12@
 //   44PEAV?$Array@V?$Array@E@Collection@@@Collection@@@Z`). Argument shape
 // matches the established NoiseUI / ModDialog usage (see
-// src/game/Dialog/noiseui.cpp lines 290-299; src/game/Dialog/moddialog.cpp
-// lines 393-398) exactly — including the 12 args via stack overflow on Win64.
+// src/game/Dialog/noiseui.cpp lines 246-257; src/game/Dialog/moddialog.cpp
+// lines 326-327) exactly — including the 12 args via stack overflow on Win64.
 //
 // Standalone-safety:
-// - All Runtime primitives are resolved at startup in engine_funcs.cpp.
-// - If any of them is null at runtime (Runtime DLL load failure), the helper
-//   one-shot logs and returns early — no crash, no upload.
+// - If the MemoryAllocator or Video::Device singleton is not up, the 0x68-byte
+//   MemAlloc fails or the grid size is not positive, the helper one-shot logs
+//   and returns early — no crash, no upload.
 // - The vtable at 0x14015c8c0 is exe-resident and is Video::ImageBuffer's own
 //   (slot 0 the exe scalar deleting dtor, 1-9 thunks onto the class's members):
 //   ENDGAME B.3.9 EXA constructs the real class.
 //
-// This helper is NOT yet called from anywhere — Geometry::Serialize body is
-// session 8. Session 7's only goal is that the helper exists, links, and is
-// callable, executing our cleaned C body.
+// Called from WorldGeometry::Serialize (geometry_serialize.cpp),
+// WorldGeometry::OnVideoRestart (geometry_draw.cpp) and worldgen.cpp.
 
 // ENDGAME B.3.5 Video/Graphics caller batch: Video::ImageBuffer is a real class
 // and the hand-inlined vtable +0x48 dispatch below is its slot 9 (`Create`).

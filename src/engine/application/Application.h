@@ -5,10 +5,7 @@
 // ============================================================================
 //
 // Every offset below was read out of the SHIPPED Runtime-x64.dll (image base
-// 0x180000000) in Ghidra, 2026-09-07. This lane does NOT own or port the
-// constructor — it is not in the wave's function list — so the layout here is
-// only as complete as this lane's five member functions need, and says so
-// rather than inventing the rest.
+// 0x180000000) in Ghidra, 2026-09-07.
 //
 // NOT A POLYMORPHIC CLASS. The ctor (`Application`, 0x18009f590, found via the
 // xrefs to the `_singleton` data export rather than by name) is:
@@ -40,12 +37,7 @@
 //
 // `?_singleton@Application@1@0PEAV11@EA` is at 0x1801fc678, confirmed by the
 // `MOV qword ptr [0x1801fc678],RCX` store above and cross-checked against
-// pefile's export directory. `engine/funcs/engine_funcs.cpp`/`.h` carry a
-// STALE comment claiming this address is `0x1801feb80` — that number is not
-// used by any resolve call (the real resolution goes through
-// `standalone/address_registry.cpp`'s dispatch-slot registration of
-// `ResolveAddr(Module::Runtime, 0x1801fc678)`, which is correct) — fixed at
-// its source by this lane (PLAN §6 step 8); see WAVE8_LANE_E.md §5.
+// pefile's export directory (docs/history/runtime_port/WAVE8_LANE_E.md §5).
 // ============================================================================
 
 #include <cstdint>
@@ -67,8 +59,8 @@
 // used to live here was field-identical, so the POD BECOMES the class (B7-6)
 // and `RtApplication::Application` is an alias of it.
 //
-// `?_singleton@Application@1@0PEAV11@EA` (0x1801fc678) STAYS a data slot read
-// through RT_DATA_SLOT until the end of B.3 (carry-over 5).
+// `?_singleton@Application@1@0PEAV11@EA` (0x1801fc678) is the class static
+// `Application::_singleton` (application_accessors.cpp).
 //
 // ORDER (B7-10): Engine::Startup builds the Application BEFORE Video, and
 // `PlatformStartup` (the window) runs before any `RegisterMessageCallback`
@@ -136,9 +128,6 @@ public:
     // ---- the 27 exports (B37_SLOTS.md sec. 6), ALL PORTED -----------------
     static Application* Get();                                      // 0x18000a2f0  application_accessors.cpp
     // ?_singleton@Application@1@0PEAV11@EA (0x1801fc678) — the class static (ENDGAME B.3.9 ENG, B39_RULES D7).
-    // The namespace's *PortInit redirects the minted storage row onto it, so
-    // the name door, the address door and this member are the same bytes.
-    // PUBLIC while foreign readers still reach the row through the doors.
     static Application* _singleton;
     bool Startup();                                                 // 0x18009f510  application_thunks.cpp
     void Shutdown();                                                // 0x18009f500  application_thunks.cpp
@@ -159,16 +148,15 @@ public:
     void* GetWindow() const;                                        // 0x18009fba0  HWND
     Application& operator=(const Application& other);               // 0x18000a160  application_lifecycle.cpp
 
-    // `CA` (private static) and `AEAA` (private) in retail. PUBLIC here: each
-    // registered door is a free function that has to call its member, and
-    // access control is not ABI (reference_aeaa_is_private_not_unexported.md).
+    // `CA` (private static) and `AEAA` (private) in retail. PUBLIC here:
+    // access control is not ABI.
     static int64_t WindowProc(void* hwnd, uint32_t message,
                               uint64_t wParam, int64_t lParam);     // 0x18009f930  window_proc.cpp
     void PlatformConstruct(void* platformHandle);                   // 0x18009fbe0  application_cursor_launch.cpp
     void PlatformDestruct();                                        // 0x18009fc00  application_accessors.cpp
     bool PlatformStartup();                                         // 0x18009fc10  application_platform.cpp
-    void PlatformShutdown();                                        // 0x18009fd70  platform_startup_win.cpp
-    bool PlatformUpdate();                                          // 0x18009fdf0  application_win.cpp
+    void PlatformShutdown();                                        // 0x18009fd70  application_platform.cpp
+    bool PlatformUpdate();                                          // 0x18009fdf0  application_platform.cpp
     bool PlatformIsPaused();                                        // 0x18009fe80  application_accessors.cpp
 
     // ---- lifetime: DOORS, declared, deliberately undefined -----------------
@@ -200,11 +188,11 @@ public:
     //     18009fc59: MOV RAX,[RDI+0x8]  -> WNDCLASSW::hInstance
     //     18009fcb0: MOV RAX,[RDI+0x8]  -> CreateWindowExW's hInstance argument
     // and both uses are HINSTANCE-shaped. `Engine::Startup` passes
-    // `this->_platformHandle` into the ctor (engine_lifecycle.cpp:635), which
+    // `this->_platformHandle` into the ctor (engine_lifecycle.cpp:553), which
     // is the module handle WinMain received, so the two sides agree.
     //
     // Declared `void*` rather than `HINSTANCE`: PLAN §4.1 decision 1 keeps
-    // <windows.h> out of every header under runtime/.
+    // <windows.h> out of every non-`_win` file.
     void*   _platformHandle;   // +0x08
     // +0x10  THE CURSOR-ENABLED FLAG. Was `_stateLow`, commented "low byte of
     // the ctor's word store (0x00). Not read." The "not read" half was wrong,
@@ -239,8 +227,8 @@ public:
     //
     // The element is {unsigned message; int (*)(HWND, unsigned, WPARAM, LPARAM)}.
     // B.4 (R-ENG): typed as the `rtsetavl::Set` every reader already walks
-    // (message_callbacks.cpp, application_win.cpp, platform_startup_win.cpp,
-    // video/device_startup.cpp); its +0x0c pad is the old `_unknown24`.
+    // (message_callbacks.cpp, window_proc.cpp, application_cursor_launch.cpp,
+    // video/device_startup.cpp and others); its +0x0c pad is the old `_unknown24`.
     rtsetavl::Set _messageCallbacks;  // +0x18 root, +0x20 count, +0x24 pad
     uint8_t _quitRequested;        // +0x28  Quit() sets 1; PlatformUpdate() reads it.
 };
@@ -266,19 +254,17 @@ static_assert(offsetof(Application, _pad12) == 0x12, "Application::_pad12");
 
 }  // namespace Application
 
-// B7-6: one definition per layout. `RtApplication::Application` keeps compiling
-// for the files that still spell it (src/engine/input/
-// input_platform_shutdown.cpp, block B5's) until they rebase. NOTE: a
+// B7-6: one definition per layout. `RtApplication::Application` is an alias of
+// the class (tests/unit/application_abi_test.cpp checks it is). NOTE: a
 // GLOBAL `using RtApplication::Application;` is ill-formed now that
 // `namespace Application` exists at global scope -- spell the class
 // `Application::Application` instead.
 namespace RtApplication { using Application = ::Application::Application; }
 
-// ==== B3R W0-P0c: Runtime bodies reached by retail address ====
-// ENDGAME B.3R (B3R_RULES R5): each body below is registered at the retail
-// address in its trailing comment and read through the registry today. It is
-// declared here, copied from its definition (linkage, namespace, types), so the
-// reader can call it by name. Nothing calls it through this declaration yet.
+// ==== B3R W0-P0c: Runtime bodies called by name ====
+// ENDGAME B.3R (B3R_RULES R5): each body below is declared here, copied from its
+// definition (linkage, namespace, types), so a reader calls it by name; its retail
+// address is in its trailing comment.
 namespace rtsetavl { struct Node; }   // src/engine/collection/set_avl.h
 
 // ---- application/application_lifecycle.cpp

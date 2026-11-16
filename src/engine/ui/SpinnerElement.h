@@ -15,10 +15,9 @@
 //
 // i.e. the "value" widget is the spinner's own children[0], read through the
 // INHERITED Element array, and cast to NumberEditElement only if
-// IsDerivedFrom agrees. This explains the existing warning in
-// engine/funcs/engine_funcs.h ("SetMinMax dereferences +0xa0 which is NULL on
-// SliderElements"): a SliderElement's _children is empty, so _data is null and
-// the load through it faults — exactly the CLAUDE.md "faithful crash", not a
+// IsDerivedFrom agrees. On an element whose _children is empty (a SliderElement
+// with no readout configured, SliderElement.h), _data is null and the load
+// through it faults — exactly the CLAUDE.md "faithful crash", not a
 // bug to guard against.
 //
 // SpinnerElement's OWN additional state — beyond the inherited Element (0xC0)
@@ -31,9 +30,7 @@
 // in the slot-0 vector deleting dtor 0x18004b3b0 (B36_SLOTS.md section 1) and
 // the `Allocate(0xc8, 8)` in `?CreateInstance@SpinnerDescription@` (0x1800d86f2).
 // The ctor (0x1800d8670) writes only +0xc0 (= 1), so +0xc4..+0xc7 is tail
-// padding nothing writes. The Wave 7 POD MOVED to `RtUI::SpinnerElement`
-// (B4b-1) — widgets_input.cpp's seven doors still take it — and the retail
-// name is the REAL class below.
+// padding nothing writes. The retail name is the REAL class below.
 // ============================================================================
 
 #include <cstdint>
@@ -53,7 +50,7 @@
 //     ?_ParentTypeName@SpinnerElement@UI@@CAPEBDXZ @0x18004b0e0 -> "Element"
 //
 // `??_7SpinnerElement@UI@@6B@` @ 0x180157660, TWELVE slots; sizeof 0xc8:
-//   [0] 0x18004b3b0 deleting dtor (RT_DELDTOR row)  [1] 0x18004b110 TypeName
+//   [0] 0x18004b3b0 deleting dtor                   [1] 0x18004b110 TypeName
 //   [2] 0x18004b0f0 Type        [3] Element::Persist (inherited)
 //   [4] 0x1800d83b0 ComputeSize [5] 0x1800d80c0 ComputeLayout
 //   [6] 0x1800d8030 Draw        [7] 0x1800d7e70 Update — OVERRIDDEN
@@ -64,8 +61,7 @@
 // own slot 0 (the vector deleting dtor), a virtual ~SpinnerElement holding
 // the retired ??1 door's body, and the factory pair as the class's own statics;
 // every live one wears the COMPILER's table. The minted `??_7SpinnerElement@UI@@6B@`,
-// its RT_DELDTOR row 0x18004b3b0 and the ctor / dtor / slot doors are retired
-// (tools/rt_mint_retired/ui-b.txt).
+// its RT_DELDTOR row 0x18004b3b0 and the ctor / dtor / slot doors are retired.
 // ABSTRACT (slot 0 `= 0`), NO real ctor (the `??0SpinnerElement` door
 // 0x1800d8670 builds every live one; it wears the MINTED table).
 // ############################################################################
@@ -103,7 +99,7 @@ public:
 
     // ---- non-virtual members ----------------------------------------------
     // DEFINED in src/engine/ui/widgets_input.cpp (fragment pass), except
-    // GetMinValue; the registered doors delegate to them.
+    // GetMinValue.
     int32_t GetMaxValue() const;                                  // 0x1800d7cb0
     int32_t GetValue() const;                                     // 0x1800d7cf0
     bool    IsActive() const;                                     // 0x1800d7c30

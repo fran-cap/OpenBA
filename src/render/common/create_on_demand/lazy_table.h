@@ -18,7 +18,7 @@
 // Forget(obj) (a destructor, a re-create) drops the record (waiting for one that is running), so the
 // object's own release then finds its handles.
 //
-// EVICTION (section 7 of the hand-in). With an idle limit set (SetIdleLimit, in epochs: minutes in
+// EVICTION (section 8 of the hand-in). With an idle limit set (SetIdleLimit, in epochs: minutes in
 // the exe), a made object not used for that long gives its handles back (Record::Evict, under the
 // table's mutex and inside a closed UseGate, so no use is reading them) and its record is IDLE again:
 // the next use re-materializes it from its Locator. Every use stamps the object (Use / UseStamps);
@@ -34,9 +34,10 @@
 // the gather's Made tests read with no lock: they go through StorePublished / LoadPublished below
 // (release / acquire), never a plain access.
 //
-// Threads: one mutex, two condition variables; nothing heavy under the mutex but an eviction's
-// releases. Ensure's fast path is one relaxed load when nothing is recorded (the backend tests its
-// own handle first: a made object never comes here).
+// Threads: two mutexes (the table's, and `_sweepMutex` for one sweep at a time), two condition
+// variables; nothing heavy under the table's mutex but an eviction's releases. Ensure's fast path is one
+// acquire load when nothing is recorded (the backend tests its own handle first: a made object never
+// comes here).
 // ============================================================================
 
 #include <atomic>

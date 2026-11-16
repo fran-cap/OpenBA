@@ -13,10 +13,8 @@
 # rather than only what this frame happened to touch (frame-referenced counts
 # swing 94-99 between identical runs and are not evidence of anything).
 #
-# The run is verified, not assumed: Video::Device answers a failed DX11 bring-up
-# by silently rendering the whole session on VideoDX9-x64.dll, which otherwise
-# looks like success. Any run whose log does not confirm the expected renderer
-# is rejected here rather than being compared later.
+# The run is verified, not assumed: any run whose log does not confirm the
+# expected renderer is rejected here rather than being compared later.
 set -u
 
 GAME="${BANISHED_DIR:-C:/GOG Games/Banished}"

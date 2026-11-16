@@ -1,13 +1,12 @@
 // ============================================================================
 // tests/unit/video_data_abi_test.cpp — ENDGAME B.3.5 block A.
 //
-// The layout relations the headers leave unsaid for the twelve `Video::*Data`
-// companion bases (src/engine/video/CompanionData.h) and `Video::VertexLayout`
-// (src/engine/video/VertexLayout.h). Sizes and offsets are the headers' own
+// The layout relations the header leaves unsaid for `Video::VertexLayout`
+// (src/engine/video/VertexLayout.h). Sizes and offsets are the header's own
 // static_asserts. The mirror classes that used to restate the slot order are
 // gone: a mirror declared in the test can only ever test itself; the real
 // classes' slot order is pinned by pointer-to-member in
-// tests/unit/video_device_abi_test.cpp and the b39_* tests.
+// tests/unit/b39_vid_data_test.cpp and the other b39_* tests.
 // ============================================================================
 #include <cstdint>
 #include <cstddef>

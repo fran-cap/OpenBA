@@ -10,9 +10,7 @@
 // |  7   | ?SetSharedInstanceData@MeshInstance@Graphics@@ | 0x180101660 |  280 B |
 //
 // The third, slot 2 `?Draw@MeshInstance@` (0x180100960, 1458 B / 5 chained
-// .pdata fragments), is DECLINED ON SIZE — see WAVE29_LANE_SLOTS.md §6. That is
-// a size judgement with no premise that can expire, stated in those words, and
-// NOT dressed as a blocker.
+// .pdata fragments), is ported in meshinstance_draw.cpp.
 //
 // ---------------------------------------------------------------------------
 // PROVENANCE — objdump and pefile against the shipped file. ZERO Ghidra calls.
@@ -86,37 +84,25 @@ uint64_t g_miSSIDskip = 0;       // ... early-outs on the non-negative flag
 // guards. Both were checked individually against the retail EXPORT DIRECTORY
 // with pefile and NEITHER has an entry, so they are genuinely address-only —
 // this is NOT the `AEAA`-means-private misreading that has produced three
-// silent address doors in this project
-// (reference_aeaa_is_private_not_unexported.md).
+// silent address doors in this project (`AEAA` marks a private member, and this
+// DLL exports its private members).
 //
 //   SYMBOL:      (unexported) MeshInstance::Update's static-init guard,
 //                retail 0x1801ff30c, `.data`. Bit 0 is the "initialised" bit.
-//   CONDITION:   live whenever the DLL is present.
 //   CONSEQUENCE: null ⇒ this body must not run the lazy init and must not
 //                dereference the table; it returns early and says so once.
 //
 //   SYMBOL:      (unexported) the 48-entry identity `Math::Transform` table,
 //                retail 0x1801ff310 .. 0x1801ff850, `.data`.
-//   CONDITION:   same.
-//   CONSEQUENCE: it is handed to AnimationState::Update as the SECOND
-//                InterpolatedState<Transform>* argument. Passing null there
-//                would not be a graceful degradation, it would be a wild read
-//                inside the DLL, so this body declines to call at all.
+//   CONSEQUENCE: it is handed to AnimationState::Update as the
+//                `Math::Transform*` argument (arg 5), after the
+//                InterpolatedState<Transform>* one. Passing null there
+//                would be a wild read, so this body declines to call at all.
 //
-// *** THE ADDRESS IS THE POINT, NOT A CONVENIENCE. *** Retail's own other
-// readers of this table see whatever we write into it, and we see theirs. A
-// copy of our own would be a SECOND table with the same contents and a
-// different address, and the lazy-init guard would then be set by whichever of
-// the two bodies ran first while the other's table stayed zero — the
-// two-owners-one-object shape this project has recorded on singleton rows.
-//
-// ENDGAME B.3.9 block GFX (B39_RULES D7, rows A47 / A48): FILE STATICS. With
-// no DLL there are no "retail's own other readers"; this body is the ONE site
-// of both, so the two objects live here and the mint's two by-address storage
-// rows are retired (rt_mint_retired/gfx.txt). Zero-initialised by the
+// FILE STATICS: this body is the one site of both. Zero-initialised by the
 // language, as retail's .data is: the guard's bit 0 starts clear and the first
-// Update fills the table, exactly as before. Namespace-scope, not
-// function-local (loader thread: no lazy statics).
+// Update fills the table. Namespace-scope, not function-local (loader thread:
+// no lazy statics).
 uint32_t    g_updateInitGuard = 0;           // retail 0x1801ff30c
 Transform28 g_identityTable[48] = {};        // retail 0x1801ff310 .. 0x1801ff850
 static_assert(sizeof(g_identityTable) == 1344, "0x540 bytes, the mint row's size");
@@ -126,50 +112,27 @@ Math::Transform* IdentityTable() { return reinterpret_cast<Math::Transform*>(g_i
 
 //   SYMBOL:      ?_rootOnlyUpdates@MeshInstance@Graphics@@0_NA, retail
 //                0x1801fc70b, ordinal 4796 — a DATA export, a single static
-//                bool. mesh.cpp §3 of its hold-back list already records that
-//                it cannot be REGISTERED (the registry redirects calls) and
-//                that its three existing consumers read and write it in place.
-//   CONDITION:   live whenever the DLL is present; at cutover it must be minted.
-//   CONSEQUENCE: null ⇒ retail's byte is unreachable, and this body would have
-//                to invent arg7. It declines instead.
-// ENDGAME B.3.9 GFX (D7 row A22): the class static (redirected onto the
-// mint's row), not the by-address door.
+//                bool, defined as the class static in mesh.cpp. It is arg 7
+//                of AnimationState::Update (note 4 below).
 const bool* RootOnlyUpdates() {
     return &Graphics::MeshInstance::_rootOnlyUpdates;
 }
 
 // ?Update@AnimationState@Graphics@@ — retail 0x1800fdb20, ordinal 4474, PORTED
-// (wave27_lane_gfxbig.cpp) and reached BY NAME, so ResolveExport's
-// registry-first lookup hands back OUR body, not the DLL's
-// (reference_resolveaddr_consults_port_registry_first.md). Eight parameters
-// plus `this`, in the order its own mangled name gives them — the identical
-// typedef wave23_lane_gfxbody.cpp:543 uses, repeated rather than shared so this
-// file's call site can be read without opening that one.
-// ENDGAME B.3.5 block GC: the typedef that used to sit here is GONE with the
-// resolve it served -- `AnimationState::Update` is a member now and the call site
-// is a qualified member call. The mangled name above is kept because it is what
-// settled the argument mapping, and the eight parameters are the member's.
+// (wave27_lane_gfxbig.cpp), called as a member. Eight parameters plus `this`,
+// in the order its own mangled name gives them; that name settled the
+// argument mapping.
 
 // ?UpdateHierarchy@MeshInstance@Graphics@@QEAAXXZ — retail 0x1800ff910, PORTED
 // (mesh.cpp), called as a qualified member.
 
 // ?GetBones@MeshInstance@Graphics@@QEBAHMAEBVTransform@Math@@PEAVMatrix@4@@Z
-//   SYMBOL:      retail 0x180100070, an ordinary public export.
-//   CONDITION:   NOT PORTED. ResolveExport therefore falls through to the DLL's
-//                own body (reference_converting_a_door_is_not_satisfying_it.md
-//                — this is a door, and opening it is not satisfying it).
-//   CONSEQUENCE: null ⇒ no skinning matrices are produced and nothing is handed
-//                to the Context, so a skinned mesh would render in its bind
-//                pose. Announced once rather than silently skipped.
-// ENDGAME B.3.5 caller batch: the "NOT PORTED" verdict above is STALE —
-// `Graphics::MeshInstance::GetBones` is a DEFINED member, so the typedef that
-// used to sit here is gone and `SetSharedInstanceData` calls the member.
+//   retail 0x180100070, PORTED (animationstate_transforms.cpp), called by
+//   `SetSharedInstanceData` as a qualified member.
 
 // ?SetBones@Context@Video@@QEAAXHPEBVMatrix@Math@@@Z
-//   SYMBOL:      retail 0x18001a780, an ordinary public export.
-//   CONDITION:   PORTED (BATCH 8, src/engine/video/context.cpp
-//                RtVideo_Context_SetBones). ResolveExport now reaches our body.
-// ENDGAME B.3.5 caller batch: a DEFINED member, so this typedef went too.
+//   retail 0x18001a780, PORTED (src/engine/video/context.cpp,
+//   `Video::Context::SetBones`), called as a member.
 
 }  // namespace
 
@@ -200,17 +163,15 @@ const bool* RootOnlyUpdates() {
 //    qword +0x00 = 0, dword +0x08 = 0, qword +0x0c = 0x3f800000 (i.e. the FLOAT
 //    1.0f at +0x0c and zero at +0x10), qword +0x14 = 0. There is no untouched
 //    padding here — unlike Particle's ctor, where two gaps cost an earlier lane
-//    two false divergences. This port writes the same four stores in the same
-//    order rather than a memset plus a float, because the qword carrying
-//    0x3f800000 is a single 8-byte store of an integer constant and splitting
-//    it into a float and a zero is a different instruction sequence with the
-//    same result — reproduced as retail writes it.
+//    two false divergences. This port writes the identity Transform field by
+//    field (rotation 0,0,0,1, translation zero), the same 28 bytes retail's
+//    four stores cover.
 //
 // 4. ARG 8 OF AnimationState::Update IS THE LITERAL `true`, AND ARG 7 IS THE
 //    STATIC BOOL, NOT THE OTHER WAY ROUND. `mov BYTE PTR [rsp+0x40],0x1`
 //    (0x1801008d1) is the LAST stack argument; `?_rootOnlyUpdates@` is loaded
 //    with `movzx eax,BYTE PTR [rip+…]` into `[rsp+0x38]` (0x1801008d6). Both
-//    are BYTE writes into the argument area; the typedef declares both as
+//    are BYTE writes into the argument area; the member declares both as
 //    `bool` so the compiler emits byte-width stores too.
 //
 // 5. THE `Math::Transform*` ARGUMENT (the mangled name's `PEAV78@`, after the
@@ -311,9 +272,7 @@ void MeshInstance::Update(const System::Time& timeRef) {
     // override must win, and this is the one line that makes the difference
     // observable. ENDGAME B.3.5 block E: this was a hand-inlined
     // `(*(void***)me)[4]`, and an ordinary UNqualified C++ virtual call is the
-    // same instruction on the same vptr — including when that vptr is the MINTED
-    // table, whose slot 4 holds scene.cpp's registered `UpdateAttached` door.
-    // tests/unit/graphics_geometry_abi_test.cpp PART D is that equivalence.
+    // same instruction on the same vptr.
     UpdateAttached();
 
     // ---- the attached-geometry loop (0x180100919 .. 0x18010093c) -----------
@@ -357,8 +316,8 @@ void MeshInstance::Update(const System::Time& timeRef) {
 // `cmp DWORD PTR [rax+rdx*8+0x14],0` / `jge` (0x1801016a2) — a NON-NEGATIVE
 // dword at +0x14 of the list record means "already has shared data, nothing to
 // do", and the function returns 0. Only a NEGATIVE value falls through.
-// (reference_a_writer_beats_readers_agreeing_on_a_sign.md applies in reverse
-// here: this is a READER, so this comment does not claim to name the field —
+// (Readers testing a sign cannot name a field; its writer can. This is a
+// READER, so this comment does not claim to name the field —
 // it records the test it performs and nothing more.)
 //
 // THE ADDRESS ARITHMETIC, exactly as retail computes it:
@@ -446,8 +405,8 @@ int32_t MeshInstance::SetSharedInstanceData(Video::Context& context, int32_t pac
     // ENDGAME B.3.5 caller batch: both were `ResolveExport` name doors into
     // locals, with a one-shot "resolved NULL" announcement behind them. Both are
     // DEFINED members today — `Graphics::MeshInstance::GetBones` in
-    // animationstate_transforms.cpp:1127 and `Video::Context::SetBones` in
-    // video/context.cpp:396 — so both are direct member calls, `GetBones`
+    // animationstate_transforms.cpp:702 and `Video::Context::SetBones` in
+    // video/context.cpp:389 — so both are direct member calls, `GetBones`
     // qualified and non-virtual on `this` (retail's own direct CALL to
     // 0x180100070). The two typedefs, the two locals and the announcement are
     // gone: a member call cannot be null, so there was nothing left to announce.
@@ -463,7 +422,7 @@ int32_t MeshInstance::SetSharedInstanceData(Video::Context& context, int32_t pac
 // "never printed", not "never called". This one IS wired: RuntimeInit()
 // (src/app/runtime_init.cpp) calls it once at boot.
 extern "C" void RtGraphicsWave29SlotsSummary() {
-    // UNQUALIFIED `printf`, and the Makefile's check-log-strip gate is why:
+    // UNQUALIFIED `printf`, and CMakeLists.txt's check-log-strip target is why:
     // src/app/log_strip.h does `#define printf(...) ((void)0)` and the
     // preprocessor cannot replace a QUALIFIED name, so `std::printf` survives
     // into the log-stripped build. The gate caught this as written and the

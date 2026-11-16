@@ -15,13 +15,14 @@
 //                  town un-mark and the road writers all go through it),
 //                  cemeterycomponent.cpp, citizen_lifeevent_handler.cpp,
 //                  pasturecomponent.cpp, pasturecomponent_states.cpp,
-//                  quarrycomponent_deform.cpp, keystone_a_removalcalcpath.cpp
+//                  quarrycomponent_deform.cpp, keystone_a_removalcalcpath.cpp,
+//                  resourceproducecomponent_states.cpp
 //   blocker +0x00  Map::StampFootprint (keystone_a_zone.cpp, 0x14009d360)
 //   occupant +0x08 MapComponent_overlay_dc20 / CreateNaturalResource_impl_dee0
 //                  (keystone_a_map.cpp), StartTown_UnmarkResourceCellGrid (starttown.cpp),
 //                  cemeterycomponent.cpp, citizen_lifeevent_handler.cpp,
 //                  pasturecomponent.cpp, pasturecomponent_states.cpp,
-//                  quarrycomponent_deform.cpp
+//                  quarrycomponent_deform.cpp, resourceproducecomponent_states.cpp
 //   both           the cell stream's type-check nulls (gamegrid_serialize.cpp)
 // Bulk rewrites (worldgen classify maptilegrid.cpp, the stream load gamegrid_serialize.cpp,
 // the world teardown) call Invalidate(); a new cell-array base or dim rebuilds the table

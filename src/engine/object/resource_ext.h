@@ -12,7 +12,7 @@
 //     from the request's characters (and the save load's reference id) when the
 //     same request already named a row.
 //
-// Both are null by default and under the faithful profile; every faithful site
+// Both are null when their row is off and under the faithful profile; every faithful site
 // pays one null test. A row is passed as `void*` (an rtresset::Node of
 // _resources, external_set.h): the seams do not name the tree's node type.
 // ============================================================================

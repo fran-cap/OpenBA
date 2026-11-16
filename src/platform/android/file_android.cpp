@@ -24,7 +24,7 @@
 // THE HANDLE is fd + 1 in the pointer slot: never 0 and never -1, the two values
 // every opener's caller rejects (`LEA RAX,[h-1] ; CMP RAX,-3`).
 //
-// The risks plans/THREADS.md F lists are answered as in file_posix.cpp.
+// The risks docs/runtime_port/phase_d/plans/THREADS.md F lists are answered as in file_posix.cpp.
 // ============================================================================
 
 #include "platform_file.h"

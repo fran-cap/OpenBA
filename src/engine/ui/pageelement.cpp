@@ -13,7 +13,7 @@
 //
 // plus ??0PageElement (0x1800d5260, the real ctor in the header since B.3.9),
 // ??1PageElement (0x1800d5220) and the factory pair. `GetActivePage` is inline in PageElement.h; `SetActivePage`
-// is widgets_layout.cpp's door (fragment pass).
+// is defined in widgets_layout.cpp.
 //
 // THE DOUBLE VTABLE STAMP IS REAL. Both the ctor and the dtor write
 // `??_7GroupElement@UI@@6B@` and `??_7PageElement@UI@@6B@` into +0x00 back to
@@ -23,8 +23,7 @@
 //
 // LAYOUT: src/engine/ui/PageElement.h — sizeof 0xC8, `_activePage` at +0xC0.
 //
-// ENDGAME B.3.6 block C2: slots 1/2 are MEMBERS of `UI::PageElement`; the
-// registered doors are one-line QUALIFIED delegations.
+// ENDGAME B.3.6 block C2: slots 1/2 are MEMBERS of `UI::PageElement`.
 //
 // ENDGAME B.3.9 block UI-A: the class is CONCRETE; the two slot doors and the
 // ??0 / ??1 doors, read only by the retired minted table, its RT_DELDTOR row and

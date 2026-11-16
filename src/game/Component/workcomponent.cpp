@@ -3,9 +3,9 @@
 //
 // WorkComponent (0x38 bytes) is a direct Component subclass managing work ID,
 // flags, and state fields. Three non-trivial vtable overrides:
-//   Shutdown  (0x14012e710) — versioned serialization of workId, workState, workFlags
-//   Draw      (0x14012e6f0) — compute work capacity and store at +0x30
-//   OnCreate  (0x14012e6c0) — check if work slot available, register if so
+//   Persist   (0x14012e710) — versioned serialization of workId, workState, workFlags
+//   OnAdded   (0x14012e6f0) — compute work capacity and store at +0x30
+//   OnRemove  (0x14012e6c0) — if the posted work is still in the goals tree, cancel it
 //
 // Decompiled from Application-x64.exe using Ghidra.
 
@@ -22,7 +22,7 @@
 #include "object/Internal.h"   // ENDGAME B.3.3 step 6B
 #include "Component/exe_bodies.h"
 #include "Tutorial/exe_bodies.h"   // (WorkComponent_CalcMaxWorkers went in B6: CalcMaxWorkers is the member below)
-#include "Action/exe_bodies.h"     // ActCt_TaskCleanup_8e30 (0x1400f8e30)
+#include "Action/exe_bodies.h"
 #include "Work/exe_bodies.h"
 #include "Entity/ComponentEntity.h"            // ComponentEntity::FindComponent<T>
 #include "Component/MapComponent.h"            // 0x140004680's class
@@ -34,21 +34,19 @@
 // ============================================================
 // Helpers
 // ============================================================
-// FUN_14012e5c0 — compute work capacity for this component. TWO bodies exist for
-//   it: WorkComponent_CalcMaxWorkers (registered, what this file's door resolved)
-//   and fn_StorageCountQuery at the bottom of this file (its own readers). Each
-//   reader keeps the body it reached.
-// FUN_14012ead0 WorkComponent_CheckWorkSlot / FUN_14012eb50
-//   WorkComponent_RegisterWorkSlot — defined below.
+// FUN_14012e5c0 — compute work capacity for this component: WorkComponent::CalcMaxWorkers
+//   at the bottom of this file.
+// FUN_14012ead0 WorkComponent::IsWorkPosted / FUN_14012eb50
+//   WorkComponent::CancelWork — defined below.
 
 
 
 // ============================================================
 // Reimpl helpers for the work-slot BST functions
 // ============================================================
-// 0x1400f8e30 ActCt_TaskCleanup_8e30(tree, workId) — notify AI of slot change
-// 0x140002f90 WorkBase_FindComponent_2f90 — Entity_FindComponent_MeshInstance
-// 0x14012c3f0 CitizenComp_FUN_14012c3f0(comp, idx, char) — set mesh flag
+// 0x1400f8e30 WorkScheduler::TaskCleanup(workId) — notify AI of slot change
+// 0x140002f90 FindComponent<StatusIconComponent>
+// 0x14012c3f0 StatusIconComponent::SetFlag(idx, char) — set mesh flag
 
 // ============================================================
 // Reimpl of FUN_14012ead0 (check whether this work slot is occupied:
@@ -60,11 +58,11 @@
 // The two child labels above were SWAPPED in this comment until Wave 9 lane N. The CODE
 // was and is correct — it descends to +0x20 when the node's key is below the target — but
 // the label was the wrong way round, and every other walker of this same node layout
-// (CitizenAI_WorkScheduler_Rekey and _Insert in citizenai_work_scheduler.cpp,
-// ActCt_TaskCleanup_8e30 steps 1/2/4 in action_base_complete.cpp,
-// WorkComponent_RegisterWorkSlot just below) documents it correctly as lesser@+0x18.
+// (WorkScheduler::Rekey and Insert in citizenai_work_scheduler.cpp,
+// WorkScheduler::TaskCleanup steps 1/2/4 in action_base_complete.cpp,
+// WorkComponent::CancelWork just below) documents it correctly as lesser@+0x18.
 // Left uncorrected in a family that has now paid THREE TIMES for a child-offset or
-// slot mix-up (reference_workarea_bst_bad_entry.md), a comment that contradicts its own
+// slot mix-up, a comment that contradicts its own
 // code and its four siblings is a defect waiting for the next reader.
 // The goals tree is WorkScheduler::trees[0] (m_tutorial +0x30); its nodes are
 // WorkSchedulerIdNode (Game/WorkSchedulerNodes.h).
@@ -90,8 +88,8 @@ bool WorkComponent::IsWorkPosted() const {
 }
 
 // ============================================================
-// Reimpl of FUN_14012eb50 (register/refresh this work slot:
-//   when occupied, sync worker id, poke the AI tree, refresh mesh flags 2 & 3)
+// Reimpl of FUN_14012eb50 (cancel this work slot: when occupied, copy the work's queue
+//   order into workFlags, remove it from the goals tree, clear status-icon flags 2 & 3)
 // ============================================================
 void WorkComponent::CancelWork() {
     if (!IsWorkPosted()) return;
@@ -224,7 +222,7 @@ void WorkComponent::OnAdded() {
 // slot 7, so EVERY Pickup ever posted stayed in the goals trees with a freed
 // target entity. The next save walked one and faulted in Work::Serialize
 // (0x1400f7400) dereferencing the dead target — measured as work ids 3..22,
-// one per haul, zero exceptions. See [[reference_ported_registered_but_unwired]].
+// one per haul, zero exceptions.
 
 void WorkComponent::OnRemove() {
     bool available = IsWorkPosted();   // 0x14012ead0

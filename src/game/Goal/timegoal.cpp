@@ -5,7 +5,8 @@
 //
 // Fields:
 //   +0x30: int32  requiredYears         — years to survive (multiplied by 0xe10=3600 for seconds)
-//   +0x34: bool   requireOtherGoalsMet  — if set, time only counts when other goals are met
+//   +0x34: bool   requireOtherGoalsMet  — serialized but unread: TimeGoalInstance::Update resets
+//                                         the time whenever other goals are unmet, flag or not
 //
 // Decompiled from Application-x64.exe using Ghidra.
 

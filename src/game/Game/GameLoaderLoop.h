@@ -4,7 +4,8 @@
 //
 // The exe's second `Engine::LoaderLoop` subclass: the OUTER loader loop that
 // every loop chain is wrapped in (GameMain, NewGame, SaveLoad, MainMenu,
-// the tutorial paths). Unreflected. It overrides only its deleting dtor.
+// the tutorial paths). Unreflected. Retail overrides only its deleting dtor;
+// the port also overrides Startup (below).
 //
 // RETAIL (Application-x64.exe, B38_SLOTS.md sec. 6, B37_RULES sec. 3.1):
 //   table 0x1401588d0, 12 slots, sizeof 0x48 (= Engine::LoaderLoop)
@@ -20,7 +21,7 @@
 // ============================================================================
 
 #include <cstdint>
-#include "engine/UpdateLoop.h"   // -Iruntime/types: Engine::LoaderLoop
+#include "engine/UpdateLoop.h"   // -Isrc/engine: Engine::LoaderLoop
 
 class GameLoaderLoop final : public Engine::LoaderLoop {
 public:

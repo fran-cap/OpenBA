@@ -17,7 +17,7 @@
 //   3. Clone a master ComponentEntity from the tool's description; its MapComponent
 //      covers the whole span (plus the description's clearance radius) and its
 //      MultiObjectComponent collects the segment entities.
-//   4. Per segment: clone from CreateBridgeDescription's segmentTemplates (+0x38[0..4],
+//   4. Per segment: clone from CreateBridgeDescription's _sections (+0x38[0..4],
 //      indexed 0=end piece, 1/2/3/4 = 1/2/4/8-cell), stamp cell coords + rotation onto its
 //      MapComponent, build the yaw transform onto its ModelComponent, append it to the
 //      master's MultiObjectComponent, and register it with the world entity list.
@@ -41,7 +41,7 @@
 
 // The runtime type headers come FIRST: they pull src/engine/volume/Volume.h,
 // whose global-scope `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()`
-// once <windows.h> has been seen through resolve.h.  ENDGAME B.3.5 batch I2.
+// once <windows.h> has been seen.  ENDGAME B.3.5 batch I2.
 #include "graphics/Geometry.h"
 #include "BridgeTool.h"
 #include "Component/MapComponent.h"
@@ -56,8 +56,9 @@
 #include "object/TypeInfo.h"
 #include "Entity/ComponentEntity.h"   // ComponentEntity(ComponentDescription*) (0x1400c3720)
 #include "Entity/EntityList.h"        // EntityList::RegisterEntity (0x1400c48a0)
-#include "Game/exe_bodies.h"                // 0x14009f3e0 Reimpl_MapGetTerrainPos
-#include "Player/exe_bodies.h"              // 0x1400fb710 / 0x1400fb2d0
+#include "Game/exe_bodies.h"
+#include "Player/exe_bodies.h"
+// SnapEndCell (0x1400fb710) and ValidatePath (0x1400fb2d0) are BridgeTool members (BridgeTool.h).
 #include "Object/factory_registration.h"
 #include <cstdint>
 #include <cstdio>
@@ -132,7 +133,7 @@ void StampCells(MapComponent* comp, int col, int row, int w, int h, int rotation
 // World-space centre of a cell rect: sample the terrain position of the two opposite
 // corner cells and average them. Retail does exactly this twice — once for the master
 // (0x1400fa218..0x1400fa363) and once per segment (0x1400fa6f1..0x1400fa7e4) — via
-// FUN_14009f3e0 (Reimpl_MapGetTerrainPos). Cell -> map-space is (col - c, row - c) with
+// FUN_14009f3e0 (Map::GetTerrainPos). Cell -> map-space is (col - c, row - c) with
 // c = (gridSize >> 1) - 0.5, and the final z is forced to 0 (0x1400fa35d).
 bool CellRectCentre(Map* mapGrid, int col0, int row0, int col1, int row1, float out[3]) {
     out[0] = out[1] = out[2] = 0.0f;
@@ -347,7 +348,7 @@ bool BridgeTool::CalcPath(int startCell, int endCell) {
         else if (n == tail && stepRow == 0) rot = 0;
         else if (n == head && stepRow == 0) rot = 0xb4;
 
-        // segmentTemplates[0..4] at desc+0x38: 0 = end piece, then 1/2/4/8 cells.
+        // _sections[0..4] at desc+0x38: 0 = end piece, then 1/2/4/8 cells.
         int tplIdx = 0;
         if      (rawSize == 1) tplIdx = 1;
         else if (rawSize == 2) tplIdx = 2;

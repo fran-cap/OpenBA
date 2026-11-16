@@ -1,9 +1,9 @@
 // ============================================================================
 // src/ext/phone_menu/phone_menu.cpp -- ext.phone_menu (class A, live)
 // ============================================================================
-// The rules are in phone_menu.h; the arithmetic is phone_math.cpp. The one engine seam is
-// UI::UserInterface::_extDialogPlace (layout on the main thread, the backdrop on whichever thread
-// draws the UI). The layout hook decides from THIS frame's sizes: it sizes the menu's tree (and
+// The rules are in phone_menu.h; the arithmetic is phone_math.cpp. Sync installs the engine seams; the
+// placement one is UI::UserInterface::_extDialogPlace (layout on the main thread, the backdrop on
+// whichever thread draws the UI). The layout hook decides from THIS frame's sizes: it sizes the menu's tree (and
 // the version line's) itself before retail's ComputeLayout does, so a menu's first drawn frame is
 // already its final layout. A dialog that is not a menu is laid out in phone_math.h's SafeArea.
 //

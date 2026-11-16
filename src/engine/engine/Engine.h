@@ -37,10 +37,11 @@
 //          this->_allocator.pageSize     = si.dwPageSize;        // +0x668
 //      and then calls the allocator's own init at 0x1800c7690.
 //
-// (4) is the fact that decides lane B's scope: `Engine::Startup` is not
+// (4) is the fact that decided lane B's scope: `Engine::Startup` is not
 // separable from the allocator either, so the NO-GO verdict on the allocator
-// port (docs/history/runtime_port/WAVE2_ALLOCATOR.md) reaches all four of
-// ctor/dtor/Startup/Shutdown. See docs/history/runtime_port/WAVE8_LANE_B.md.
+// port (docs/history/runtime_port/WAVE2_ALLOCATOR.md) reached all four of
+// ctor/dtor/Startup/Shutdown. All four are ported in engine_lifecycle.cpp.
+// See docs/history/runtime_port/WAVE8_LANE_B.md.
 //
 // ---------------------------------------------------------------------------
 // THERE IS NO VTABLE
@@ -92,10 +93,10 @@
 // ---------------------------------------------------------------------------
 // _startupComplete (+0x6f0) IS THE LAUNCHER-DIALOG ARMING BIT
 // ---------------------------------------------------------------------------
-// CLAUDE.md ("Launcher Dialog") describes a persisted registry flag that says
-// "the previous run never finished Engine::Startup", which is what makes
-// `Engine::PlatformConfigure` open the Options/Video/Play dialog, and which
-// `HarnessGuardUnattendedBoot` (src/app/main.cpp:184) clears for unattended
+// docs/reference/engine_architecture.md ("Launcher dialog and settings") describes the persisted
+// `VideoSettings` bit that says "the previous run never finished Engine::Startup", which is what
+// makes retail's `Engine::PlatformConfigure` open the Options/Video/Play dialog, and which
+// `HarnessGuardUnattendedBoot` (src/app/main.cpp) clears for unattended
 // runs. This field is the in-memory half of it:
 //
 //   Startup  0x1800db8cf:  this->_startupComplete = 0        // at entry
@@ -114,11 +115,10 @@
 // the arming bit look like it was written by a teardown rather than by an
 // ordinary save that also runs mid-boot. --
 // bit's meaning nor its timing lives in `Engine::Startup`'s own body beyond
-// those two stores — which is why holding Startup and Shutdown back leaves
-// the harness guard's assumptions exactly as they are today.
+// those two stores.
 //
 // ---------------------------------------------------------------------------
-// The `Engine` singleton is NOT `Engine::_singleton` under that name.
+// The `Engine` singleton is the class static `Engine::Engine::_singleton` (0x1801fe748).
 // The ctor's last act is `MOV qword ptr [0x1801fe748], RDI` and the dtor's
 // first is to null it; `?Get@Engine@1@SAPEAV11@XZ` (0x18000c7c0) reads it.
 // The MemoryAllocator's own singleton is a SECOND global, 0x1801fc718, which
@@ -139,9 +139,8 @@
 // reader and went at B3R W0-SM M1; each address is on its declaration below.
 // The Engine ctor calls the allocator's ctor 0x1800c79a0 on `this`, and
 // Engine::Startup calls AddNewMemoryRange 0x1800c7690 after seeding
-// +0x10/+0x18/+0x668. `RtEngine` stays the namespace of the aliases at the
-// bottom: engine/types defines GLOBAL `struct MainLoop` / `struct UpdateLoop`
-// and is on the include path ahead of runtime/types.)
+// +0x10/+0x18/+0x668. `RtEngine` stays the namespace of the alias at the
+// bottom.)
 
 // ############################################################################
 // Engine::Engine -- THE REAL CLASS (ENDGAME B.3 step 7, block B1)
@@ -218,8 +217,8 @@ public:
     // ---- exported, NOT PORTED, no caller: declared, deliberately undefined --
     static Engine* Get();                                         // 0x18000c7c0
     // ?_singleton@Engine@1@0PEAV11@EA (0x1801fe748) — the class static (ENDGAME B.3.9 ENG, B39_RULES D7).
-    // Its minted storage row is RETIRED (ENDGAME B.3.9 ENG W2: no reader was
-    // left but the redirect). PUBLIC: foreign files read it directly.
+    // Its minted storage row is RETIRED (ENDGAME B.3.9 ENG W2). Unlike the rest of this group it is
+    // defined (engine_lifecycle.cpp) and read. PUBLIC: foreign files read it directly.
     static Engine* _singleton;
     bool Update(const System::Time& time);                        // 0x1800db4a0
     void NotifyBeginLoad();                                       // 0x1800db480

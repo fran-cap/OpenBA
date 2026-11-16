@@ -40,10 +40,10 @@
 //  * Retail's new tree node writes eight bytes at +0x08 whose upper four are an
 //    uninitialised stack slot; only the lower int32 is ever read. This port writes a
 //    clean 1.
-//  * 0x140088f90 is called with the unit PRICE in RCX where its other callers pass a
+//  * Retail calls 0x140088f90 with the unit PRICE in RCX where its other callers pass a
 //    StorageComponent. That is retail's own code and it is harmless — the function
-//    ignores its first parameter (see ActRm_GetResourceCategory_88f90) — so the price
-//    is passed through rather than "corrected".
+//    ignores its first parameter (see ResourceCategory, Action/exe_bodies.h) — so the
+//    body is called with the material alone.
 //  * The candidate cursor is kept in one variable. Retail keeps two (R12D and a
 //    pointer-sized copy) that are incremented and reset together.
 //
@@ -55,9 +55,6 @@
 //   R13D is the storage volume in the purchase loop and `paid so far` in the sell loop;
 //   the committed storage volume lives in [RBP+0x7f], NOT in R13 — the purchase loop
 //              works on a copy and writes it back only when a unit is actually bought.
-//
-// GATED: reached only through BANISHED_LIVE_TRADE_CTRL. Nothing else in the build calls
-// any of these four addresses.
 
 #include <new>
 #include "object/External.h"
@@ -82,9 +79,9 @@
 #include "object/Internal.h"   // ENDGAME B.3.3 step 6B
 #include "system/Value.h"   // ENDGAME B.3.4b System caller batch
 #include "system/MemoryAllocator.h"
-#include "Action/exe_bodies.h"   // StorageAdd, ResourceCategory
-#include "Dialog/exe_bodies.h"   // TradeUI_GetBuyEntries_59670, TradeUI_GetResourcePrice_a520, TradeDescription_ExtendMerchantStay
-#include "Work/exe_bodies.h"     // WorkBase_TreeNodeFree_e320
+#include "Action/exe_bodies.h"   // ResourceCategory
+#include "Dialog/exe_bodies.h"
+#include "Work/exe_bodies.h"     // WorkBase_TreeNodeFree (0x14000e320)
 #include "ext/registry.h"        // Ext::Fix().autotrade_free_goods
 #include "ext/autotrade_free_goods/autotrade_free_goods_rule.h"   // fix.autotrade_free_goods
 #include "ext/map_overlays/map_overlays.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/MAPOVERLAYS.md): ext.map_overlays
@@ -92,7 +89,7 @@
 
 namespace {
 
-// ── Leaves, called by the body each retail address is registered to ───────────────
+// ── Leaves, by retail address ─────────────────────────────────────────────────────
 // Two of these carry names that are wrong for this use (see the notes at the calls):
 //   0x140059670 TradeUI_GetBuyEntries_59670        0x14005a520 TradeUI_GetResourcePrice_a520
 //                                                     (NOT a count: a520 returns a PRICE)
@@ -374,9 +371,6 @@ void TradeComponent::BuildMerchantManifest() {
     values.base = nullptr; values.count = 0; values.cap = 0;
     System::MemoryAllocator::MemFree(goods.base);
 
-    // OUTCOME, not intent: the line count is the only thing that says the merchant has
-    // anything to sell. "The manifest was generated" and "the manifest has goods in it"
-    // are different claims and only the readback proves the second.
 }
 
 // ============================================================
@@ -574,9 +568,6 @@ void TradeComponent::AutoTrade() {
     (void)delivered; (void)deliveredLines;
     // ~tally at the scope's end: retail's inlined release, 0x14005a440..0x14005a470.
 
-    // OUTCOME, not intent: "auto-trade ran" and "the post bought something" are separate
-    // claims. A run with orders but zero deliveries is the interesting case — it means
-    // the post could not afford, could not fit, or was offered nothing that matched.
 }
 
 // ============================================================
@@ -590,8 +581,7 @@ void TradeComponent::AutoTrade() {
 char TradeComponent::EnterDocked() {
     BuildMerchantManifest();
 
-    // The Time ctor writes EIGHT bytes through its return slot — see
-    // reference_time_ctor_8byte_clobber.
+    // The Time ctor writes EIGHT bytes through its return slot.
     {
         System::Time stay = {0};
         merchantTimer = *RtSystem_Time_Ctor(&stay, 900.0f);

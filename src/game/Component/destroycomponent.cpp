@@ -7,9 +7,10 @@
 //         hasBuildComponent (+0x51), progress / progressTarget (int +0x54 / +0x58),
 //         upgradeTarget (ExternalPtr<ComponentDescription> +0x60).
 //
-// Vtable at 0x140163120. Two non-trivial overrides:
-//   Shutdown  (0x14011DB50) -- serialize all destroy state fields
-//   Serialize (0x14011DB00) -- OnCreate: copy mesh ref from building data
+// Vtable at 0x140163120. Non-trivial overrides:
+//   Persist   (0x14011db50) -- serialize all destroy state fields
+//   Startup   (0x14011db00) -- copy the DestroyDescription's _replaceEntity into upgradeTarget
+//   OnMessage (0x14011daf0) -- message 0 advances progress
 //
 // Decompiled from Application-x64.exe using Ghidra.
 
@@ -42,9 +43,9 @@
 // (demolish -> haul-away -> refund + stone-house spawn), destroycomponent_states.cpp.
 // Retail slot 16 returns 4 (0x140033c00 `MOV EAX,4`). That is only safe under
 // retail's first-controller consult order, where the build controller precedes
-// destroy in every building template; the standalone linker's destroyOutOfOrder
-// rule (statemachinecomponent.cpp) keeps it that way. The state table is built
-// ONCE at static-init time, as retail's static initializer does (B38 D6/D7).
+// destroy in every building template; StateMachineComponent::Startup
+// (statemachinecomponent.cpp) takes the first controller's default state. The state
+// table is built ONCE at static-init time, as retail's static initializer does (B38 D6/D7).
 extern "C" void DestroyCtrl_PopulateTable();
 static const bool s_destroyStateTableBuilt = (DestroyCtrl_PopulateTable(), true);
 
@@ -89,7 +90,7 @@ void DestroyComponent::Persist(IO::Stream& stream) {
 }
 
 // [4] 0x14011db00 — copies the DestroyDescription's default target (desc+0x20)
-// into +0x60; dispatched at spawn by ComponentEntity_StartupComponents.
+// into +0x60; dispatched at spawn by ComponentEntity::StartupComponents.
 void DestroyComponent::Startup() {
     Description* desc = _description;
     if (::Object::IsDerivedFromNullSafe(desc, DestroyDescription::TypeId()))

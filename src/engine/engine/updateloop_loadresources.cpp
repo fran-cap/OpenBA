@@ -21,25 +21,8 @@
 //     0x1800c51e0  Configuration::Configuration   WRITE  ported
 //     0x1800db954  Engine::Startup                WRITE  ported
 //
-// So this file removes one of the two remaining readers, and it does it
-// THROUGH THE PORT-AWARE DATA DOOR (`RT_DATA_SLOT`) — which is the whole point.
-// A port that read the raw DLL address would leave the row exactly as blocked
-// as before while looking like progress.
-//
-// ---------------------------------------------------------------------------
-// WHAT THIS DOES **NOT** DISCHARGE — say it before someone quotes the above
-// ---------------------------------------------------------------------------
-// Promotion of that DATA row is ROUTE-SCOPED and this body only moves the
-// CUTOVER half of it:
-//   * AT CUTOVER there is no DLL code, so once `Configuration::Get` is also
-//     ported the reader set is entirely ours and the row becomes promotable.
-//   * WITH THE DLL PRESENT the DLL's own `Configuration::Get` at 0x18000da70
-//     still reads 0x1801fc6f8 through a RIP-relative operand baked into .text,
-//     and any in-DLL rel32 caller of it reaches that, not us. Porting our body
-//     cannot intercept an in-DLL call. So promoting the row today still
-//     strands those readers.
-// Lane ENGINE therefore hands lane ALLOC / the System namespace owner a
-// CONDITIONAL, not a green light. See the lane doc §2.3.
+// So this file removes one of the two remaining readers, and it reads the
+// static by name, as `System::Configuration::_singleton`.
 //
 // ---------------------------------------------------------------------------
 // THE ARGUMENT GHIDRA DROPS, AND WHY IT MATTERS HERE
@@ -54,7 +37,6 @@
 // THREE. A typedef that omits either the return slot or the key is a wild
 // write that still returns a plausible answer. Both are spelled out below.
 //
-// Kill switch: RT_ENGINELOADRES=0.
 // ============================================================================
 
 #include <cstdint>
@@ -100,8 +82,8 @@ namespace {
 // FileSystem, and `?_singleton@Configuration@System@@` -- the "one of the two
 // remaining readers" the file banner discusses; the other is Configuration::Get).
 // `MOV EDX,dword ptr [0x1801f9be0]` — BaseTypeInfo's FIRST dword is the typeId.
-// Retail reads +0x00 and nothing else, which is the whole content of
-// reference_basetypeinfo_name_is_content_only.md.
+// Retail reads +0x00 and nothing else: BaseTypeInfo::name is read for content
+// only, never by pointer.
 // ENDGAME B.3.9 OBJ: the class record (the minted one is retired).
 uint32_t ExternalListTypeId() {
     return ::Object::ExternalList::TypeId();
@@ -163,18 +145,15 @@ unsigned g_refUsed   = 0;   // the `-ref` command-line override fired
 // ============================================================================
 // ?LoadResources@UpdateLoop@Engine@@QEAAXXZ   retail 0x1800dd7d0
 // ============================================================================
-// ENDGAME B.3.7: the body is the member; the registered door below delegates.
-// LOADER THREAD (Loader::Run calls it before the loop's slot-6 Load). Every
-// door this body reaches is an RT_EXPORT_ONCE / RT_DATA_SLOT -- the
-// constant-initialised caching door B37_RULES B7-7.2 accepts as it stands.
+// ENDGAME B.3.7: the body is the member.
+// LOADER THREAD (Loader::Run calls it before the loop's slot-6 Load).
 void Engine::UpdateLoop::LoadResources() {
     ++g_calls;
 
     // ---- 0x1800dd7ef: the loop's OWN resource list ------------------------
     // vtable slot 10, GetResourceFilename -- an ordinary virtual call since
-    // B.3.7. The base returns null, which is why
-    // standalone/gameupdateloop_stubs.cpp's default null makes this block a
-    // no-op rather than a crash.
+    // B.3.7. The base (src/engine/engine/loops.cpp) returns null, which makes
+    // this block a no-op rather than a crash for a loop that does not override it.
     const char* root = GetResourceFilename();
     if (root != nullptr) {
         System::String spec = System::String::Format("%sResources.rsc", root);
@@ -285,7 +264,3 @@ extern "C" void RtEngineLoadResourcesSummary() {
            "modsEnabled=%u modsWithResources=%u refOverride=%u\n",
            g_calls, g_ownList, g_modsSeen, g_modsFound, g_refUsed);
 }
-
-// ============================================================================
-// Registration — name AND address, one literal per line for the census.
-// ============================================================================

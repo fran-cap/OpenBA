@@ -1,9 +1,10 @@
 // src/diag/win/hw_watch.cpp — hardware data watchpoints on the MAIN (sim) thread.
 //
 // Diagnostic only. HwWatch_Arm(addr, len) programs one of the four x64 debug registers
-// (DR0..DR3, rotating) as a WRITE watchpoint on the main thread; the vectored handler in
-// main.cpp forwards EXCEPTION_SINGLE_STEP here, and HwWatch_OnSingleStep prints the
-// writer's RIP + stack to stderr and the crash log, then lets execution continue.
+// (DR0..DR3, rotating) as a WRITE watchpoint on the main thread; the vectored handler
+// FirstChanceFailFast (crash_handler_win.cpp) forwards EXCEPTION_SINGLE_STEP here, and
+// HwWatch_OnSingleStep prints the writer's RIP + stack to stderr and the crash log, then lets
+// execution continue.
 //
 // Why: a heap walker can only say a tag WAS clobbered; a data breakpoint on the exact
 // out-of-bounds slot names the instruction that did it. Used 2026-09-04 for the 800x10

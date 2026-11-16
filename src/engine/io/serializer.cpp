@@ -38,7 +38,7 @@
 // ----------------------------------------------------------------------------
 // Left column: the retail address and export ordinal, read from the shipped
 // DLL's export directory with pefile on 2026-09-06 (all 22 names verified
-// present — reference_resolveexport_phantom_names.md).
+// present).
 // Right column: the tail-jump displacement decoded from that function's own
 // three instructions in the shipped binary.
 //
@@ -90,25 +90,20 @@
 // has no row for any of them) and an uncalled port is an unverified port:
 //   ?Skip@Serializer@IO@@              0x1800070a0  rw vtable +0x10
 //   ?GetStream@Serializer@IO@@         0x18000a0a0  `MOV RAX,[RCX]; RET`
-//   Serialize(char&) 0x18007c3e0 (rw +0x70), and the int64/uint64 scalar and
-//   array forms.
+//   Serialize(char&) 0x18007c3e0 (rw +0x70), the uint64 scalar form and the
+//   int64/uint64 array forms.
 //
 // CORRECTED, ENDGAME B.3.4 callers batch H: `?GetDirection@Serializer@IO@@`
-// (0x180006210) WAS on that list and is now PORTED — see the GetDirection door
+// (0x180006210) WAS on that list and is now PORTED — see the GetDirection note
 // below. It was invisible to the call-surface census because the exe INLINES
 // it, so its ~37 uses across code/Game are hand-written `MOV RAX,[ser];
 // CMP dword [RAX+8]` transcriptions rather than calls.
 //
-// The two char-array forms ARE ported despite having no ResolveExport site,
-// because two exe PE-import slots are imports of them and are read by
-// retail-shaped exe code: 0x140152490 is Serialize(n,char*) and 0x140152478 is
-// Serialize(n,signed char*) (tools/dispatch_slot_map.py). Both are today bound
-// in standalone/address_registry.cpp to the WRONG wrapper -- see the defect
-// list in docs/history/runtime_port/WAVE4_LANE_A.md; the correct wrappers now exist.
+// The two char-array forms are ported too: retail's exe imports both
+// (0x140152490 is Serialize(n,char*) and 0x140152478 is Serialize(n,signed char*);
+// docs/history/runtime_port/WAVE4_LANE_A.md maps the two import slots).
 //
-// PLATFORM: nothing here touches Win32. The only host dependency is
-// the raw export door, declared in rt_port.h precisely so <windows.h> stays out
-// of src/engine/ (PLAN §4.1 decision 1).
+// PLATFORM: nothing here touches Win32.
 // ============================================================================
 
 #include "io/serializer_internal.h"
@@ -124,37 +119,21 @@ using rt::io::Serializer;
 using rt::io::Stream;
 
 // ============================================================================
-// ENDGAME B.3.4 block 3 — THIS FILE IS NOW DOORS ONLY
+// ENDGAME B.3.4 block 3 — THIS FILE HOLDS NOTES ONLY
 // ============================================================================
 //
-// The 22 bodies moved onto the real class `IO::Serializer`
-// (src/engine/io/Serializer.h, bodies in serializer_class.cpp, which is
-// registry-free so `make unit` can drive the real class). What is left here is
-// the `RtSerializer_*` forwarders the exe's Serializer import slots are bound
-// to; B3R RT-IO deleted every registration row and `RtIoSerializerRegister()`.
+// The bodies are members of the real class `IO::Serializer`
+// (src/engine/io/Serializer.h, bodies in serializer_class.cpp, which
+// tests/unit/sources.cmake links into the unit build). What is left here is
+// retail notes; the `extern "C"` block below declares nothing.
 //
-// *** EVERY DOOR DELEGATES WITH A PLAIN, UNQUALIFIED CALL, AND THAT IS NOT AN
-// OVERSIGHT. *** Blocks 1 and 2 had to write the delegation qualified —
-// `reinterpret_cast<IO::BinaryReader*>(self)->IO::BinaryReader::SerializeInt(...)`
-// — because a live `BinaryReader` wears the MINTED table 0x1801552e0 whose
-// slots resolve back to these very doors, so a virtual call inside a door would
-// dispatch through the minted table INTO ITSELF: infinite recursion, not
-// delegation. `IO::Serializer` has NO VTABLE AT ALL (B34_RULES §1.2 rule 2 /
-// §3.1), so there is nothing to dispatch through and `Ser(self)->Serialize(...)`
-// is already a direct call. A reader arriving from blocks 1-2 should expect the
-// `Class::` and not find it — this is why.
 //
-// B3R RT-IO: the registration rows of these doors are gone except the ctor's
-// (one unconverted reader in src/engine/ui). The door BODIES stay reachable by
-// name: the exe dispatch slots at 0x1401524xx in standalone/address_registry.cpp
-// are PE IMPORT slots filled directly with these function pointers.
 //
 // WHAT THE PER-CALL SITE PROVES, AND WHAT IT DOES NOT
 //
 // These functions MUTATE THE STREAM. There is no "call ours, call theirs,
 // compare" for them: running the original as an oracle would write the record
-// a second time and desync every record after it — precisely
-// reference_slot3_wrapper_must_resolve_first.md. So no site here calls an
+// a second time and desync every record after it. So no site here calls an
 // original, and none ever did. What proves the bytes is the save/load pass: a
 // wrong slot consumes or emits the wrong number of bytes and the damage shows
 // up later, on an innocent-looking record. That is what the resave gate is.
@@ -168,39 +147,36 @@ using rt::io::Stream;
 extern "C" {
 
 // ---- scalars ---------------------------------------------------------------
-// ENDGAME B.3.4b SYSTEM (5) — the 24th door. `_J` is MSVC's `__int64`, which is
-// `int64_t` on this toolchain; `long` is FOUR bytes on Win64 and would bind
-// neither overload, so there is no ambiguity to create here.
+// ENDGAME B.3.4b SYSTEM (5): the int64 overload (serializer_class.cpp). `_J` is
+// MSVC's `__int64`, which is `int64_t` on this toolchain; `long` is FOUR bytes on
+// Win64 and would bind neither overload, so there is no ambiguity to create here.
 
 // ---- arrays ----------------------------------------------------------------
 
 // ============================================================================
-// GetVersion — FULL ORACLE
+// GetVersion
 // ============================================================================
 // Retail 0x1800070b0 is the same three-instruction forwarder, tail-jumping
-// rw vtable +0x08. Diffing calls the virtual twice, which is safe here and
-// only here because both implementations of that slot are a single load:
+// rw vtable +0x08. Both implementations of that slot are a single load:
 //   ?GetVersion@BinaryReader@IO@@UEBAHXZ  0x180023930  MOV EAX,[RCX+0x28]; RET
 //   ?GetVersion@BinaryWriter@IO@@UEBAHXZ  0x180023ab0  MOV EAX,[RCX+0x28]; RET
-// If a third ReaderWriter subclass ever gives that slot a side effect this
-// site becomes unsound.
 // (B.4 Z LAST IO: the `RtSerializer_GetVersion` forwarder that stood here is
 // gone with the family above.)
 
 // ============================================================================
-// GetEncoding — FULL ORACLE
+// GetEncoding
 // ============================================================================
 // Retail 0x180006290 is `MOV RAX,[RCX]; MOV RAX,[RAX+0x10]; RET` — two loads,
 // no dispatch, no side effect. It returns the Stream's IO::Encoding (the
-// policy object), NOT the Serializer's ReaderWriter. Diffing it is free.
+// policy object), NOT the Serializer's ReaderWriter.
 // The member returns a REFERENCE, because retail's mangling does
 // (`AEBVEncoding@2@`).
 
 // ============================================================================
-// GetDirection — FULL ORACLE       ENDGAME B.3.4 callers batch H
+// GetDirection       ENDGAME B.3.4 callers batch H
 // ============================================================================
 // Retail 0x180006210 is `MOV RAX,[RCX]; MOV EAX,[RAX+0x8]; RET` — two loads,
-// no dispatch, no side effect, so diffing it is free. It answers with the
+// no dispatch, no side effect. It answers with the
 // STREAM's direction; `IO::Stream`'s own 0x180006200 is the one-load form of
 // the same field and is stated inline on the class (src/engine/io/Stream.h).
 //
@@ -212,10 +188,10 @@ extern "C" {
 // code/Game — the exe INLINES the member at every one of them (e.g.
 // Application-x64.exe 0x1400da960 and 0x1400ed3c5, both `MOV RAX,[RSP+ser];
 // CMP dword ptr [RAX + 0x8],0x0`), which is why they never showed up as calls.
-// The banner's line 91 is corrected in place above.
+// The banner's NOT PORTED list is corrected in place above.
 
 // ============================================================================
-// ctor — SHADOW ORACLE (the original is NOT run; it would move the cursor)
+// ctor
 // ============================================================================
 // Retail 0x1800b9960, transcribed instruction for instruction:
 //
@@ -236,30 +212,9 @@ extern "C" {
 // BinaryWriter stores it and writes it to the stream. That pins the arity of
 // both factory slots at 3, which the Wave 4 brief listed as open.
 //
-// WHY THERE IS NO RUNNABLE ORACLE: the ReaderWriter this creates reads (load)
-// or writes (save) TWELVE BYTES of stream in its own constructor. Running the
-// DLL ctor a second time on the same stream would consume or emit a second
-// 12-byte header. The shadow below therefore checks the post-state instead,
-// and every clause of it is a real claim about the port:
-//
-//   stream stored      -> self->stream == stream
-//   factory ran        -> self->readerWriter != nullptr
-//   ARG 2 WAS `this`   -> rw->serializer == self && rw->stream == stream
-//                         (this is the arity/argument-order proof; if we had
-//                          passed the factory or the stream in RDX these would
-//                          be wrong)
-//   RIGHT SLOT CHOSEN  -> rw->vtable == ??_7BinaryReader (direction == 0)
-//                                    or ??_7BinaryWriter (otherwise)
-//   ARG 3 REACHED IT   -> on the writing path only, rw+0x28 == version. On the
-//                         reading path BinaryReader immediately overwrites
-//                         +0x28 with a dword read from the stream, so there is
-//                         nothing to compare.
-//
-// CAVEAT, stated so a divergence is read correctly: the vtable clause assumes
-// the Stream carries the standard binary IO::Encoding. A stream with a custom
-// encoding would produce some other ReaderWriter subclass and trip that clause
-// without anything being wrong. The log line prints the vtable pointer so the
-// two cases are distinguishable.
+// The ReaderWriter this creates reads (load) or writes (save) TWELVE BYTES of
+// stream in its own constructor, so running a second constructor on the same
+// stream would consume or emit a second 12-byte header.
 //
 // B.3.4 block 3: the body is `IO::Serializer::Serializer(Stream&, int)`
 // (serializer_class.cpp). B3R RT-IO deleted the door once its last reader

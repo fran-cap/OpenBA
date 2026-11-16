@@ -10,8 +10,8 @@
 //                                      array arm encodes ~Font 0x1801175a0 and
 //                                      sizeof 0x90 (`LEA R9,[0x1801175a0]` and
 //                                      `MOV EDX,0x90` at 0x180032148/0x18003214f).
-//   1  TypeName           0x1800319c0  here
-//   2  Type               0x1800319a0  here
+//   1  TypeName           0x1800319c0  Font.h (DECLARE_TYPE)
+//   2  Type               0x1800319a0  Font.h (DECLARE_TYPE)
 //   3  GetFileVersion     0x1801176b0  here  (returns 8)
 //   4  Compile            0x1801176c0  here  (returns 1 — NOT the base's
 //                                      External::Compile; this class overrides
@@ -98,7 +98,7 @@ void StringSerialize(System::String& str, IO::Serializer* ser) {
 // EnterCriticalSection(alloc+0x640) / Free / LeaveCriticalSection triple at
 // each site; the exported function IS that triple with an extra `if (p)` in
 // front of it, so calling it from inside retail's own `if (p)` is instruction
-// for instruction the same work. src/engine/collection/array.cpp:171 records
+// for instruction the same work. src/engine/collection/array.cpp records
 // the same equivalence for the same reason.
 void MemFree(void* p) { System::MemoryAllocator::MemFree(p); }
 
@@ -116,9 +116,8 @@ int32_t DecodeUtf8(const void* src, const void* end, int32_t* cp) {
 // the shipped image to get them right.
 //
 // THEY ARE OUR OWN STORAGE HERE, NOT THOSE ADDRESSES. A raw 0x180159138 would
-// be a Ghidra address, not a runtime one: the DLL is relocated by ASLR today
-// and is not mapped at all after cutover. What the bodies consume is the
-// CONTENT, and the content is three dots and a space.
+// be a Ghidra address, not a runtime one: OpenBA.exe loads no retail DLL. What
+// the bodies consume is the CONTENT, and the content is three dots and a space.
 const char kEllipsisText[] = "...";
 const char kSpaceText[]    = " ";
 
@@ -166,13 +165,13 @@ int32_t MeasureLiteral(const UI::Font& font, const char* text, int32_t bytes) {
 // ============================================================================
 // 0x1800319a0: `MOV EAX,[0x1801fab68] ; RET` — the first dword of the class's
 // own BaseTypeInfo node. 0x1801fab68 IS `?_typeInfo@Font@UI@@0VBaseTypeInfo@
-// Object@@A`, so this reads it through the name rather than the address.
-// ENDGAME B.3.6 block D: every body below is a UI::Font member; the doors
-// that keep the registered names/addresses follow the members and delegate
-// with a QUALIFIED call (a live Font wears the MINTED table).
+// Object@@A`; that body is DECLARE_TYPE(Font) in Font.h, which reads it through
+// the name rather than the address.
+// ENDGAME B.3.6 block D: every body below is a UI::Font member.
 namespace UI {
 
-// 0x1800319c0: `MOV RAX,[0x1801fab70] ; RET` — the same node at +8.
+// 0x1800319c0 (TypeName, DECLARE_TYPE(Font) in Font.h): `MOV RAX,[0x1801fab70] ;
+// RET` — the same node at +8.
 // 0x1801176b0: `MOV EAX,0x8 ; RET`. Eight — a plain integer, unlike the
 // *Description family's packed 0x104 / 0x204 / 0x10204.
 int32_t Font::GetFileVersion() const { return 8; }
@@ -255,12 +254,10 @@ Font::~Font() {
 //            reserve for an old file.
 namespace UI {
 
-// The body reads its own fields at the file format's offsets (+0x20, +0x50,
-// +0x80 ...) through `p`, in FORMAT order, which is not declaration order;
-// every offset is asserted against a named member in Font.h.
+// The body reads its own fields in FORMAT order (+0x20, +0x50, +0x80 ...),
+// which is not declaration order; every offset is asserted against a named
+// member in Font.h.
 bool Font::Serialize(IO::Stream& streamv) {
-    // LEFT: the Serialize slot's parameter is `void*` in Object::External
-    // (block R-IO); retail's is IO::Stream&.
     IO::Stream* const stream = &streamv;
 
     // 0x180117704..0x180117720: `??0Serializer@IO@@` (0x1800b9960) INLINED —
@@ -278,8 +275,6 @@ bool Font::Serialize(IO::Stream& streamv) {
     StringSerialize(_materialName, &ser);                                // 180117788
     StringSerialize(_imageName, &ser);                                // 180117795
 
-    // LEFT: the ExternalPtr<T>::Serialize thunks take RtObject::External** and
-    // the rt::io::Serializer POD (External.h, block R-IO).
     Object::SerializeExternal<UI::CharacterSet>(ser, _characterSet);                  // 1801177a2
     _spriteSheet.Serialize(ser);                  // 1801177af  ExternalPtr<SpriteSheet>
     Object::SerializeExternal<Graphics::MaterialInstance>(ser, _material);                  // 1801177bc  ExternalPtr<MaterialInstance>

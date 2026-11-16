@@ -45,8 +45,8 @@ bool Dx11EnumerateDxgiInterfaces(::Video::Device* device, const char* interfaceN
 // `VideoDX11::DeviceData::swapChain` (+0x18) of `Video::Device::_singleton->
 // deviceData`, read by name. Defined in src/render/dx11/dx11_backend_access.cpp; the
 // same NO-NULL-CHECK contract as Dx11DeviceData() there (the device singleton
-// and its DeviceData must exist). src/app/main.cpp's swap-chain probes call
-// it instead of reading `activeDD + 0x18`.
+// and its DeviceData must exist). src/render/dx11/swap_probe_dx11.cpp's swap-chain probes
+// call it instead of reading `activeDD + 0x18`.
 IDXGISwapChain* Dx11SwapChain();
 
 }  // namespace VideoDX11

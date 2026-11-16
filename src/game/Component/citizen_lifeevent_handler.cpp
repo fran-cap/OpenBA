@@ -1,11 +1,10 @@
 // src/game/Component/citizen_lifeevent_handler.cpp
 // CitizenComponent_HandleLifeEvent (0x140116dd0) + its five previously-unported
 // helpers — the citizen-DEATH path, formerly a "Level-2 deep closure" defer.
-// Closure audit 2026-07-19: every sub-callee is now registered, so the whole
-// chain ports cleanly:
+// The whole chain is ported:
 //
 //   0x140116dd0 HandleLifeEvent        (this file)  — orchestrator, returns bool
-//   0x140113a70 FamilyRingOrFlag_3a70  (this file)  — OR life-event flag around the
+//   0x140113a70 OrFamilyFlags          (this file)  — OR life-event flag around the
 //                                        family ring (+0x260 head / +0x268 next)
 //   0x140089740 FindNearestWithSlot    (this file)  — nearest cemetery (path-dist,
 //                                        reachability 0xe1f, has free grave slot)
@@ -21,23 +20,23 @@
 //                                        (x,y,0x10001,yaw) + model transform via
 //                                        Transform::FromYawPitchOffset at terrain h
 //
-// Death flags OR'd into +0x88 of self/partner(+0x258)/parent(+0x250)+family ring:
+// Death flags OR'd into +0x88 of parent(+0x258)/spouse(+0x250)+both family rings:
 //   0x40 = buried (grave found), 0x02 = eventType 2 with no grave, 0x80 = other
 //   death with no grave. Then PostLifeEvent(type, severity 1) posts the event-log
-//   message and the citizen entity is queued on GameUpdateLoop+0xd0 for removal
+//   message and the citizen entity is queued on the EntityList's removal list (+0xd0)
 //   (unless entity flag bit 10 at +0x40 already marks it).
 //
-// Type-id .rdata globals (storage + fill in standalone/reg_citizen_lifeevent_handler.cpp):
-//   0x1401c7900 InteractComponent (already registered by reg_work_tail_fire)
-//   0x1401c4a30 TombstoneComponent   (NEW storage)
-//   0x1401c40c8 CemeteryDescription  (NEW storage)
+// Type-id cells (each class's own TypeId()):
+//   0x1401c7900 InteractComponent
+//   0x1401c4a30 TombstoneComponent
+//   0x1401c40c8 CemeteryDescription
 //
-// Retail callers of 0x140116dd0: CitizenComponent_Update (6 CALL sites) — already
-// resolving through the registry (citizencomponent.cpp s_fn_HandleLifeEvent).
+// Retail callers of 0x140116dd0: CitizenComponent_Update (6 CALL sites), called by name
+// from citizencomponent.cpp.
 
 // graphics/Geometry.h FIRST: it pulls src/engine/volume/Volume.h, whose
 // global-scope `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()` once
-// <windows.h> has been seen through resolve.h.  ENDGAME B.3.5 caller batch I2.
+// <windows.h> has been seen.  ENDGAME B.3.5 caller batch I2.
 #include "graphics/Geometry.h"
 // EXT SEAM (NOT RETAIL, docs/extensions/handins/FAMILYTREE.md): ext.family_tree (class C)
 #include "ext/family_tree/family_tree.h"
@@ -63,7 +62,7 @@
 #include "Game/exe_bodies.h"
 #include "Entity/ComponentEntity.h"   // ComponentEntity(ComponentDescription*) (0x1400c3720)
 #include "Entity/EntityList.h"        // EntityList::RegisterEntity (0x1400c48a0)
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc
 #include "Component/CitizenComponent.h"      // B.4 W1 COMP-b: HandleLifeEvent is a member
 #include "Component/CharacterComponent.h"
 #include "Entity/ComponentEntity.h"
@@ -314,7 +313,7 @@ uint64_t CitizenComponent::HandleLifeEvent(int eventType, const char* strParam) 
     if (!cem) {
         flags = (eventType != 2) ? 0x80u : 0x2u;
         // eventType names the CAUSE; without it every death in the log looks alike:
-        // 0 starvation, 1 thirst, 2 old age, 3 health, 6 disease, 7 other.
+        // 0 starvation, 1 cold, 2 old age, 3 health, 6 childbirth, 7 other.
         static const char* kCause[] = {"starvation", "thirst", "old-age", "health",
                                        "?4", "?5", "disease", "other"};
         ErrLine("[Burial] NO GRAVE: citizen=%p cause=%d(%s) cell=%u "

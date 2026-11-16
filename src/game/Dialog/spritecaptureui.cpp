@@ -177,7 +177,7 @@ check_pressed:
             // h. Clear pendingExternal
             self->pendingExternal = nullptr;
 
-            // i. Hide captureBox element: SetFlagsOnOff(elem, hideFlags=0, showFlags=1)
+            // i. Show captureBox element again: SetFlagsOnOff(elem, on=0, off=kElementFlagHidden)
             if (self->captureBox)
                 self->captureBox->SetFlagsOnOff(0, UI::kElementFlagHidden);
 

@@ -101,10 +101,7 @@
 // pointer actually changed.
 //
 // Callees: MemAlloc [0x140152b60] and MemFree [0x140152b68] only. Both are
-// Runtime statics reached through the canonical fn_MemAllocStatic /
-// fn_MemFreeStatic globals, exactly as src/game/Work/work_leaf_market.cpp
-// does, so this file needs no exe-address resolution and introduces no
-// unregistered-callee (EXEC-of-0) risk.
+// Runtime statics, called by name as System::MemoryAllocator::MemAlloc / MemFree.
 
 #include "Work/marketwork_bst_afb0.h"
 #include "system/MemoryAllocator.h"

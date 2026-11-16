@@ -38,7 +38,7 @@ using Node    = WorkCellSetNode;
 }  // namespace
 
 // ============================================================
-// Internal AVL primitives (static; not registered)
+// Internal AVL primitives (static)
 // ============================================================
 
 static void CellBST_UpdateHB(Node* n) {
@@ -135,7 +135,7 @@ static Node* CellBST_AllocNode(const WorkCellAssignment* rec, Node* parent) {
 }
 
 // ============================================================
-// Registered helpers
+// Shared helpers (declared in Work/exe_bodies.h)
 // ============================================================
 
 // Reimpl of FUN_140029a40 (TradeDescription_impl_9a40) — AVL insert keyed on the int

@@ -12,7 +12,7 @@
 //   +0x40 = flags: +0x40=pinned, +0x41=dragging
 //   +0x44 = drag offset X (int32)
 //   +0x48 = drag offset Y (int32)
-//   +0x4C = flags: +0x4C=hasUIDesc, +0x4D=drag pending
+//   +0x4C = flags: +0x4C=pinOnDrag, +0x4D=drag pending
 //   +0x50 = pending mouse X (int32)
 //   +0x54 = pending mouse Y (int32)
 //
@@ -28,7 +28,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include "Player/exe_bodies.h"   // B3R: HighlightClear_Impl
+#include "Player/exe_bodies.h"
 #include "object/Internal.h"   // ENDGAME B.3.3 step 6B
 #include "ui/Element.h"  // ENDGAME B.3.6 UI callers (K3)
 #include "ui/DialogInstance.h"  // ENDGAME B.3.6 UI callers (K3)
@@ -115,18 +115,17 @@ void UIDescription::AddControllers(UI::DialogInstance* const* dialog, Object::Ba
 
     // WAVE 10 LANE UIORACLE — a REACHABILITY census, not a trace.
     //
-    // `?AddTab@TabElement@UI@@` is ported and registered, and this loop is its
-    // ONLY caller in the process (the DLL never calls its own AddTab — four
-    // xrefs, not one a CALL). Its predictive oracle nevertheless reported
+    // `?AddTab@TabElement@UI@@` is ported, and this loop is its only caller
+    // outside src/ext/ (the DLL never calls its own AddTab — four xrefs, not one
+    // a CALL). Its predictive oracle nevertheless reported
     // rounds=0 on every route driven, and `rounds=0` reads identically to "no
-    // route exists" and to "the port is dead"
-    // (reference_uncalled_port_is_not_verified.md). These three counters
+    // route exists" and to "the port is dead". These three counters
     // separate those: they say how many controller entries this loop saw, how
     // many named an element at all, and how many took the TAB path. A route
     // that reports entries>0 and tab==0 has been MEASURED not to build tabs;
     // one that reports entries==0 never ran this function at all.
     //
-    // Free when off; dumped by UIDescTabCensusDump() under BANISHED_UIDESC_CENSUS.
+    // Dumped to stderr by UIDescTabCensusDump() at exit (armed at static init above).
     extern uint64_t g_uidescEntries, g_uidescFound, g_uidescTab;
     for (int i = 0; i < count; i++) {
         ++g_uidescEntries;
@@ -323,7 +322,7 @@ void ToolUI::OnCreated() {
 // pointer at controller+0x28 stays non-null while the entity's class-info is
 // already torn down, so ::Object::IsDerivedFromNullSafe(datasource, ...) reads a nulled
 // typeinfo (+0x10) inside Runtime — AV'd live 2026-07-20. Retail never probes
-// the datasource in per-frame dialog slots; its drag-arm (EntityUI::Slot8,
+// the datasource in per-frame dialog slots; its drag-arm (EntityUI::OnUpdate,
 // 0x140066AD0) is scoped by construction: EntityUI exists only on entity
 // dialogs. This helper reproduces that scoping dialog-side, entity untouched.
 static bool ToolUI_DialogHasEntityUI(const UI::DialogInstance* dialog) {
@@ -344,7 +343,7 @@ static int ToolUI_MouseY(const Input::KeyMap* keyMap, const UI::DialogInstance* 
 }
 
 // The node of the tool manager's +0x50 set keyed by `key` (the ToolUI's
-// description; the set also holds entity keys: the compare is by address).
+// description; the compare is by address).
 static PinnedToolNode* ToolUI_FindTracked(const ComponentDescription* key) {
     PinnedToolNode* node = GameUpdateLoop::_singleton->m_toolManager->pinnedToolDialogs.root;
     while (node != nullptr) {

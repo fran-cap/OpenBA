@@ -2,11 +2,12 @@
 // Clean reimplementation of AmbientEmitterComponent lifecycle methods.
 //
 // AmbientEmitterComponent (0x48 bytes) manages ambient sound emitters for entities.
-// Fields: +0x28=emitter data ptr, +0x30=count, +0x38=emitter array ptr, +0x40=count2
+// Fields: +0x28=position (Vector3), +0x38=emitter slot array (count +0x40, capacity +0x44)
 //
 // Vtable at 0x140158a60. Non-trivial overrides:
-//   Shutdown (0x140042f30) -- Complex serialization with Vector3, emitter entries
-//   Draw     (0x140042ba0) -- Resizes emitter list, calls audio setup
+//   Persist  (0x140042f30) -- Complex serialization with Vector3, emitter entries
+//   OnAdded  (0x140042ba0) -- Resizes emitter list, starts the emitters
+//   OnRemove (0x140042b90) -- Removes every slot's emitter
 //
 // Decompiled from Application-x64.exe using Ghidra.
 
@@ -195,7 +196,7 @@ AmbientEmitterComponent::AmbientEmitterComponent()
 // [3] 0x140042f30
 // ============================================================
 // Serializes:
-//   1. Base Component_Serialize
+//   1. Base Component::Persist
 //   2. Serializer(version=1):
 //      - Vector3 at +0x28 (position)
 //      - count from +0x40, serialize it
@@ -233,7 +234,7 @@ void AmbientEmitterComponent::Persist(IO::Stream& stream) {
     }
 }
 
-// [6] 0x140042ba0 — dispatched by ComponentEntity_OnAddedPass at register time
+// [6] 0x140042ba0 — dispatched by ComponentEntity::OnAddedPass at register time
 // (flags bit 0): size the emitter array and start the building's ambient sounds.
 // 0x140042baf-0x140042be2: the description cast (CMOVNZ over 0), SetSize(desc+0x30)
 // with no test, then StartEmitters when desc+0x20 (_enabled) is set.

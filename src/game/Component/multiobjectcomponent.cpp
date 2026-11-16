@@ -4,9 +4,10 @@
 // MultiObjectComponent (0x60 bytes) extends ControllerComponent.
 // Manages multi-part objects (multi-tile buildings spanning several entities).
 //
-// Vtable at 0x140163cf0. Two non-trivial overrides:
+// Vtable at 0x140163cf0. Three non-trivial overrides:
 //   Persist   (0x140125880) — Serialize entity ref array + multiCount
 //   OnRemove  (0x1401257c0) — Mark child entities for removal
+//   OnEvent   (0x140125490) — Relay the event to every component of every child entity
 //
 
 #include "Component/MultiObjectComponent.h"
@@ -14,7 +15,7 @@
 #include "object/TypeInfo.h"
 #include "Component/exe_bodies.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
-#include "Action/exe_bodies.h"   // ActHunt_MarkEntityRemoval_c2ea0 (0x1400c2ea0)
+#include "Action/exe_bodies.h"
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch A
 #include "io/Stream.h"      // ENDGAME B.3.4 callers batch H: IO::Stream::GetDirection
 #include <cstdio>

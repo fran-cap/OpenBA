@@ -1,13 +1,12 @@
 // src/game/Work/build_actions.cpp
 // Faithful 1:1 port of FUN_1400c0690 — BuildStructure::SetupBuildActions: builds the
 // citizen build-labor action chain and pushes it onto the CharacterComponent action
-// stack. Called from BuildStructure::Execute (buildstructure.cpp, via the engine_funcs
-// global fn_SetupBuildActions == ResolveAddr(Exe, 0x1400c0690)). Unported/NULL in
+// stack. Called by name from BuildStructure::Execute (buildstructure.cpp). Unported/NULL in
 // standalone was the EXEC-of-0 crash blocking organic build labor.
 //
 #include "Work/exe_bodies.h"
-// Signature (matches buildstructure.cpp's call = fn_SetupBuildActions(&citizenEntityVal,
-// self->field_20, (void*)(bs+0x10), bestPos, chosenIndex, (uint8_t)self->field_48)):
+// Signature (matches buildstructure.cpp's call = BuildStructure_SetupBuildActions(&citizenEntityVal,
+// _workId, &_entity, &bestPos.v.x, chosenIndex, _isDemolition)):
 //   param_1 = citizen entity InternalBasePtr* (the builder)
 //   param_2 = priority / task index (CompleteTask +0x30)
 //   param_3 = building entity InternalBasePtr* (the construction site = BuildStructure+0x10)
@@ -28,11 +27,10 @@
 // "randomize default"); MoveTo pathType=2 (Fast); ShowTool#1 tool=-1; ShowTool#2 tool=
 // uVar2?4(Saw):7(Knife); PerformWork actionType=uVar2?0xd:0x10, p6=1, p7=-1, animIndex=
 // Entity_impl_29a0(pos,&buildingEntity) heading; uVar2=Random::Rand(*(gw+0xd8),2). The
-// msg-id .rdata globals (c70e8/c7008/c75f0) are 0 in the static image; in standalone the
-// BuildComponent type-id (c7008) is healed via GetTypeIdByName so the state-8 message
-// targets the BuildComponent (the others carry 0, matching citizenai_actionctors).
+// msg-id .rdata globals (c70e8/c7008/c75f0) are 0 in the static image; here they are read as
+// CitizenAIComponent::TypeId(), BuildComponent::TypeId() and DestroyComponent::TypeId().
 //
-// fn_SetupBuildActions corresponds to the exe helper at c0690.
+// BuildStructure_SetupBuildActions corresponds to the exe helper at c0690.
 
 #include "object/TypeInfo.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
@@ -58,16 +56,12 @@
 
 namespace {
 
-// Already-ported action ctors + stack ops, called by name (B3R; Action/ and Work/
-// exe_bodies.h): 0x1400c5400 WorkBase_TaskListCleanup_c5400, 0x1400c54e0
-// Pf_ActStackPush_54e0, 0x1400c29a0 ActChild_Entity29a0_c29a0, 0x1400cb1d0
-// Pf_SendComponentMessageCopyCtor_b1d0, 0x1400c5da0 Pf_CompleteTaskCopyCtor_5da0,
-// 0x140042890 ActChild_ShowToolCtor_42890, 0x1400c9720 Pf_PerformWorkCtor7_9720,
-// 0x1400c9170 Pf_MoveToCtor_9170; 0x1400012d0 (the CharacterComponent lookup) is
+// Already-ported action ctors + stack ops, called by name: 0x1400c5400 ActionStack::Clear and
+// 0x1400c54e0 ActionStackPush (Action/Action.h), 0x1400c29a0 HeadingToward
+// (Action/exe_bodies.h), and the ctors 0x1400cb1d0 SendComponentMessage, 0x1400c5da0
+// CompleteTask, 0x140042890 ShowTool, 0x1400c9720 PerformWork, 0x1400c9170 MoveTo;
+// 0x1400012d0 (the CharacterComponent lookup) is
 // ComponentEntity::FindComponent<CharacterComponent>.
-//
-// The action ctors take their InternalPtr arguments as `uint64_t*` / `int64_t*`
-// (Action/exe_bodies.h, not this block's header): those casts are LEFT.
 uint32_t s_msg7008 = 0, s_msg75f0 = 0;
 bool s_init = false;
 // ENDGAME B.3.9 (B39_RULES.md D5): 0x1401c7008 and 0x1401c75f0 are registered type-id

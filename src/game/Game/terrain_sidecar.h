@@ -12,11 +12,12 @@
 // Sync rules (the whole risk of a shadow copy is a stale byte):
 //   * The mirror is keyed on the cell-array BASE POINTER and count: a new grid (new
 //     game, load-time resize) rebuilds it on the next read.
-//   * Every store to a cell's +0x29 calls NoteWrite(cellPtr) right after -- the six
+//   * Every store to a cell's +0x29 calls NoteWrite(cellPtr) right after -- the eight
 //     single-cell writers: action_pf_roots_road.cpp, cemeterycomponent.cpp,
 //     citizen_lifeevent_handler.cpp (Cemetery_SpawnTombstone_6a90),
 //     pasturecomponent_states.cpp, pasturecomponent.cpp (PastureComponent::OnEvent's
-//     pointer-alias store), quarrycomponent_deform.cpp, keystone_a_removalcalcpath.cpp
+//     pointer-alias store), quarrycomponent_deform.cpp, keystone_a_removalcalcpath.cpp,
+//     resourceproducecomponent_states.cpp
 //     (the tombstone and the pasture-state writer were missing until PERFXEXT, the
 //     pasture OnEvent writer until AMBMEMO). Bulk rewrites (worldgen classify maptilegrid.cpp, the stream load
 //     gamegrid_serialize.cpp) call Invalidate(); CopyMapCell / ZeroMapCell only run inside

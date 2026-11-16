@@ -15,34 +15,22 @@
 // the `PathStackEntry` block in that header — and this file is the port that
 // the pin makes possible.
 //
-// It is a separate file from `external_set.cpp` and from `filename.cpp` for the
-// reason `rt_object_port.cpp` states at the top: one lane owns one file, so two
-// lanes never edit the same source. The ONE shared edit is the three-line hook
-// in `rt_object_port.cpp`.
 //
 // WHAT IS DELIBERATELY *NOT* HERE
 //
 //   `PushPath` (0x1800bd0e0) and `PopPath` (0x1800bd040) are the WRITERS of the
-//   path stack this file reads, and they are NOT ported. They need
-//   `0x18002e220` — `Collection::Array<PathStackEntry>::Resize(n, const T&)`,
-//   the 0x10-element instantiation, which exists nowhere in the tree — plus its
-//   element copy-ctor and destroy-range. Porting the readers today closes four
-//   exported names and opens ZERO new address doors; porting the writers as
-//   well would have opened at least three. See WAVE9_LANE_RRES.md.
+//   path stack this file reads. They are in external_path_stack.cpp, with
+//   `0x18002e220`, the `Collection::Array<PathStackEntry>` row they need
+//   (`kSpec_PathStack`). See docs/history/runtime_port/WAVE9_LANE_RRES.md.
 //
-// GetPathExtension LIVES HERE, NOT IN filename.cpp
+// GetPathExtension's BODY IS IN src/engine/io/filename_extension.cpp
 //
 //   `?GetPathExtension@Filename@System@@QEBA?AV12@XZ` (0x1800c64f0) is a
-//   `System::Filename` method and its natural home is
-//   `src/engine/system/filename.cpp`. It is here instead because
-//   `ExpandRelativePath` calls it twice and `PushPath` calls it once, it had no
-//   caller in the tree before this lane (so porting it alone would have been a
-//   `calls=0` port — reference_uncalled_port_is_not_verified.md), and
-//   `filename.cpp` is a file other lanes edit.
-//
-//   **If a later lane ports it in `filename.cpp`, DELETE ONE OF THE TWO.** A
-//   duplicate `RegisterRuntimeExport` is last-binding-wins and silently makes
-//   one body dead code (reference_grep_for_the_port_before_writing_it.md).
+//   `System::Filename` method. It is declared below as
+//   `RtSystem_Filename_GetPathExtension` and defined in
+//   src/engine/io/filename_extension.cpp; the member `Filename::GetPathExtension`
+//   (src/engine/system/filename.cpp) forwards to it. `ExpandRelativePath` calls
+//   it twice and `PushPath` calls it once.
 // ============================================================================
 
 #include <cstdint>

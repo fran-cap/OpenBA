@@ -64,7 +64,7 @@
 // EXT SEAM (NOT RETAIL, docs/extensions/handins/FAMILYTREE.md): ext.family_tree (class C), the Family button
 #include "ext/family_tree/family_tree.h"
 #include "Game/exe_constants.h"   // B3R: kRdata_140172198
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"   // B3R: System::MemoryAllocator::MemAlloc
 #include "Component/AttendanceComponent.h"   // B4 DLG-a: CitizenComponent::school
 #include "Game/Profession.h"
 #include "Game/ProfessionList.h"
@@ -74,7 +74,7 @@
 
 // A partially-initialized standalone citizen can leave CitizenAI description/pointer
 // fields as garbage (0, the -1 unresolved-IBP sentinel, or non-canonical high values
-// like 0xfffffffffffffee7). CitizenUI_Slot7 dereferences several of these directly
+// like 0xfffffffffffffee7). CitizenUI::OnUpdateLayout dereferences several of these directly
 // (matching the original, which relies on the live game having them resolved). Reject
 // anything that isn't a plausible Win64 user-space heap pointer before dereferencing,
 // so the panel shows what it can instead of faulting.
@@ -189,8 +189,7 @@ static CitizenComponent* CitizenUI_FindCitizen(Object::Base* dataSource) {
 // ENDGAME B.3.9: ComponentEntity / CitizenDescription / CitizenComponent (was
 // TypeId_CitizenComponent_FC) / EditTool all have a ported TypeId() now.
 // B3R: the age multiplier is the .rdata constant 0x140172198 = 5.0f
-// (kRdata_140172198). The old local 1.0f fallback installed over g_pAgeMultiplier
-// when it was null never ran: the cell is registered before EngineFuncsInit binds it.
+// (kRdata_140172198).
 
 // ============================================================
 // Slot4: Setup — finds all named elements, stores pointers, sets button IDs

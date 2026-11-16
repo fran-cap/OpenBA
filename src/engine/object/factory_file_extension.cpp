@@ -10,17 +10,6 @@
 // names that already carry a `ported=1` export row — and that the fourth,
 // ordinal 2990, is a REAL row misfiled out of `Object`. This is that row.
 //
-// Re-derived on this tip rather than quoted:
-//
-//   tools/runtime_census.py --csv w24.csv
-//   awk -F, '$3=="ordinal" && $4=="0"' w24.csv     -> 2990, 3214, 443, 4462
-//   standalone/resolve_standalone.cpp:886          -> 2990 is this mangled name
-//
-// It was reached by ORDINAL from two exe call sites
-// (src/game/Component/buildcomponent.cpp, residencecomponent.cpp) and by
-// ADDRESS from nowhere. It IS an export, so it gets a NAME registration — the
-// door that survives a rebase and the one the census counts — plus the address
-// door, because the mint and the ordinal table both reach it.
 //
 // EXTENT: 0x1800c04c0..0x1800c0574, 181 bytes, two RET sites (0x1800c0567 for
 // the not-found return and 0x1800c0574 for the found return). Bounded by
@@ -38,8 +27,7 @@
 // A type whose `fileExtension` is null is SKIPPED, not compared: the
 // `TEST RCX,RCX / JZ` at 0x1800c04fb jumps to the successor step. Every
 // Component/Description registration in the exe passes nullptr there, so on a
-// live tree the overwhelming majority of nodes take that arm — which is why
-// the effectiveness counter below counts COMPARISONS, not visits.
+// live tree the overwhelming majority of nodes take that arm.
 // ============================================================================
 
 #include <cstdint>

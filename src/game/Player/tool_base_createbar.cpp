@@ -3,25 +3,24 @@
 // CreateBar populate + position (GUI Keystone F, Phase 3B item 2)
 // ============================================================================
 // Faithful 1:1 reimplementation of the in-game building-placement "CreateBar"
-// update path. PlacementTool::Serialize (and the Drag tools) call this every
+// update path. PlacementTool::Update (and the Drag tools) call this every
 // frame while a tool is active; it fills the CreateBar dialog's "textSize" /
 // "textStatus" / "imageIcon" elements with the footprint size + cost/status
 // text + red/white validity tint, projects the building footprint to screen
 // space, and repositions (smoothed) the CreateBar dialog over that footprint.
 //
 // Ported exe functions:
-//   operator_impl_fc60          0x1400ffc60  -> UpdateToolUI_fc60   (main)
-//   operator_impl_fc60_sub_e600 0x14005e600  -> UpdateToolUI_e600   ("textSize")
-//   operator_impl_e420          0x14005e420  -> UpdateToolUI_e420   ("textStatus")
-//   FUN_14005e700               0x14005e700  -> UpdateToolUI_e700   (size-region elems)
-//   FUN_14005e360               0x14005e360  -> UpdateToolUI_e360   ("imageIcon" tint)
+//   operator_impl_fc60          0x1400ffc60  -> PlayerToolManager::UpdateCreateBar    (main)
+//   operator_impl_fc60_sub_e600 0x14005e600  -> BuildRequirementUI::SetSizeText       ("textSize")
+//   operator_impl_e420          0x14005e420  -> BuildRequirementUI::SetStatusText     ("textStatus")
+//   FUN_14005e700               0x14005e700  -> BuildRequirementUI::SetSizeMultiplier (size-region elems)
+//   FUN_14005e360               0x14005e360  -> BuildRequirementUI::SetIconColor      ("imageIcon" tint)
 //   operator_helper_ebb0        0x1400febb0  -> UpdateToolUI_ebb0   (box corners)
 //
-// Sub-callees resolved (not re-ported here):
-//   CharacterComponent_impl_ec70 0x1400fec70  (REG) — build 4 footprint corners
-//   FUN_1400fe960                0x1400fe960  (REG) — project corners -> screen rect
-//   Runtime-x64.dll exports (engine_funcs + local ResolveExport for the by-value
-//   Math/Volume/String helpers not present in engine_funcs.h).
+// Sub-callees, called by name (not re-ported here; Player/exe_bodies.h):
+//   CharacterComponent_impl_ec70 0x1400fec70  PlayerScreenRect_BuildCorners_ec70 — build 4 footprint corners
+//   FUN_1400fe960                0x1400fe960  PlayerScreenRect_AccumulateRect_fe960 — project corners -> screen rect
+//   and the engine's Math / Volume / String / UI functions.
 //
 // ABI NOTES (verified against the Ghidra disassembly — get these wrong and it
 // hardfaults on the Microsoft x64 calling convention):
@@ -30,15 +29,15 @@
 //        Vector3::Min          ?Min@Vector3@Math@@QEBA?AV12@AEBV12@@Z
 //        Transform::operator*  ??DTransform@Math@@QEBA?AVVector3@1@AEBV21@@Z
 //        UI::String -> System::String  ??BString@UI@@QEBA?AV0System@@XZ
-//        DialogInstance::GetController (engine_funcs, retval-2nd)
+//        DialogInstance::GetController (retval-2nd)
 //     -> the returned value is written to the retbuf AND returned in RAX.
-//   * fn_UIString_Ctor ALWAYS takes 3 args (retbuf, stringTable, stringName);
+//   * the UI::String ctor ALWAYS takes 3 args (retbuf, stringTable, stringName);
 //     Ghidra renders it with 2. e420 supplies R8 = the string-name arg.
 //   * UI::String is 16 bytes; System::String is 8 bytes (COW refcounted). The
 //     empty-string idiom is (*p==0 || *(int*)(*p-8)==0).
 //   * type-id .rdata globals (DAT_1401c4d40 = "BuildRequirementUI" controller,
 //     DWORD_1401c7f58 = "ToolbarDescription" component, ImageElement typeinfo)
-//     read as 0 in standalone — filled lazily via ResolveAddr-then-GetTypeIdByName.
+//     are read through each class's TypeId().
 
 #include "ui/UserInterface.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
@@ -266,7 +265,6 @@ extern "C" uint32_t UpdateToolUI_ebb0(const void* /*dummy*/, const ::Box* box,
 // ============================================================================
 // param_1 = the tool's owner, the PlayerToolManager (Tool +0x10): +0x00 the open
 // dialog, +0x08/+0x0C the smoothed x/y coords OpenToolDialog seeds to -1.0.
-// (PlayerToolManager.h is block GAME-b's: a free function over the typed manager.)
 void PlayerToolManager::UpdateCreateBar(int param_2, int param_3,
                      const System::String* param_4, char param_5, char param_6, char param_7,
                      int param_8, int param_9, int param_10, const ::Box* param_11,

@@ -4,7 +4,7 @@
 //
 // MarketWork — the market vendor's work (walk the town's storage, take goods the
 // houses need and bring them to the market): a tree of the citizens assigned
-// (+0x48, count +0x50; nodes carry a demand array at +0x08). A REAL class with a
+// (+0x48, count +0x50; nodes carry a carry list at +0x08). A REAL class with a
 // compiler-generated vtable.
 //
 // RETAIL (B38_SLOTS.md §6): reflected "MarketWork", parent "Work", ti 0x1401c6b70,
@@ -19,8 +19,8 @@
 //   [11] 0x140029860 GetPriority (`+0x50 > 0`, shared by 13 tables)
 //   [12] = Work (0x140006b10)
 //   MarketComponent's CreateWork (resourceproduce_creatework.cpp, block MI-B) builds
-//   a MarketWork BY HAND and stamps 0x140161710; that registration serves
-//   MarketWork::Vtable() (B38 D5).
+//   a MarketWork with the default ctor below and Work::InitFromEntity (retail inlines
+//   Work_Ctor25 and stamps 0x140161710).
 // ============================================================================
 
 #include <cstdint>
@@ -39,7 +39,7 @@ class MarketWork final : public Work {
 public:
     MarketWork();                                                   // 0x1400f1f70
 
-    // frees the +0x48 demand tree
+    // frees the +0x48 claim tree and its carry lists
     ~MarketWork() override;                                         // [0]  0x14002a910
     void  Persist(IO::Stream& stream) override;                           // [3]  0x1400f1d70
     int   Execute(CitizenComponent** citizenHolder, System::Time* ctx) override;  // [4]  0x1400eff80

@@ -31,7 +31,7 @@
 #include <new>
 #include "ui/Sprite.h"   // ENDGAME B.3.6 UI callers (K4)
 #include "Game/exe_bodies.h"
-#include "Action/exe_bodies.h"   // StorageCanAdd, StorageAdd
+#include "Action/exe_bodies.h"
 
 extern "C" GameContainer* Game_Ctor(GameContainer* self) {
     // Zero the entire 0xe0-byte struct, including the regions where the
@@ -53,8 +53,8 @@ extern "C" GameContainer* Game_Ctor(GameContainer* self) {
 // The exe cell 0x1401c3de8 (B3R STORAGE; game.h).
 GameContainer* g_gameContainer = nullptr;
 
-// 0x140091a20 — queue a ComponentDescription for removal: appended to the
-// +0x120 list unless it is already there (the tree's Game_RemoveEntity).
+// 0x140091a20 — append a ComponentDescription to the +0x120 list (availableFarmTypes)
+// unless it is already there.
 void CitizenBehavior::RemoveEntity(ComponentDescription* entity) {
     // Check if entity is already in the removal queue
     int count = availableFarmTypes._size;
@@ -289,12 +289,12 @@ void CitizenBehavior::SpawnResources(uint32_t resourceFlag, int count) {
 
                             // CheckPtr the storage IBP before use
 
-                            // Call original exe CanAdd function (0x14012cd80)
+                            // StorageComponent::CanAdd (0x14012cd80)
                             uint32_t canAdd = storageIBP->CanAdd(*matchSlot, 1);   // 0x14012cd80
                             if ((char)canAdd != '\0') {
                                 // CheckPtr again before AddItem
 
-                                // Call original exe AddItem function (0x14012d000)
+                                // StorageComponent::AddItem (0x14012d000)
                                 storageIBP->AddItem(*matchSlot, 1);   // 0x14012d000
                                 spawned++;
                                 anyAdded = true;

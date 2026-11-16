@@ -6,8 +6,8 @@
 //
 // The sort at the tail of `?RefreshList@Modification@IO@@` (0x1800b0338). Both
 // addresses are unexported — no name in retail and none in the profile build —
-// so both are address-only rows, named here `IO_Modification_SortMods` /
-// `IO_Modification_SortModsSmall` and renamed to match in retail Ghidra.
+// so both are named here `RtIo_Modification_SortMods` /
+// `RtIo_Modification_SortModsSmall`.
 //
 // ---------------------------------------------------------------------------
 // WHY IT WAS DECLINED TWICE, AND WHY THAT NO LONGER APPLIES
@@ -59,7 +59,7 @@
 //
 // The copy ctor zeroes each member of the destination immediately before
 // filling it, which is what makes the raw stack storage safe; that is retail's
-// own arrangement (modification.cpp:434) and `Modification::Swap` already
+// own arrangement (modification.cpp's `Mod::Mod(const Mod&)`) and `Modification::Swap` already
 // relies on it. Block PKGCACHE trades the bytes instead (ModSwap's note).
 // ============================================================================
 

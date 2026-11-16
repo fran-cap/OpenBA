@@ -11,25 +11,12 @@
 //                                                  inline anonymous helper —
 //                                                  only one caller (ffa0))
 //
-// Cascade safety: when any required Runtime primitive (FindOrLoad,
-// IsDerivedFrom, Filename ctors, Serializer slots, etc.) is null at runtime
-// we log a one-shot warning and return early instead of crashing. The
-// pattern matches src/game/Game/serialize_externals.cpp:31-50 and
-// serialize_arrays.cpp.
-//
 // TypeInfo for FUN_140020150 was verified via disassembly:
 //   140020340: MOV RAX, qword ptr [0x140151350]   ; BaseTypeInfo* slot
 //   140020347: MOV EDX, dword ptr [RAX]           ; *(uint*)BaseTypeInfo
 //   14002034c: CALL [0x140152a98]                 ; IsDerivedFrom
 // Slot 0x140151350 == g_ppTypeInfo_MaterialInstance (Graphics::MaterialInstance).
 // This matches FUN_140007140's slot — confirmed shared-type use.
-//
-// NOTE: This file is the PUBLIC-INTERFACE-ONLY reimpl. The dispatch logic
-// (delegate to original-via-fn-ptr if resolved, else execute the cleaned C
-// path inline) follows the same pattern as serialize_struct60b.cpp /
-// serialize_externals.cpp. The cleaned-C path mirrors the original's body
-// shape (no instruction-for-instruction guarantee — the dispatch slots for
-// the per-primitive serialize calls aren't all wired yet, so we soft-fail).
 
 #include "object/TypeInfo.h"
 #include "graphics/Camera.h"
@@ -45,8 +32,8 @@
 #include <cstdio>
 #include <cstring>
 
-// Reimpl_ExternalPtr_Serialize_Typed_7140 (serialize_externals_typed.cpp, 0x140007140)
-// serializes each element's typed-ExternalPtr at +0x00: Game/exe_bodies.h.
+// Object::SerializeExternal<Graphics::MaterialInstance> (object/External.h, 0x140007140)
+// serializes each element's typed-ExternalPtr at +0x00.
 
 namespace {
 

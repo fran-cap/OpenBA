@@ -37,10 +37,9 @@
 //     p + 8 : char data[length + 1]
 //     String::data == p + 8
 //
-// This confirms the header comment in standalone/filename_runtime_hook.cpp
-// ("refcount at buffer-4, user pointer at buffer-8") and adds the field it did
-// not name: the dword at buffer-8 is the LENGTH, which is why a `dec`/`inc` on
-// a freed String scribbles on the free-list link's high dword and not its low.
+// The dword at buffer-4 is the refcount and the dword at buffer-8 is the
+// LENGTH, which is why a `dec`/`inc` on a freed String scribbles on the
+// free-list link's high dword and not its low.
 //
 // SetLength does NOT write a terminator: every caller writes data[len] itself
 // (Set via StrCopy, SubString explicitly, operator+ explicitly).
@@ -63,13 +62,11 @@
 // the freeing branch to null would still be correct there while diverging in
 // the dtor. Reproduce it; do not tidy it.
 //
-// THE ALLOCATOR IS NOT OURS
-// -------------------------
-// Strings cross the DLL boundary constantly (the DLL makes them, we destroy
-// them, and vice versa), so every allocation and free MUST go through
-// Runtime-x64.dll's own System::MemoryAllocator, resolved through the registry (historically the raw door)
-// — never ResolveExport, which would hand back a registered port. See
-// src/engine/system/string.cpp.
+// THE ALLOCATOR
+// -------------
+// Every allocation and free goes through System::MemoryAllocator::MemAlloc /
+// MemFree (RtMemAlloc / RtMemFree below; malloc / free in the host unit test).
+// See src/engine/system/string.cpp.
 // ============================================================================
 
 #include <cstdint>
@@ -138,9 +135,7 @@ void  RtMemFree(void* p);
 // Runtime-x64.dll removed every caller and callee is compiled by the same GCC,
 // so the by-memory return is the compiler's business again and the methods
 // return `String` by value (B31_RULES.md, "The one fact that changes the rules
-// since the port"). The `RtSystem_String_*` free functions keep the old
-// (self, ret, ...) signature as one-line shims so that no caller has to move in
-// this commit.
+// since the port").
 // ============================================================================
 
 #include <cstdarg>
@@ -214,8 +209,7 @@ public:
     static int    StrCompare(const char* a, const char* b); // ?StrCompare@..@SAHPEBD0@Z    0x1800c98a0
 
     // Format's varargs entry point has no va_list twin in retail (there is no
-    // such export). This carries the body so that `Format` and the transitional
-    // `RtSystem_String_Format` shim are the same code and not two transcriptions.
+    // such export). This carries Format's body over a va_list.
     static String FormatV(const char* fmt, va_list ap);
     // FormatIndexed's body over the `argc` arguments its caller passed (see above).
     static String FormatIndexedList(const char* fmt, const char* const* argv, int argc);
@@ -238,8 +232,8 @@ private:
     friend class Filename;
 
 public:
-    // Retail's one and only field. PUBLIC: ported bodies and the step-1 shims
-    // still read and hand the pointer back and forth by name.
+    // Retail's one and only field. PUBLIC: ported bodies still read and hand
+    // the pointer back and forth by name.
     char* _data;
 };
 static_assert(sizeof(String) == 8, "System::String must be 8 bytes");

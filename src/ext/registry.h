@@ -496,8 +496,8 @@ ExtraModsProvider SaveModsProvider();
 bool ValidId(const char* id);
 
 // The rows the Extensions dialog lists on its "Experimental" tab instead of Optional / Default (maintainer
-// ruling 2026-11-08): the phone extensions (touch_mode, touch_pointer, phone_menu) and staggered_passes. Only
-// where the row is shown changes; its class, default and behaviour are its own.
+// ruling 2026-11-08): the phone extensions (touch_mode, touch_pointer, phone_menu), staggered_passes, leaf_lod
+// and terrain_late. Only where the row is shown changes; its class, default and behaviour are its own.
 bool Experimental(const Entry& e);
 
 // The load notice (SaveLoadDialog::DoLoad, block EXTSAVE). A save's mod-list

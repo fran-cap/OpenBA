@@ -4,7 +4,7 @@
 //
 // `??_7ListElement@UI@@6B@` (retail 0x180156dc0):
 //
-//   0  vector deleting dtor  0x180045320  -> deleting_dtor.cpp row (this batch)
+//   0  vector deleting dtor  0x180045320  -> the compiler's, from ~ListElement
 //   1  TypeName              0x180044f90  here
 //   2  Type                  0x180044f70  here
 //   4  ComputeSize           0x1800d4380  here
@@ -16,37 +16,34 @@
 //
 // NOT HERE: `?DrawHighlight@ListElement@UI@@QEBAXAEAVSpriteContext@2@HI@Z`
 // (0x1800d3f70), `?AddItem@` (0x1800d44b0) and `?GetCellLayout@` (0x1800d4120)
-// — the UI non-slot callee list is another agent's. Draw REACHES DrawHighlight
-// by address.
+// — DrawHighlight and AddItem are element_bodies_b5.cpp's; GetCellLayout is
+// declared and not defined. Draw CALLS the member DrawHighlight.
 //
 // ---------------------------------------------------------------------------
 // LAYOUT.  sizeof(ListElement) == 0x100 (the deleting destructor's
 // `MOV EDX,0x100` at 0x180045352). Fields, each from the ctor (0x1800d4570) or
 // from the body that reads it:
 //
-//   +0xC0  _itemRows      Array-ish head, ctor zeroes the qword
-//   +0xC8  _rowCount      int32, ctor -1
+//   +0xC0  _highlight     ::Sprite {sheet, index}, ctor {null, -1}; the
+//                         selection-bar sprite
 //   +0xD0  _hoverColor    uint32, ctor 0xff808080   } one qword store,
 //   +0xD4  _selectColor   uint32, ctor 0xffffffff   } 0xffffffffff808080
 //   +0xD8  _selectedIndex int32, ctor -1            } one qword store
 //   +0xDC  _hoverIndex    int32, ctor -1            }
-//   +0xE0  _items         Array<...>, the ONE member ~ListElement destroys
-//   +0xF0  _grid          UI::RibbonElement*  (Update reads its +0xC0 vertical
-//                         byte, +0xC4 spacing and +0xC8 int array — exactly
-//                         RibbonElement's own three fields, which is how the
-//                         type is known and not guessed)
-//   +0xF8  _clip          UI::ClipRegionElement*, the visible window
+//   +0xE0  _userData      Array<void*>, the ONE member ~ListElement destroys
+//   +0xF0  _ribbon        Element*, a UI::RibbonElement (Update reads its +0xC0
+//                         vertical byte, +0xC4 spacing and +0xC8 int array —
+//                         exactly RibbonElement's own three fields, which is how
+//                         the type is known and not guessed)
+//   +0xF8  _clip          Element*, a UI::ClipRegionElement: the visible window
 //
 // Update's own two children are _children[0] (drawn first, the backdrop) and
 // _children[1] (the content, and the one ComputeSize measures).
 //
 // ENDGAME B.3.6 block C4: the layout above moved to src/engine/ui/
-// ListElement.h (the real class). Every slot body below is a MEMBER; each
-// registered door is a one-line QUALIFIED delegation; ctor/dtor stay DOORS.
+// ListElement.h (the real class). Every slot body below is a MEMBER.
 // The ribbon's own fields (UI::RibbonElement, block C5) and the dialog's slot
-// 8 (UI::DialogInstance, block B) stay raw here — fragment list.
-// RULE B6-5: the vtable and type-info record are cached in namespace-scope
-// std::atomic slots.
+// 8 (UI::DialogInstance, block B) are read and called by name.
 // ============================================================================
 
 #include <new>
@@ -61,7 +58,7 @@ using namespace rtui;
 namespace {
 
 // `?DrawHighlight@ListElement@UI@@QEBAXAEAVSpriteContext@2@HI@Z` 0x1800d3f70 —
-// declared on the class, body still element_bodies_b5.cpp's door.
+// declared on the class, body in element_bodies_b5.cpp.
 
 // `?OnElementEvent@DialogInstance@UI@@` — the DialogInstance vtable's slot 8
 // (+0x40), called by name in Update. Seven arguments after `this`, read

@@ -10,7 +10,8 @@
 //   is NOT trivially copyable (its exported copy ctor 0x1800229d0 is DEEP,
 //   B7-8), the element / node / State value types ARE trivial (no ctor: retail
 //   builds them with raw stores that leave bytes unwritten).
-// PART B — the field offsets every ported member reads.
+// PART B — the field offsets every ported member reads: the static_asserts in
+//   Input.h and Device.h, not repeated here.
 // PART C — declared signatures that carry an ABI claim: the KeyMap readers
 //   take (joystick, id); the two ClearInput overloads; Device::Update and
 //   UpdateState take `System::Time const&`; EnableMouseClipping takes the RAW

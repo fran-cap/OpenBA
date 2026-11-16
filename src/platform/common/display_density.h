@@ -39,7 +39,8 @@ int RenderPercent();
 // P9: UserInterface::_uiScale for the setting `uiPercent` (GameSettings::uiScale, the UI scale at
 // Full render scale): uiPercent / RenderPercent(), which is retail's uiPercent / 100.0f at 100.
 // Callers: GameContainer::ApplyKeyMapToUI and OptionsDialog::ApplyGameSettings (optionsdialog.cpp),
-// the Enhanced tab's Render scale row (render_scale_entry.cpp).
+// load_progress.cpp and sharp_ui.cpp; the Enhanced tab's Render scale row (render_scale_entry.cpp)
+// calls UiScaleRatioAt.
 float UiScaleRatio(int uiPercent);
 
 }  // namespace Display

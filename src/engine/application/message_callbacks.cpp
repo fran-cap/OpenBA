@@ -6,19 +6,11 @@
 //
 // WHY THESE TWO
 // -------------
-// They are the recorded blocker for `?PlatformStartup@Device@Video@@AEAA_NXZ`,
-// which is the next cutover boot wall after the IO chain — our ported
-// `Engine::Startup` calls it at engine_lifecycle.cpp:719 and a null there ends
-// the boot with `g_startupFailAt == 11`. `PlatformStartup` registers two USER32
-// message callbacks as its last act; `PlatformShutdown` removes them as its
-// first.
-//
-// They pay twice. Both are also rows in `src/render/dx11/devicedata.cpp`'s import
-// table (0x180013290 / 0x180013298), and that table is ALL-OR-NOTHING: one
-// unresolved entry sets `g_imOk` false and every `DeviceData` slot then bails,
-// because there is no shipped body to fall back to — VideoDX11-x64.dll is never
-// loaded. So these two names being unported was two of the seventeen things
-// keeping that table dark.
+// `?PlatformStartup@Device@Video@@AEAA_NXZ` (src/engine/video/device_startup.cpp)
+// registers two USER32 message callbacks as its last act; Input
+// (src/engine/input/input_platform_startup.cpp, input_platform_shutdown.cpp) and
+// the DX11 `DeviceData` (src/render/dx11/devicedata.cpp) register and remove
+// their own.
 //
 // | Export | Retail | Ord |
 // |---|---|---|
@@ -26,7 +18,7 @@
 // | `?UnregisterMessageCallback@Application@1@QEAAXI@Z` | 0x18009fa20 | 4467 |
 //
 // Both names were checked against the shipped export directory with pefile
-// BEFORE any body was written (reference_resolveexport_phantom_names.md).
+// BEFORE any body was written.
 //
 // THE SPLIT WITH set_avl.cpp
 // --------------------------
@@ -35,7 +27,7 @@
 // matching node header, so they live in src/engine/collection/set_avl.cpp.
 // `0x18000a5b0` is the one member of the group that IS element-type-specific —
 // it allocates 0x30 bytes and copies exactly 0x10 of element — so it lives
-// here, with its only caller.
+// here, beside RegisterMessageCallback; CloneTree (application_lifecycle.cpp) calls it too.
 // ============================================================================
 
 #include <cstddef>
@@ -52,9 +44,8 @@ using rtsetavl::Node;
 using rtsetavl::Set;
 
 // The two layouts must agree, and this is where that is enforced. The header
-// keeps `Application` free of src/engine/ includes by declaring the Set as two
-// raw fields; if either side ever moves, this fails at compile time rather than
-// corrupting a live tree.
+// declares the Set as an `rtsetavl::Set` member (`_messageCallbacks`); if either
+// side ever moves, this fails at compile time rather than corrupting a live tree.
 static_assert(offsetof(App, _messageCallbacks) + offsetof(Set, root)
                   == 0x18, "Application's Set::root must land at +0x18");
 static_assert(offsetof(App, _messageCallbacks) + offsetof(Set, count)
@@ -95,8 +86,8 @@ void* MemAlloc(uint64_t bytes, int align) {
 // whatever RCX holds there is leftover. **A register that is not set by the
 // caller and not read by the callee is not a parameter.**
 //
-// This is the same reading `reference_read_the_callee_before_holding_back_on_an_arg.md`
-// records for `FUN_180023060`, and lane D's `KeyMap::RegisterInput` is the
+// This is the same reading, the callee's disassembly deciding which registers are parameters,
+// that settles `FUN_180023060`, and lane D's `KeyMap::RegisterInput` is the
 // precedent for the resulting signature.
 //
 // THE ELEMENT COPY IS TWO QWORDS, NOT A FIELD COPY (0x18000a61b..0x18000a625).
@@ -104,10 +95,8 @@ void* MemAlloc(uint64_t bytes, int align) {
 // — RegisterMessageCallback builds the element with `MOV [RAX-0x20],EDX`
 // (the message id, a DWORD) and never writes +0x04, so **the padding carries a
 // dword of the caller's stack frame into the tree**. Reproduced, not repaired:
-// an oracle that compared those bytes would fail 100% of calls
-// (reference_oracle_must_not_compare_unwritten_bytes.md), and zeroing them
-// would differ from retail in a way nothing here would ever report. The probe
-// excludes element+0x04 for that reason and says so.
+// an oracle that compared those bytes would fail 100% of calls, and zeroing them
+// would differ from retail in a way nothing here would ever report.
 //
 // On allocation failure retail returns null and the CALLER stores that null as
 // the child link — it does not check. Faithful.
@@ -155,17 +144,13 @@ extern "C" Node* RtApp_SetAllocNode(void* /*unused, never read*/,
 //    into the same `INC [RDI+8]`. So a failed first registration leaves
 //    `count == 1` with `root == nullptr`. Retail's; kept.
 //  * **The descent is UNSIGNED.** `CMP EDX,EAX / JC` — JC is below, not less.
-//    Message ids are unsigned (0x232 is WM_CHANGEUISTATE-range) so a signed
+//    Message ids are unsigned (0x232 is WM_EXITSIZEMOVE) so a signed
 //    compare would order them the same today, but the ids come from callers this
 //    lane does not own.
 //  * **The retrace is handed the address of a stack local** that the descent
 //    keeps updated (`MOV [RSP+0x50],RAX` on every step). It must be a real
 //    local, because Retrace re-reads and WRITES through it.
 //
-// ORACLE: none at the call site — inserting the same id twice returns early on
-// the second call, which makes an ours-then-theirs replay vacuously green
-// (exactly the trap lane D recorded for `KeyMap::RegisterInput`). Verified by
-// the lockstep probe in set_avl_probe.cpp instead.
 // ============================================================================
 void Application::Application::RegisterMessageCallback(uint32_t id, MessageCallback callback) {
     App* app = this;

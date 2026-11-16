@@ -17,8 +17,7 @@
 //
 // ENDGAME B.3.7 block B5: the bodies are MEMBERS of the real classes
 // `Input::KeyMap` / `Input::Device` / `Input::Configuration`
-// (src/engine/input/Input.h, Device.h); the registered free functions are
-// one-line doors. `KeyMap::Released` (0x1800a79b0) is new here.
+// (src/engine/input/Input.h, Device.h). `KeyMap::Released` (0x1800a79b0) is new here.
 // ============================================================================
 
 #include <cstdint>
@@ -33,10 +32,6 @@
 using Input::Binding;
 using Input::BindingNode;
 using State = Input::Device::State;
-
-// Already-ported Wave 4 IO::Persistence entry points (src/engine/io/
-// persistence.cpp). Not declared in any header there; redeclared here with
-// the exact signature, same pattern rt_port.h's own Module/ResolveAddr use.
 
 namespace {
 
@@ -86,8 +81,7 @@ BindingNode* Successor(BindingNode* n) {
 }
 
 // Device::_singleton, an exported DATA symbol (retail 0x1801fe770), read
-// through the port-aware data door (carry-over 5: it stays a slot until the
-// end of B.3), exactly like engine_funcs.cpp's own g_pInputDeviceSingleton.
+// as the class static.
 Input::Device* DeviceSingleton() {
     return ::Input::Device::_singleton;
 }
@@ -157,8 +151,7 @@ T ReadBoundState(const Input::KeyMap* km, int32_t joystick, int32_t id, Read rea
 }  // namespace
 
 // ############################################################################
-// Input::KeyMap — the member bodies (ENDGAME B.3.7 block B5: moved off the
-// registered free functions, which are one-line doors at the bottom).
+// Input::KeyMap — the member bodies (ENDGAME B.3.7 block B5).
 // ############################################################################
 namespace Input {
 
@@ -167,15 +160,15 @@ namespace Input {
 //
 // A full teardown of the binding tree. The recursive subtree-destroy and the
 // single-node free are Collection::Set<Binding> internals shared with every
-// other Set instantiation in the DLL, called by address exactly as retail's
-// own disassembly does — both take `&this->_root` as their first argument
+// other Set instantiation in the DLL, called by name with retail's arguments
+// — both take `&this->_root` as their first argument
 // (0x1800a7d20: `LEA RBX,[RCX+8]` feeds RCX at both call sites), not `this`.
 // NOT CONVERTED to a `Collection::Set` member (ENDGAME B.3.2 step 2):
 // `Binding`'s key is an unsigned BYTE id compared with a plain unsigned
 // less-than, not `Collection::AVLCompare`'s string compare, so it would need a
 // new `Compare` policy (Collection.h's `detail` namespace) before
 // `Collection::Set<Binding, ByteIdCompare>::Clear` could stand in for these
-// address doors. That is Collection-side policy work, not Input's.
+// calls. That is Collection-side policy work, not Input's.
 void KeyMap::ClearAll() {
     void* setPtr = &_root;
     BindingNode* root = _root;
@@ -422,7 +415,7 @@ void Device::ResetState() {
 // `CALL 0x1800a7520` (KeyMap::Save, a near call) then three Persistence::Set
 // bools. The KeyMap call used to be a by-address `ResolveAddr(0x1800a7520)`
 // door; it is now the direct member call (the door resolved to the same body,
-// keymap_save.cpp's). The Persistence singleton read stays a data slot.
+// keymap_save.cpp's). The Persistence singleton is read as the class static.
 void Configuration::Save() {
     _keyMap->Save();
 
@@ -436,9 +429,6 @@ void Configuration::Save() {
 
 }  // namespace Input
 
-// ============================================================================
-// Register
-// ============================================================================
 // ---------------------------------------------------------------------------
 // Input::Configuration::~Configuration() - retail 0x1800E0E10, ord 555.
 // WAVE 23 LANE TAIL.
@@ -459,11 +449,10 @@ void Configuration::Save() {
 // with pefile; the `UEAA` virtual spelling is absent and would resolve NULL.
 //
 // The address written is `?_singleton@Configuration@Input@@0PEAV12@EA`
-// (0x1801FE768, ord 4802) - another of this lane's DATA rows - so the store
-// goes through RT_DATA_SLOT for the same reason the Audio twin's does. Note
-// that this file's existing `input_device_update.cpp` already documents
-// 0x1801FE768 under that name, which is an independent confirmation of the
-// identity rather than a second reading of the same source.
+// (0x1801FE768, ord 4802), the class static `Input::Configuration::_singleton`.
+// `input_device_update.cpp` already documents 0x1801FE768 under that name,
+// which is an independent confirmation of the identity rather than a second
+// reading of the same source.
 // ---------------------------------------------------------------------------
 void RtInput_Configuration_Dtor(void* /*selfPtr - never read*/) {
           // unconditional; there is no branch
@@ -477,5 +466,5 @@ void RtInput_Configuration_Dtor(void* /*selfPtr - never read*/) {
 ::Input::Configuration* ::Input::Configuration::_singleton = nullptr;
 
 // ?_singleton@Device@Input@@0PEAV12@EA (0x1801fe770) -- the class static (ENDGAME B.3.9 ENG, B39_RULES D7);
-// RtInputPortInit redirects the minted storage row onto it.
+// set by Ctor_InputDevice (singleton_ctors.cpp).
 ::Input::Device* ::Input::Device::_singleton = nullptr;

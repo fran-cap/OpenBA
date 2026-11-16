@@ -27,6 +27,6 @@ UNIT_TEST(review_minimap_pixels_cover_size) {
     // size * size past int: the arrays (int counts) can never hold it.
     CHECK(!PixelsCoverSize(65536, 0, 0));
     CHECK(!PixelsCoverSize(INT32_MAX, 1, 1));
-    // 46341^2 wraps a 32-bit product to a positive int.
+    // 46341^2 is past INT32_MAX: a 32-bit product wraps to a negative int.
     CHECK(!PixelsCoverSize(46341, static_cast<int32_t>(46341u * 46341u), static_cast<int32_t>(46341u * 46341u)));
 }

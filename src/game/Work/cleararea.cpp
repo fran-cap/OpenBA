@@ -10,7 +10,7 @@
 //   +0x50: int treeCount    -- number of entries in +0x48 tree
 //   +0x58: WorkCellSetNode*   -- set of cell -> citizen (ground cells to clear)
 //   +0x60: int cellCount    -- number of entries in +0x58 tree
-//   +0x68: void* mapEntity  -- InternalBasePtr to map component entity
+//   +0x68: ComponentDescription* _targetFilter -- ExternalPtr<ComponentDescription> filter
 //   +0x70: bool clearTrees  -- whether to clear trees/resources
 //   +0x71: bool clearGround -- whether to clear ground (v1+)
 //   +0x72: bool clearBuildings -- whether to clear buildings (v1+)
@@ -53,16 +53,13 @@
 #include "ext/foundation_piles/foundation_piles.h"
 #include "Component/ComponentDescription.h"   // B8 RT2: ::Object::SerializeExternal<ComponentDescription> (the downcast needs it complete)
 
-// Diagnostic trace for the harvest-completion investigation. Gated by
-// BANISHED_CLEAR_TRACE (shared with clearareacomponent_states.cpp); default off.
-
 // ============================================================
 // Sub-functions, called by name (B3R; the module exe_bodies.h headers)
 // ============================================================
 //   0x140029c10 WorkLeaf_BstSerializeIBPpair_29c10   0x140029de0 WorkCellBST_Serialize_9de0
-//   0x140002340 Reimpl_ExternalPtr_Serialize_StringTable
+//   0x140002340 ::Object::SerializeExternal<ComponentDescription>
 //   0x1400298a0 WorkLeaf_BstRemoveByIBP_298a0        0x14001ca60 WorkCellBST_Remove_ca60
-//   0x14000e320 WorkBase_TreeNodeFree_e320           0x1400c5400 WorkBase_TaskListCleanup_c5400
+//   0x14000e320 the members' ~Set (node free)        0x1400c5400 ActionStack::Clear
 
 // ============================================================
 // ClearArea::Ctor (0x1400e68d0)
@@ -71,7 +68,7 @@
 // class's table).
 ClearArea::ClearArea()
     : Work(),
-      _targetFilter(nullptr) { // map entity IBP
+      _targetFilter(nullptr) { // +0x68: the ExternalPtr<ComponentDescription> filter
 }
 
 // ============================================================
@@ -116,7 +113,7 @@ void ClearArea::Persist(IO::Stream& stream) {
     // Serialize the description ExternalPtr at +0x68
     ::Object::SerializeExternal<ComponentDescription>(serializer, _targetFilter);
 
-    // Serialize clearTrees bool at +0x70 (the field is uint8_t storage)
+    // Serialize clearTrees bool at +0x70
     serializer.Serialize(_clearTrees, nullptr);
 
     // Version >= 1: serialize additional fields
@@ -136,7 +133,7 @@ void ClearArea::Persist(IO::Stream& stream) {
 // ============================================================
 // ClearArea::OnComplete (0x1400e5e30)
 // ============================================================
-// Called when a work task completes. Inserts completed entry into
+// Called when a work task completes. Removes the entry from
 // the entity tree (+0x48) if entry is non-null, then searches
 // the cell tree (+0x58) for the given cellIndex and removes it.
 //
@@ -201,14 +198,14 @@ int ClearArea::OnCancel(CitizenComponent** citizen, ComponentEntity** treeEntry,
 // ClearArea::Cleanup (0x1400e6650)
 // ============================================================
 // Iterates entity tree (+0x48): while count > 0, finds the
-// rightmost (last) tree node, gets its entity's state machine
-// component (+0x278), and removes the pending action (+0x48).
+// leftmost tree node, gets its citizen's CharacterComponent
+// (+0x278), and clears its action stack (+0x48).
 // Then does the same for cell tree (+0x58).
 int ClearArea::Cleanup() {
 
     // Clean up entity tree (+0x48)
     while (_entities._count > 0) {
-        // Find rightmost (last) node in BST
+        // Find leftmost node in BST
         WorkEntitySetNode* node = _entities._root;
         WorkEntitySetNode* prev = node;
         while (node != nullptr) {
@@ -265,15 +262,15 @@ int ClearArea::GetPriority() {
 // ============================================================
 // Execute's sub-functions, called by name (B3R)
 // ============================================================
-//   0x14012e5c0 WorkComponent::CalcMaxWorkers   0x14009fc00 WorkLeaf_GetTilesInArea_9fc00
-//   0x14009d7c0 WorkLeaf_SortTilesByDistance_9d7c0  0x1400052c0 WorkBase_FindComponent_52c0
-//   0x14009ccf0 WorkGrid_FindCell_9ccf0        0x1400a00f0 WorkBase_ValidateCell_a00f0
-//   0x1400f6ef0 WorkImpl_BuildStructureStep_6ef0  0x14009f3e0 Reimpl_MapGetTerrainPos
+//   0x14012e5c0 WorkComponent::CalcMaxWorkers   0x14009fc00 Map::GetTilesInArea
+//   0x14009d7c0 Map::SortTilesByDistance        0x1400052c0 ComponentEntity::FindComponent<T>
+//   0x14009ccf0 Map::FindCell                   0x1400a00f0 Map::ValidateCell
+//   0x1400f6ef0 Work::StepProgress              0x14009f3e0 Map::GetTerrainPos
 //   0x1400c1eb0 WorkAct_PerformWorkCtor_c1eb0  0x1400bffd0 WorkAct_PerformWorkCtor_bffd0
 //   0x140029920 WorkLeaf_BstInsertByIBP_29920  0x140029a40 WorkCellBST_Insert_9a40
-//   0x1400f8620 WorkGrid_TryAssignWorkplace_f8620
+//   0x1400f8620 WorkScheduler::TryAssignWorkplace
 //   slot 0x140152b68 System::MemoryAllocator::MemFree; DAT_140172114 kRdata_140172114
-// (0x140002e10 / 0x140004680 are fn_FindComponent_WorkPlace / _Build, engine_funcs.h.)
+// (0x140002e10 / 0x140004680 are FindComponent<WorkPlaceComponent> / FindComponent<MapComponent>.)
 // RawMaterialComponent (DAT_1401c7c80) and WorkComponent (DAT_1401c8070) are read
 // through their classes' TypeId().
 
@@ -306,7 +303,7 @@ int ClearArea::Execute(CitizenComponent** citizenIBP, System::Time* time) {
     }
 
     // --- Check the work entity's WorkPlaceComponent is accepting ---
-    // (fn_FindComponent_WorkPlace, 0x140002e10)
+    // (FindComponent<WorkPlaceComponent>, 0x140002e10)
     WorkPlaceComponent* workPlace = _entity.Get()->FindComponent<WorkPlaceComponent>();
 
     if (workPlace != nullptr) {
@@ -341,7 +338,7 @@ int ClearArea::Execute(CitizenComponent** citizenIBP, System::Time* time) {
     // faulted on READ of 0x38.
     char includeEmptyTiles = _clearGround;  // +0x71 = clearGround flag
 
-    // Find MapComponent on the work entity (fn_FindComponent_Build: the cell is MapComponent)
+    // Find MapComponent on the work entity (FindComponent<MapComponent>)
     MapComponent* area = _entity.Get()->FindComponent<MapComponent>();
 
     // Read area bounds (shorts at +0x28, +0x2a, +0x2c, +0x2e)
@@ -453,7 +450,7 @@ int ClearArea::Execute(CitizenComponent** citizenIBP, System::Time* time) {
                 int buildResult = static_cast<int>(StepProgress(&actionStackPtr,
                                                           (uint32_t)cellIdx, refTileIdx, time));   // the door read EAX
                 if (!(buildResult & 0xFF)) {
-                    // BuildStructure_impl returned false → result = 0 (no work assigned)
+                    // StepProgress returned false → result = 0 (no work assigned)
                     result = 0;
                     goto cleanup;
                 }
@@ -616,7 +613,7 @@ int ClearArea::Execute(CitizenComponent** citizenIBP, System::Time* time) {
         }
 
         // ============================================================
-        // Phase 3: Clear natural resources (_clearPiles)
+        // Phase 3: Clear raw-material piles (_clearPiles)
         // ============================================================
         if (_clearPiles != 0 && tileCount > 0) {
             GridTile* tiles = tileArray.data;
@@ -682,12 +679,10 @@ cleanup:
 // Invalid entries are collected and removed from the entity tree.
 // Then checks the cell tree at +0x58: if any entry is invalid,
 // returns 0 immediately (early exit).
-// Returns: 1 if all entries valid (or both BSTs empty), 0 otherwise.
-//
-// NOT HOOKED — bug class 3 (RSP capture), standalone exe only.
+// Returns: 0 if a cell-tree entry is invalid, else 1 (invalid entity-tree entries are removed).
 // ============================================================
 
-// Sub-functions, called by name (B3R): 0x1400f7100 WorkBase_ValidateTask_f7100,
+// Sub-functions, called by name (B3R): 0x1400f7100 Work::ValidateTask,
 // 0x14001ca60 WorkCellBST_Remove_ca60.
 
 int ClearArea::Validate() {

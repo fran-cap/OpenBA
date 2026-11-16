@@ -3,8 +3,7 @@
 // ============================================================================
 // The suite states RETAIL slots and lets the type decide the compiler's
 // (B3X_RULES X5). This proves the helper shifts: the same retail numbers pass
-// on a class still on a slot-0 `DeletingDtor` (compiler == retail: since B3X
-// W1 that is only the twelve Video::*Data classes, exempt by decision X1) and
+// on a class on a slot-0 `DeletingDtor` member (compiler == retail) and
 // on a class with `virtual ~T()` (GCC's D1 + D0 take slots 0 and 1, so retail
 // n >= 1 is compiler n + 1 — every flipped class).
 // ============================================================================
@@ -22,7 +21,7 @@ struct WithVirtualDtor {
     virtual int Second() { return 2; }
 };
 
-// The exempt shape (the Video::*Data seam, B3X_RULES X1): the same retail
+// The slot-0 member shape: the same retail
 // table, slot 0 declared as a member.
 struct WithDeletingDtor {
     virtual WithDeletingDtor* DeletingDtor(unsigned) { return this; }

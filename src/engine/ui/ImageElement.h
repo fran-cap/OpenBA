@@ -12,7 +12,7 @@
 //
 // PARENT `UI::Element` — READ, not inferred (B36_SLOTS.md section 3):
 //     ?_ParentTypeName@ImageElement@UI@@CAPEBDXZ  @0x180036280 -> "Element"
-// RULE B5-15 / B6-7 — the two literals, RECORDED, NOT USED:
+// RULE B5-15 / B6-7 — the two literals, which DEFINE_TYPE (imageelement.cpp) carries:
 //     ?_TypeName@ImageElement@UI@@CAPEBDXZ        @0x180036270 -> "ImageElement"
 //     ?_ParentTypeName@ImageElement@UI@@CAPEBDXZ  @0x180036280 -> "Element"
 //
@@ -103,10 +103,10 @@ public:
     // [7..11] Element's, inherited.
 
     // ---- non-virtual — PORTED; the four bodies are DEFINED in
-    // widgets_layout.cpp (fragment pass), whose registered doors delegate.
+    // widgets_layout.cpp (fragment pass).
     // `?GetSprite@ImageElement@UI@@QEBA?AVSprite@2@XZ` is a hidden-retslot
-    // export; the door keeps `(this, ret)` and the member returns by value.
-    Sprite GetSprite() const;                                     // 0x1801182a0  RETSLOT door
+    // export; the member returns by value.
+    Sprite GetSprite() const;                                     // 0x1801182a0  RETSLOT
     void   SetRotation(float degrees);                            // 0x1801182c0
     // `?SetSprite@ImageElement@UI@@QEAAXVSprite@2@@Z` — the 0x10-byte Sprite BY
     // VALUE, which retail passes by HIDDEN POINTER (RULE B6-11): the register

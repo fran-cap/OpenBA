@@ -5,7 +5,7 @@
 // `TradeComponent` (the trading post: merchant table, buy orders, dock state) as
 // a real C++ class with a compiler-generated vtable and its state controller as
 // an EMBEDDED MEMBER at +0x88, after the class's own 0x60 bytes (B38_RULES.md
-// D1-D6; there is no multiple inheritance). The engine/types POD is a forwarder.
+// D1-D6; there is no multiple inheritance).
 //
 // RETAIL (B38_SLOTS.md §2 / §6, bytes read 2026-09-26):
 //   reflected "TradeComponent", parent "ControllerComponent", ti 0x1401c4b80

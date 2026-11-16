@@ -12,7 +12,7 @@
 // Factory  : MemAlloc 0x78 + External ctor + vtable + field defaults (zero).
 // Serialize (vtable +0x28, 0x1400478f0 CreateFencedDescription_Slot5), stream order:
 //   enum  @ +0x20  (encoding vtable +0x98, 3-arg variant: (encoding, field, 0))
-//   ExternalRefArray(count=6) @ +0x28  (FUN_1400049c0 / fn_ExternalRefArray_Serialize)
+//   ExternalRefArray(count=6) @ +0x28  (FUN_1400049c0 / Object::SerializeExternalArray)
 //   int   @ +0x58
 //   int   @ +0x5c
 //   int   @ +0x60
@@ -21,9 +21,6 @@
 //   ExternalPtr @ +0x70  (FUN_140002340 / Reimpl_ExternalPtr_Serialize_StringTable)
 // GetVersion (vtable +0x18, 0x1400479c0): mov eax,3; ret -> version 3.
 // Dtor (vtable +0x00, 0x140004960): External::~External + free.
-//
-// NOTE: fn_ExternalRefArray_Serialize -> exe FUN_1400049c0, null in standalone until
-// 0x1400049c0 is registered (REPORTED). param4 is a dead init -> nullptr safe.
 //
 // Field knowledge harvested from engine/reimpl/createfenceddescription.cpp.
 // Decompiled from Application-x64.exe (READ-ONLY recon).

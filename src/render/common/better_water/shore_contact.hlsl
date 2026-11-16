@@ -16,9 +16,10 @@
 // times the ray's steepness that is its depth below the surface. (A ratio of the raw 1 - z values is
 // NOT enough: it over-reads the depth by far / (far - vModel), 1.24x at 100 units.)
 //
-// THE RING. Foam also spreads a little OUTWARD from the model onto the open water: eight taps on a
-// ring of `ringRadius` world units round the pixel (the screen offsets of a world unit from the view
-// direction's derivatives, as the shore pass finds bends) look for scene depth within `width` of the
+// THE RING. Foam also spreads a little OUTWARD from the model onto the open water: eight taps on each
+// of two rings, at half and all of `ringRadius` world units round the pixel (the screen offsets of a
+// world unit from the view direction's derivatives, as the shore pass finds bends) look for scene depth
+// within `width` of the
 // water surface -- the part of a model at the waterline, whether just above it (in front of the
 // water) or just below. Anything further off the surface (a tree on the bank, a roof, the lake bed)
 // is ignored.

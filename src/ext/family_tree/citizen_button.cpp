@@ -2,7 +2,8 @@
 // src/ext/family_tree/citizen_button.cpp -- ext.family_tree's "Family" button on the citizen panel
 // ============================================================================
 // docs/extensions/handins/FAMILYTREE.md section 4b. The citizen panel (CitizenUI, citizenui.cpp) gets one
-// more button beside Follow. It is made from our own description (FamilyTreePage.rsc:buttonFamilyCitizen) and
+// more button beside Follow. It is made from the Follow button's own description (our own
+// FamilyTreePage.rsc:buttonFamilyCitizen when Follow has none) and
 // added to the element that holds the Follow button, so whatever the panel's layout is (the retail one or a
 // mod's), the button lands in the same container. The container must be a plain group (every child laid out
 // by its own alignment); anything else is left alone and logged. The button is right-aligned, with a right

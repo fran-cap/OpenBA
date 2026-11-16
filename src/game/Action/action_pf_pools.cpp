@@ -26,7 +26,7 @@
 #include "Game/WorldGeometryElements.h"
 #include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
 #include <cstdint>
-#include <cstdio>    // [POOLDIAG] diagnostic reporting
+#include <cstdio>
 #include <cstdlib>
 
 namespace {

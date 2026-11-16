@@ -2,7 +2,7 @@
 // src/render/dx11/better_trees/billboard_shadow_stage.cpp -- billboard_shadow_stage.h,
 // billboard_shadow_backend.h
 // ============================================================================
-// NOT RETAIL (ext.billboard_shadow). Log lines: `[BillboardShadow] ...` on stderr
+// NOT RETAIL (ext.better_trees' billboard_shadow stage). Log lines: `[BillboardShadow] ...` on stderr
 // (standalone_error.log).
 // ============================================================================
 #include "better_trees/billboard_shadow_stage.h"

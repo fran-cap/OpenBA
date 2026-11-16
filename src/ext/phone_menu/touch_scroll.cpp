@@ -354,7 +354,8 @@ int32_t FitFrames(UI::Element* list, int32_t taken) {
     return changes;
 }
 
-// Every list of the window at `cap` (0: none, the description's height). Returns the lists changed.
+// Every list of the window at `cap` (0: none, the description's height). Returns the lists and frames
+// changed.
 int32_t ApplyCap(Lists& lists, int32_t cap) {
     int32_t changes = 0;
     for (int32_t i = 0; i < lists.count; ++i) {
@@ -421,7 +422,7 @@ bool IsTopWindow(const UI::DialogInstance* d, UI::Element*& root) {
     return true;
 }
 
-// The safe height at the player's UI scale (touch_math.h InsetLayout), 0 when unknown.
+// The safe height at the player's UI scale (phone_math.h InsetLayout), 0 when unknown.
 int32_t SafeHeight(const UI::DialogInstance* d) {
     const UI::UserInterface* ui = d->_ui;
     const ::Video::Device* device = ::Video::Device::_singleton;

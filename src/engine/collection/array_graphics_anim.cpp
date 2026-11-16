@@ -41,12 +41,11 @@
 // ---------------------------------------------------------------------------
 // THE ONE THING IN HERE THAT LOOKS LIKE A TRANSCRIPTION ERROR AND IS NOT
 // ---------------------------------------------------------------------------
-// `kInitMeshNode` does NOT write +0x44, and `kInitAnimLayer` does not write
+// `InitMeshNode` does NOT write +0x44, and `InitAnimLayer` does not write
 // +0x10 (the playback speed) or +0x31..+0x37. Those are retail's holes: the
 // `else` arm of each fill loop stores exactly the qwords listed beside it below
 // and nothing more. Helpfully zeroing them would be unfaithful AND would make an
-// oracle that compared them fail 100% of calls
-// (reference_oracle_must_not_compare_unwritten_bytes.md). Every caller in this
+// oracle that compared them fail 100% of calls. Every caller in this
 // cluster overwrites the speed before reading it — AnimationState::
 // PlayAnimation writes it on the line after it grows the array — which is
 // presumably why MSVC was allowed to elide the stores. Retail's fill loop also
@@ -54,9 +53,9 @@
 // node write path serializes it (review F-049, the NOT RETAIL note at
 // MeshNodeInit below).
 //
-// ALLOCATOR BOUNDARY: none of its own. `MemAlloc` / `MemFree` are array.cpp's
-// two accessors, and the lane-E dependency its banner states applies here
-// unchanged.
+// ALLOCATOR BOUNDARY: none of its own. `MemAlloc` / `MemFree` are rtcoll's
+// two accessors (declared in Collection.h, MemAlloc defined in array.cpp), which
+// call System::MemoryAllocator::MemAlloc / MemFree by name.
 // ============================================================================
 
 #include <cstdint>
@@ -70,8 +69,7 @@
 #include "graphics/GraphicsMesh.h"     // B.4: GraphicsMesh::Node
 
 // The three element copy constructors live with the class they belong to, in
-// src/engine/graphics/animationstate.cpp. They are reached by name and not by
-// address so that this file has no dependency on registration ORDER.
+// src/engine/graphics/animationstate.cpp, and are called by name.
 extern "C" void* RtGraphics_MeshNode_CopyCtor(void* dst, const void* src);
 extern "C" void* RtGraphics_AnimState_CopyCtor(void* dst, const void* src);
 extern "C" void* RtGraphics_AnimInstance_CopyCtor(void* dst, const void* src);
@@ -295,7 +293,7 @@ static_assert(kSpec_AnimState.seedZeroHi      <= kSpec_AnimState.stride, "AnimSt
 static_assert(kSpec_AnimInstance.seedZeroHi   <= kSpec_AnimInstance.stride, "Instance seed");
 
 // J4 -- Collection::Array<T>::operator= for the four non-pointer rows here is
-// array_destroy.cpp's ArrayAssignCore over the row (the typed `Assign` of each
+// Collection.h's ArrayAssignCore over the row (the typed `Assign` of each
 // alias below). B.4 Z MIRROR2 GFX: the file-local copy of that body and its two
 // J1 clear functions had no caller left and are deleted.
 
@@ -303,11 +301,11 @@ static_assert(kSpec_AnimInstance.seedZeroHi   <= kSpec_AnimInstance.stride, "Ins
 }  // namespace rtcoll
 
 // ============================================================================
-// The registered entry points. One free function per ADDRESS; the address is in
-// the name so a crash log or a census line names it directly.
+// The entry points. One free function per ADDRESS; the address is in
+// the name so a crash log names it directly.
 // ============================================================================
 // B3R RT-VG: namespace rtcoll (external linkage), was an anonymous namespace --
-// the graphics readers call these by name (types/graphics/AnimationState.h).
+// the graphics readers call these by name (src/engine/graphics/AnimationState.h).
 namespace rtcoll {
 
 using namespace rtcoll::gfxanim;
@@ -322,9 +320,10 @@ void* Rt_ArrayDtor_180014090(Graphics::GraphicsMesh::NodeArray* a) { a->~Array()
 // 0x18005bce0, which returns at once for a size <= 0) then the J1 free-and-zero.
 void* Rt_ArrayDtor_18005bbb0(Graphics::AnimationStateArray* a) { a->~Array(); return nullptr; }
 
-// ---- the three per-element destroy helpers --------------------------------
-// Retail's arity, including the `this` every one of them spills to the shadow
-// space and never reads (array_destroy.cpp's "ignoredThis" note applies).
+// ---- the three per-element destroy helpers are in gfxanim above ------------
+// (DestroyMeshNodeRange, DestroyAnimStateRange, DestroyInstanceRange): retail's
+// arity, including the `this` every one of them spills to the shadow space and
+// never reads (array_destroy.cpp's "ignoredThis" note applies).
 
 // ---- J3: SetSize ----------------------------------------------------------
 void Rt_SetSize_18005aa30(Graphics::GraphicsMesh::NodeArray* a, int n) {   // Array<GraphicsMesh::Node>
@@ -350,7 +349,7 @@ void Rt_SetSize_18005be30(void* a, int n, const void* fill) {
 }
 
 // ---- J4: operator= --------------------------------------------------------
-// B.4 Y RT: typed. `NodeArray::Assign` is the same J4 body (array_destroy.cpp's
+// B.4 Y RT: typed. `NodeArray::Assign` is the same J4 body (Collection.h's
 // ArrayAssignCore: self-test, clear = the ~Array above, grow, then
 // kSpec_MeshNode's assign = the copy ctor 0x1800127f0 per element) with the
 // row's stride 0x48 and alignment 8.
@@ -360,7 +359,7 @@ Graphics::GraphicsMesh::NodeArray* Rt_ArrayAssign_180013960(Graphics::GraphicsMe
     return d;
 }
 // B.4 Z RT2: typed. `AnimationStateArray::Assign` is the same J4 body
-// (array_destroy.cpp's ArrayAssignCore: self-test, clear = the ~Array above,
+// (Collection.h's ArrayAssignCore: self-test, clear = the ~Array above,
 // grow, then kSpec_AnimState's assign = the copy ctor 0x18005b660 per element)
 // with the row's stride 0x48 and alignment 8.
 Graphics::AnimationStateArray* Rt_ArrayAssign_18005b130(Graphics::AnimationStateArray* d,
@@ -369,7 +368,7 @@ Graphics::AnimationStateArray* Rt_ArrayAssign_18005b130(Graphics::AnimationState
     return d;
 }
 // B.4 Z MIRROR2 GFX: typed. `AnimationState::LayerArray::Assign` is the same J4
-// body (array_destroy.cpp's ArrayAssignCore: self-test, clear = the row's
+// body (Collection.h's ArrayAssignCore: self-test, clear = the row's
 // ~Array = J1 -- what Clear_18001c480 was --, grow at the row's stride 0x38 and
 // alignment 8, then the row's assign Assign38Q per element).
 Graphics::AnimationState::LayerArray* Rt_ArrayAssign_18001b700(
@@ -379,7 +378,7 @@ Graphics::AnimationState::LayerArray* Rt_ArrayAssign_18001b700(
     return d;
 }
 // B.4 Z MIRROR2 GFX: typed. `InterpTransformArray::Assign` is the same J4 body
-// (array_destroy.cpp's ArrayAssignCore: self-test, J1 clear -- what
+// (Collection.h's ArrayAssignCore: self-test, J1 clear -- what
 // Clear_18001c550 was --, grow at the row's stride 0x38 and alignment 4, then
 // the row's Assign38D per element).
 Graphics::InterpTransformArray* Rt_ArrayAssign_18001b810(

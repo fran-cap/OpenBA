@@ -5,7 +5,7 @@ Reads the CC0 leaf photographs images/foliage_15.png, foliage_19.png and foliage
 alpha; not checked in: about 45 MB) and writes src/ext/better_trees/leaf_textures_data.h: each leaf cropped
 to its alpha, fitted into a 64 x 64 cell (2-texel clear margin, aspect kept, the long axis along the
 cell's diagonal so the leaf fills the card), as two 8-bit planes -- the luminance, stretched so the leaf's
-mean is kTargetMean and its detail is kept, and the alpha. The atlas colours them at load
+mean is TARGET_MEAN and its detail is kept, and the alpha. The atlas colours them at load
 (leaf_fall.cpp PaintAtlas).
 
     python tools/leaf_textures_bake.py          (needs Pillow)

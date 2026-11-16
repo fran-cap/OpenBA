@@ -7,8 +7,8 @@
 // PARENT `UI::ElementDescription` — READ, not inferred:
 //     ?_ParentTypeName@ListDescription@UI@@CAPEBDXZ @0x180044b70 -> "ElementDescription"
 //
-// RULE B5-15 / B6-7 — THE TWO NAME LITERALS, RECORDED, NOT USED (slots 1/2 keep
-// reading the minted `?_typeInfo@ListDescription@UI@@…`, 0x1801fa0e8):
+// RULE B5-15 / B6-7 — THE TWO NAME LITERALS (retail's `?_typeInfo@ListDescription@UI@@…`,
+// 0x1801fa0e8); slots 1/2 read the class's own DEFINE_TYPE record, which carries them:
 //     ?_TypeName@ListDescription@UI@@CAPEBDXZ       @0x180044b60 -> "ListDescription"
 //     ?_ParentTypeName@ListDescription@UI@@CAPEBDXZ @0x180044b70 -> "ElementDescription"
 //
@@ -26,8 +26,7 @@
 // own slot 0 (the vector deleting dtor), a virtual ~ListDescription holding
 // the retired ??1 door's body, and the factory pair as the class's own statics;
 // every live one wears the COMPILER's table. The minted `??_7ListDescription@UI@@6B@`,
-// its RT_DELDTOR row 0x180044ed0 and the ctor / dtor / slot doors are retired
-// (tools/rt_mint_retired/ui-b.txt).
+// its RT_DELDTOR row 0x180044ed0 and the ctor / dtor / slot doors are retired.
 // ABSTRACT (slot 0 pure), no real ctor: every live one is built by the
 // `??0ListDescription` DOOR (listdescription.cpp) and wears the MINTED table.
 //

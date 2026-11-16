@@ -11,8 +11,9 @@
 // `GetPackfileId` (filesystem.cpp), `OpenFile` (filesystem_openfile.cpp) and
 // LoadPackages' `IndexFind` (filesystem_packages.cpp).
 //
-// The tree changes in exactly three places, and each keeps the index in step:
-// LoadPackages' insert (`PackIndexInsert` on the fresh node), ClosePackages and
+// The tree changes in four places, and each keeps the index in step:
+// LoadPackages' insert (`PackIndexInsert` on the fresh node), ext.package_cache's
+// Restore (`PackIndexInsert` on each node it builds back), ClosePackages and
 // ~FileSystem (`PackIndexClear`, before their nodes are freed). The override arm
 // of LoadPackages rewrites a node's value, never its key, so the index is
 // untouched by it.

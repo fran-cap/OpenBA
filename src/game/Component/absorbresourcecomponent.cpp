@@ -1,9 +1,9 @@
 // src/game/Component/absorbresourcecomponent.cpp
 // Clean reimplementation of AbsorbResourceComponent lifecycle methods.
 //
-// AbsorbResourceComponent (0x48 bytes) is a ControllerComponent subclass with no
-// additional fields. Only one non-trivial vtable override:
-//   Shutdown (0x140105c00) -- Component_Serialize + two empty Serializer blocks
+// AbsorbResourceComponent (0x48 bytes) is a ControllerComponent subclass whose one
+// field is the embedded controller at +0x28. Only one non-trivial vtable override:
+//   Persist (0x140105c00) -- Component::Persist + two empty Serializer blocks
 //
 // Decompiled from Application-x64.exe using Ghidra.
 
@@ -65,8 +65,8 @@ using AbsorbResourceCtrlDispatch = ::ControllerLive::Dispatcher<AbsorbResourceCt
 // derefs are UNGUARDED in retail and stay so: retail relies on every entity
 // carrying this component also carrying a MapComponent and a StorageComponent.
 // The helpers are called directly: FindComponent<MapComponent> 0x140004680,
-// FindComponent<StorageComponent> 0x140006270, Pf_StorageCanAccept_cd80 0x14012cd80, ActRm_StorageAdd_d000 0x14012d000,
-// ActHunt_MarkEntityRemoval_c2ea0 0x1400c2ea0.
+// FindComponent<StorageComponent> 0x140006270, StorageComponent::CanAdd 0x14012cd80,
+// StorageComponent::AddItem 0x14012d000, ComponentEntity::MarkForRemoval 0x1400c2ea0.
 char AbsorbResourceComponent::State0Tick() {
     // ENDGAME B.3.9 (B39_RULES.md D5): 0x1401c7c80 is RawMaterialComponent's registered
     // type-id cell (INVENTORY_C Table 1), read here BY CELL, not by the old local's name.
@@ -101,8 +101,8 @@ char AbsorbResourceComponent::State0Tick() {
             ComponentDescription* item = cellEntity->_description;
             // Retail reads the int32 quantity (0x140105ac9 MOV EDI,dword ptr [RAX+0x28]).
             const int quantity = rawMaterial->quantity;
-            // Pf_StorageCanAccept_cd80 / ActRm_StorageAdd_d000 are forwarders: their bodies
-            // StorageCanAdd (0x14012cd80) and StorageAdd (0x14012d000) are called.
+            // StorageComponent::CanAdd (0x14012cd80) and StorageComponent::AddItem (0x14012d000)
+            // are called directly.
             if (!(storage->CanAdd(item, quantity) & 0xff)) continue;
             storage->AddItem(item,
                        rawMaterial->quantity);

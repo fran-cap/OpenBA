@@ -1,9 +1,9 @@
 // ============================================================================
 // tests/unit/platform_sync_test.cpp -- Phase D.4 THREADS E.1: the Platform:: primitives
 // ============================================================================
-// plans/THREADS.md E.1. Pins the semantics the engine relies on (System::Thread's
-// three events, its wait-any loop, the recursive locks, the counters), so the POSIX
-// impl of step E.9 has a contract to meet. The EVENT tests run against BOTH impls:
+// docs/runtime_port/phase_d/plans/THREADS.md E.1. Pins the semantics the engine relies on
+// (System::Thread's three events, its wait-any loop, the recursive locks, the counters), so the
+// POSIX impl of step E.9 has a contract to meet. The EVENT tests run against BOTH impls:
 // the Win32 one (src/platform/win/sync_win.cpp) and the std one
 // (src/platform/common/event_std.cpp, built and run on the Windows host too).
 // ============================================================================

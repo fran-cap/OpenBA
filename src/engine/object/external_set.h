@@ -31,10 +31,7 @@
 //   | find              | (no door in that lane)    | 0x18002dd70 |
 //   | element+node free | (no door in that lane)    | 0x18002ee40 |
 //
-// **Registering one address to another instantiation's body would be wrong
-// even where the bytes agree**, because `RegisterRuntimeAddr` is the seam a
-// caller reaches by ADDRESS: the entry point has to exist at the address the
-// caller jumps to. Each row above is registered separately. Where two rows
+// Each row above is transcribed separately. Where two rows
 // genuinely share bytes that is recorded in the .cpp WITH the comparison, never
 // assumed — avl_trees.cpp set that precedent and gives the reason: this family
 // has already produced four near-misses that passed green runs and differed
@@ -51,18 +48,6 @@
 //     node is freed.
 // So this file uses the real `RtObject::ResourceEntry` and the layout claim is
 // the one External.h already `static_assert`s.
-//
-// ORACLE
-// ------
-// Every entry point here is a destructive mutator on one shared tree, so a live
-// replay is impossible — running ours then theirs at a real call site inserts
-// the same key twice and retail's second insert RETURNS EARLY, which makes the
-// comparison vacuously green (the trap lane D recorded on
-// `KeyMap::RegisterInput`). Verification is the LOCKSTEP SYNTHETIC-SUBJECT
-// probe in external_set_probe.cpp: two private `Set`s, the same script, ours
-// through these bodies and theirs through the shipped ones reached with
-// `ResolveRuntimeRaw`, compared AFTER EVERY STEP on shape, balance, height,
-// parent linkage AND the element payload.
 //
 // PORTABILITY: no <windows.h>, per PLAN.md §4.1 decision 1.
 // ============================================================================

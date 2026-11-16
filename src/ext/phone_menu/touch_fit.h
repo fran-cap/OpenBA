@@ -4,7 +4,8 @@
 // ============================================================================
 // NOT RETAIL (docs/extensions/handins/PHONEMENU.md §2, session log docs/android/P9_DIALOGS.md).
 // Same row, same switch and same seam as the rest of ext.phone_menu (UI::UserInterface::
-// _extDialogPlace); phone_menu.cpp's Place hands every call here first. With the row on:
+// _extDialogPlace); phone_menu.cpp's Place hands here every call ext.touch_mode does not place, before
+// its own placement. With the row on:
 //   (a) every scroll bar is kScrollBarFactor times thicker (touch_math.h), the scrolling list beside
 //       it keeps its own width (the container grows by what the bar gained);
 //   (b) every dialog's close button (`buttonClose`) shows its cross kCloseButtonFactor times larger;
@@ -35,7 +36,8 @@ class DialogInstance;
 namespace Ext {
 namespace PhoneMenu {
 
-// UserInterface::_extDialogPlace, every call, before phone_menu.cpp's own handling (row on or off).
+// UserInterface::_extDialogPlace, every call ext.touch_mode does not place, before phone_menu.cpp's own
+// handling (row on or off).
 // At kExtPlaceLayout on the first dialog of a UserInterface's list (once a frame per UI) it applies
 // (a) and (b) to every open dialog of that UI (or undoes them with the row off) and decides (c).
 void TouchFrame(int32_t point, const UI::DialogInstance* dialog);

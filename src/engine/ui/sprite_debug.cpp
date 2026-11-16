@@ -1,14 +1,13 @@
 // sprite_debug.cpp — Debug logging wrappers for UI::Sprite functions.
 //
 // These are NOT hooks or trampolines. They are call-site wrappers that log
-// parameters and results, then delegate to the real engine function via the
-// existing function pointers in engine_funcs.h.
+// parameters and results around the real UI::Sprite constructors and IsValid.
 // ENDGAME B.3.6 closing pass: UI::Sprite is a real value type (RULE B6-10), so
 // the wrappers construct / test it as C++ instead of calling the engine_funcs
 // ctor doors, which are retired.
 //
-// Usage: In debug builds, call Debug_Sprite_* instead of fn_Sprite_* to get
-// printf logging of sprite construction and validation calls.
+// Usage: In debug builds, call Debug_Sprite_* instead of the UI::Sprite members
+// to get printf logging of sprite construction and validation calls.
 
 #include "sprite_debug.h"
 #include "object/External.h"
@@ -57,12 +56,6 @@ UI::Sprite* Debug_Sprite_DefaultCtor(void* retval) {
 #endif
     return s;
 }
-
-// ============================================================
-// Debug wrapper for UI::Sprite::Sprite(ExternalPtr<SpriteSheet>, int)
-// Original: 0x18011ba30
-// Direct construction with known sprite index (no name lookup)
-// ============================================================
 
 // ============================================================
 // Debug wrapper for UI::Sprite::IsValid()

@@ -32,10 +32,6 @@
 //     "typePtr->_type == type && it->key == type"   Object\Factory.cpp:0x8c
 // i.e. the node holds BOTH `it->key` (node+0x00) and `typePtr->_type`
 // (node+0x08), and they are required to agree.
-//
-// NO OBJECT HERE IS EVER ALLOCATED BY US. Wave 3 lane A only reads these
-// structures at their live DLL addresses, and only `BaseTypeInfo` is ever
-// written — by the ported constructor, into storage the CALLER owns.
 // ============================================================================
 
 #include <cstdint>
@@ -59,8 +55,8 @@ namespace RtObject {
 //     (**(code **)(*(longlong *)this + 0x10))()
 // so vtable slot 2 (+0x10) is `virtual uint32_t GetTypeId() const`. Every
 // concrete implementation of that slot seen in the exe is a two-instruction
-// `MOV EAX,[rip+typeIdGlobal]; RET`, which is why calling it twice (as the
-// diff harness does) is free of side effects.
+// `MOV EAX,[rip+typeIdGlobal]; RET`, which is why calling it twice is free of
+// side effects.
 //
 // The rest of Base's layout belongs to lanes B/C; do not add fields here.
 // ============================================================
@@ -201,10 +197,9 @@ static_assert(offsetof(TypeNode, _pad04) == 0x4, "TypeNode::_pad04");
 // `BaseTypeInfo::typeId` is CRC-32 (reflected, poly 0xEDB88320) of the type's
 // `name` widened to UTF-16LE -- retail's private
 // ?GetTypeFromNameCRC@Factory@Object@@AEBAIPEBD@Z. Defined in
-// src/engine/object/type_system.cpp, where Factory::Startup's own
-// `info->typeId = TypeNameCRC(info->name)` lives; declared here so
-// standalone/rt_data_mint.cpp can stamp a minted node with the SAME value
-// instead of leaving it at the ctor sentinel.
+// src/engine/object/type_system.cpp as a forward to `Object::TypeNameCRC`
+// (type_reflection.cpp), the hash Factory::Startup's own
+// `info->typeId = TypeNameCRC(info->name)` uses.
 // ============================================================
 uint32_t TypeIdFromName(const char* name);
 
@@ -250,8 +245,6 @@ class BaseTypeInfo;
 // is `LEA RAX,[0x180154788]; MOV [RCX],RAX; RET`, so Base's vtable is at
 // 0x180154788, and it has EXACTLY THREE SLOTS — bounded by
 // `??_7External@Object@@6B@` starting 0x18 bytes later at 0x1801547a0.
-// standalone/rt_data_mint_tables.inc's own generated row agrees independently:
-// "??_7Base@Object@@6B@  DLL 0x180154788  3 slots".
 //
 //   [0] +0x00  0x1800065b0  vector deleting dtor (`MOV EDX,0x8` = elem size 8,
 //                           `LEA R9,[0x1800c0360]` = ~Base)
@@ -336,17 +329,10 @@ inline void Destroy(Base* p) { delete p; }
 
 // `Object::IsDerivedFromNullSafe(p, id)` — STANDALONE DEVIATION.
 // Wraps `?IsDerivedFrom@Base@Object@@QEBA_NI@Z` (retail 0x1800c0390,
-// `Base::IsDerivedFrom` above), whose body dereferences `this` unguarded. It is
-// exactly the trampoline `EngineFuncsInit` (engine/funcs/engine_funcs.cpp,
-// `IsDerivedFrom_NullSafe`) installs over `fn_IsDerivedFrom` today: a null
-// object answers false, anything else is the registered body
-// `RtObject_Base_IsDerivedFrom` = `reinterpret_cast<const Base*>(p)->
-// IsDerivedFrom(id)`. (The trampoline's other arm, "no real body -> false", is
-// unreachable: the export is always registered.) Retail never passes null;
-// standalone dialogs keep ticking after an entity's weak ref is nulled, and
-// dozens of ported call sites hand that ref straight in. The readers of
-// `fn_IsDerivedFrom` convert to this helper (B3R_RULES §3) so no site changes
-// behaviour; removing the deviation is not this step. ENDGAME B.3R, W0-P0c.
+// `Base::IsDerivedFrom` above), whose body dereferences `this` unguarded: a null
+// object answers false, anything else is `p->IsDerivedFrom(id)`. Retail never
+// passes null; standalone dialogs keep ticking after an entity's weak ref is
+// nulled, and dozens of ported call sites hand that ref straight in.
 inline bool IsDerivedFromNullSafe(const Base* p, uint32_t typeId) {
     if (!p) return false;
     return p->IsDerivedFrom(typeId);
@@ -362,12 +348,12 @@ using TypeRecord = RtObject::TypeRecord;
 // ("typePtr->_type == type && it->key == type", Object\Factory.cpp:0x8c).
 // 0x30 bytes, so `Set<TypeEntry>::Node` is 0x50 and lands on the ported
 // `AvlOps<Node, 0x30>` core (PortedRetrace48 / the two 48-wide rotations) —
-// the same bodies `rtavl::TypeSetInsert` calls. The template WRAPS the ported
+// the bodies Factory::Startup's `_types.Insert` runs. The template WRAPS the ported
 // core, it does not re-derive it (B32_RULES step 1).
 // ============================================================
 struct TypeEntry {
     uint32_t   typeId;    // +0x00  the key
-    uint32_t   _pad04;    // +0x04  written by nobody; see FactoryStartupRun
+    uint32_t   _pad04;    // +0x04  zeroed by Factory::Startup (type_reflection.cpp)
     TypeRecord record;    // +0x08 .. +0x2f
 };
 static_assert(sizeof(TypeEntry) == 0x30, "the 0x30-byte Pair 0x180030140 builds");
@@ -379,15 +365,11 @@ static_assert(offsetof(TypeEntry, record) == 0x08, "TypeEntry::record @ +0x08");
 // The node allocator seam.
 //
 // Retail INLINES `MemAlloc`/`MemFree` into Startup rather than calling them
-// (type_system.cpp's "allocator boundary" banner), and the Set nodes come from
-// the same allocator. This is a seam rather than `Collection::DefaultAllocator`
-// for one reason only: `DefaultAllocator` binds to
-// `Collection::detail::SetNodeAlloc`/`SetNodeFree`, which live in
-// src/engine/collection/set_core.cpp and stand on the address registry — so a
-// `Factory` built on it could not be linked into `make unit`. The two functions
-// below are defined in src/engine/object/type_reflection.cpp, which has a
-// malloc branch under -DBANISHED_UNIT_TEST and the registry door otherwise
-// (the same shape src/engine/collection/linkedlist.cpp already uses).
+// (type_reflection.cpp's "The allocator seam" banner), and the Set nodes come from
+// the same allocator. The two functions below are defined in
+// src/engine/object/type_reflection.cpp, which has a malloc branch under
+// -DBANISHED_UNIT_TEST and calls System::MemoryAllocator::MemAlloc / MemFree
+// otherwise (the same shape src/engine/collection/linkedlist.cpp already uses).
 //
 // The policy does NOT affect the node layout, so the 0x50-byte node and its
 // offsets are identical either way; it only decides which heap the bytes come
@@ -412,16 +394,12 @@ void  TypeChildFree(void* p);
 // ============================================================
 // Object::BaseTypeInfo — 0x38 bytes, one static per registered class.
 //
-// Same layout as RtObject::BaseTypeInfo, asserted against it below. Fields stay
-// PUBLIC and named as the POD names them: every unconverted caller in the tree
-// reads them at those names through a `reinterpret_cast`, and public members
-// keep the class standard-layout so `offsetof` stays well defined (it is not
-// polymorphic — nothing in Object's reflection record is virtual).
+// Fields stay PUBLIC: public members keep the class standard-layout so `offsetof`
+// stays well defined (it is not polymorphic — nothing in Object's reflection
+// record is virtual).
 //
-// NOT trivially destructible on purpose? NO — it IS trivially destructible, and
-// must stay so: 300+ of these are file-scope statics and ~14 more are minted
-// into `kStorageBytes` by standalone/rt_data_mint.cpp, which memsets them. A
-// destructor here would run at exit over objects the mint owns.
+// It IS trivially destructible, and must stay so: 300+ of these are file-scope
+// statics.
 // ============================================================
 class BaseTypeInfo {
 public:
@@ -434,8 +412,7 @@ public:
     BaseTypeInfo(const char* name, const char* parentName, const char* fileExtension,
                  FactoryFn factory, InPlaceFn inPlace);
 
-    // ??0BaseTypeInfo@Object@@QEAA@XZ — retail's default ctor. Exported, and
-    // the mint's storage rows are its moral equivalent (zeroed bytes). Left
+    // ??0BaseTypeInfo@Object@@QEAA@XZ — retail's default ctor. Exported. Left
     // implicit-trivial deliberately: value-init zeroes, default-init leaves
     // indeterminate, and both are a strict superset of what retail's does to a
     // BSS static (B31_RULES class rule 5 forbids a user-provided no-op ctor).
@@ -451,16 +428,13 @@ public:
     const char* GetFileExtension() const { return fileExtension; }
 
     // ?_firstTypeInfo@BaseTypeInfo@Object@@2PEAV12@EA — retail 0x1801fc6e0,
-    // `2` = PUBLIC static. A PLAIN STATIC as of B.3.3 step 3: the ctor runs at
-    // CRT-init, before the port registry exists, so it cannot resolve a cell —
-    // it must own one. standalone/rt_data_mint.cpp routes the minted row's two
-    // doors here so there is exactly ONE cell, not two (the "split brain" its
-    // own banner names).
+    // `2` = PUBLIC static. A PLAIN STATIC, defined in type_reflection.cpp: the
+    // ctor runs at CRT-init and head-inserts into it.
     static BaseTypeInfo* _firstTypeInfo;
 
     // ---- the 0x38 bytes, in retail order ----
     uint32_t      typeId;             // +0x00  0xFFFFFFFF until Factory::Startup
-    uint32_t      _pad04;             // +0x04  never written by the ctor
+    uint32_t      _pad04;             // +0x04  retail's ctor never writes it; ours zeroes it
     const char*   name;               // +0x08  CRC source; CONTENT-only, never
                                       //        compared by pointer
     const char*   parentName;         // +0x10  namespace-stripped
@@ -490,16 +464,14 @@ inline const BaseTypeInfo& Base::GetTypeInfo() { return _typeInfo; }
 // 0x1800303ac / 0x18003043c. So the whole object IS the Set header (the
 // avl_trees.cpp group-A core takes `&_types._root`, the word at +0x00).
 //
-// NO DESTRUCTOR IS DECLARED and the implicit one is unreachable in practice:
-// the singleton is heap-allocated once and never deleted (retail's teardown is
-// `?Shutdown@Factory@Object@@QEAAXXZ`, not ~Factory). The implicit dtor would
-// run `Set::~Set` -> `Clear`, which is what Shutdown does anyway; nothing in the
+// NO DESTRUCTOR IS DECLARED, and the implicit one never runs on the singleton:
+// Engine::Shutdown (engine_lifecycle.cpp) ends it with
+// `RtObjFactoryDtor::RtObject_Factory_Dtor` (factory_dtors.cpp) and then
+// MemFree; `?Shutdown@Factory@Object@@QEAAXXZ` releases only the compiler
+// module. The implicit dtor would run `Set::~Set` -> `Clear`; nothing in the
 // tree stack-allocates one except the unit test, which wants exactly that.
 //
-// `_singleton` is NOT moved off the mint in this step (B.3.3 step 3 moves one
-// cell, `_firstTypeInfo`, because the BaseTypeInfo ctor runs before the registry
-// exists and cannot resolve). `Get()` reads the minted cell through the existing
-// door, which is a RUNTIME read and therefore safe.
+// `Get()` returns the class static `_singleton` (type_reflection.cpp).
 // ============================================================
 class Factory {
 public:
@@ -513,10 +485,8 @@ public:
 
     // ?_singleton@Factory@Object@@0PEAV12@EA — retail 0x1801fc6e8. The CLASS
     // STATIC since ENDGAME B.3.9 OBJ (B39_RULES D7): defined in
-    // type_reflection.cpp, and RtObjectPortInit redirects the minted row onto
-    // it, so the name door, the address door and this member are the same
-    // eight bytes. Written by the ctor door (engine/singleton_ctors.cpp).
-    // PUBLIC while foreign readers still reach the cell through the doors.
+    // type_reflection.cpp. Written by Ctor_Factory (engine/singleton_ctors.cpp).
+    // PUBLIC: code outside the class reads it directly.
     static Factory* _singleton;
 
     // Runtime 0x1801fc6d0 — the HMODULE of the loaded compiler plugin, an
@@ -525,9 +495,9 @@ public:
     // cleared by Factory::UnloadCompilers 0x1800bfad4, Factory::Shutdown
     // 0x1800c0604 and Engine::Shutdown 0x1800db62d. `void*`, not HMODULE: no
     // <windows.h> in this header (PLAN.md 4.1). The CLASS STATIC since
-    // ENDGAME B.3.9 OBJ (B39_RULES D7), defined in factory_dtors.cpp;
-    // RtObjectPortInit redirects the by-address mint row onto it. PUBLIC while
-    // the two foreign by-address readers remain.
+    // ENDGAME B.3.9 OBJ (B39_RULES D7), defined in factory_dtors.cpp.
+    // PUBLIC: Engine::Shutdown (engine_lifecycle.cpp) and game_main.cpp read and
+    // clear it by name.
     static void* _compilerModule;
 
     // ?Startup@Factory@Object@@QEAA_NXZ   retail 0x1800c0630.
@@ -542,9 +512,9 @@ public:
     // `root`, `count` or `_singleton`. The type-tree teardown lives in
     // `~Factory` (0x1800071a0 -> 0x180008110), which is already ported as
     // `RtObject_Factory_Dtor` in src/engine/object/factory_dtors.cpp — and
-    // this member's body is there too, because it needs the address door and a
-    // platform `FreeLibrary` that type_reflection.cpp must not pull into
-    // `make unit`.
+    // this member's body is there too, because it needs the platform
+    // `FreeLibrary` (Platform::ReleaseLibrary, platform_gfx.h) that
+    // type_reflection.cpp must not pull into the unit build.
     void Shutdown();
 
     // ?CreateObject@Factory@Object@@QEBAPEAVBase@2@I@Z      0x1800c0ae0
@@ -629,8 +599,8 @@ uint32_t TypeNameCRC(const char* name);
 // THE THREE `operator new`/`delete` OVERLOADS ARE NOT EMITTED PER CLASS, and
 // this is a decision, not an omission. Retail's route every allocation through
 // `System::MemoryAllocator` (`??2X@Ns@@SAPEAX_K@Z` is `MemAlloc(size, 4)`,
-// `??3X@Ns@@SAXPEAX@Z` is `MemFree` verbatim — proved for 88 classes in
-// src/engine/object/class_operator_delete.cpp and ui_operator_delete.cpp).
+// `??3X@Ns@@SAXPEAX@Z` is `MemFree` verbatim — proved for 88 classes; the 60 UI
+// ones are in src/engine/ui/ui_operator_delete.cpp).
 // Since the normal-virtual cutover `Object::Base` declares the one
 // `operator delete` (MemFree) that every class's deleting destructor inherits;
 // `operator new` stays undeclared (objects are built with placement new on
@@ -714,11 +684,10 @@ constexpr const char* LastComponent(const char* s) {
 
 }  // namespace Object
 
-// ==== B3R W0-P0c: Runtime bodies reached by retail address ====
-// ENDGAME B.3R (B3R_RULES R5): each body below is registered at the retail
-// address in its trailing comment and read through the registry today. It is
-// declared here, copied from its definition (linkage, namespace, types), so the
-// reader can call it by name. Nothing calls it through this declaration yet.
+// ==== B3R W0-P0c: Runtime bodies called by name ====
+// Each body below is defined in object/factory_dtors.cpp, with its retail
+// address in its trailing comment; Engine::Shutdown
+// (src/engine/engine/engine_lifecycle.cpp) calls all three through this declaration.
 
 namespace Object { class InternalFactory; class ExternalFactory; }
 namespace RtObjFactoryDtor {

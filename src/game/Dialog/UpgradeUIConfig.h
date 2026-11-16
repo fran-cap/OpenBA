@@ -3,7 +3,7 @@
 // src/game/Dialog/UpgradeUIConfig.h — ENDGAME B.3.8 block PNL
 //
 // The upgrade panel's config: +0x20 is the TARGET building template
-// (`Object::ExternalPtr<ComponentEntity>`) UpgradeUI copies into
+// (`Object::ExternalPtr<ComponentDescription>`) UpgradeUI copies into
 // DestroyComponent+0x60.
 //
 // RETAIL (B38_SLOTS.md §6): reflected "UpgradeUIConfig", parent
@@ -38,8 +38,8 @@ public:
 
     // +0x20 the target template. Retail's Serialize (0x140086fb0)
     // validates it as an ExternalPtr<ComponentDescription> (cell 0x1401c7318),
-    // and UpgradeUI reads its _subDescs (the serializer body the tree calls,
-    // ExternalPtrSerializeGeneric, takes a void**: one cast there).
+    // and UpgradeUI reads its _subDescs (Serialize reads it with
+    // Object::SerializeExternal<ComponentDescription>).
     ComponentDescription* _target = nullptr;                       // +0x20
 };
 

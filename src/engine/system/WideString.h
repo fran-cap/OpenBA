@@ -30,19 +30,17 @@
 //
 // Seven instance members with a `this` plus one `SA` static: retail NAMED this
 // class and gave it a real lifecycle, so the established shape applies in full
-// — `class WideString { ... }` with the bodies moved and the registered doors
-// delegating. It is NOT the `IO::TextCodec` case (receiverless free functions,
+// — `class WideString { ... }` with the bodies moved onto its members. It is
+// NOT the `IO::TextCodec` case (receiverless free functions,
 // nothing to land).
 //
-// *** IT DOES GET REAL CONSTRUCTORS AND A REAL DESTRUCTOR, WHICH IS THE ONE
-// *** PLACE THIS CLASS DIFFERS FROM `Random`/`Time`/`Color`/`DateTime`. ***
+// *** IT GETS REAL CONSTRUCTORS AND A REAL DESTRUCTOR. ***
 // B34_RULES §4.3's test — "would the member form change which vtable a live
-// object wears?" — passes vacuously: there is no vtable. And unlike the four
-// value classes, none of this class's four lifecycle exports is UNPORTED: all
-// three constructors and the destructor have bodies in this tree today and all
-// four are registered. Nothing is invented; the bodies that were already there
-// move onto members, exactly as `System::String` did at B.3.1 step 1
-// (src/engine/system/String.h), whose shims this file's doors now mirror.
+// object wears?" — passes vacuously: there is no vtable. None of this class's
+// four lifecycle exports is UNPORTED: all three constructors and the destructor
+// have bodies in this tree. Nothing is invented; the bodies that were already
+// there move onto members, exactly as `System::String` did at B.3.1 step 1
+// (src/engine/system/String.h).
 // ============================================================================
 
 #include <cstdint>
@@ -106,18 +104,16 @@ public:
     //
     // ⚠ RETURNS `System::String` BY VALUE, WHICH IS A HIDDEN RETURN SLOT AT THE
     // ABI. Retail's is `String* f(const WideString* this, String* ret)` — RCX =
-    // this, RDX = ret. The registered DOOR keeps that two-argument shape and
-    // placement-news the member's prvalue into the caller's slot; the MEMBER
-    // returns by value, which is what retail's source said. Never register the
-    // member directly and never reach it from a raw slot caller — that is
-    // `reference_hidden_retslot_wild_write.md`.
+    // this, RDX = ret. The MEMBER returns by value, which is what retail's
+    // source said. Never reach it from a raw slot caller: omitting the hidden
+    // return slot is a self-consistent wild write.
     String AsUTF8() const;
 
     // ?SetLength@WideString@System@@AEAAXH@Z       0x1800ca9b0
-    // `AEAA` is the PRIVATE spelling and it is a real export (ord 3902), so it
-    // is registered and its door calls it. PUBLIC here for the same reason
-    // `Random::NextGroup` is: access control is not ABI. It does NOT write a
-    // terminator — both callers write their own.
+    // `AEAA` is the PRIVATE spelling and it is a real export (ord 3902). PUBLIC
+    // here for the same reason `Random::NextGroup` is: access control is not ABI.
+    // It does NOT write a terminator — all three callers (Set and the two UTF-8
+    // constructors) write their own.
     void SetLength(int len);
 
     // ---- statics -----------------------------------------------------------
@@ -127,9 +123,9 @@ public:
     static int StrLength(const char16_t* s);
 
     // ---- the 8 bytes -------------------------------------------------------
-    // PUBLIC for the same reason `System::String::_data` is: the unconverted
-    // tree reads the POD's `data` on these same eight bytes, and `offsetof` has
-    // to be well formed.
+    // PUBLIC for the same reason `System::String::_data` is: callers outside the
+    // class pass `_data` to the platform layer (platform_file.h), and `offsetof`
+    // has to be well formed.
     char16_t* _data;   // +0x00
 };
 
@@ -139,8 +135,8 @@ static_assert(!std::is_polymorphic<WideString>::value,
               "System::WideString must never acquire a vtable: retail has none");
 static_assert(std::is_standard_layout<WideString>::value,
               "the doors reach the one field through a reinterpret_cast");
-// The two halves of the deliberate asymmetry with the POD, stated as assertions
-// so a future "tidy" in either direction fails the build rather than the boot:
+// The class's two deliberate lifecycle properties, stated as assertions so a
+// future "tidy" in either direction fails the build rather than the boot:
 static_assert(!std::is_trivially_destructible<WideString>::value,
               "the CLASS owns the release idiom -- if this ever becomes trivial "
               "the ??1 door has stopped releasing anything");

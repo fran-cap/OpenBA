@@ -8,13 +8,13 @@
 //   String      @ +0x28 = 0   (name)
 //   ExternalPtr @ +0x30 = 0
 //   String      @ +0x38 = 0
-//   int         @ +0x40 = 0
-//   int         @ +0x44 = 100 (baseValue)
-//   int         @ +0x48 = 0   (weight) [factory writes 8 bytes @+0x44 = 100]
+//   int         @ +0x40 = 0   (_baseValue)
+//   int         @ +0x44 = 100 (_stackCount)
+//   int         @ +0x48 = 0   (_minStackCount) [factory writes 8 bytes @+0x44 = 100]
 // Serialize (vtable +0x28, 0x14005cd60), stream order:
-//   ExternalPtr @ +0x20  (FUN_14000bd30 -> Reimpl_ExternalPtr_Serialize_StringTable)
+//   ExternalPtr @ +0x20  (FUN_14000bd30 -> ::Object::SerializeExternal<UI::SpriteSheet>)
 //   String      @ +0x28
-//   ExternalPtr @ +0x30  (FUN_14000bf40 -> Reimpl_ExternalPtr_Serialize_StringTable)
+//   ExternalPtr @ +0x30  (FUN_14000bf40 -> ::Object::SerializeExternal<UI::StringTable>)
 //   String      @ +0x38
 //   int         @ +0x40
 //   int         @ +0x44

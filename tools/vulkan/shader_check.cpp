@@ -17,9 +17,9 @@
 // companions make), its cache payload is encoded and decoded back (the entry round trip), and the
 // module is validated with `spirv-val --target-env vulkan1.3` when one is found (--spirv-val, else
 // `spirv-val` on PATH), else with the converter's structural check. Nothing is written but one
-// temporary .spv file in the system temp folder per validation, deleted at once. With --vulkan1.1 each
-// module is first rewritten to SPIR-V 1.3 as the backend's 1.1 path does (spirv_legalize.h
-// DowngradeSpirv; src/render/vulkan/vulkan11.h) and validated with `--target-env vulkan1.1`.
+// temporary .spv file in the system temp folder, rewritten for each validation and deleted at the
+// end. With --vulkan1.1 each module is first rewritten to SPIR-V 1.3 as the backend's 1.1 path does
+// (spirv_legalize.h DowngradeSpirv; src/render/vulkan/vulkan11.h) and validated with `--target-env vulkan1.1`.
 //
 // Prints a summary table and the first error of every failure; exits 1 on any failure, 2 when the
 // game directory holds no package.

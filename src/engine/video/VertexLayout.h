@@ -14,15 +14,11 @@
 //   * an anonymous-namespace `struct VertexLayout` / `VertexElement` inside
 //     `src/engine/video/vertexlayout.cpp`.
 //
-// Both are now views of THIS declaration. Nothing else in the tree named the
+// Both are gone; THIS declaration replaced them. Nothing else in the tree named the
 // layout, so there is no `Rt*` POD to move (B4b-1 does not fire).
 //
-// THE BODIES DO NOT LIVE HERE AND DO NOT MOVE IN THIS BLOCK.
-// `src/engine/video/vertexlayout.cpp` keeps its ten registered doors exactly
-// as they are; ENDGAME B.3.5 block B (the program/shader family) owns that file
-// and moves the bodies into the members declared below. This block's job is a
-// COMPLETE and CORRECT declaration so block B, block D and the dx11 caller
-// batch never have to edit it.
+// THE BODIES DO NOT LIVE HERE: the ported members declared below are defined in
+// `src/engine/video/vertexlayout.cpp`.
 //
 // EVIDENCE — all read this pass from the RETAIL `Runtime-x64.dll` (15290
 // functions, image base 0x180000000), as DISASSEMBLY, not decompiled C:
@@ -51,12 +47,9 @@
 //                      what makes both of them an `Array<T>::_capacity`.
 // ============================================================================
 //
-// *** THE ELEMENT FIELD MAP IN `src/engine/video/vertexlayout.cpp` IS WRONG,
-// *** AND `dx11_backend_access.h`'s IS RIGHT.  (B.3.5 block A finding.)
+// *** THE ELEMENT FIELD MAP.  (B.3.5 block A finding.)
 //
-// `vertexlayout.cpp`'s local `VertexElement` reads
-//   +0x08 stream  +0x0c usage  +0x10 usageIndex  +0x14 format  +0x18 offset
-// Retail says otherwise, on two independent reads:
+// Retail pins it on two independent reads:
 //
 //   `?Add@VertexLayout@Video@@QEAAXHHW4Usage@12@HW4Format@12@@Z` @ 0x1800f5a90
 //   builds one Element in its own frame and appends it. The five parameters
@@ -78,14 +71,10 @@
 //   element array in 0x20 steps and takes `max(elem+0x08) + 1` — so +0x08 is
 //   the STREAM, which both readings already agreed on.
 //
-// So `format` is at +0x18, not +0x14, and +0x0c is the byte OFFSET, not the
-// usage. The mistake is inert today: `Serialize` (0x1800563c0) writes the six
-// fields positionally through the ReaderWriter's Int/UInt slots, and
-// vertexlayout.cpp's permutation happens to keep the same int/uint/int/uint/int
-// sequence on the wire, so no save or `MeshLayout\*.rsc` is misread. It is a
-// naming defect, not a data defect — but it is exactly the shape that turns
-// into one the moment a member reads a field by name. The names below are the
-// retail-proved ones; `vertexlayout.cpp` belongs to block B and is left alone.
+// So `format` is at +0x18 and +0x0c is the byte OFFSET. The element loop
+// (0x1800563c0) writes the five fields positionally through the ReaderWriter's
+// Int/UInt slots, so the names never reach the wire. The names below are the
+// retail-proved ones, and `vertexlayout.cpp` uses them.
 // ============================================================================
 
 #include <cstddef>
@@ -116,7 +105,7 @@ class VertexLayoutData;   // src/engine/video/CompanionData.h (B.4 R-VIDEO)
 // public constructor (??0VertexLayout 0x1800f5d50), its own slot 0, and the
 // factory pair as its own statics: every live VertexLayout wears the COMPILER's
 // table. The minted row, its RT_DELDTOR row 0x18004e000, the ??0 / ??1 doors and
-// the seven slot doors are retired (tools/rt_mint_retired/vid.txt).
+// the seven slot doors are retired.
 //
 // THE DESTRUCTOR IS VIRTUAL (B3X W1): retail slot 0 is
 // the deleting destructor. `~VertexLayout()` is D1 + D0 here.
@@ -203,10 +192,8 @@ public:
     // ---- the exported non-virtual members ------------------------------
     // Every `?…@VertexLayout@Video@@` in the shipped export table is declared
     // here, ported or not, so no later block has to edit this header
-    // (BLOCK_BRIEF "the shape"). The ten that `src/engine/video/
-    // vertexlayout.cpp` already implements as doors are marked `door`; the rest
-    // are `// not ported` — nothing in the tree calls them, they exist only as
-    // rows in `standalone/rt_export_addrs.inc`.
+    // (BLOCK_BRIEF "the shape"). Those marked `// not ported` have no body in
+    // the tree.
     int32_t        GetElementCount() const;                       // 0x18004de90 — not ported
     const Element& GetElement(int32_t index) const;               // 0x18004dea0 — not ported
     int32_t        GetStreamCount() const;                        // 0x1800f5a30 — not ported
@@ -233,11 +220,11 @@ public:
     // own placement `operator new` (not ported): placement spells `::new (p)`.
     static void*        operator new(size_t size);                // 0x18004dce0 — not ported
     static void*        operator new(size_t size, void* storage); // 0x18004dd50 — not ported
-    static void         operator delete(void* p) { ::Object::detail::InternalMemFree(p); }                 // 0x18004dd60 — class_operator_delete.cpp
+    static void         operator delete(void* p) { ::Object::detail::InternalMemFree(p); }                 // 0x18004dd60 — inline
 
 
-    // The three platform halves (`AEAA`, i.e. PRIVATE in retail, not unexported —
-    // reference_aeaa_is_private_not_unexported.md). `PlatformCreate` returns void,
+    // The three platform halves (`AEAA`, i.e. PRIVATE in retail, not
+    // unexported). `PlatformCreate` returns void,
     // unlike VertexProgram's and PixelProgram's, which return bool — 0x180003ff0
     // falls off its end with no return value set, so that is deliberate.
     void PlatformConstruct();                    // 0x1800f5f90
@@ -254,16 +241,14 @@ public:
 
 public:
     // ---- the 0x28 bytes VertexLayout adds ------------------------------
-    // Spelled with leading underscores to match `src/engine/video/
-    // vertexlayout.cpp`'s local view, so block B's move is a rename of the
-    // struct and nothing else. Public because `src/render/dx11/` reads `_elements` and
+    // Public because `src/render/dx11/` reads `_elements` and
     // `_signature` directly — the same posture `Object::External` takes with
     // `_path` / `_refs`.
     Collection::Array<Element, Collection::DefaultAllocator,
                       Collection::ExplicitSpec<&rtcoll::kSpec_VertexElement>>
         _elements;   // +0x20  {data, _size +0x28, _capacity +0x2c}
     // The `Video::VertexLayoutData*` the Device factory hands back
-    // (`DeviceData` vtable +0x70, slot 14 — `Dx11_CreateVertexLayoutData`).
+    // (`DeviceData` vtable +0x70, slot 14 — `DeviceData::CreateVertexLayoutData`).
     VertexLayoutData*          _data;       // +0x30  (B.4 R-VIDEO, H4)
     // The compiled vertex-shader INPUT SIGNATURE blob. Retail reaches it only
     // through `PlatformSerialize`, which is why the field is named for the

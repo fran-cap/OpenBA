@@ -3,7 +3,7 @@
 // src/ext/derived_cache/derived_cache.h -- the derived-data cache (shared infrastructure)
 // ============================================================================
 // NOT RETAIL (issue #13, docs/extensions/handins/COMPRESSAO.md). Data an extension DERIVES from the
-// game's content at load (today: ext.compress_ao's BC4 encode of the baked AO maps), kept on the
+// game's content at load (for example ext.compress_ao's BC4 encode of the baked AO maps), kept on the
 // user's machine so the next start finds it instead of recomputing it -- the shape of UE5's derived
 // data cache. Ruled allowed by the user 2026-10-22: it lives only in the user's documents folder,
 // is built from the user's own install, and is never shipped (DESIGN.md section 3 rule 7).

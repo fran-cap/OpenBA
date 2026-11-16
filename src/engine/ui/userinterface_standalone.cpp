@@ -2,17 +2,13 @@
 // src/engine/ui/userinterface_standalone.cpp — Wave 10C lane UIF6
 // ============================================================================
 //
-// The two PRIVATE STATIC members that entered the UI census last wave when lane
-// SHOW landed ?ShowDialog@UserInterface@UI@@ and resolved its two installed
-// callbacks BY NAME instead of by address:
+// The two PRIVATE STATIC members UI::UserInterface::ShowDialog installs as
+// MainLoop callbacks:
 //
 //   0x180120310  ?UpdateStandAloneUI@UserInterface@UI@@CAXAEBVTime@System@@PEAX@Z
 //   0x1801203f0  ?DrawStandAloneUI@UserInterface@UI@@CAXAEAVContext@Video@@PEAX@Z
 //
-// They mangle `CAXA...` -- `C` is PRIVATE STATIC -- and this DLL exports its
-// private members, so a name door exists and was used
-// (reference_aeaa_is_private_not_unexported.md). Reaching them by address when
-// a name exists is how silent address doors accumulate.
+// They mangle `CAXA...` -- `C` is PRIVATE STATIC.
 //
 // WHAT THEY ARE. `ShowDialog` builds a NESTED UI::UserInterface for a modal
 // dialog and appends these two callbacks to Engine::MainLoop's callback arrays:
@@ -23,27 +19,21 @@
 // including the retail quirk lane SHOW found, that `Frame` takes the callback
 // *fn* from +0x90 but its *context* from +0x80 at the same index.
 //
-// Both were confirmed ABSENT from the tree before a line was written, by
-// ADDRESS and by MANGLED NAME across code/, runtime/, engine/ and standalone/.
-// Every hit was a CONSUMER: the two ResolveExport calls in
-// userinterface_showdialog.cpp:189-190 that install them, and the two address
-// constants in src/diag/modal_driver.cpp:115-116 that the harness uses to
-// RECOGNISE the installed entries. Neither is a definition.
+// The consumers: userinterface_showdialog.cpp takes the address of both to
+// install them, and src/diag/modal_driver.cpp compares each MainLoop+0x90
+// entry's fn against &UpdateStandAloneUI to RECOGNISE the installed entry.
 //
 // ---------------------------------------------------------------------------
-// NO ADDRESS DOORS AT ALL IN THIS FILE
+// THE CALLEES
 // ---------------------------------------------------------------------------
-// Every callee of both bodies has an exported name, checked against the shipped
-// export table with pefile rather than assumed:
+// Every callee of both bodies, by its exported name:
 //   0x1801213c0  ?Update@UserInterface@UI@@QEAAHAEBVTime@System@@@Z   (PORTED, lane UI1)
 //   0x180121890  ?Draw@UserInterface@UI@@QEAAXAEAVContext@Video@@@Z   (PORTED, lane UIDRAW)
 //   0x1800c7f20  ??0Random@System@@QEAA@XZ
 //   0x1800df6c0  ?Update@Scene@Audio@@QEAA_NVTime@System@@0AEAVRandom@4@
 //                    AEBVVector3@Math@@M@Z
 //   0x1801fe728  ?_secondsPerTick@Timer@System@@0NA                   (DATA)
-// Resolving Update and Draw by NAME rather than by address matters: both are
-// already ported, and a name door reaches the PORT while an address door would
-// have to be checked separately.
+// Each is a plain C++ call (the DATA row a read of the class static).
 // ============================================================================
 
 #include <cstdint>
@@ -53,7 +43,6 @@
 #include "ui/UserInterface.h"
 #include "audio/Audio.h"   // ENDGAME B.3.7 callers (K4): Audio::Scene
 #include "system/Timer.h"  // ENDGAME B.3.9 SS1: Timer::_secondsPerTick
-// ENDGAME B.3.6 block E: the RULE B6-5 atomic door caches.
 #include "element_common.h"
 
 
@@ -68,7 +57,7 @@ namespace {
 // `VTime@System@@` parameters are by-value `System::Time` (B7-5).
 // ---------------------------------------------------------------------------
 
-// --- entry counters, printed unconditionally (see userinterface_hover.cpp) ---
+// --- entry counters, printed at exit unless log-stripped (see userinterface_hover.cpp) ---
 uint64_t g_updEntries   = 0;
 uint64_t g_updWithScene = 0;   // took the audio arm
 uint64_t g_drawEntries  = 0;
@@ -168,7 +157,3 @@ void UI::UserInterface::DrawStandAloneUI(Video::Context& context, void* ui) {
     ++g_drawEntries;
     static_cast<UserInterface*>(ui)->Draw(context);   // the tail JMP  // callback context: retail's draw-callback user data is void* (PEAX, 0x1801203f0), viewed as the UserInterface that registered it  // CAST-OK: user_data
 }
-
-// ============================================================================
-// REGISTRATION — both doors for both rows (see userinterface_hover.cpp).
-// ============================================================================

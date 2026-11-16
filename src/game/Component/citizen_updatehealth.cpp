@@ -1,11 +1,11 @@
 // src/game/Component/citizen_updatehealth.cpp
-// CitizenComponent::UpdateHealth (0x1401127d0) + the complete disease subsystem it
+// CitizenComponent::UpdateDisease (0x1401127d0) + the complete disease subsystem it
 // closes over. This was the last unported branch of the step-2.5 citizen lifecycle
 // backlog ("deep closure" defer) — the closure turns out to be BOUNDED: 7 unported
 // callees, everything below them already registered.
 //
 // Ported functions (all disasm-verified 2026-07-19):
-//   0x1401127d0 UpdateHealth        — healthy: immunity tick + catch-disease roll;
+//   0x1401127d0 UpdateDisease       — healthy: immunity tick + catch-disease roll;
 //                                     sick: duration/spread-tick timers, recover-or-die
 //   0x1401123b0 RecoverOrDie        — death roll (1/disease+0x40)/herbMult vs rand;
 //                                     survive → clear disease + immunity from desc+0x9c
@@ -14,10 +14,10 @@
 //   0x140112620 CatchDisease        — weighted pick (weight disease+0x3c) over the
 //                                     disease ExternalList (gw+0xa8), then infect
 //   0x140116b90 Infect              — guards, event-log post (type 0xb sev 3 + disease
-//                                     name), set +0x68/+0x70/+0x78, FindWorkplace
+//                                     name), set +0x68/+0x70/+0x78, FindCareBuilding
 //   0x1400893c0 AnyCitizenSick      — scan mgr(+0xa0/+0xa8) IBP array for +0x68 != 0
 //   0x1400305e0 IntArrayResize      — generic 4-byte-elem grow-array resize+fill
-//   0x140092990 Map_RadiusQuery     — quadtree walk (18dd0/18880, registered) collecting
+//   0x140092990 CharacterGrid::RadiusQuery — quadtree walk (18dd0/18880) collecting
 //                                     entity links within radius, optional type-id filter
 //
 // CitizenComponent fields touched:
@@ -33,8 +33,8 @@
 // Spatial map: +0x00 root size(float)  +0x10 entity records (stride 0x18: +0 link IBP
 //   value, +8 next index — circular)  +0x30 per-node first-index[]  +0x50 per-node count[]
 //
-// Constants (read_memory-verified): 0x1401721b8=12.0f (months/yr, registered
-// reg_component_fruit), 0x140172234=300.0f (secs/month, reg_citizen_needsupdate),
+// Constants (read_memory-verified, Game/exe_constants.h): 0x1401721b8=12.0f (months/yr),
+// 0x140172234=300.0f (secs/month),
 // 0x14017214c=1.0f, DAT_140172174=2.0f, DAT_140172280=-1.0f (inlined bit-exact).
 
 #include "ui/UserInterface.h"
@@ -70,13 +70,13 @@
 #include "Game/exe_bodies.h"
 #include "Game/exe_constants.h"
 #include "volume/Volume.h"
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
 
 namespace {
 
 
-// Exe bodies called by name: CitizenComp_FindCareBuilding 0x140111590,
-// AttendanceComponent_ReleaseLink59b0 0x1401159b0 (Entity_impl_59b0), the quadtree
+// Exe bodies called by name: CitizenComponent::FindCareBuilding 0x140111590,
+// CitizenComponent::ReleaseCareBuilding 0x1401159b0 (Entity_impl_59b0), the quadtree
 // walker CharacterGridWalker::Init 0x140018dd0 / ::Subdivide 0x140018880 (Action/PathSearch.h:
 // the 0x24-byte walker record is CharacterGridWalkerNode), EventLog::AddCitizenEvent 0x140094e00.
 // Runtime calls the original makes through exe import slots: V3 ctor3 0x140152a30,
@@ -84,9 +84,8 @@ namespace {
 // Box::Intersect 0x140151e80 (RtVolume_Box_Intersect), StringTable::GetText(String&)
 // 0x140151718.
 
-// Disease type id. The .rdata global (0x1401c5948) is env-gated / unregistered
-// in standalone — resolve the class's own record instead (D5, ENDGAME B.3.9 CG3;
-// citizen's own 0x1401c7158 now reads CitizenComponent::TypeId() directly).
+// Disease type id (.rdata cell 0x1401c5948): Disease::TypeId() (D5, ENDGAME B.3.9 CG3;
+// citizen's own 0x1401c7158 reads CitizenComponent::TypeId() directly).
 static uint32_t s_tidDisease = 0;
 
 static bool s_init = false;
@@ -159,7 +158,7 @@ static void PlagueCensusTick() {
 }
 
 // One-shot tuning report: the numbers the cure arm depends on. Valid on the first
-// UpdateHealth call — the CitizenDescription is fully populated by then.
+// UpdateDisease call — the CitizenDescription is fully populated by then.
 static bool s_bootReported = false;
 
 static void PlagueBootReport(CitizenComponent* citizen) {
@@ -253,7 +252,7 @@ extern "C" void CitizenComp_IntArrayResize(RawArray<float>* arr, int newCount, c
 // Collects entity-link IBP values within `radius` of `pos` into the 8-byte-element
 // grow-array outArr {data,count,cap}. typeId != 0 additionally requires the entity to
 // own a component whose GetTypeId() == typeId (found component only FILTERS — the
-// pushed value is always the entity link). Drives the registered quadtree walker
+// pushed value is always the entity link). Drives the quadtree walker
 // 0x140018dd0/0x140018880; walker record = {pos.xyz @+0, ext.xyz @+0xc, nodeId @+0x18},
 // stride 0x24, base walker+0x24, top index at walker+0x8. Node box =
 // [pos - (2ex,2ey,ez) + (0,0,-1), pos + (2ex,2ey,ez) + (0,0,+1)]  (the (0,0,∓1) z pads
@@ -392,7 +391,7 @@ void CitizenComponent::Infect(Disease* disease) {
     System::Random* rng = gw->m_random;
 
     if (!CitizenComp_AnyCitizenSick(gw->m_citizenList)) {
-        // Post "outbreak of {disease}" via the registered AddCitizenEvent
+        // Post "outbreak of {disease}" via EventLog::AddCitizenEvent
         // (0x140094e00): identical entry to the original inline block — color
         // 0xffff6060 (sev 3), type 0xb, icon 1, popup -1, tile -1 (null entity) —
         // including the drop-to-1x-speed tail on the settings +0x17 byte.
@@ -466,7 +465,7 @@ void CitizenComponent::CatchDisease() {
     System::Random* rng = gw->m_random;
     ::Object::ExternalList* list = gw->m_diseaseList;
     if (!list) {
-        // One-shot: structural, true for every citizen every tick while the flag is off.
+        // One-shot: structural, true for every citizen every tick while the list is missing.
         static bool once = false;
         if (PlagueTraceOn() && !once && (once = true))
             fprintf(stderr, "[Plague] CATCH bail=noDiseaseList (gw+0xa8 NULL — set "

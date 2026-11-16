@@ -8,7 +8,8 @@
 // (labels 200, controls 180, as the retail tabs). Each extension contributes its own rows through a
 // Contribution:
 //   ambient_occlusion/enhanced_entry.cpp   combo "Ambient occlusion" + slider "AO strength"
-//   better_trees/enhanced_entry.cpp        combo "Better trees"
+//   better_trees/enhanced_entry.cpp        combos "Better trees" and "Natural tree growth" (NATURAL_GROWTH.md)
+//   better_water/enhanced_entry.cpp        combo "Better water" Off / Plain / Fancy (BETTERWATER; ext.better_water)
 //   winter_ice/enhanced_entry.cpp          combo "Better ice" Off / On (WINTERICE; ext.winter_ice)
 //   better_clouds/enhanced_entry.cpp       combo "Better clouds" Off / On / Fancy (BETTERCLOUDS)
 //   fancy_terrain/enhanced_entry.cpp       combo "Fancy terrain" Off / On (FANCYTERRAIN; ext.fancy_terrain)
@@ -22,8 +23,9 @@
 //   texture_quality/enhanced_entry.cpp     combo "Texture quality" (TEXQUALITY)
 //   enhanced_tab/render_scale_entry.cpp    combo "Render scale" (P8; the platform key VideoRenderScale)
 //   fps_cap/enhanced_entry.cpp             combo "Frame rate cap" (P8; ext.fps_cap)
-//   touch_mode/enhanced_entry.cpp          combos "Touch controls" (TOUCHMODE; ext.touch_mode), "Camera pad" and
-//                                          "Placement bar" (issue #96; ext.touch_mode_pad_scale / _action_bar_scale)
+//   touch_mode/enhanced_entry.cpp          combos "Touch controls" (TOUCHMODE; ext.touch_mode), "Camera pad",
+//                                          "Corner camera buttons" and "Placement bar" (issue #96;
+//                                          ext.touch_mode_pad_scale / _camera_buttons / _action_bar_scale)
 //   touch_pointer/enhanced_entry.cpp       combo "Touch pointer" (P11b; ext.touch_pointer and its three keys)
 //   phone_menu/enhanced_entry.cpp          combo "Screen edge margin" (issue #96; ext.phone_menu_safe_margin)
 // The touch and phone rows sit together under a "Touch screen" header row (issue #96): a label row in the one

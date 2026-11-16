@@ -7,19 +7,14 @@
 #include "Work/exe_bodies.h"
 // PlayAnimation) and appends them to the citizen's action stack (CitizenComponent
 // +0x278 = its CharacterComponent, whose +0x48 is the stack; the SendComponentMessage
-// goes into CharacterComponent::field_0x58). Called by name from the Work .cpp call
-// sites (cleararea / foresterwork / herbalistwork / pasturework / tendarea /
-// plantorchard / fishingwork / pickup).
+// goes into CharacterComponent::actionStack.completionAction). Called by name from the Work
+// .cpp call sites (cleararea / buildroad / foresterwork / herbalistwork / pasturework /
+// tendarea / plantorchard / fishingwork / pickup).
 //
 // Each function is an instruction-faithful port of the decompiled exe helper; do
 // NOT "improve" behavior. Every exe sub-callee these ctors invoke is one of our own
 // bodies, called by name (B3R; the table is below).
 //
-// LEFT (every body): the callers in other blocks hand the citizen / target references
-// as void*, and the action ctors (ACT's C bodies) take their entity references as
-// uint64_t* / uintptr_t and return void*; each call keeps the one conversion its
-// signature asks for. CharacterComponent declares its +0x58 InternalPtr as Action*
-// (COMP-a), so DeletePtr is reached through the base view.
 //
 
 #include <new>
@@ -58,24 +53,24 @@
 // Sub-callees, called by name (B3R)
 // ============================================================
 // Engine base helpers (InternalBasePtr ctor/deleteptr, IsDerivedFrom) are the real
-// Object classes. The exe sub-callees are our own bodies, declared in the module
-// exe_bodies.h headers:
-//   0x1400c29a0 Entity_impl_29a0 (heading, XMM0)   ActChild_Entity29a0_c29a0
-//   0x1400c5400 TaskListCleanup                    WorkBase_TaskListCleanup_c5400
-//   0x1400c54e0 TaskListAppend                     Pf_ActStackPush_54e0
-//   0x1400c3470 Work-target detach (c1eb0 tail)    ActHunt_NotifyEntityChanged_c3470
-//   0x1400012d0 Entity_FindComponent_Family        ActMv_FindComponentFamily_12d0
-//   0x1400cb1d0 SendComponentMessage copy-ctor     Pf_SendComponentMessageCopyCtor_b1d0
-//   0x1400c5da0 CompleteTask copy-ctor             Pf_CompleteTaskCopyCtor_5da0
-//   0x140042890 ShowTool ctor                      ActChild_ShowToolCtor_42890
-//   0x1400cadf0 RemoveNaturalResource copy-ctor    ActChild_RemoveNRCopyCtor_cadf0
-//   0x1400c57d0 AnimateNaturalResource copy-ctor   ActChild_AnimateNRCopyCtor_c57d0
-//   0x1400c6a20 CreateNaturalResource copy-ctor    ActChild_CreateNRCopyCtor_c6a20
-//   0x1400c9720 PerformWork_Action_Ctor7           Pf_PerformWorkCtor7_9720
+// Object classes. The exe sub-callees are our own bodies, declared in the Action/ and
+// Entity/ headers:
+//   0x1400c29a0 Entity_impl_29a0 (heading, XMM0)   HeadingToward
+//   0x1400c5400 TaskListCleanup                    ActionStack::Clear
+//   0x1400c54e0 TaskListAppend                     ActionStackPush
+//   0x1400c3470 Work-target detach (c1eb0 tail)    ComponentEntity::RefreshEntityFlags
+//   0x1400012d0 Entity_FindComponent_Family        ComponentEntity::FindComponent<CharacterComponent>
+//   0x1400cb1d0 SendComponentMessage copy-ctor     SendComponentMessage::SendComponentMessage
+//   0x1400c5da0 CompleteTask copy-ctor             CompleteTask::CompleteTask
+//   0x140042890 ShowTool ctor                      ShowTool::ShowTool
+//   0x1400cadf0 RemoveNaturalResource copy-ctor    RemoveNaturalResource::RemoveNaturalResource
+//   0x1400c57d0 AnimateNaturalResource copy-ctor   AnimateNaturalResource::AnimateNaturalResource
+//   0x1400c6a20 CreateNaturalResource copy-ctor    CreateNaturalResource::CreateNaturalResource
+//   0x1400c9720 PerformWork_Action_Ctor7           PerformWork::PerformWork
 //               (RCX=self, RDX=entity, XMM2=heading, R9D=actionType, [stack]=time,
 //                byte p6, int p7 -- verified via disassembly)
-//   0x1400c9170 MoveTo ctor                        Pf_MoveToCtor_9170
-//   0x1400c9b70 PickupRawMaterial copy-ctor        WorkAct_PickupRawMaterialCopyCtor_c9b70 (below)
+//   0x1400c9170 MoveTo ctor                        MoveTo::MoveTo
+//   0x1400c9b70 PickupRawMaterial copy-ctor        PickupRawMaterial::PickupRawMaterial (below)
 //   0x140006270 FindComponent<StorageComponent>
 //   0x14012cf10 StorageComponent::QueryCount       (the member)
 //   slot 0x140152b60 MemoryAllocator::MemAlloc     System::MemoryAllocator::MemAlloc
@@ -180,7 +175,7 @@ void WorkAct_PerformWorkCtor_c1eb0(CitizenComponent* const* citizenRef, uint32_t
     ibpB = ct;
     WA_Append(list, &ibpB);
 
-    // --- ShowTool (~Hoe = -2) action ---
+    // --- ShowTool (~Hoe = -1) action ---
     obj = System::MemoryAllocator::MemAlloc(0x30, 8);
     Action* st = nullptr;
     if (obj) {
@@ -356,7 +351,6 @@ void WorkAct_PerformWorkCtor9_c0ad0(CitizenComponent* const* citizenRef, uint32_
 
     // heading = Entity_impl_29a0(worldPos, &target inner) — returned in XMM0.
     // 0x1400c0b31 MOV RAX,[R12]: the target reference read with no test (B6 14d G25).
-    // LEFT: SIG WorkAct_PerformWorkCtor9_c0ad0 (the caller hands the pile reference as void*).
     ComponentEntity* targetInner = *targetIBP;
     float heading = 0.0f;
     {
@@ -554,8 +548,8 @@ void WorkAct_PlayAnimationCtor_c2490(CitizenComponent* const* citizenRef, uint32
 //   param_3 = workEntity InternalBasePtr* (the entity)
 //   param_4 = unused (u32, used as SendComponentMessage msg id slot init)
 //   param_5 = float* targetPos (MoveTo destination)
-//   param_6 = float* srcPos (used to compute heading; the original calls Vector3 sub
-//             + Normalize + Heading but discards the result)
+//   param_6 = float* srcPos (heading = Vector3(srcPos - targetPos) -> Normalize -> Heading,
+//             passed to PerformWork_Ctor7 as XMM2)
 //   param_7 = typeId (u32, second SendComponentMessage msg id)
 //   param_8 = u32 (SendComponentMessage param_4)
 //   param_9 = u32 (SendComponentMessage param_6)
@@ -605,7 +599,7 @@ void WorkAct_GrazingWorkCtor_bb0a0(CitizenComponent* const* citizenRef, uint32_t
         heading = nv.Heading();
     }
 
-    // --- ShowTool (~Hoe = -2) ---
+    // --- ShowTool (~Hoe = -1) ---
     obj = System::MemoryAllocator::MemAlloc(0x30, 8);
     Action* st = nullptr;
     if (obj) {
@@ -668,7 +662,7 @@ void WorkAct_GrazingWorkCtor_bb0a0(CitizenComponent* const* citizenRef, uint32_t
 // ============================================================
 //   param_1  = citizen InternalBasePtr*
 //   param_2  = priority (u32)
-//   param_3  = workEntity inner (u64; CompleteTask/CreateNaturalResource param_2)
+//   param_3  = plantDesc (ComponentDescription*; CreateNaturalResource +0x20)
 //   param_4  = unused (u32, SendComponentMessage msg id slot init)
 //   param_5  = float* position (MoveTo destination)
 //   param_6  = u32 (CreateNaturalResource param_4)
@@ -734,7 +728,7 @@ void WorkAct_PlantWorkCtor_be6e0(CitizenComponent* const* citizenRef, uint32_t p
         WA_Append(list, &ibp40);
     }
 
-    // --- ShowTool (~Hoe = -2) ---
+    // --- ShowTool (~Hoe = -1) ---
     obj = System::MemoryAllocator::MemAlloc(0x30, 8);
     Action* st = nullptr;
     if (obj) {

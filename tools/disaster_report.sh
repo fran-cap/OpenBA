@@ -21,9 +21,8 @@
 #   2  crash detected (standalone_crash.log non-empty) -- nothing else is trustworthy
 #   3  log missing or empty
 #
-# TAG FIDELITY NOTE. [Plague] / [GUL::DiseaseList], [CropDisease] and [Tornado] are parsed
-# EXACTLY, on the event word, from formats their lanes supplied. [Fire] is STILL parsed
-# from behaviour keywords -- that lane had not finalised its format -- so for Fire the
+# TAG FIDELITY NOTE. [Plague] / [GUL::DiseaseList], [Fire], [CropDisease] and [Tornado] are
+# parsed EXACTLY, from formats their lanes supplied. For Fire, CropDisease and Tornado the
 # script prints the distinct line shapes it could not match, making a format mismatch
 # visible unmatched output rather than a silent zero.
 #
@@ -254,7 +253,7 @@ function hex2dec(h,   i, c, v, d) {
 
 # ==========================================================================
 # FIRE / CROPDISEASE / TORNADO
-# Keyword-bucketed: exact formats unknown to this lane. Unmatched lines are
+# Exact formats, one block per tag below. Unmatched lines are
 # retained and printed so a format mismatch is visible, never silent.
 # ==========================================================================
 /\[Fire\]/ {

@@ -38,16 +38,6 @@
 //   * the copy constructors 0x18005b700 (Instance) and 0x18005b660
 //     (AnimationState) write the same fields in the same order.
 //
-// ---------------------------------------------------------------------------
-// WHAT THIS FILE CORRECTS IN AnimationState.h
-// ---------------------------------------------------------------------------
-// AnimationState.h (Wave 27 lane GFXBIG) declares AnimationState +0x28 and
-// +0x38 as two `void*` named `interpB` / `interpA`, "the two
-// InterpolatedState<Math::Transform>* the caller passes as Update's 4th and
-// 5th parameters". The POINTER VALUE it describes is right and the TYPE is
-// wrong: both are 16-byte `Collection::Array` headers, so what the caller
-// passes is the address of an Array, not an InterpolatedState. See the
-// correction note left in AnimationState.h itself.
 // ============================================================================
 
 #include <cstdint>
@@ -78,13 +68,9 @@ namespace RtGraphics {
 // ---------------------------------------------------------------------------
 // Graphics::AnimationState — 0x48 bytes, the full layout.
 //
-// AnimationState.h declares the same record from AnimationState::Update's side
-// and names the fields Update reads; this declaration is the SERIALIZER's view
-// and is the one the Array<AnimationState> machinery in
-// src/engine/collection/array_graphics_anim.cpp uses. They agree on every
-// offset; the two differences are that this one knows +0x28 / +0x38 are Array
-// headers and that it does not claim to know what +0x24 / +0x30 / +0x40 are
-// (they are the `_capacity` halves of the two Array triples).
+// AnimationState.h declares the same record as `Graphics::InstancedAnimationState`;
+// this declaration is the SERIALIZER's view of it.
+// `tests/unit/graphics_animation_abi_test.cpp` cross-asserts the two.
 //
 // Serialized by 0x18005c2c0 in this order: the layer array (count as int, then
 // the 0x38 records), +0x00 as a bool, the node array (count as int, then the
@@ -155,14 +141,11 @@ static_assert(offsetof(AnimationManagerView, _instances) == 0x00,
 // named, plus the two `?PlayAnimation@AnimationState@Graphics@@` reads. The
 // record is 0x70 bytes and nothing else about it is claimed here.
 //
-// *** THIS DISAGREES WITH AnimationState.h's `AnimationClipPrefix` ON TWO
-// NAMES, and GetPoseAtTime is the body that settles both. *** That header calls
-// +0x48 `loopScale` and +0x50 `frameRate`. GetPoseAtTime multiplies the elapsed
+// GetPoseAtTime settles the two names that matter: it multiplies the elapsed
 // SECONDS by +0x44 to get a frame cursor (so +0x44 is the rate, in frames per
 // second) and compares that cursor against +0x50 to decide whether the clip has
-// run out (so +0x50 is the FRAME COUNT, not a rate). AnimationState.h's own
-// note that +0x50 is "read as an INT and cvtdq2ps'd to float" is consistent
-// with a count and not with a stored rate.
+// run out (so +0x50 is the FRAME COUNT, not a rate). AnimationState.h's
+// `AnimationClipPrefix` uses the same two names (`frameRate`, `frameCount`).
 // ---------------------------------------------------------------------------
 // Declared as OFFSET CONSTANTS rather than as a struct: the record is 0x70
 // bytes, only these ten fields have a named reader, and a struct would have to
@@ -207,19 +190,15 @@ namespace anim_group {
 // ############################################################################
 // ENDGAME B.3.5 step 5, block H1 — the REAL `Graphics::AnimationManager`.
 //
-// `RtGraphics::AnimationManagerView` above (the head overlay) and
-// `RtGraphics::AnimationManager` in Animation.h (the whole 0x9d8) both KEEP
-// LIVING (B4b-1), and `tests/unit/graphics_animation_abi_test.cpp` cross-asserts
-// the class against both.
+// `RtGraphics::AnimationManagerView` above (the head overlay) KEEPS LIVING
+// (B4b-1), and `tests/unit/graphics_animation_abi_test.cpp` cross-asserts the
+// class against it.
 //
 // *** THE `anim_clip` / `anim_group` OFFSET-CONSTANT NAMESPACES ABOVE ARE NOW
-// REDUNDANT WITH TWO REAL CLASSES, AND THEY STAY. *** `anim_clip::k*` describe
+// REDUNDANT WITH TWO REAL CLASSES. *** `anim_clip::k*` describe
 // `Graphics::Animation`'s fields and `anim_group::k*` describe
-// `Graphics::AnimationGroup`'s; every one is CROSS-ASSERTED against the class in
-// the unit test, so the two spellings cannot drift. They are kept because
-// unconverted bodies outside block H1's file set still use them
-// (`wave28_lane_gfxbody.cpp`, `wave29_lane_gfxbody.cpp`), and retiring a
-// constant those files read would be editing another block's files.
+// `Graphics::AnimationGroup`'s; every `anim_clip::k*` is CROSS-ASSERTED against
+// the class in the unit test. No body in src/ reads either namespace.
 // ############################################################################
 
 namespace Graphics {
@@ -283,8 +262,8 @@ public:
     };
 
     // ---- the members retail exports -----------------------------------------
-    // ??0AnimationManager@Graphics@@QEAA@XZ        0x1800fc430 — door, see banner
-    // ??1AnimationManager@Graphics@@QEAA@XZ        0x1800fc400 — door, see banner
+    // ??0AnimationManager@Graphics@@QEAA@XZ        0x1800fc430 — animation.cpp
+    // ??1AnimationManager@Graphics@@QEAA@XZ        0x1800fc400 — animation.cpp
     AnimationManager();
     ~AnimationManager();
     // ??0AnimationManager@Graphics@@QEAA@AEBV01@@Z 0x18005a780  NOT PORTED
@@ -329,8 +308,7 @@ public:
 
     // ?Update@AnimationManager@Graphics@@QEAAXAEBVTime@System@@_N@Z 0x1800fc240
     //   PORTED — the body is this member, in `wave23_lane_gfxbody.cpp`'s
-    //   `namespace Graphics` block; the registered door delegates and keeps both
-    //   counters (ENDGAME B.3.5 block GC).
+    //   `namespace Graphics` block (ENDGAME B.3.5 block GC).
     //
     //   TWO CORRECTIONS TO WHAT THIS NOTE USED TO SAY. (1) The lane's
     //   `RT_GFX23_CORRUPT(n)` effectiveness-probe scaffolding is DELETED, not
@@ -343,16 +321,13 @@ public:
     void Update(const System::Time& time, bool rootOnly);
 
     // ?Serialize@AnimationManager@Graphics@@QEAAXAEAVSerializer@IO@@@Z 0x1800fc190
-    //   DECLARED, DELIBERATELY UNDEFINED — the live body is
-    //   `wave24_lane_gfxmat.cpp`'s registered door, which is block G's file, not
-    //   block H1's. This class is non-polymorphic, so no vtable slot needs a
-    //   member definition and one would only be a second resolution path.
+    //   PORTED — the body is this member, defined in `wave24_lane_gfxmat.cpp`.
     void Serialize(IO::Serializer& s);
 
     // ?GetPose@AnimationManager@Graphics@@QEBAXHPEAVTransform@Math@@H@Z 0x1800fb8e0
-    //   PORTED HERE — the body moved out of animationstate.cpp's
-    //   `RtGraphics_AnimationManager_GetPose`. Unguarded on every step, exactly
-    //   as retail is: a bad handle indexes off the end of the instance table.
+    //   PORTED — the body is this member, defined in animationstate.cpp. Unguarded
+    //   on every step, exactly as retail is: a bad handle indexes off the end of
+    //   the instance table.
     void GetPose(int handle, Math::Transform* out, int count) const;
 
     // ?GetPose@AnimationManager@Graphics@@QEBAPEBVTransform@Math@@H@Z 0x18005a6d0
@@ -365,8 +340,8 @@ public:
     // ?GetInstanceId@AnimationManager@Graphics@@QEAAHV?$ExternalPtr@VAnimationGroup
     // @Graphics@@@Object@@HAEBV?$Array@UNode@GraphicsMesh@Graphics@@@Collection@@@Z
     //   0x1800fb9d0. PORTED — the body IS this member, in
-    //   animationstate_transforms.cpp's `namespace Graphics` block, and the door
-    //   delegates (ENDGAME B.3.5 block GC). It used to be "DECLARED, DELIBERATELY
+    //   animationstate_transforms.cpp's `namespace Graphics` block (ENDGAME B.3.5
+    //   block GC). It used to be "DECLARED, DELIBERATELY
     //   UNDEFINED ... kept there for the scaffolding reason above"; the
     //   "NOT DIFFABLE: the body allocates instances, bakes poses into them and
     //   moves reference counts" note is DOCUMENTATION, it travelled with the body,

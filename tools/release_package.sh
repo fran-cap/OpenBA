@@ -7,8 +7,8 @@
 #                tools/build.sh build <flavour> first (--no-build takes the exe already there)
 #   --fonts DIR  the directory holding FrancophilSans.ttf and FrancophilSans-Bold.ttf (the
 #                user's copy; default C:/Users/USPC/Downloads/francophil_sans, or $FRANCOPHIL_DIR).
-#                The typeface is NEVER in the git tree (docs/extensions/KITFREE.md §1): the
-#                release package is the only place it ships, beside the exe, where
+#                The typeface (its terms: docs/extensions/KITFREE.md §1) is kept under
+#                tools/release/fonts/ (THIRD_PARTY_NOTICES.md) and ships beside the exe, where
 #                src/platform/win/font_raster_win.cpp loads it privately when the face is not
 #                installed.
 #
@@ -19,7 +19,7 @@
 #   FrancophilSans_README.txt     Manfred Klein's credit and terms (tools/release/, ours)
 #   LICENSE, README.md            OpenBA's own, when present at the repo root
 # and build/release/OpenBA-<version>.zip of the same (version = `git describe --tags`, or the
-# short hash), when `zip` or PowerShell is available. The package holds NO game content and no
+# short hash), when `zip` or python is available. The package holds NO game content and no
 # compiled resource: the fonts are rasterised in the exe at run time, the dialogs are built from
 # the embedded text (KITFREE).
 set -e

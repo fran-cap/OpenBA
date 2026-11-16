@@ -1,6 +1,6 @@
 #pragma once
 // ============================================================================
-// src/render/common/better_trees/receiver_rewrite.h -- ext.billboard_shadow's vertex-shader
+// src/render/common/better_trees/receiver_rewrite.h -- ext.better_trees' vertex-shader
 // rewriter (docs/extensions/TREE_SHADOW.md, handins/TS-CORE.md "TS-FIX2")
 // ============================================================================
 // NOT RETAIL. Pure: no D3D, no retail bytes (the unit tests build synthetic vs_4_0 blobs). It reads

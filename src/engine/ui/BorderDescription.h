@@ -3,13 +3,13 @@
 // src/engine/ui/BorderDescription.h — UI::BorderDescription, the REAL class
 // ============================================================================
 //
-// ENDGAME B.3 step 6, block C1. Layout POD: `RtUI::BorderDescription` in
-// DescriptionsBatch1.h (not edited, RULE B6-4.4); every offset cross-asserted.
+// ENDGAME B.3 step 6, block C1. `RtUI::BorderDescription` in DescriptionsBatch1.h
+// is an alias of this class.
 //
 // PARENT `UI::ElementDescription` — READ:
 //     ?_ParentTypeName@BorderDescription@UI@@CAPEBDXZ  @0x1800409b0 -> "ElementDescription"
 // RULE B5-15 / B6-7 — RECORDED, NOT USED (`?_typeInfo@BorderDescription@UI@@…`
-// 0x1801fa890 stays minted):
+// 0x1801fa890; the class's own record is DEFINE_TYPE's):
 //     ?_TypeName@BorderDescription@UI@@CAPEBDXZ        @0x1800409a0 -> "BorderDescription"
 //     ?_ParentTypeName@BorderDescription@UI@@CAPEBDXZ  @0x1800409b0 -> "ElementDescription"
 //
@@ -86,10 +86,9 @@ public:
     BorderDescription(const BorderDescription& src);              // 0x180040ba0  not ported
     BorderDescription& operator=(const BorderDescription& src);   // 0x180040ce0  not ported
 
-    // 0x1800409d0 — the minted record's type id (borderdescription.cpp).
-    // Retail's factory pair (B39_RULES D2): MemAlloc(0xb8, 8) + the ctor, and
-    // the null-tested in-place ctor. Defined and registered in
-    // borderdescription.cpp.
+    // 0x1800409d0 — the type id. Retail's factory pair (B39_RULES D2):
+    // MemAlloc(0xb8, 8) + the ctor, and the null-tested in-place ctor; both are
+    // declared by DECLARE_TYPE above and defined in borderdescription.cpp.
 
 private:
 

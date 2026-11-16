@@ -30,8 +30,8 @@
 //
 // Wave 5 lane C (WAVE5_LANE_C.md, row 6) and the Wave 8.5 hold-back re-check
 // (WAVE8_5_HOLDBACK_RECHECK.md, row 10) both declined it, with two reasons.
-// Re-checked here before porting, as
-// reference_holdback_blockers_are_stale_check_them_first.md requires:
+// Re-checked here before porting against the disassembly and the tree, since a
+// stated hold-back blocker records only what one earlier check could establish:
 //
 //   REASON 1 — "it hand-constructs five Wave 6/7 classes, so porting Draw means
 //   porting their constructors first; that is a wave, not a function."
@@ -44,14 +44,12 @@
 //   `?Set@SpriteSheet@UI@@`, `?AddSpriteInfo@SpriteSheet@UI@@`,
 //   `??0Camera@Graphics@@`, `?SetCamera@Context@Video@@`, …). The fourteenth
 //   family is three IDENTICAL five-line `Array<POD>::~Array` instantiations
-//   (0x18001c750, 0x180033bc0, 0x180033de0) plus one
-//   `Array<{String,void*}>::SetSize` (0x180061480) — all four transcribed
-//   inline below, so this port opens NO address door into the DLL and does not
-//   grow the cutover surface.
-//   The lesson is the general one of
-//   reference_grep_cannot_tell_internal_from_unported_export.md: "the callee is
-//   not ported" and "the callee has no name" are different facts, and only the
-//   export table can tell them apart.
+//   (0x18001c750, 0x180033bc0, 0x180033de0), which are `UI::SpriteContext`'s
+//   member-wise destructor here, plus one `Array<{String,void*}>::SetSize`
+//   (0x180061480), transcribed inline below.
+//   The lesson is the general one: "the callee is not ported" and "the callee
+//   has no name" are different facts, and only the export table can tell them
+//   apart.
 //
 //   REASON 2 — "no oracle is possible: it renders into the live Video::Context
 //   and would draw twice and leak a render target per call."
@@ -59,17 +57,12 @@
 //   Drawing twice is only fatal if the second draw's inputs have been spoiled
 //   by the first, and they have not: this body restores every piece of shared
 //   state it touches, and the backbuffer it samples is not one of the things it
-//   writes. The leak is real and is OURS to fix, not the oracle's to suffer:
-//   the harness below frees our readback buffer and rewinds `_captureFlags`,
-//   `_capturePixels` and the four Context fields before handing the frame to
-//   the DLL, so retail runs on genuinely pristine input and the LIVE post-state
-//   the game keeps is retail's, not ours.
-//   See the ORACLE section at the bottom of this banner.
+//   writes.
 //
 // ----------------------------------------------------------------------------
 // FOUR THINGS THE DECOMPILED C GOT WRONG. Every one was caught by reading the
-// disassembly, which is what reference_ghidra_c_output_vs_disassembly.md says
-// to do and what Wave 13 had to do twice in this same class.
+// disassembly, which outranks Ghidra's C on derefs, widths and argument counts,
+// and reading it is what Wave 13 had to do twice in this same class.
 //
 //   1. *** A DROPPED ARGUMENT AT A VTABLE CALL. *** Ghidra prints the
 //      FrameCopyImageBuffer capture call as
@@ -120,9 +113,10 @@
 // a trivially-copyable single pointer.
 //
 // AND IT CARRIES NO REFCOUNT SIDE EFFECT HERE. There is no increment on the way
-// in and no release on the way out — the exe's caller
-// (`src/game/Game/gameupdateloop.cpp:2231`) passes `m_uiMaterial`, a
-// borrowed pointer it keeps owning, and retail treats it as borrowed for the
+// in and no release on the way out — the callers
+// (`src/game/Game/gameupdateloop.cpp:1681`, `src/ext/render_pipe/render_pipe.cpp:585`)
+// pass the game's `m_uiMaterial`, a borrowed pointer it keeps owning, and
+// retail treats it as borrowed for the
 // life of the MaterialInstance it stamps it into. A port that retained or
 // released it would be wrong in the direction that does not crash.
 //
@@ -142,47 +136,6 @@
 //     and the allocator does not return null here. Left unguarded.
 //
 // ----------------------------------------------------------------------------
-// ORACLE — a REPLAY oracle on the payload, gated by the old DLL-era switch.
-//
-// The observable of a Draw is not a return value; it is the pixels it produces
-// and the state it leaves behind. Both are compared:
-//
-//   ours runs for real  -> snapshot the w*h*4 readback into a private copy,
-//                          plus `_captureFlags` and the four Context fields
-//   free ours' buffer, rewind `_capturePixels`, `_captureFlags`,
-//   `_renderBuffer`, `_dirty`, `_viewport` and `_scissor` to their pre-values
-//   THEIRS runs for real on that pristine state
-//   compare, on THREE SEPARATE the diff oracle SITES so each is scored on its own:
-//     [pixels]                    the w*h*4 readback — the only screen that can
-//                                 see the actual rendering
-//     [SaveLoad post-state]       `_captureFlags` (`_capturePixels` is excluded:
-//                                 two MemAllocs cannot return one address, and
-//                                 its CONTENT is the pixel screen)
-//     [Video::Context post-state] `_renderBuffer`, `_dirty`, `_viewport`, `_scissor`
-//   Three sites rather than one because a `divergences=` scored over the UNION
-//   cannot tell "all three passed" from "two passed and the third is blind"
-//   (reference_union_control_hides_a_blind_screen.md).
-//
-// After the round the live object holds RETAIL's buffer and RETAIL's state, so
-// the game continues on the authority's result and there is no leak.
-//
-// The three controls, scored separately in the report:
-//   * the old DLL-era switch — the POSITIVE control. Runs THEIRS on both
-//     sides. If the pixel compare is not green here the readback is not
-//     deterministic across two draws in one frame and an ours-vs-theirs green
-//     would mean nothing.
-//   * the old DLL-era switch — the NEGATIVE control, and it corrupts
-//     something the comparison ACTUALLY READS
-//     (reference_control_must_pick_a_compared_subject.md): it halves the
-//     frustum's right-plane distance, which changes the projection and so every
-//     compared pixel. Not `_captureFlags`, which the pixel screen cannot see.
-//   * `calls=` and `worked=` — read them, not just `divergences=`. `worked` is
-//     the `_captureFlags` early-out: a run whose `worked` is 0 never entered the
-//     body and its clean board is empty
-//     (reference_uncalled_port_is_not_verified.md,
-//      reference_calls_zero_can_mean_always_took_the_uncovered_branch.md).
-//
-// with Wave 5's and Wave 13's Save ports still live.
 // ============================================================================
 
 #include <atomic>
@@ -219,21 +172,12 @@ using RtSaveDetail::ReleaseStringSlot;
 namespace {
 
 // ============================================================================
-// 1. The four unexported internals, transcribed rather than called by address.
+// 1. The two unexported internals, transcribed rather than called by address.
 // ============================================================================
 
-// `Collection::Array<T>::~Array` for a POD element type. THREE separate
-// template instantiations in the DLL — 0x18001c750, 0x180033bc0 and
-// 0x180033de0 — whose decompiled bodies are byte-for-byte the same five lines,
-// because the element type has no destructor and only the stride (which never
-// appears) would have differed. Draw calls all three, one per SpriteContext
-// array member.
+// `MemFree` here is `RtSaveDetail::MemFree` (saveload_internal.h), a wrapper over
+// the export `System::MemoryAllocator::MemFree` (0x1800c7ad0).
 //
-// The locked free is exactly `System::MemoryAllocator::MemFree`: that export
-// (0x1800c7ad0) is `if (p) { EnterCriticalSection(_singleton+0x640); Free(...);
-// LeaveCriticalSection(...); }`, which is the inlined sequence character for
-// character. So this reaches the SAME allocator lock the DLL uses, through the
-// port-aware door, and stays correct when Wave 10's allocator port is armed.
 // One element of `Graphics::MaterialInstance`'s texture array at +0x50
 // (`_textures`): a refcounted `System::String` name and the borrowed object it
 // binds to — `RtGraphics::MaterialTexture` (graphics/Material.h). Stride 0x10
@@ -265,8 +209,8 @@ void ReleaseBindingNames(MaterialBinding* p, int32_t count) {
 //     the array SHRANK, the dropped elements' Strings are released; when it
 //     did move, ALL the old elements' Strings are released and then the old
 //     block is freed. Collapsing either into a bare `MemFree` would leak one
-//     String refcount per element — the shape
-//     reference_a_written_recipe_can_be_wrong.md is about.
+//     String refcount per element — look-alike bodies differ by exactly such a
+//     release pass, so each is checked against its own disassembly.
 void ArrayBindingSetSize(BindingArray* a, uint32_t newSize, const MaterialBinding* fill) {
     const uint32_t oldSize = static_cast<uint32_t>(a->_size);
     if (newSize == oldSize) return;
@@ -311,11 +255,9 @@ void ArrayBindingSetSize(BindingArray* a, uint32_t newSize, const MaterialBindin
 }
 
 // ============================================================================
-// 2. The DLL entry points. Every name below was read out of the SHIPPED export
-//    table with pefile, by ADDRESS, before it was written down: the address the
-//    disassembly calls was looked up in `DIRECTORY_ENTRY_EXPORT`, so none of
-//    these is a name a human spelled from memory
-//    (reference_resolveexport_phantom_names.md). The ordinal is recorded next
+// 2. The Video::Device singleton Draw reads. The retail export names quoted in
+//    the body were read out of the SHIPPED export table with pefile, by ADDRESS
+//    (never inferred from the signature); the ordinal is recorded next
 //    to each so the lookup is reproducible.
 // ============================================================================
 
@@ -324,15 +266,8 @@ void ArrayBindingSetSize(BindingArray* a, uint32_t newSize, const MaterialBindin
 // their typedefs are gone. ENDGAME B.3.1 step 2: the String::Set door is
 // `diffuse.Set("diffuse")`.
 
-// The two Video singletons Draw reads. Both are DATA exports whose slot holds
-// the pointer, so the slot is dereferenced, unlike the vtable symbols below.
-// Wave 15 lane ORDER converted both from `static T** p = ResolveExport(...)`,
-// which freezes the FIRST answer including a non-null one, to the caching door
-// that now refuses to freeze a pre-init answer (rt_resolve_cache.cpp §6).
-// Neither of these two rows is promoted today; the conversion is for the shape,
-// so a future promotion of Device@Video or Configuration@Video cannot strand
-// this file's readers on the DLL's `.data` (and so [RtSlotAudit] can see them).
-// ENDGAME B.3.9 SS1 (B39_RULES D7): both class statics now, read fresh.
+// The Video singleton Draw reads (ENDGAME B.3.9 SS1, B39_RULES D7): the class
+// static, read fresh.
 ::Video::Device* DeviceSingleton() {
     return ::Video::Device::_singleton;
 }
@@ -375,26 +310,10 @@ void Save::SaveLoad::Draw(Video::Context& context,
     // `??2FrameCopyImageBuffer@Graphics@@SAPEAX_K@Z` (787) then
     // `??0FrameCopyImageBuffer@Graphics@@QEAA@XZ` (198).
     //
-    // *** DO NOT READ THE CONSTRUCTOR'S RETURN VALUE. *** Retail does
-    // (`CALL <ctor>; MOV R12,RAX`) and retail is right to: MSVC returns `this`
-    // in RAX from every constructor. But a PORTED constructor is an ordinary
-    // C++ function, and this tree's ported constructors are not uniform —
-    // `Video_ImageBuffer_Ctor` (src/engine/video/buffers.cpp:387) is declared
-    // `void`, so its RAX is whatever its last expression left there, while
-    // `RtGraphics_Geometry_Ctor` does return `Geometry*`.
-    //
-    // THIS LANE PAID FOR THAT, and it is the second lane to: the first live run
-    // of this body crashed at DrawBody+0x19f with `Fault: READ of 0x1`, one
-    // instruction into `*(void**)imageBuffer` — because `??0ImageBuffer@Video@@`
-    // resolved to our void-returning port and handed back 1. The Wave 9 sunlight
-    // lane hit the identical crash and wrote the resolution down at
-    // `src/engine/graphics/sunlight.cpp:230-247`; I found that note only
-    // afterwards, which is itself the lesson (grep the tree for the hazard, not
-    // just for the symbol).
-    //
-    // `p` and the returned `this` are the same pointer BY CONSTRUCTION, so using
-    // `p` is byte-faithful to what retail computes and is independent of how any
-    // port spells its signature — on the DLL-present path AND at cutover.
+    // Retail keeps the constructor's return value (`CALL <ctor>; MOV R12,RAX`):
+    // MSVC returns `this` in RAX from every constructor. `p` and the returned
+    // `this` are the same pointer BY CONSTRUCTION, so the placement-new's value
+    // below is byte-faithful to what retail computes.
     Graphics::FrameCopyImageBuffer* frameCopy = nullptr;
     {
         void* p = RtGraphics_FrameCopyImageBuffer_OperatorNew(0x88);   // ??2FrameCopyImageBuffer@Graphics@@
@@ -540,8 +459,7 @@ void Save::SaveLoad::Draw(Video::Context& context,
         ArrayBindingSetSize(params, static_cast<uint32_t>(params->_size) + 1, &binding);
     }
     // ENDGAME B.3.5: `?BuildParameters@MaterialInstance@Graphics@@QEAAXXZ`
-    // 0x1801033e0 is a DEFINED member now (wave27_lane_gfxbig.cpp), so the
-    // by-name door call becomes a member call. The door stays registered.
+    // 0x1801033e0 is a DEFINED member (wave27_lane_gfxbig.cpp), called as one.
     mat->BuildParameters();
 
     // ---- the one-sprite sheet ---------------------------------------------
@@ -762,10 +680,9 @@ void Save::SaveLoad::Draw(Video::Context& context,
         _capturePixels = buffer;
 
         // ImageBuffer+0x60 is the backend companion object; its vtable slot
-        // 0x30 is slot INDEX 6, which src/render/dx11/VideoDX11Data.h already names
-        // `kImg_Read` — "staging copy + Map/READ readback" (0x180002ef0). So
-        // this is the GPU->CPU readback, identified by our own DX11 lane's slot
-        // table rather than guessed from the argument shape.
+        // 0x30 is slot INDEX 6, which src/render/dx11/VideoDX11Data.h declares as
+        // `ImageBufferData::Read` — "staging copy + Map/READ_WRITE readback"
+        // (0x180002ef0). So this is the GPU->CPU readback.
         // Slot 6 of the abstract `Video::ImageBufferData`, `bool Read(void*,
         // int, int)` (CompanionData.h), by name; retail ignores the result.
         target->_data->Read(buffer, _captureWidth, _captureHeight);

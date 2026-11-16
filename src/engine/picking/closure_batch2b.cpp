@@ -5,17 +5,11 @@
 //   0x18007aef0  Picking::Scene::Scene(float) (unexported, 14 stores + one call)
 //
 // The shared grid initialiser `??0Scene@Picking@@QEAA@XZ` (0x1801258e0) calls
-// with a cell size of 16.0f. Our port of that constructor
-// (src/engine/picking/scene.cpp, `RtPicking_Scene_Ctor`) used to INLINE it (it calls this now), which
-// was the right call there — a forwarder would have had nothing to diff — but
-// it left the shared body itself unported, so the closure still reaches
-// 0x18007aef0 and, at cutover, ResolveAddr would return nothing for it.
+// this with a cell size of 16.0f; its port (`Scene::Scene()` in
+// src/engine/picking/scene.cpp) delegates to it.
 //
-// This is that body, registered at its own address. It is the SAME fourteen
-// stores scene.cpp transcribes; the two are kept in step by both writing
-// through `Picking::Scene`'s named fields rather than raw offsets, so a
-// layout change breaks the header's static_asserts and not one of the two
-// copies silently.
+// This is that body. It writes through `Picking::Scene`'s named fields rather
+// than raw offsets, so a layout change breaks the header's static_asserts.
 //
 // THE BRIEF CALLED THIS "a Frustum/Camera-shaped ctor" AND ASKED FOR A NEW TYPE
 // HEADER. It is neither: `src/engine/picking/Scene.h` already pins every one
@@ -55,13 +49,12 @@ const float kOne = 1.0f;
 //   +0x48  _entries     {0, 0, 0}
 //   +0x58  _freeEntry   = -1
 //   +0x5c  _queryStamp  = 0
-//   then CellHeadsInit(&_cellHeads) — which allocates the 10,000-entry bucket
+//   then `_cellHeads` SetSize(10000) (0x18007b960) — which allocates the 10,000-entry bucket
 //   table, so this function ALLOCATES and must not be called before the
 //   MemoryAllocator is started.
 //
 // The two unwritten dwords are recorded, not zeroed: a `= {}` would be a
-// behavioural difference from retail, and scene.cpp's oracle already excludes
-// exactly those two offsets from its byte comparison.
+// behavioural difference from retail.
 // ============================================================================
 // B.4 wave Y: 0x18007aef0 is a CONSTRUCTOR — its EH frame (-2 at
 // [RSP+0x20]) covers the four Array members, and its stores are the member

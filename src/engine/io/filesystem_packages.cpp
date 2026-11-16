@@ -10,8 +10,8 @@
 //   | ?GetPackDirectory@FileSystem@IO@@QEBA?AV…XZ  | 0x180007c10 | 2828 |   15   |
 //   | ?GetFileName@PackageFile@IO@@QEBA?AV…H@Z     | 0x180025450 | 2602 |   18   |
 //
-// Every mangled name above, and every name reached through RT_EXPORT_ONCE
-// below, was read out of Runtime-x64.dll's own export directory with `pefile`
+// Every mangled name above was read out of Runtime-x64.dll's own export
+// directory with `pefile`
 // BEFORE a line of this file was written — and so was every ORDINAL in this
 // file, printed straight from the export table's ordinal array plus its
 // ordinal base rather than transcribed from a note. That is not ceremony:
@@ -21,13 +21,9 @@
 // 2350, ??0PackageFile 505 vs 289, ReadPackfile 3560 vs 3461, CloseFile 1900
 // vs 1726). An ordinal is exactly the kind of detail that reads as evidence
 // and is never checked by the compiler — not looked up in a decompile, and
-// not typed from memory. A name the DLL does not contain resolves NULL
-// silently and forever (reference_resolveexport_phantom_names.md).
+// not typed from memory.
 //
-// and leaves every call on the DLL.
-//
-// NO NEW WIN32 API AND NO NEW IMPORT LIBRARY. This file calls nothing outside
-// the Runtime DLL's own surface; SA_LIBS is untouched.
+// NO WIN32 API. This file calls no OS function directly.
 //
 // ---------------------------------------------------------------------------
 // 1. THE ROW WAS SIZED WRONG GOING IN, AND THE CORRECTION MATTERS
@@ -43,7 +39,7 @@
 // user/mod pack filenames already sitting in the FileSystem at +0x30.
 // Everything below is transcribed from the disassembly at 0x1800ab460, not
 // from that sketch or from Ghidra's C (which drops dereferences and prints
-// MOVSXD as a zero extension — reference_ghidra_c_output_vs_disassembly.md).
+// MOVSXD as a zero extension).
 //
 // ---------------------------------------------------------------------------
 // 2. THE BODY
@@ -98,18 +94,10 @@
 // than derived. The `JZ epilogue` at 0x1800ab483 is therefore NOT taken and the
 // entire body below is live.
 //
-// See §6 for what that does to lane FS's ExistsInPackfile holdback. Short
-// version: it kills it.
 //
 // ---------------------------------------------------------------------------
-// 4. WHAT THIS FILE DELIBERATELY DOES NOT PORT
+// 4. LoadPackages' CALLEES
 // ---------------------------------------------------------------------------
-// LoadPackages' callee set does not close in this lane, and pretending
-// otherwise would be worse than saying so. Written out here so the next lane
-// inherits a list and not an archaeology task. Each is called through the
-// PROPER door — RT_EXPORT_ONCE for an exported name, ResolveAddr for an
-// unexported internal — so a run that reaches one dies with its NAME on
-// [RtUnresolved] rather than silently doing nothing:
 //
 //   ?FindFiles@FileSystem@IO@@QEBAX…      0x1800ad7a0  ord 2350   289 instrs
 //       The `*.pkg` enumeration. A FindFirstFileW/FindNextFileW/FindClose loop
@@ -117,11 +105,10 @@
 //       half behind its `bool` parameter (passed FALSE here). Its own callees
 //       are already ported: WideString ctor/Set/AsUTF8 (lane FS), String
 //       operator+ (0x1800c9440), Filename::AdjustDelimiters (0x1800c6970);
-//       the one that is not is Array<Filename>::Insert at 0x180026880.
-//       **THIS IS THE NEXT WALL — see §8.**
+//       and Array<Filename>::SetSize at 0x180026880 (filesystem_find.cpp).
 //   ??0PackageFile@IO@@QEAA@XZ            0x1800b4440  ord  289    48 instrs
-//       A plain field-initialising constructor, and cheap — EXCEPT that it
-//       writes three vtable pointers and only two of them are minted. See §7.
+//       A plain field-initialising constructor, and cheap. It writes three
+//       vtable pointers; PackageFile's is described in §7.
 //   ?ReadPackfile@PackageFile@IO@@…       0x1800b46b0  ord 3461  6,597 BYTES
 //       The .pkg format parser itself. This is a lane, not a tail-end.
 //   ?CloseFile@FileSystem@IO@@…           0x1800accc0  ord 1726
@@ -184,57 +171,12 @@
 //     reads two bytes and writes three Strings; LoadPackages' output IS the
 //     process's file-system state, and the objects it builds are handed to a
 //     singleton the rest of the engine reads.
-//   * The the diff oracle below is therefore a SHADOW, not a comparison, and it
-//     is labelled as one. It prints the four counts the body produced. It can
-//     catch "the port ran and did nothing"; it CANNOT catch "the port ran and
-//     built the wrong tree", and quoting it as a verification would be the
-//     thing this project has been burned by repeatedly
-//     (reference_probe_needs_an_effectiveness_control.md).
 //
-// The three small rows in this file DO have real oracles — they are pure, they
-// take a hidden return slot, and replaying them onto a second scratch Filename
-// costs nothing. Those replays snapshot their inputs before the call, per
-// reference_oracle_must_snapshot_aliased_inputs.md.
-//
-// And the honest bottom line, stated once: **nothing in this file has been
-// executed.** No build of the game, no run, no log. §8 is a prediction, not a
-// report.
 //
 // ---------------------------------------------------------------------------
-// 6. LANE FS's `ExistsInPackfile` HOLDBACK, RE-DERIVED FROM SCRATCH
+// 7. ??_7PackageFile@IO@@6B@, AND HOW ITS SIZE WAS ESTABLISHED
 // ---------------------------------------------------------------------------
-// Lane FS declined `?ExistsInPackfile@FileSystem@IO@@QEBA_N…` (0x1800ab180,
-// ord 2322) because inside SetupDirectories the packfile gate is 0, so the arm
-// is dead. **That reasoning is correct and it is now spent.** Re-derived here
-// without inheriting any of it:
-//
-//   1. `?Exists@FileSystem@IO@@QEBA_N…` is ALREADY PORTED
-//      (src/engine/io/filesystem.cpp:151) and its first arm is
-//      `if (fs->existsInPackfileGate != 0 && ExistsInPackfile(fs, path))`.
-//   2. That call goes through RT_EXPORT_ONCE — the port-aware door — and
-//      `?ExistsInPackfile@FileSystem@IO@@QEBA_NAEBVFilename@System@@@Z` has NO
-//      RegisterRuntimeExport and NO RegisterRuntimeAddr anywhere in the tree
-//      (checked by grep over runtime/, standalone/, engine/, code/, src/render/dx11/).
-//   3. FileSystem::Startup sets the gate to 1, and it does so BEFORE calling
-//      LoadPackages — i.e. before this file even runs.
-//
-// So from the instant `FileSystem::Startup` executes, EVERY `Exists()` call in
-// the process evaluates `ExistsInPackfile` first, and at cutover that is a call
-// through a null pointer. The same paragraph applies verbatim to
-// `?PlatformExists@FileSystem@IO@@AEBA_N…` (0x1800adc70), the other arm, also
-// unported, also reached through a live door.
-//
-// **This is a live cutover hole that no instrument in this project reports**,
-// for exactly the reason lane FS §4.1 gave about WideString: an RT_EXPORT_ONCE
-// to an unported symbol is indistinguishable from one to a ported symbol until
-// it runs. It is not in THIS row's call chain, so this lane does not port it —
-// but it is upstream of everything, and the integrator should treat it as
-// higher priority than the row I was given.
-//
-// ---------------------------------------------------------------------------
-// 7. ONE MINT ROW IS NEEDED, AND HOW ITS SIZE WAS ESTABLISHED
-// ---------------------------------------------------------------------------
-// The mint is the integrator's file and is not touched here. The row:
+// The vtable:
 //
 //     ??_7PackageFile@IO@@6B@   DLL 0x180155700   9 slots
 //
@@ -248,51 +190,6 @@
 // string, i.e. the next object in .rdata. So the table is nine slots and the
 // terminator is observed, not assumed.
 //
-// `??_7Base@Object@@6B@` (0x180154788) and `??_7External@Object@@6B@`
-// (0x1801547a0) — the other two vtables that constructor writes — are ALREADY
-// in rt_data_mint_tables.inc (lines 1212 and 1229). Only PackageFile's is
-// missing, which is why ??0PackageFile is declined in §4 rather than ported:
-// porting it today would write a garbage vtable pointer into every package.
-//
-// ---------------------------------------------------------------------------
-// 8. PREDICTION FOR ATTEMPT 12, AND WHAT WOULD FALSIFY IT
-// ---------------------------------------------------------------------------
-// The next fault is `[RtUnresolved] ?FindFiles@FileSystem@IO@@QEBAX…`
-// (0x1800ad7a0, ord 2350), EXEC of 0, symbolising inside
-// **RtIo_FileSystem_LoadPackages** — a function that does not exist in the
-// binary today — and **THE STACK FRAME MOVES DOWN ONE LEVEL**: #1
-// RtIo_FileSystem_LoadPackages, #2 RtIo_FileSystem_Startup, #3
-// RtEngine_Engine_Startup. This deliberately differs from lane FS's attempt-10
-// prediction, which said the frame would NOT move; the frame moves here
-// because LoadPackages now HAS a frame, where before it was the callee that
-// never existed.
-//
-// FALSIFIERS, in the order they are worth reading:
-//
-//  * A fault naming `?ClosePackages@` means the gate byte at +0x18 was ZERO
-//    and §3 is wrong — no, worse: it means the gate was zero and yet
-//    ClosePackages was reached, which is impossible, so it would instead mean
-//    the ClosePackages REGISTRATION did not take. Check the
-//    `[RtPort] IO: N exports registered` count moved by 4.
-//  * A fault naming `?GetPackDirectory@` means the early `if (gate == 0)`
-//    return fired and then… it cannot: GetPackDirectory is past the gate. It
-//    would mean lane FS's `packDirectory` field at +0x10 is not where they
-//    said, and the copy ctor faulted on a bad `this`.
-//  * **NO fault at all, and the boot proceeding past FileSystem::Startup,
-//    falsifies this hardest.** That would mean `FindFiles` is somehow already
-//    satisfied — which the source checker says it is not — or that the gate is
-//    zero and the whole body was skipped. The tell between those two is
-//    trivial: with the gate zero, `[the diff oracle] IO::FileSystem::LoadPackages` shows
-//    `calls=1` with the shadow ABSENT, because the early return is before the
-//    shadow. `calls=1` plus a shadow printing `pkgs=0` would mean the body ran
-//    and mounted nothing, which is a different and much more interesting bug.
-//  * A fault naming `??0PackageFile@` or `?ReadPackfile@` instead of
-//    `?FindFiles@` would mean FindFiles IS satisfied from somewhere this lane
-//    did not find — and would be good news, since it moves the wall two calls
-//    further in one step.
-//
-// And the honest caveat on all four: **no run has happened.** This is derived
-// from the disassembly and from the registration list, not observed.
 // ============================================================================
 
 #include <cstdint>
@@ -310,7 +207,7 @@
 #include "io/packfile_fold_index.h"   // block PATHINDEX: the hash index beside _packfileIndex
 
 #include <new>        // placement new into the retail hidden return slot
-#include <utility>    // std::move -- the pointer steal out of a POD out-param
+#include <utility>
 
 namespace RtIO {
 
@@ -319,12 +216,10 @@ using RtSystem::RtMemFree;
 
 namespace {
 
-// `Collection::Array<Filename>` as LoadPackages builds it on its own stack:
-// only _data (+0x00) and _size (+0x08) are ever written or read here — the
-// body zeroes both at 0x1800ab48e/96 and never touches a capacity — so this is
-// deliberately NOT the full 16-byte ArrayHdr. FindFiles receives `&tmp` and
-// owns the growth.
-// FindFiles' out-parameter is `RtIO::FilenameArray` (src/engine/io/FileSystem.h).
+// `Collection::Array<Filename>` as LoadPackages builds it on its own stack is
+// `RtIO::FilenameArray` (src/engine/io/FileSystem.h), the 16-byte header; the
+// body zeroes it at 0x1800ab48e/96. FindFiles receives `&found` and owns the
+// growth.
 
 // ClosePackages passes `IO::FileSystem::_singleton` (ord 4811, retail
 // 0x1801fc6a8), not its own `this`, to CloseFile — retail loads
@@ -394,7 +289,7 @@ void AppendPackfile(::IO::FileSystem* self, ::IO::PackageFile* obj) {
 // two ASYMMETRIC null-key arms, that src/engine/system/configuration.cpp
 // ports for the config map at 0x18002ace0 — a null SEARCH key returns the
 // current node, a null NODE key descends — and it is the same walk again inside
-// the unported insert at 0x180025c70. The ONE difference, and it is the whole
+// the insert at 0x180025c70 (avl_trees.cpp). The ONE difference, and it is the whole
 // reason this is not shared code with configuration.cpp: the comparator here is
 // the CRT's `_stricmp` (0x18007eefc → 0x18007eec0), which lowercases 'A'-'Z'
 // and compares UNSIGNED bytes, whereas the config map inlines a SIGNED-char
@@ -433,36 +328,23 @@ PackfileIndexNode* IndexFind(PackfileIndexNode* node, const char* key) {
 //
 // A String-RETURNING const member, so the hidden return slot is the SECOND
 // argument (RCX=this, RDX=ret) and RAX is the return slot on the way out —
-// `MOV RAX,RBX` at 0x180007c43. Getting that wrong is
-// reference_hidden_retslot_wild_write.md.
+// `MOV RAX,RBX` at 0x180007c43. Getting that wrong writes through a stale
+// register yet reads back correctly.
 //
 // The `MOV dword ptr [RSP+0x20],0` / `,1` pair around the call is MSVC's EH
 // state slot for the partially-constructed return value. It has no effect on
 // the object and is not reproduced.
 //
-// ORACLE: full replay onto a second scratch Filename, compared BY POINTER —
-// and with a disclosure attached, because this is the exact shape the lead
-// warned about and it would be dishonest to print `divergences=0` and stop.
+// **+0x08 and +0x10 share one buffer on a stock install.** SetupDirectories
+// seeds packDirectory as a copy of dataDirectory (retail's inlined
+// `String::operator=` with RSI = this+0x10, RDI = this+8), and that assignment
+// AddRefs the same buffer rather than duplicating it. So unless a `-pathpkg`
+// switch is passed, this->dataDirectory and this->packDirectory are LITERALLY
+// THE SAME POINTER, and reading the wrong one of the two would not show at run
+// time.
 //
-// The body AddRefs an existing buffer rather than allocating, so both sides
-// come back holding the SAME `char*`, and a pointer compare is the strong form
-// of the check: it verifies we copied from the right FIELD, which a text
-// compare would not.
-//
-// **It still cannot distinguish +0x08 from +0x10 on a stock install.** Lane FS
-// established that SetupDirectories seeds packDirectory as a copy of
-// dataDirectory (retail's inlined `String::operator=` with RSI = this+0x10,
-// RDI = this+8), and that assignment AddRefs the same buffer rather than
-// duplicating it. So unless a `-pathpkg` switch is passed, this->dataDirectory
-// and this->packDirectory are LITERALLY THE SAME POINTER, and a port that read
-// the wrong one of the two would pass this oracle every time — pointer compare
-// and text compare alike. It is a two-value population where both values are
-// equal, which is not a verification
-// (reference_recheck_must_match_its_own_proof.md, and the `TreeStrCmp` bug that
-// hid behind 13 identical zeros for four waves).
-//
-// What actually pins the field is the disassembly: `LEA RDX,[RCX+0x10]` at
-// 0x180007c2e. The oracle is a regression net, not the evidence.
+// What pins the field is the disassembly: `LEA RDX,[RCX+0x10]` at
+// 0x180007c2e.
 // ENDGAME B.3.4 PACKAGE+FS commit 5b: the three IO::FileSystem bodies in this
 // file are members of the class (GetPackDirectory, LoadPackages, ClosePackages).
 // This file is bound by B34_BRIEFS section D — nothing added, removed or
@@ -484,8 +366,7 @@ PackfileIndexNode* IndexFind(PackfileIndexNode* node, const char* key) {
 // There is NO bounds check. Retail's caller (LOOP 3 below) bounds the index by
 // `entryCount` itself, so the unguarded read is load-bearing and stays.
 //
-// ORACLE: full replay onto a scratch Filename, same reasoning as
-// GetPackDirectory. Pure; reads `this` and writes only the return slot.
+// Pure; reads `this` and writes only the return slot.
 // ENDGAME B.3.4a closing: the body is `IO::PackageFile::GetFileName(int)`,
 // defined in this file's `namespace IO` block below.
 //
@@ -507,22 +388,14 @@ PackfileIndexNode* IndexFind(PackfileIndexNode* node, const char* key) {
 // in the process comes from FileSystem::Startup on a freshly constructed
 // FileSystem: packfileCount is 0, so the loop body never runs; packfiles is
 // null, so the free is a no-op; packfileIndexRoot is null, so the tree teardown
-// is skipped. Three unported callees — CloseFile, the recursive node free at
-// 0x180008340, and PackageFile's deleting destructor through vtable slot 0 —
-// are therefore NOT REACHED, and this row closes without them.
+// is skipped. So on that call its three callees — CloseFile, the recursive
+// node free at 0x180008340, and PackageFile's deleting destructor through
+// vtable slot 0 — are not reached.
 //
-// **THAT IS TRUE OF THE FIRST CALL ONLY, AND IT IS NOT A GENERAL LICENCE.**
-// The mods menu remounts packages (see project_mods_menu_closed.md), which
+// **THAT IS TRUE OF THE FIRST CALL ONLY.**
+// The mods menu remounts packages, which
 // calls this again with a POPULATED array and a POPULATED tree — and then all
-// three run. They are written out below through their proper doors so that path
-// dies with a name instead of silently leaking every package. Do not read the
-// paragraph above as "these callees are dead"; read it as "these callees are
-// dead on iteration 12's boot".
-//
-// UPDATE 2026-09-08 (Wave 9 lane COLL): two of those three callees — the
-// recursive node free at 0x180008340 and, via LoadPackages, the BST insert —
-// are now PORTED, so the mods-remount path no longer dies with a name; it
-// runs. CloseFile and the deleting destructor are unchanged.
+// three run.
 //
 // ORACLE: none, and it is not close. It frees everything it touches; running it
 // twice is a double free, and there is no scratch stand-in because the objects
@@ -536,19 +409,15 @@ PackfileIndexNode* IndexFind(PackfileIndexNode* node, const char* key) {
 // Defined outside `namespace RtIO` because a member of `IO::X` must appear in a
 // namespace ENCLOSING the class (B34_BRIEFS section A.2); these bodies reach
 // this translation unit's `RtIO`-scoped names — the anonymous-namespace helpers
-// `AppendPackfile`, `IndexFind`, `PathStrICmp`,
-// `FileSystemSingletonSlot`, `PackfileIndexSet` and the door typedefs — as
+// `AppendPackfile`, `IndexFind`, `PathStrICmp`, and the alias `PackfileIndexSet`
+// (FileSystem.h) — as
 // `RtIO::X`. Every POD is spelled `RtIO::` or `RtSystem::` and every real class
 // `System::` (B34_RULES section 7.2).
 //
 // *** VERBATIM. *** Identical control flow, identical callees, identical
 // statement order, identical comments. The only change is the receiver's
-// spelling. In particular EVERY ONE of the RT_EXPORT_ONCE and ResolveAddr doors
-// below is untouched — including `?ClosePackages@` called BY NAME from inside
-// LoadPackages (0x1800ab48a), which is deliberately still a door call and NOT
-// turned into a member call: retail's own CALL goes through the export and a
-// direct member call would silently stop following a future promotion of that
-// row.
+// spelling. LoadPackages' `ClosePackages()` is a member call; retail's call
+// from LoadPackages is at 0x1800ab48a.
 namespace IO {
 
 System::Filename FileSystem::GetPackDirectory() const {
@@ -607,8 +476,6 @@ void FileSystem::ClosePackages() {
         // the whole left subtree post-order, then the whole right subtree
         // post-order, then the root — DestroySubtree just does both halves
         // under one call instead of the caller doing the root's half by hand.
-        // The 0x180008340 row itself is UNCHANGED and stays registered in
-        // avl_trees.cpp: `code/` still reaches it by address.
         RtIO::PackfileIndexSet::DestroySubtree(root);
     }
     // Zeroed unconditionally, even when root was already null.
@@ -710,11 +577,9 @@ void FileSystem::LoadPackages() {
     // differing only in tie order — was caught in 7,571 of 7,800 cases, so the
     // comparison is demonstrably sensitive to exactly the defect feared.
     //
-    // THE DIVISION OF LABOUR IS WORTH KEEPING: the live boot call verifies that
-    // the REGISTRATION is reached; the harness verifies the BODY. Four
-    // all-equal packages never leave the n<=8 path, so on the live call alone
-    // the partition, pivot-fixup and equal-run counters all read 0 and a green
-    // run would be vacuous.
+    // Four all-equal packages never leave the n<=8 path, so on the live boot call
+    // alone the partition, pivot-fixup and equal-run counters all read 0 and a
+    // green run would be vacuous.
     //
     // B3R RT-IO: the call is rtsort::SortByKey70 by name (it was the address
     // door, which resolved to the same body).
@@ -776,8 +641,7 @@ void FileSystem::LoadPackages() {
                 }
             } else {
                 // FUN_180025a80(&tree, &out, &key, &value) — PORTED 2026-09-08
-                // (src/engine/collection/avl_trees.cpp group D); reached
-                // through the same port-aware door, unchanged.
+                // (src/engine/collection/avl_trees.cpp group D), called by name.
                 // RCX is `this+0x40`, the {root,count} tree object; RDX is a
                 // scratch out-slot retail never reads afterwards.
                 //
@@ -824,7 +688,7 @@ void FileSystem::LoadPackages() {
     // block free is guarded only on the pointer). Note it uses the same
     // lock/Free/unlock as everywhere else; RtMemFree is that sequence with the
     // null test inside.
-    const int32_t foundCount = found.size;   // the shadow below runs after the zeroing
+    const int32_t foundCount = found.size;
     for (int64_t i = 0; i < static_cast<int64_t>(found.size); ++i)
         found.data[i].~Filename();
     RtIO::RtMemFree(found.data);

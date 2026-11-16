@@ -51,7 +51,7 @@ public:
     struct Stats {
         int64_t submitted = 0;
         int64_t taken = 0;       // handed back to the caller
-        int64_t waited = 0;      // of those, still running or queued at Take
+        int64_t waited = 0;      // Take found the job still running or queued
         int64_t rejected = 0;    // Take found a job that did not decode to usize (or a stale identity)
         int64_t dropped = 0;     // freed unused (Drop)
         int64_t full = 0;        // Submit refused: no free slot

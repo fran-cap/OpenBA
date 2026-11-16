@@ -7,7 +7,7 @@
 // field the consumer reads (byte-equal unless a tie group of agreeing _maxInstances was
 // permuted). These tests check the two halves of the proof and the whole:
 //   * the key order IS the comparator: KeyLess(key(a), key(b)) == DrawItemLess(a, b)
-//     and KeyEqual <=> neither sorts first, over millions of random pairs drawn
+//     and KeyEqual <=> neither sorts first, over 500k random pairs drawn
 //     from small value pools (so every term ties often and the later terms
 //     decide), floats including +-0, +-inf, denormals and extremes;
 //   * SortKeyBits reverses the float order and merges +0 / -0;

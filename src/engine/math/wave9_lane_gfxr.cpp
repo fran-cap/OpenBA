@@ -4,10 +4,8 @@
 //
 //   ?Inverse@Matrix@Math@@QEBA?AV12@XZ      retail 0x1800bb310, ordinal 3082
 //
-// The one Math export left on the residue list, and it is not there for a
-// decorative reason: it is an UNSATISFIED DOOR INSIDE OUR OWN ALREADY-PORTED
-// `Video::Context::SetCamera` (src/engine/video/context.cpp:352). Lane CTX
-// flagged it as the thing that kills a renderer lane before it starts.
+// Called by `Video::Context::SetCamera` (src/engine/video/context.cpp), which
+// calls it by name: `_inverseView = view.Inverse()`.
 //
 // 334 instructions, all scalar SSE, no calls. A cofactor/adjugate 4x4 inverse:
 // six 2x2 minors from the BOTTOM two rows, four cofactors of the top row, one
@@ -22,7 +20,7 @@
 // translation term had been folded into a float sum FIRST instead of added
 // LAST. That is algebraically identical and bit-different only where the terms
 // nearly cancel — it presented at ONE CALL IN 23,654, so a clean re-run could
-// never have exonerated it (reference_moved_term_hides_where_terms_cancel.md).
+// never have exonerated it.
 //
 // A determinant IS a near-cancelling sum, and this body has sixteen more of
 // them in the adjugate. So every sum below is parenthesised to match the
@@ -40,26 +38,17 @@
 // against the listing mechanical.
 //
 // Negation is `XORPS` against the 16-byte -0.0f mask at 0x1801617c0, i.e. a
-// SIGN-BIT FLIP, and is applied AFTER the multiply by the reciprocal exactly
-// where retail applies it. `NegBits` below does the bit flip rather than
+// SIGN-BIT FLIP, applied exactly where retail applies it: to the finished sum
+// for the cofactors C1 / C3, and after the multiply by the reciprocal for the
+// other negated cells. `NegBits` below does the bit flip rather than
 // spelling `-x`, so the transcription is checkable against the bytes without
 // an argument about what the compiler does to unary minus on a NaN.
 //
-// Constants LIFTED AS RAW BITS, never retyped as decimals
-// (reference_crt_coefficients_must_be_lifted_not_retyped.md):
+// Constants LIFTED AS RAW BITS, never retyped as decimals:
 //   0x18016169c = 0x3f800000  (1.0f, the reciprocal's numerator AND the
 //                              identity-matrix diagonal)
 //   0x1801617c0 = 80000000 80000000 80000000 80000000  (the -0.0f sign mask)
 //
-// ---------------------------------------------------------------------------
-// ORACLE
-// ---------------------------------------------------------------------------
-// `Inverse` is a pure function of `*this` writing only the 64-byte return
-// slot, so a full byte compare against the shipped body is sound — with one
-// precaution this project has already paid for once
-// (reference_oracle_must_snapshot_aliased_inputs.md): `ret` is a hidden slot
-// the caller chose and MAY alias `self`, so the oracle snapshots the input
-// before our body writes anything.
 // ============================================================================
 
 #include "math/Math.h"
@@ -88,8 +77,7 @@ inline float NegBits(float f) { return BitsToFloat(FloatToBits(f) ^ 0x80000000u)
 // ?Inverse@Matrix@Math@@QEBA?AV12@XZ      retail 0x1800bb310
 //
 // Member, struct return: RCX = this, RDX = hidden return slot. Returns RDX in
-// RAX (0x1800bb8e4), which is what the ABI requires and what the call site in
-// Video::Context::SetCamera already assumes (context.cpp's MatrixInverseFn).
+// RAX (0x1800bb8e4), which is what the ABI requires.
 //
 // Cell naming: `aRC` is m[R*4 + C], matching the offsets the disassembly loads
 //   a00 +0x00  a01 +0x04  a02 +0x08  a03 +0x0c

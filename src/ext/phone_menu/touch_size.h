@@ -50,9 +50,9 @@ namespace PhoneMenu {
 // Returns the number of elements changed.
 int32_t TouchSizeWalk(const UI::DialogInstance* dialog, bool on);
 
-// phone_menu.cpp Place, every call: the walk sizes a dialog once it has been seen here, and never one
-// ext.touch_mode placed (`touchOwned`: its toolbar, sub-toolbars, event notices and camera cluster, which
-// that row sizes for a finger itself).
+// phone_menu.cpp Place, at each main-thread point (layout, after layout, upper-left): the walk sizes a
+// dialog once it has been seen here, and never one ext.touch_mode placed (`touchOwned`: its toolbar,
+// sub-toolbars, event notices and camera cluster, which that row sizes for a finger itself).
 void TouchSeen(const UI::DialogInstance* dialog, bool touchOwned);
 
 // P11b: true once TouchSeen has seen `dialog` (with its current description). phone_menu.cpp Place asks
@@ -67,8 +67,8 @@ bool TouchKnown(const UI::DialogInstance* dialog);
 // docs/android/P11C_DIALOGS.md).
 void TouchForgetClosed(const UI::UserInterface* ui);
 
-// Boot (phone_menu.cpp Sync): points UI::SliderElement::_extSpriteScale at the slider factor
-// (null under the faithful profile).
+// Boot (phone_menu.cpp Sync): points UI::SliderElement::_extSpriteScale at the slider factor and
+// UI::SpinnerElement::_extSideBySide at the row's flag (null under the faithful profile).
 void SyncTouchSize(bool faithful);
 
 }  // namespace PhoneMenu

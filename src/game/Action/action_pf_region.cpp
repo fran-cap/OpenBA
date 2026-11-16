@@ -40,8 +40,8 @@
 
 namespace {
 
-// MemAlloc/MemFree shorthands matching the decompile's
-// System::MemoryAllocator::MemAlloc(size, align) / MemFree(ptr) free-function form.
+// MemAlloc shorthand matching the decompile's
+// System::MemoryAllocator::MemAlloc(size, align) free-function form.
 static inline void* MemAlloc(int64_t size, int align) {
     return System::MemoryAllocator::MemAlloc(static_cast<uint64_t>(size), align);
 }
@@ -987,4 +987,3 @@ uint32_t RegionPairCache::Find(int a, int b) const {
         return static_cast<uint32_t>(ring.data[idx].distance);
     }
 }
-// The B4 FORWARD C spellings of these members are defined in action_pf_astar.cpp.

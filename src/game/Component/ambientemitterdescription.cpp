@@ -84,7 +84,7 @@ bool AmbientEmitterDescription::Serialize(IO::Stream& stream) {
     //     1400431ff  LEA RCX,[RDI + 0x28]
     //     140043203  CALL 0x140001bb0                 ; Array<T*>::SetSize
     // So the resize runs only when direction == 0, and that is `loading`.
-    // `IO::Serializer::GetDirection()` is those same two loads (Serializer.h:833).
+    // `IO::Serializer::GetDirection()` is those same two loads (Serializer.h:906).
     bool loading = (static_cast<int>(ser.GetDirection()) == 0);
     if (loading) {
         Reimpl_Array_Resize_Stride08(&_emitters, count);   // sets +0x30 from the local, as retail

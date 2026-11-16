@@ -35,8 +35,8 @@
 //   | destroy subtree| (not ported)| 0x180023130 |
 //   | erase          | 0x18000aba0 | (no door)   |
 //
-// Two DIFFERENT node layouts behind one shared walk is exactly the defect
-// `reference_one_bst_find_two_node_layouts.md` records, and it is why these are
+// Two DIFFERENT node layouts behind one shared walk is a defect (it finds only
+// the root key), and it is why these are
 // separate types with separate `static_assert`s rather than a template
 // parameter threaded through a header another lane already landed.
 //
@@ -88,7 +88,7 @@ struct Set {
 static_assert(offsetof(Set, root)  == 0x00, "Set24::root  @ +0x00");
 static_assert(offsetof(Set, count) == 0x08, "Set24::count @ +0x08");
 
-// The five ported bodies, registered at the addresses in the table above.
+// The five ported bodies, at the addresses in the table above.
 Node* RotateLeft    (Set* set, Node* n);
 Node* RotateRight   (Set* set, Node* n);
 void  Retrace       (Set* set, Node** slot);
@@ -96,14 +96,13 @@ void  DestroySubtree(Set* set, Node* n);
 Node* AllocNode     (void* unused, const void* src, Node* parent);
 
 // The 0x180009c30 boundary: two parameters, the FIRST IS IGNORED by the callee.
-// (src/engine/system/allocator.cpp owns the registration; see set_avl.cpp's
-// "THE FIFTH HELPER" banner for why registering a one-argument MemFree there
-// would corrupt the free list.)
+// (0x180009c30's body is rtalloc::FreeLockedIgnoringSelf in
+// src/engine/system/allocator.cpp; see set_avl.cpp's "THE FIFTH HELPER" banner.)
 void  SetNodeFree(void* ignored, void* node);
 
-// Probe instrumentation. `DestroySubtree` has no ours-vs-theirs oracle (see the
-// .cpp), so it is verified on a COUNT of the nodes its walk actually reaches,
-// which has to be observable from outside the body.
+// Instrumentation. `DestroySubtree` has no ours-vs-theirs oracle (see the
+// .cpp), so it is checked on a COUNT of the nodes its walk actually reaches,
+// which KeyMap's deleting dtor (keymap_save.cpp) reads from outside the body.
 extern unsigned g_destroyVisits;
 
 }  // namespace rtsetavl24

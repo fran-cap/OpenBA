@@ -24,13 +24,9 @@
 //
 // STANDALONE notes:
 //  - Fresh-load assumption (Init zeroed the array header): the exe resize helper
-//    FUN_14000da70 collapses to "alloc count*0x10 + zero each element". Mirrors
-//    MapGenerator's MG_AllocArray.
-//  - The per-element ExternalRef serialize (FUN_140002340) is not mapped; we
-//    reuse the proven generic ExternalPtr serialize reimpl
-//    (Reimpl_ExternalPtr_Serialize_StringTable). The typeId only drives an
-//    IsDerivedFrom validation that Object::IsDerivedFromOrTrust no-ops in
-//    standalone, so the body is stream-identical.
+//    FUN_14000da70 collapses to "alloc count*0x10 + zero each element".
+//  - The per-element ExternalRef serialize (FUN_140002340) is
+//    ::Object::SerializeExternal<ComponentDescription> (object/External.h).
 //
 // Decompiled from Application-x64.exe (READ-ONLY recon).
 //

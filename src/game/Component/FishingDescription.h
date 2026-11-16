@@ -39,7 +39,7 @@ public:
 
     // ---- fields (PUBLIC: the components read them at raw offsets today) ----
     ComponentDescription* _fish;                // +0x20 ExternalPtr (fish material: FishWork hands it to 0x1400beae0 as the material)
-    uint32_t _resourceLimit;                              // +0x28 enum (serialized through the uint door)
+    uint32_t _resourceLimit;                              // +0x28 enum (serialized as a uint)
     uint32_t _terrainMask;                      // +0x2c accepted terrain bits (cell +0x29), ProduceTick 0x14011ec10
 };
 

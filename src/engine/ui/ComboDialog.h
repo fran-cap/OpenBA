@@ -4,8 +4,7 @@
 // ============================================================================
 //
 // ENDGAME B.3 step 6, block B. The drop-down list a UI::ComboElement opens.
-// Per-field evidence: the `RtUI::ComboDialog` POD's banner in DialogInstance.h,
-// which stays (the ctor door `RtUi_ComboDialog_Ctor` builds through it).
+// Per-field evidence: the `UI::ComboDialog` banner in DialogInstance.h.
 //
 // PARENT: `UI::DialogInstance`, proved by
 //   0x180074730  ?_ParentTypeName@ComboDialog@UI@@CAPEBDXZ -> "DialogInstance"
@@ -28,7 +27,7 @@
 // ctors -- the default one the factory pair inlines (DialogInstance() then
 // +0xb8/+0xc0/+0xc8 zero) and retail's 4-argument ??0ComboDialog (0x180111d00,
 // combodialog_ctor.cpp) over DialogInstance's root-Element ctor; slot 0 the
-// class's own vector deleting dtor; ~ComboDialog protected and empty (retail:
+// class's own vector deleting dtor; ~ComboDialog public and empty (retail:
 // restamp + ~DialogInstance). The minted `??_7ComboDialog@UI@@6B@`, its
 // RT_DELDTOR row and the FACTUI1 row are retired.
 // ============================================================================
@@ -81,9 +80,9 @@ public:
 
     // ---- exported, NOT PORTED as members ----------------------------------
     ComboDialog(const ComboDialog& other);                        // 0x180074940
-    // 0x180074750 — the minted record's type id (combodialog.cpp).
-    // MemoryAllocator statics (B36_RULES 7): `??2` 0x180074770 IS ported as the
-    // door `RtUi_ComboDialog_OperatorNew` (combodialog_ctor.cpp); the rest not.
+    // 0x180074750 — TypeId (DECLARE_TYPE).
+    // MemoryAllocator statics (B36_RULES 7): `??2` 0x180074770 IS ported as
+    // `RtUi_ComboDialog_OperatorNew` (combodialog_ctor.cpp); the rest not.
     // Placement is spelt `::new (p) ComboDialog(...)` (B9-5).
     static void* operator new(std::size_t bytes);                 // 0x180074770
     static void* operator new(std::size_t bytes, void* place);    // 0x1800747e0
@@ -99,7 +98,7 @@ public:
     // ---- the 0x18 bytes ComboDialog adds ------------------------------------
     ListElement* _list;                                 // +0xb8  InternalPtr<UI::ListElement> (B4 H4)
     // NOT the base's `_parent`: the ctor hands the base a zeroed parent and
-    // keeps the real one here (POD banner).
+    // keeps the real one here (DialogInstance.h's ComboDialog banner).
     Object::InternalPtr<DialogInstance> _parentDialog;  // +0xc0
     ComboElement* _combo;                               // +0xc8  InternalPtr<UI::ComboElement> (B4 H4)
 };

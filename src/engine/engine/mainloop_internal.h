@@ -15,15 +15,10 @@
 // mainloop_frame.cpp) and both files call it through this declaration.
 // Nothing about its behaviour changes; this is a move, not a rewrite.
 //
-// mainloop_run.cpp §2 is still where the REASONING lives: we deliberately do
-// NOT call `RtSystem_Timer_CurrentTimeTicks()`, because our Timer keeps its own
-// `_systemInitialTick` sampled by OUR PlatformStartup while the DLL's
-// `MainLoop::Draw` still reads the DLL's globals.  Mixing the two epochs would
-// put `_frameStartTicks` on one and everything `Frame` computes on another.
+// `System::Timer::CurrentTimeTicks()` (src/engine/system/timer.cpp) computes the
+// same expression from the same Timer class statics, so there is one epoch.
 //
-// The header deliberately declares NO types.  `Module` is defined both by
-// standalone/resolve.h and locally by several runtime/src files; a third
-// definition here would be a hard redefinition in any TU that saw two of them.
+// The header deliberately declares NO types.
 // ============================================================================
 
 #include <atomic>

@@ -3,26 +3,14 @@
 // src/engine/system/timer_internal.h — System::Timer's five data exports, owned by us
 // ============================================================================
 //
-// Wave 9 lane B3. `timer.cpp` ports the whole class AND owns the storage
-// behind its five private statics, so the four consumers in the tree that were
-// reading the DLL's copies through the raw data door can read ours instead. Those reads are lane V's DATA READ rows for
-// `?_secondsPerTick@Timer@System@@0NA`
-// (application_win.cpp:45, engine/engine.cpp:217, save/saveload.cpp:163) plus
-// the three sibling slots application_win.cpp resolves alongside it.
-//
-// **This closes those rows rather than handing them to lane C2's mint.** A
-// minted vtable stands in for a layout; these are five scalars whose values a
-// ported `Timer::Startup`/`PlatformStartup` already produces, so the honest
-// answer is that the port owns them and nothing needs minting. Two of the five
-// are the compile-time constants 1000000 and 1e-6 (see timer.cpp's header for
-// the disassembly that establishes that, and for the correction it makes to
-// WAVE9_LANE_V.md §4); the other three are QPC-derived and are written by
-// `RtSystem_Timer_PlatformStartup()`.
-//
-// Reading through these accessors is also strictly SAFER than the DLL slot:
-// the DLL's `_secondsPerTick` is zero until `Engine::Startup` runs, and
-// `save/saveload.cpp`'s helper divided by it. Ours is initialised at namespace
-// scope and is never zero.
+// `timer.cpp` ports the whole class; these accessors read its five statics for
+// the readers outside the class (src/engine/application/application.cpp,
+// src/engine/audio/audio.cpp, src/engine/save/saveload_internal.h). Two of the
+// five are the compile-time constants 1000000 and 1e-6 (see timer.cpp's header
+// for the disassembly that establishes that, and for the correction it makes to
+// docs/history/runtime_port/WAVE9_LANE_V.md §4); the other three are QPC-derived
+// and are written by `System::Timer::PlatformStartup()`. `_secondsPerTick` is
+// initialised at namespace scope and is never zero.
 // ============================================================================
 
 #include <cstdint>

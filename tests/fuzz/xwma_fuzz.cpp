@@ -2,10 +2,11 @@
 // tests/fuzz/xwma_fuzz.cpp -- Audio::XwmaDecoder (and the wmav2 decoder under it) over arbitrary bytes
 // ============================================================================
 // P0_MAP input surface rank 4: a SoundBuffer resource as SoundBuffer::PlatformSerialize reads it
-// (vtbatch7_soundbuffer_soundeffect.cpp:205: the seek table, the 0x28-byte format window, the
+// (soundbuffer_platform_serialize.cpp: the seek table, the 0x28-byte format window, the
 // packets), then decoded the two ways the engine decodes it:
-//   * whole, at load (DecodeXwmaJob, vtbatch7:324): Open(format, packets, bytes, table, n),
-//     pcm = TotalSamples() * channels * 2 bytes, DecodePackets(0, n, pcm, TotalSamples());
+//   * whole, at load (DecodeXwmaJob, vtbatch7_soundbuffer_soundeffect.cpp:310): Open(format,
+//     packets, bytes, table, n), pcm = TotalSamples() * channels * 2 bytes,
+//     DecodePackets(0, n, pcm, TotalSamples());
 //   * streamed (Stream::Run, audio_stream_run.cpp): Open(format, nullptr, 0, table, n), then
 //     DecodeChunk over chunks of up to 16 packets, out = MaxSamplesFor(chunk), with a seek
 //     (a new pass at another packet) part way.
@@ -20,12 +21,12 @@
 // Every buffer is a heap copy of exactly its stored size, as MemAlloc(_wmaLength) /
 // MemAlloc(_length) are, so ASan sees a read past either.
 //
-// CAP (not a mask of a finding in the decoder): the whole-decode PCM buffer is sized by the
-// seek table's last entry, an attacker-chosen u32 (up to 4 GiB; recorded as its own finding,
-// the int-overflow-alloc / DoS row of the xwma report). Here the buffer is min(TotalSamples(),
-// MaxSamplesFor(n)) samples and outSamples is the same number, so the decoder writes exactly
-// what the engine's call would write into its first that-many samples (the rest of a pass that
-// long would go to _pending, which is still exercised).
+// CAP (not a mask of a finding in the decoder): the whole-decode PCM buffer is sized by
+// TotalSamples(), the seek table's last entry capped at what the packets can decode to (review
+// F-073). Here the buffer is min(TotalSamples(), MaxSamplesFor(n), kPcmCapSamples) samples and
+// outSamples is the same number, so the decoder writes exactly what the engine's call would write
+// into its first that-many samples (the rest of a pass that long would go to _pending, which is
+// still exercised).
 // ============================================================================
 #include "audio/xwma_decode.h"
 
@@ -39,8 +40,8 @@
 
 namespace {
 
-// DecodeChunk gained a chunk byte count (PR #140, review F-096 / F-097). Call whichever
-// signature the tree has, so this target builds before and after that change merges.
+// DecodeChunk takes a chunk byte count (review F-096 / F-097). DecodeChunkAny calls whichever
+// signature the decoder declares (HasChunkBytes picks it).
 template <typename D, typename = void>
 struct HasChunkBytes : std::false_type {};
 template <typename D>
@@ -69,14 +70,15 @@ constexpr size_t kPcmCapSamples = size_t(1) << 22;   // keeps one run under the 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     if (size < kHeader)
         return 0;
-    // MASK (xwma finding "negative sample rate"): nSamplesPerSec >= 0x80000000 reaches
-    // ff_wma_init as a negative int (wmav2_open skips avcodec_open2's `sample_rate < 0` check)
-    // and stops the run on UBSan at wma.c:140 / wma.c:246 before any packet is read.
+    // MASK (xwma finding "negative sample rate"): nSamplesPerSec >= 0x80000000 is a negative int,
+    // which wmav2_open refuses before ff_wma_init (wmadec_glue.c, review F-071); such inputs are
+    // skipped here.
     if (data[7] & 0x80)
         return 0;
     // MASK (xwma finding "unchecked bit reader"): the campaign build links wmadec with
     // -DCONFIG_SAFE_BITSTREAM_READER=1 (scratchpad xwma/build_wmadec.sh) after the over-read in
-    // get_vlc2 / get_bits was recorded; the shipped build has the reader unchecked.
+    // get_vlc2 / get_bits was recorded; the shipped build has the checked reader too
+    // (third_party/wmadec/shim/config.h).
     // The format window: SoundBuffer::_format is 0x2c bytes in the object, 0x28 serialized.
     uint8_t* format = static_cast<uint8_t*>(std::malloc(0x28));
     std::memcpy(format, data, 0x28);

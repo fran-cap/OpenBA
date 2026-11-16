@@ -4,7 +4,7 @@
 //
 // Vtable batch 8. ??_7Surface@Collision2D@@6B@ (retail), nine slots:
 //
-//   0  deleting dtor        0x180064ea0  Surface::DeletingDtor (Surface.h)
+//   0  deleting dtor        0x180064ea0  the virtual ~Surface (Surface.h)
 //   1  TypeName             0x180064a70  here
 //   2  Type                 0x180064a50  here
 //   3  GetFileVersion       0x18010ca30  here  (returns 1)
@@ -19,7 +19,7 @@
 //
 // ENDGAME B.3.9 ENG (B39_RULES D1/D2): the file-local POD became the real class
 // `Collision2D::Surface` (src/engine/collision2d/Surface.h). Its constructor
-// holds the factory rows' stores, its DeletingDtor the retired RT_DELDTOR row,
+// holds the factory rows' stores, its virtual ~Surface the retired RT_DELDTOR row,
 // and the slot bodies are its members: every live Surface wears the COMPILER's
 // table. The eight slot doors, the ??1 door, `ConstructBody` and `CallSlot0`
 // went with the minted `??_7Surface@Collision2D@@6B@` row and the FACTREST
@@ -52,7 +52,7 @@ int32_t Surface::GetFileVersion() const { return 1; }
 
 // [8] 0x180064ce0 -- the inlined constructor, i.e. placement construction.
 // (Retail's null test sat in the retired door; a virtual call always has a
-// `this`.) `::new`: the class declares its own placement new.
+// `this`.) `::new`: retail's class has its own placement new (0x180064af0, not ported).
 Object::External* Surface::Construct() {
     return ::new (this) Surface();
 }
@@ -102,8 +102,3 @@ bool Surface::Serialize(IO::Stream& stream) {
 }
 
 }  // namespace Collision2D
-
-// B3R (registry teardown, W1 RT-Core): every row this function registered had
-// no reader by name or by address, so they went. It registers nothing and
-// stays defined only because standalone/resolve_standalone.cpp's
-// RuntimePortInit() still calls it (the coordinator removes the call).

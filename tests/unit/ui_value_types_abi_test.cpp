@@ -19,8 +19,8 @@
 //      ignored).
 //
 // The out-of-line constructors and Width/Height live in src/engine/ui/
-// sprite.cpp, which stands on the port registry and is not linked into the
-// host test; they are verified by the real run.
+// sprite.cpp, which the unit binary links (UNIT_TREE_SRCS in
+// tests/unit/sources.cmake).
 // ============================================================================
 #include "unit.h"
 

@@ -19,17 +19,17 @@
 //   4. ARGUMENT PASSING (RULE B7-5) — `SetSaveSprite`'s Sprite and
 //      `SaveMetaData`'s String arrive by HIDDEN POINTER; `Draw`'s
 //      `ExternalPtr<Material>` is a trivially copyable 8-byte value (a bare
-//      register); the two String getters return BY VALUE (non-virtual retslot,
-//      the doors keep `(this, ret)`). The member-pointer types are pinned, and
-//      one raw RETAIL-ORDER call — through the `engine_funcs.h` typedef shape
-//      `void (*)(void* saveLoad, void* sprite)` — lands both qwords.
+//      register); the two String getters return BY VALUE (non-virtual retslot).
+//      The member-pointer types are pinned, and one raw RETAIL-ORDER call —
+//      through a `void (*)(void* saveLoad, void* sprite)` pointer — lands both
+//      qwords.
 //   5. THE INLINE ACCESSORS ARE RETAIL'S BODIES — GetSaveInfo is unchecked
 //      `_data + index*0x58` (a negative index is NOT caught), GetSaveCount is
 //      +0x58, GetOperation +0x00, GetSaveState +0x40.
 //
 // WHAT IS *NOT* PROVEN HERE: every out-of-line body (the UpdateXxx machines,
-// CheckMod, the copy ctors and destructors) stands on the port registry and the
-// allocator and is verified by the real run and the resave gate. No test here
+// CheckMod, the copy ctors and destructors) stands on the allocator and is
+// verified by the real run and the resave gate. No test here
 // constructs an object whose destructor is out of line: storage is poisoned,
 // placement-newed, inspected, and never destroyed.
 // ============================================================================
@@ -186,8 +186,7 @@ UNIT_TEST(save_member_signatures_pin_the_argument_passing) {
                         void (SaveLoad::*)(Video::Context&,
                                            Object::ExternalPtr<Graphics::Material>)>::value));
     CHECK(std::is_trivially_copyable<Object::ExternalPtr<Graphics::Material>>::value);
-    // The two retslot getters return the class by value (non-virtual: the
-    // doors keep `(this, ret)` and placement-new the prvalue).
+    // The two retslot getters return the class by value (non-virtual).
     CHECK((std::is_same<decltype(&SaveLoad::GetAutoSaveName),
                         System::String (SaveLoad::*)() const>::value));
     CHECK((std::is_same<decltype(&SaveLoad::GenerateSaveName),
@@ -198,9 +197,9 @@ UNIT_TEST(save_member_signatures_pin_the_argument_passing) {
     CHECK_EQ((int)sizeof(SaveLoad::Operation), 4);
 }
 
-// A door with the registered entry point's shape, delegating the way
-// saveload.cpp's does. Called below through the engine_funcs.h typedef
-// `void (*)(void* saveLoad, void* sprite)` — a raw retail-order caller.
+// A free function with the retail entry point's shape, delegating to the inline
+// member. Called below through a `void (*)(void* saveLoad, void* sprite)` pointer
+// — a raw retail-order caller.
 void SetSaveSpriteDoor(SaveLoad* self, const UI::Sprite* sprite) {
     self->Save::SaveLoad::SetSaveSprite(sprite);
 }

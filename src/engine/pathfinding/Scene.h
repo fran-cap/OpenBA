@@ -81,7 +81,6 @@ public:
 
 private:
     // retail `AEBA`/`AEAA` — private members, exported all the same
-    // (reference_aeaa_is_private_not_unexported.md)
     bool GeneratePath(int32_t from, int32_t to, uint32_t mask,
                       Collection::Array<int32_t>& out) const;         // 0x18010cb70
     bool IsPassable(const Math::Vector2& a, const Math::Vector2& b) const; // 0x18010e6f0

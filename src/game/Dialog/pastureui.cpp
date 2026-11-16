@@ -1,4 +1,4 @@
-// engine/src/ui/pastureui.cpp
+// src/game/Dialog/pastureui.cpp
 // Clean reimplementation of PastureUI game logic.
 //
 // PastureUI (0x40 bytes) — pasture animal selection panel.
@@ -39,7 +39,7 @@
 // Updates the slider element (+0x38):
 //   _minimum = 0
 //   _maximum = (float)PastureComponent::ComputeCapacity
-//   _value   = (float)pastureComp->currentAnimalCount (+0x40)
+//   _value   = (float)pasture->capacity (+0x40)
 //
 // Original: FUN_1400b4fa0.
 //

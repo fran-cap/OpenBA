@@ -9,8 +9,8 @@
 //
 // Both are transliterations of the RETAIL DISASSEMBLY, not of Ghidra's C —
 // term order preserved (float addition is not associative), every register
-// spill accounted for. See src/engine/math/transform.cpp's banner for the ABI
-// rules that govern this whole namespace (hidden return slot in RDX).
+// spill accounted for. See src/engine/math/transform.cpp's banner for the retail
+// ABI note (hidden return slot in RDX) behind the register lists below.
 //
 // A CORRECTION TO WAVE 9 LANE B'S INVENTORY, recorded here rather than only in
 // the wave doc (PLAN §6 step 8). `wave9_laneB_inventory.csv` lists
@@ -44,7 +44,7 @@ Matrix* CallAsMatrix(const Transform* self, Matrix* ret) {
 //
 // Member, struct return: RCX = this (the FROM quaternion), RDX = hidden return
 // slot, R8 = the TO quaternion, R9 = &t. That register assignment was already
-// pinned independently by src/engine/graphics/scene.cpp:250 from
+// pinned independently by src/engine/graphics/scene.cpp (RtQuaternionLerp) from
 // GetInstanceTransform's call site, and the disassembly agrees.
 //
 // It is NOT a plain lerp and it is not a slerp either: it is a SHORTEST-PATH
@@ -67,9 +67,8 @@ Matrix* CallAsMatrix(const Transform* self, Matrix* ret) {
 // Negating `t` rather than negating `b` is the same result and is what the
 // bytes do: `XORPS XMM3,[0x1801617c0]` with the -0.0f sign mask.
 //
-// ORACLE: full byte compare of the 16-byte return against the shipped body run
-// into a private scratch. Pure function of (this, other, t) — nothing else is
-// read and nothing is written outside the return slot.
+// Pure function of (this, other, t) — nothing else is read and nothing is
+// written outside the return slot.
 // ============================================================================
 //
 // ENDGAME B.3.1 step 1: MOVED onto Math::Quaternion::Lerp unchanged. The
@@ -135,12 +134,10 @@ Math::Quaternion Math::Quaternion::Lerp(const Quaternion& other, const Scalar& t
 // m[0..2], m[4..6], m[8..10], m[12..14]. m[3], m[7], m[11] and m[15] are
 // discarded, which is exactly what makes a rigid Transform3 out of a Matrix.
 //
-// NO NEW LANE-D ROWS: its single callee is already ours (Wave 1's AsMatrix).
+// Its single callee is Transform::AsMatrix (src/engine/math/transform.cpp).
 //
-// ORACLE: full byte compare of the 0x30-byte return. Every one of the 48 bytes
-// is written by both sides (four Vector3s, no padding), so there is no
-// unwritten-byte trap here — the failure mode
-// reference_oracle_must_not_compare_unwritten_bytes.md describes does not apply.
+// Every one of the 48 bytes of the return is written (four Vector3s, no
+// padding).
 // ============================================================================
 //
 // ENDGAME B.3.1 step 1: MOVED onto Math::Transform::AsTransform3 unchanged,
@@ -152,16 +149,12 @@ Math::Transform3 Math::Transform::AsTransform3() const {
     Transform3* const ret = &out;
     const Transform* const self = this;
 
-    // *** `ret` CAN BE THE SAME BUFFER AS `self`, AND AT LEAST ONE CALL SITE
-    // *** RELIES ON IT. src/game/Game/gameupdateloop.cpp:1496, the per-frame
-    // camera update:
-    //
-    //     uint8_t transform3[44];
-    //     void* result = fn_PlayerController_CalcTransform(playerCtrl, transform3);
-    //     void* t3     = fn_Transform_AsTransform3(result, transform3);
-    //
-    // `result` IS `transform3` (a hidden-return-slot call handing its own out
-    // buffer back in RAX), so `self == ret` exactly.
+    // *** In the out-pointer form `ret` could be the same buffer as `self`: the
+    // *** per-frame camera update in src/game/Game/gameupdateloop.cpp handed
+    // *** CalcTransform's out buffer, returned in RAX, straight back in as
+    // *** AsTransform3's `self`, so `self == ret` exactly. That call site is
+    // *** `transform.AsTransform3()` on a local Math::Transform, and `ret` here
+    // *** is a local, so the two cannot alias.
     //
     // THE PORT IS SAFE: AsMatrix reads every field of `self` into `m` before the
     // first store to `ret`, which is precisely why retail is safe too — its
@@ -172,8 +165,7 @@ Math::Transform3 Math::Transform::AsTransform3() const {
     // ~10.4% across two runs, libm-independent) that read exactly like a port
     // defect. Running the shipped body on `self` AFTER we have written `ret` — the
     // same memory — hands it input we just destroyed, so `theirs` is garbage and
-    // `ours` is correct. The snapshot below is taken before any store, and the
-    // shipped body is run on THAT.
+    // `ours` is correct.
     //
     Matrix m;
     CallAsMatrix(self, &m);

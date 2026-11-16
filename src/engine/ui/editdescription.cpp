@@ -4,8 +4,8 @@
 //
 // ??_7EditDescription@UI@@6B@ (retail 0x180156880), ten slots:
 //   0  deleting dtor      0x18003fa20  EditDescription.h (the class's own)
-//   1  TypeName           0x18003f6d0  here
-//   2  Type               0x18003f6b0  here
+//   1  TypeName           0x18003f6d0  EditDescription.h (DECLARE_TYPE)
+//   2  Type               0x18003f6b0  EditDescription.h (DECLARE_TYPE)
 //   3  GetFileVersion     0x1800d11e0  here  (returns 0x204)
 //   4  External::Compile  0x1800066e0  already ported
 //   5  Serialize          0x1800d1110  here
@@ -16,9 +16,8 @@
 // plus ??1EditDescription@UI@@UEAA@XZ (0x1800d11f0).
 //
 // ENDGAME B.3.6 block C3: every slot body is a `UI::EditDescription` member
-// (src/engine/ui/EditDescription.h) and the doors delegate with a QUALIFIED
-// call. CreateInstance writes a real `UI::EditElement` now (EditElement.h, the
-// 0xf8 layout).
+// (src/engine/ui/EditDescription.h). CreateInstance writes a real
+// `UI::EditElement` (EditElement.h, the 0xf8 layout).
 //
 // The constructor is OUT OF LINE (`??0EditDescription@UI@@QEAA@XZ`,
 // 0x1800d12c0). ENDGAME B.3.9 UI-A: it is the real ctor (EditDescription.h);

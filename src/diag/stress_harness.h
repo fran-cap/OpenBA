@@ -24,12 +24,12 @@
 //                                  (barn volume caps what lands; the town is kept fed by
 //                                  the harness food top-up pass, FoodPass, not by this)
 //   BANISHED_STRESS_STAFF=0        skip the staffing pass (everyone stays a laborer)
-//   BANISHED_STRESS_COMPPROF=0     skip the per-component-type Update profile
+//   BANISHED_STRESS_COMPPROF=N     per-component-type Update profile level, default 0 (off)
 //   BANISHED_STRESS_CSV=<path>     CSV output path, default standalone_stress.csv
 //
 // Anything the harness sets by default (map size, climate, seed, FPS cap, camera pin, the
 // water-sited demo buildings, …) can be overridden by setting that env var yourself:
-// StressHarness_Init only fills in variables that are UNSET.
+// ApplyStressDefaults (src/app/options.cpp) only fills in fields that are UNSET.
 #pragma once
 #include <cstdint>
 
@@ -38,7 +38,8 @@ namespace Object { class Base; }
 
 extern "C" {
 
-// WinMain, before anything reads env vars: applies the default env bundle.
+// WinMain (and the POSIX main), after OptionsInit: reads the stress fields from Opt() and logs
+// the [Stress] banner.
 void StressHarness_Init();
 bool StressHarness_Enabled();
 
@@ -145,10 +146,10 @@ extern PathGraphCostCounts g_pathGraphCost;
 void StressHarness_PathGraphDrain(int pairs, long long reassignTicks, long long assignTicks,
                                   int costCalls, int cacheHits, int cacheMisses, int direct,
                                   int differ);
-// RESERVED for ext.fast_paths's shadow mode (worker thread): one paired comparison of
-// retail's grid.Run and the extension's body on the same request. Costs are the sum of
-// step costs along each path's cells; sameCells = 1 when the cells match exactly. The
-// pf_shadow_* columns stay 0 until something calls this.
+// ext.fast_paths's shadow mode (worker thread, FastPaths_ShadowHook in fast_paths.cpp): one
+// paired comparison of retail's grid.Run and the extension's body on the same request. Costs
+// are the sum of step costs along each path's cells; sameCells = 1 when the cells match exactly.
+// The pf_shadow_* columns stay 0 while the shadow mode is off (BANISHED_STRESS_COMPPROF=3 arms it).
 void StressHarness_PathShadow(long long retailTicks, long long extTicks,
                               int retailExpanded, int extExpanded,
                               long long retailCost, long long extCost, int sameCells);

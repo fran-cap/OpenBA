@@ -9,10 +9,6 @@
 //   OnAdded   (0x140127a30) — Compute pasture capacity
 //   OnRemove  (0x1401277e0) — release every animal
 //
-// LEFT (B.4 COMP-d): GameUpdateLoop m_game is void* (W0 header) and the Map's 0x30-byte
-// cell (array at +0x80) has no type yet (GAME-b); the Pf_* map
-// helpers take their objects as int64_t (Action's bodies).
-//
 // Decompiled from Application-x64.exe using Ghidra.
 
 #include "Component/PastureComponent.h"
@@ -48,7 +44,7 @@
 //   0x140004680 FindComponent<MapComponent>       0x140005500 FindComponent<AnimalComponent>
 //   0x1400012d0 FindComponent<CharacterComponent> 0x140002ed0 FindComponent<InteractComponent>
 //   0x1400c3470 ComponentEntity::RefreshEntityFlags
-//   0x140002340 Reimpl_ExternalPtr_Serialize_StringTable  serialize the ExternalPtr at +0x28
+//   0x140002340 ::Object::SerializeExternal<ComponentDescription>  serialize the ExternalPtr at +0x28
 //   0x140152a98 ?IsDerivedFrom@Base@Object@@    import slot
 //   0x140152b00 ??0Time@System@@QEAA@M@Z        import slot (RtSystem_Time_Ctor)
 
@@ -103,7 +99,8 @@ int PastureComponent::ComputeCapacity() const {
     return (int)(w * h) / found->_requiredArea;
 }
 
-// B4 FORWARD: 1 outside caller file (Dialog/debugui.cpp).
+// B4 FORWARD: 4 caller files outside this one (Dialog/debugui.cpp, Dialog/pastureui.cpp,
+// pasturecomponent_states.cpp, pasturecomponent_spawn.cpp).
 
 // 0x140105ed0: let the animal wander from where it stands. Sets flag bit 0x400000
 // (notifying the entity on a change), records the tile under its model as the habitat

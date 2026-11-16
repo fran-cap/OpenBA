@@ -2,7 +2,6 @@
 // Clean reimplementation of the StatGoal lazy ExternalPtr resolver
 // (FUN_1400265b0), ported to close the standalone Goal code-gap.
 //
-// Depends only on engine_funcs.h + resolve.h.
 // Decompiled from Application-x64.exe via Ghidra.
 
 #include "goal_exe_helpers.h"
@@ -19,7 +18,7 @@
 // ============================================================
 // StatGoal ExternalPtr resolver (FUN_1400265b0)
 // ============================================================
-// Identical in shape to ResolveExternalByName_Impl (engine_funcs.h): a lazy
+// Identical in shape to ResolveExternalByName_Impl (NamedExternalRef::ResolveDescription): a lazy
 // ExternalPtr<T>::Resolve. The input points at an ExternalPtr struct:
 //   +0x00: String (8 bytes) — resource name
 //   +0x08: int32  — cached generation counter (vs ExternalFactory+0x08)
@@ -71,7 +70,7 @@ void NamedExternalRef::Resolve() {
 //
 // Same primitive as EventArray_Grow in src/game/Game/eventlog.cpp — including
 // the identical triple-capacity heuristic on a single-element grow — but with a
-// 0x18 stride, over the ExternalPtr triple that StatGoal_ResolveExternalPtr and
+// 0x18 stride, over the ExternalPtr triple that NamedExternalRef::Resolve and
 // ResolveExternalByName_Impl operate on:
 //   +0x00 System::String (resource name)   +0x08 int32 cached generation
 //   +0x10 void* cached External*
@@ -79,7 +78,7 @@ void NamedExternalRef::Resolve() {
 // ENDGAME B.3.2 step 2: the body below WAS a hand-written copy of
 // `rtcoll::SetSizeCore`. It is now one `Collection::Array<>::SetSize` driven by
 // this instantiation's element ops, spelled as an `ArraySpec` row exactly like
-// the 27 rows src/engine/collection/array.cpp already carries. Compared arm for
+// the rows src/engine/collection/array.cpp carries. Compared arm for
 // arm against SetSizeCore before the swap: exact-equal early return, `_size`
 // stored before the capacity test, treble-on-single-append-from-non-empty,
 // copy-construct the preserved prefix only when the block moved, init the new

@@ -34,7 +34,7 @@ static_assert(sizeof(NamedExternalRefArray) == 0x10, "Array header is 0x10");
 
 // The CitizenBehavior entity-bucket trees (+0x100 keyed by Profession, +0x160 keyed by
 // ComponentDescription) are CitizenBehavior.h's ProfessionBucket / TemplateBucket
-// (CitizenBucketNode<Key>, 0x38 bytes); their roots are field_0x100 / field_0x160.
+// (CitizenBucketNode<Key>, 0x38 bytes); the trees are workplacesByProfession / entitiesByTemplate.
 
 // ENDGAME B.3.8 block GOAL: `Goal_FillInheritedVtableSlots` (the by-name fill
 // of slots 4 / 7 / 9 into the hand-built Goal tables) is gone with those

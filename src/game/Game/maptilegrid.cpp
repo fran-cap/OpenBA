@@ -17,7 +17,7 @@
 //
 // Classifier (helper_e2c0) thresholds are the exact exe .rdata float constants
 // (read_memory, verified 2026-05-31). Slope is the vertical component of the
-// surface normal (fn_MapGetTerrainPos's outTri[2]); see mapquery.cpp.
+// surface normal (Map::GetTerrainPos's outTri[2]); see mapquery.cpp.
 
 #include "Game/exe_bodies.h"
 #include "load_time.h"   // [LoadTime] stamps (NOT RETAIL, print-only; block LOADSTAMP)

@@ -8,7 +8,7 @@
 //   bool @ +0x28 = 0
 // Serialize (vtable +0x28, 0x14011f680), stream order:
 //   ExternalPtr @ +0x20  (exe helper FUN_14000b7b0 — the reference-mode
-//     External-pointer serialize; distinct from fn_ExternalPtr_BuildSerialize)
+//     External-pointer serialize; distinct from FUN_140002340)
 //   bool @ +0x28
 // Decompiled READ-ONLY from Application-x64.exe.
 //
@@ -37,7 +37,7 @@ FloorDescription::FloorDescription()
 // [5] 0x14011f680: stream order as retail.
 bool FloorDescription::Serialize(IO::Stream& stream) {
     IO::Serializer ser(stream, 0);
-    // +0x20 ExternalPtr through exe 0x14000b7b0 (Reimpl_ExternalPtr_Serialize_StringTable).
+    // +0x20 ExternalPtr through exe 0x14000b7b0 (::Object::SerializeExternal<Picking::PickingMesh>).
     ::Object::SerializeExternal<Picking::PickingMesh>(ser, _mesh);
     ser.Serialize(_addOnCreate, nullptr);
     return true;

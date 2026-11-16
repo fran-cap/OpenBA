@@ -42,8 +42,7 @@
 // Type-id for "BuildDescription" (DWORD_1401c7040). The .rdata BaseTypeInfo is
 // created by BuildDescription_Register (0x14014e5f5):
 //   Object::BaseTypeInfo::BaseTypeInfo(&DWORD_1401c7040,"BuildDescription",...)
-// so the name is verified. Read via GetTypeIdByName (the raw
-// .rdata global resolves to null in the standalone exe).
+// so the name is verified. Read via BuildDescription::TypeId().
 static uint32_t BC8630_BuildDescTypeId() {
     return BuildDescription::TypeId();   // B.3.8: the lazy cache over it went (B6-5)
 }

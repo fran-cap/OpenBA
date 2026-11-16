@@ -42,8 +42,7 @@
 // This block used to read "FIRST PASS: the handler BODIES are not ported yet, so every
 // handler is registered as nullptr". That has been FALSE since the crop-field wave
 // (81dc93c "reaches state 10", cbe5ab0 "HARVESTS", ce26616 "61 harvested"); the comment
-// simply outlived the port that replaced it — the same trap as
-// reference_stub_comment_outlived_the_port_that_replaced_it. Corrected 2026-09-06 after
+// simply outlived the port that replaced it. Corrected 2026-09-06 after
 // re-measuring, so the next reader does not re-port work that is already done.
 //
 // Every address in the table above now has a body in this file, and each body carries
@@ -90,9 +89,9 @@ extern "C" void* g_pCropPlantWork = nullptr;
 using CropFieldDispatch = ::ControllerLive::Dispatcher<CropFieldCtrlTag>;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────────
-// 0x140002e10 FindComponent_WorkPlace(entity, outIBP) -> WorkPlaceComponent
-//             (AttendanceComponent_GetJobHostComponent), called directly.
-// 0x14012fc00 WorkPlaceComponent_SetAccepting(wpc, accepting) -> drives WPC+0x50.
+// 0x140002e10 FindComponent<WorkPlaceComponent> (the WorkPlaceComponent finder),
+//             called directly.
+// 0x14012fc00 WorkPlaceComponent::SetAccepting(accepting) -> drives WPC+0x50.
 // .rdata: 0x1401721d4 = 33.0f, 0x14017225c = 3600.0f, 0x1401721b8 = 12.0f (exe_constants.h).
 #include "Component/WorkPlaceComponent.h"
 #include "Component/NaturalResourceComponent.h"
@@ -133,13 +132,13 @@ void CropFieldComponent::PushAccepting() {
 // description the crop type is read from.
 namespace {
 
-// Called directly: 0x1400335b0 CropFieldComponent_ResizeEntityList (the slot array;
+// Called directly: 0x1400335b0 Collection::Array<CropSlot>::SetSize (the slot array;
 // its new-tail write is a PARTIAL zero, +8/+16 only, so it is not a SpecFor<T> resize),
 // 0x14011aa20 CropFieldComponent::ValidateEntityRefs (slot refresh), 0x140004680 the
 // MapComponent finder, 0x140003050 / 0x140005380 the Work / CropField component
-// finders, 0x14012ec60 CitizenAI_WorkScheduler_Post, 0x14012ead0 / 0x14012eb50
-// WorkComponent_CheckWorkSlot / _RegisterWorkSlot, 0x140124750
-// MapComponent_DetachOccupancy_4750. .rdata 0x140172144 = 0.99f (ripe).
+// finders, 0x14012ec60 WorkComponent::PostWork, 0x14012ead0 / 0x14012eb50
+// WorkComponent::IsWorkPosted / CancelWork, 0x140124750
+// MapComponent::RemoveFromMap. .rdata 0x140172144 = 0.99f (ripe).
 
 // Scan a description's sub-description list (items +0x28 / count +0x30) for a type.
 Description* FindInDescList(ComponentDescription* list, uint32_t tid) {
@@ -158,7 +157,7 @@ Description* FindInDescList(ComponentDescription* list, uint32_t tid) {
 //
 // ENDGAME B.3.8 MI-B: the work is built as its REAL class (src/game/Work/<X>.h),
 // chosen by the caller (the class retail's ctor stamps): `new (mem) X()` runs the base
-// init, the leaf's field zeroing and its *_ResolveFuncs, the compiler stamps the
+// init and the leaf's field zeroing, the compiler stamps the
 // class's own table, and Work::InitFromEntity is Work_Ctor25's body (0x1400f72e0).
 // Same bytes as the hand build, with no read-back of the retail tables (PlantArea
 // 0x140161890, HarvestArea 0x1401614a0, TendArea 0x140161990). The tail stores below
@@ -344,11 +343,11 @@ char CropFieldComponent::State2PerFrame(StateMachine* sm) {
 // ── state 9 enter — 0x14011a310 — BUILD THE GRID AND POST A PlantArea ─────────────
 // 1. Read the footprint from the MapComponent: origin (+0x28,+0x2a), extent (+0x2c,+0x2e).
 // 2. Resize the slot array to w*h, filling each slot with {cellIndex, state 0, null, null}.
-// 3. Decide which cells actually get a crop: if the crop type (desc list +0x20 off the
-//    CropFieldDescription) is unset, +0x49 = 0 and nothing is planted; otherwise +0x49 = 1
+// 3. Decide which cells actually get a crop: if the crop type (+0x20 of the NaturalResourceDescription
+//    in the self+0x50 description's list) is unset, +0x49 = 0 and nothing is planted; otherwise +0x49 = 1
 //    and every spacing-th cell is marked, spacing = RawMaterialDescription+0x4c.
 // 4. Shuffle those marks (Fisher-Yates over the game RNG) so rows are not identical.
-// 5. Re-init the map component, then post a PlantArea work carrying the desc list.
+// 5. Un-mark the footprint (MapComponent::RemoveFromMap), then post a PlantArea work carrying the desc list.
 char CropFieldComponent::State9Enter() {
     MapComponent* map = _entity->FindComponent<MapComponent>();   // 0x140004680
     if (!map) return 1;

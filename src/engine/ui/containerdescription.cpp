@@ -3,7 +3,7 @@
 // ============================================================================
 //
 // ??_7ContainerDescription@UI@@6B@ (retail 0x180156510), ten slots:
-//   0  deleting dtor      0x180039c00  src/engine/object/deleting_dtor.cpp row
+//   0  deleting dtor      0x180039c00  ContainerDescription.h (the class's own)
 //   1  TypeName           0x1800398d0  here
 //   2  Type               0x1800398b0  here
 //   3  GetFileVersion     0x1800ccfe0  here  (returns 0x204)
@@ -16,8 +16,8 @@
 // plus ??1ContainerDescription@UI@@UEAA@XZ (0x1800ccff0).
 //
 // The constructor is OUT OF LINE (`??0ContainerDescription@UI@@QEAA@XZ`,
-// 0x1800cd060) and is ALREADY ported by src/engine/ui/factory_ui1.cpp with the
-// two factory steps; Construct and Reconstruct tail-jump into it.
+// 0x1800cd060) and is the real ctor in src/engine/ui/ContainerDescription.h;
+// Construct and Reconstruct tail-jump into it.
 //
 // ----------------------------------------------------------------------------
 // THIS IS THE ONLY CLASS IN THE BATCH WHOSE CreateInstance BUILDS **TWO**
@@ -34,9 +34,7 @@
 //
 // ENDGAME B.3.6 block C4: every body below is a MEMBER of
 // UI::ContainerDescription. (ENDGAME B.3.9 UI-B: the class is concrete; the
-// doors and the minted table are retired.) RULE B6-5: the vtables, the type-info record and the
-// ctor door the members reach are cached in namespace-scope std::atomic slots,
-// never in a function-local static.
+// doors and the minted table are retired.)
 // ============================================================================
 #include <new>
 
@@ -46,8 +44,8 @@
 #include "ui/ClipRegionElement.h"
 
 // UI::ClipRegionElement is block C1's class. CreateInstance builds one inline
-// (retail inlines its ctor); its own bytes are reached raw below, exactly as
-// before, and the site is on the fragment list.
+// (retail inlines its ctor; here it is the real ctor, ClipRegionElement.h) and
+// reaches its fields by name.
 namespace UI { class ClipRegionElement; }
 
 namespace {
@@ -140,7 +138,7 @@ bool ContainerDescription::Serialize(IO::Stream& streamv) {
 // when positive, and the mark is skipped when nothing changed.
 //
 // The ClipRegionElement's OWN fields (+0xc0..+0xd4) belong to block C1's
-// header; they stay raw offsets here (fragment list).
+// header (ClipRegionElement.h) and are reached by name here.
 Object::InternalPtr<Element>* ContainerDescription::CreateInstance(
         Object::InternalPtr<Element>* ret, const Dialog* dialog) const {
     // ---- 1. the container ---------------------------------------------------
@@ -152,8 +150,8 @@ Object::InternalPtr<Element>* ContainerDescription::CreateInstance(
 
     // ---- 2. the base applier ------------------------------------------------
     // ?CreateInstance@ElementDescription@UI@@QEBAXV?$InternalPtr@… (0x180115ad0)
-    // is name-hidden by slot 8 and its body is still a dialog.cpp door, so it
-    // is reached by address, as before.
+    // is name-hidden by slot 8, so it is called QUALIFIED (its body is in
+    // dialog.cpp).
     Object::InternalPtr<Element> slot(container);                                 // 1800ccc31
     UI::ElementDescription::CreateInstance(                   // 1800ccc3e
         &slot);

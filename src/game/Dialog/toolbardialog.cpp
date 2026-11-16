@@ -10,7 +10,7 @@
 //   +0xC8: int32 buttonCount (count for +0xC0 array)
 //   +0xD0: void* toolbarItems (dynamic array of ToolbarItem* ptrs)
 //   +0xD8: int32 itemCount (count for +0xD0 array)
-//   +0xE0: uint64 toolbarGroupId (which toolbar group this dialog shows)
+//   +0xE0: const Toolbar* toolbarGroup (the parent item whose group this dialog shows; null = the main bar)
 //   +0xE8: InternalBasePtr subDialog (child toolbar dialog instance)
 //   +0xF0: int32 openSubIndex (-1 = none)
 //   +0xF4: int32 currentSpeedIndex
@@ -23,7 +23,7 @@
 //     5=CenterOnPoint, 6=SpeedDown, 7=Pause, 8=Unpause, 9=SpeedUp,
 //     10=SpeedDisplay
 //   +0x4C (int32): sub-parameter (e.g., point index for CenterOnPoint)
-//   +0x58 (int64): action data (group ID, entity type, etc.)
+//   +0x58 (ComponentDescription*): the template the button acts on
 //
 // Decompiled from Application-x64.exe.
 
@@ -87,8 +87,8 @@
 #include "ui/CheckElement.h"               // UI::CheckElement::TypeId() (ENDGAME B.3.9 TR)
 #include "video/Device.h"   // ENDGAME B.3.9 SS2: Video::Device::_singleton
 #include "Dialog/exe_bodies.h"
-#include "Player/exe_bodies.h"   // B3R: PlayerTrade_EntityUI_66b0
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "Player/exe_bodies.h"
+#include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
 
 
 #ifdef _DEBUG
@@ -179,13 +179,13 @@ static ComponentEntity* Toolbar_FindEntity_Impl(const CitizenBehavior* town, con
 }
 
 // ============================================================
-// ToolbarDialog::Startup (vtable +0x20, exe 0x1400b97c0): RET 0 (3 bytes)
+// ToolbarDialog::OnOpened (vtable +0x20, exe 0x1400b97c0): RET 0 (3 bytes)
 // ============================================================
-// No-op startup; all initialization happens in the constructor (Ctor_Impl).
+// No-op startup; all initialization happens in the constructor (ToolbarDialog::ToolbarDialog).
 void ToolbarDialog::OnOpened() {}
 
 // ============================================================
-// ToolbarDialog::Shutdown (vtable +0x28, exe 0x1400b97b0): JMP rel to FUN_1400b9730
+// ToolbarDialog::OnClosed (vtable +0x28, exe 0x1400b97b0): JMP rel to FUN_1400b9730
 // ============================================================
 // Thunk to CloseSubDialog: closes any open sub-toolbar dialog.
 void ToolbarDialog::OnClosed() {
@@ -193,12 +193,13 @@ void ToolbarDialog::OnClosed() {
 }
 
 // ============================================================
-// ToolbarDialog_UpdateButtons_Impl (was fn_ToolbarDialog_UpdateButtons, FUN_1400b8fd0)
+// ToolbarDialog::UpdateButtons (FUN_1400b8fd0)
 //
 // Secondary update for ShowGroup (case 1) and FocusEntity (case 4) buttons.
 // For each toolbar item:
-//   - ShowGroup: enables button if the group has entities in the entity list BST
-//     (checks item+0x58 type against entity count in BST at entityList+0x160)
+//   - ShowGroup: enables button while the town has fewer of the template (item+0x58)
+//     than its ToolbarDescription's limit (_val0; no limit when negative or absent),
+//     counted in the BST at CitizenBehavior+0x160
 //   - FocusEntity: enables button if entities of that type exist
 // Uses the same entity BST search as Toolbar_FindEntity_Impl.
 // ============================================================
@@ -266,8 +267,7 @@ void ToolbarDialog::UpdateButtons() {
 }
 
 // ============================================================
-// PlayerToolManager::SelectTool (FUN_140102b60; the tree's Toolbar_ShowGroup_Impl /
-// EntityUI_SetEditMode_Impl, both B4 FORWARD forwarders now)
+// PlayerToolManager::SelectTool (FUN_140102b60)
 //
 // Makes the tool of a tool group (a template: the toolbar item's +0x58) the
 // current tool. Called by the toolbar's ShowGroup buttons, EntityUI, the tutorial,
@@ -285,7 +285,7 @@ void ToolbarDialog::UpdateButtons() {
 //
 // group == 0 IS A REAL LOOKUP, NOT A "CLEAR" NO-OP.
 // The tool registry always contains a node keyed 0 -> EditTool (see
-// BuildToolModeTree in tool_activation_standalone.cpp). With group 0 the
+// PlayerToolManager::Startup in entityui.cpp). With group 0 the
 // component scan finds nothing, foundTypeId stays 0, and the exact-match pass
 // below then hits that key-0 node and CREATES the EditTool. That is how the
 // default EditTool gets installed at all — retail EntityUI::Update relies on it
@@ -297,7 +297,7 @@ void ToolbarDialog::UpdateButtons() {
 void PlayerToolManager::SelectTool(ComponentDescription* group) {
     // Step 1: If the lock is set and the group is non-zero, override with the
     // locked group (the tutorial's TutorialSetupRestrictPlayer restriction —
-    // +0x80/+0x88 are written by TutorialSetupRestrictPlayer_Slot8. A step whose
+    // +0x80/+0x88 are written by TutorialSetupRestrictPlayer::Begin (slot 8). A step whose
     // setup list contains `disableSelect` locks +0x88 to NULL, which turns EVERY
     // toolbar selection into "no group".)
     if (tutorialRestricted != 0 && group != nullptr) {
@@ -402,7 +402,7 @@ void PlayerToolManager::SelectTool(ComponentDescription* group) {
     // standalone genuinely differs from retail). Retail does NOT test the search
     // result — it goes straight to Factory::CreateObject and null-derefs if the
     // registry held no matching key, because retail's registry always does. Ours is
-    // built by BuildToolModeTree and can legitimately be empty or partial in a
+    // built by PlayerToolManager::Startup and can legitimately be empty or partial in a
     // standalone run, so guard the deref rather than fault.
     if (foundNode == nullptr) {
         return;
@@ -458,7 +458,7 @@ void PlayerToolManager::SelectTool(ComponentDescription* group) {
 // template's address) keeps each utility dialog's position and open flag.
 //
 // Flow:
-//   1. FindDialogByControllerType — search open dialogs for one whose ToolUI
+//   1. FindUtilityDialog — search open dialogs for one whose ToolUI
 //      shows `description`
 //   2. If found: close the dialog, clear the set's open flag
 //   3. If not found: find the UIDescription, create the DialogInstance, look
@@ -635,8 +635,9 @@ extern "C" void ToolbarUtility_HarnessDriveController(const char* controllerName
     uint32_t tid = ::Object::GetTypeIdByName(controllerName);
     printf("[HarnessDrive] searching open dialogs for '%s' (tid=%u)\n", controllerName, tid);
 
-    // The open-dialog collection is the _addDialogs array (+0x28) — that's where
-    // UserInterface::AddDialog (Runtime 0x180120ee0) pushes. Each element is an
+    // The dialogs added since the last UserInterface::Update are the _addDialogs
+    // array (+0x28) — that's where UserInterface::AddDialog (Runtime 0x180120ee0)
+    // pushes; Update drains them into _dialogs. Each element is an
     // InternalPtr<DialogInstance>. Enumerate it, dumping each dialog's controllers
     // to locate the (nested) MapUI.
     UI::DialogInstancePtr* data = ui->_addDialogs.GetData();
@@ -706,7 +707,7 @@ extern "C" void ToolbarUtility_HarnessDriveController(const char* controllerName
 //
 // It builds the same MainMenuDialog class the front-end menu uses, but from
 // Dialog/Pause.rsc and with +0xB8 = gameWorld (instead of +0xC0 = menu loop).
-// That +0xB8 is what makes MainMenuDialog::Setup (slot 4) light up the in-game
+// That +0xB8 is what makes MainMenuDialog::OnOpened (slot 4) light up the in-game
 // buttons -- buttonResume / buttonSave / buttonMenu / buttonQuit -- and what
 // makes OnCommand's Quit reach Application::Quit.
 //
@@ -1187,7 +1188,7 @@ found_speed:
 }
 
 // ============================================================
-// ToolbarDialog::Update (vtable +0x30) — Sync button states
+// ToolbarDialog::OnUpdateLayout (vtable +0x30) — Sync button states
 // ============================================================
 // Iterates toolbar items, updates button checked/enabled states
 // based on current game state (speed, pause, group visibility).
@@ -1286,7 +1287,7 @@ void ToolbarDialog::OnUpdateLayout() {
 }
 
 // ============================================================
-// ToolbarDialog::OnEvent (vtable +0x40) — Handle toolbar clicks
+// ToolbarDialog::OnElementEvent (vtable +0x40) — Handle toolbar clicks
 // ============================================================
 // Dispatches toolbar button click events to game actions.
 // Event type 0x12 = button click, 0x16 = toolbar selection change.
@@ -1566,7 +1567,6 @@ void PlayerToolManager::CenterOnEntity(UI::DialogInstance* const* dialog, Compon
         // GetController's third parameter is a TYPE-ID FILTER, not an index: retail
         // 0x180113320 walks the controller array and compares the argument against
         // each controller's own type id, returning null when nothing matches.
-        // (reference_getcontroller_third_arg_is_a_type_filter.)
         // Guard the VALUE, not the pointer: a null-but-resolvable id is not a valid filter.
         const uint32_t tidEntityUI = EntityUI::TypeId();   // cell 0x1401c4f00
 

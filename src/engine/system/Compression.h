@@ -11,8 +11,9 @@
 // ============================================================================
 // "IS IT A CLASS?" — YES, AND IT IS THE ONE 4b CLASS WITH A HEAP INSTANCE
 // ============================================================================
-// The test (B34B_RULES.md §1.2): MSVC emits a class-scoped mangling only for a
-// member of a class of that name. Read out of `standalone/rt_export_addrs.inc`:
+// The test (docs/history/endgame_b/B34B_RULES.md §1.2): MSVC emits a
+// class-scoped mangling only for a member of a class of that name. The four
+// exported names:
 //
 //   ??0Compression@System@@QEAA@XZ                   0x1800c41a0  QEAA  ctor
 //   ?Compress@Compression@System@@QEAAHPEBXIPEAXI@Z  0x1800c4230  QEAA  member
@@ -35,13 +36,11 @@
 // the hash `(uint16)((dv >> 8) - 5*dv)` can index. `Compress`'s first act on
 // `this` is `MOV RCX,[R11]` (0x1800c42c6), the same single dereference.
 //
-// **THE INSTANCE IS ALWAYS HEAP-ALLOCATED AND NEVER A C++ OBJECT TODAY.** Both
-// construction sites — `src/engine/io/compressed_stream_write.cpp:629-633`
-// (`CompressedStream::Create`) and `src/engine/save/saveload_meta.cpp:395-398`
-// — do `MemAlloc(8, 4)` and then call the `??0` door BY NAME on those eight
-// raw bytes, storing the ctor's return. Both files are outside this step's
-// file set and neither changes: the door placement-news the class into the
-// bytes they hand it and returns `self`, which is retail's `MOV RAX,RCX`.
+// **THE INSTANCE IS ALWAYS HEAP-ALLOCATED.** Both construction sites —
+// `src/engine/io/compressed_stream_write.cpp:600-603` (`CompressedStream::Create`)
+// and `src/engine/save/saveload_meta.cpp:341-344` — do `MemAlloc(8, 4)` and then
+// placement-new the class into those eight raw bytes, storing the result (or
+// null when the allocation failed).
 //
 // **THERE IS NO POD TO CROSS-ASSERT AGAINST**, which is why this header has a
 // `sizeof` and an `offsetof` assert but no alias pair: before this commit the
@@ -54,14 +53,12 @@
 // **NO DESTRUCTOR, AND THAT IS NOT AN OVERSIGHT.** `??1Compression@System@@`
 // (0x1800c4170) is unported and stays unported — retail does not destroy a
 // Compression through it on the live path at all. The teardown is INLINED into
-// `?Release@CompressedStream@IO@@` (`compressed_stream_release.cpp:104-113`,
-// retail 0x1800aa1f3..0x1800aa26f), which is already ported and registered and
+// `?Release@CompressedStream@IO@@` (`compressed_stream_release.cpp:77-90`,
+// retail 0x1800aa1f3..0x1800aa26f), which is already ported and
 // which frees the 0x40000 table and then the 8-byte object directly through
 // `MemFree`. So the class stays TRIVIALLY DESTRUCTIBLE — asserted below — and
 // a real destructor here would be a second, private opinion about a teardown
-// that already happens somewhere else. `compression.cpp`'s registration block
-// carries the full argument and the finding that this is NOT a
-// cutover-required row.
+// that already happens somewhere else.
 //
 // **NO `First` / `Next` / `Index`.** Retail's three private statics
 // (0x180023e20 / 0x180023e30 / 0x180023e40) are unported, uncalled and
@@ -107,7 +104,7 @@ public:
     // ?Decompress@Compression@System@@SAHPEBXIPEAXI@Z retail 0x1800c4660
     // `SA` — a public STATIC member. It is pure, it calls nothing, and it
     // touches no instance state, which is what lets `compressed_stream_read.cpp`
-    // reach it with no receiver at all (two `RT_EXPORT_ONCE` sites).
+    // reach it with no receiver at all (two call sites).
     static int Decompress(const void* src, uint32_t srcLen,
                           void* dst, uint32_t dstCap);
 

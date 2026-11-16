@@ -15,8 +15,8 @@
 #   perf    [standalone-perf]   -O2 -g -DNDEBUG, logs stripped (the perf baselines' build)
 #   release [standalone]        -O3 -DNDEBUG, logs stripped; on Windows and Android also PGO + LTO (below)
 #
-# Off Windows (Phase D.4 POSIX + LINUX-1; handins/LINUX-1.md has the recipe) the targets are
-# `OpenBA` (the Linux game over src/platform/posix + sdl and the Vulkan backend, the default
+# Off Windows (Phase D.4 POSIX + LINUX-1; docs/runtime_port/phase_d/handins/LINUX-1.md has the recipe)
+# the targets are `OpenBA` (the Linux game over src/platform/posix + sdl and the Vulkan backend, the default
 # there since Vulkan P5) and `unit` (the host unit tests over the src/platform/posix twins).
 # src/platform/win and src/diag/win are never built there. (`linux-check`, the compile-only
 # dry run of POSIX, went when the exe linked: the exe builds every TU it did.)
@@ -95,8 +95,8 @@ endif()
 set(BANISHED_CXX_FLAGS
   -fexceptions -fno-strict-aliasing ${BANISHED_LIFETIME_DSE_FLAG} -ffp-contract=off
   -Wall -Wextra -Wno-cast-function-type -Wno-invalid-offsetof)
-# Off Windows, two flags pin what MinGW gives for free (plans/ABI.md C.7): `char` is signed
-# (abi.h asserts it; ARM64 Linux defaults to unsigned) and bit-fields lay out MSVC-style
+# Off Windows, two flags pin what MinGW gives for free (docs/runtime_port/phase_d/plans/ABI.md C.7):
+# `char` is signed (abi.h asserts it; ARM64 Linux defaults to unsigned) and bit-fields lay out MSVC-style
 # (the tree has none today; abi_audit keeps it that way).
 if(NOT WIN32)
   set(BANISHED_PORTABLE_FLAGS -fsigned-char -mms-bitfields)
@@ -159,8 +159,8 @@ else()
   message(FATAL_ERROR "BANISHED_FLAVOUR must be debug, og, perf or release (got '${BANISHED_FLAVOUR}')")
 endif()
 
-# Checking builds (docs/reference/checking_builds.md), on top of any flavour; tools/build.sh keys
-# their own build directory from env BANISHED_SANITIZE (build/cmake-<flavour>-<sanitize>):
+# Checking builds, on top of any flavour; tools/build.sh keys their own build directory from env
+# BANISHED_SANITIZE (build/cmake-<flavour>[-<backend>]-<sanitize>):
 #   none   (default) nothing added
 #   check  libstdc++ / libc++ assertions (out-of-range operator[], bad iterators) and every
 #          uninitialised local filled with a pattern, so an uninitialised read is deterministic
@@ -274,13 +274,13 @@ elseif(PGO_MODE STREQUAL "use")
 elseif(NOT PGO_MODE STREQUAL "off")
   message(FATAL_ERROR "BANISHED_PGO must be auto, generate, use or off (got '${BANISHED_PGO}')")
 endif()
-# Link-time optimisation, the Windows release exe only (BANISHED_LTO, default ON there). Measured
+# Link-time optimisation, the Windows release exe (BANISHED_LTO, default ON there). Measured
 # 2026-10-26 (perf/pgo/README.md): on top of the profile set about -7% sim / -5% draw and a 14% smaller
 # exe; without the profile set LTO alone is no faster than plain -O3. Never with `generate`: the
 # profile set is recorded by the non-LTO instrumented build and read by this one (the per-function
 # records match; 0 coverage-mismatch). The static libraries must then be archived by gcc-ar / gcc-ranlib
-# (tools/build.sh passes them: plain ar does not index slim LTO objects). Off on the other
-# platforms until their release builds are measured.
+# (tools/build.sh passes them: plain ar does not index slim LTO objects). Off on Linux and macOS
+# until their release builds are measured.
 # Android (P12): the same rule for libmain.so, as ThinLTO (lld, the NDK's clang); the static
 # third-party libraries stay plain objects, which lld links beside the bitcode as usual.
 option(BANISHED_LTO "Link-time optimisation on the Windows release exe and the Android release library" ON)
@@ -712,7 +712,7 @@ if(NOT WIN32)
   # error.cpp's fallback exit is kernel32!ExitProcess on Windows and Platform::ExitProcess
   # (os_posix.cpp) here; the POSIX test file exercises the rest of os_posix.cpp.
   list(APPEND UNIT_TREE_SRCS ${CMAKE_SOURCE_DIR}/src/platform/posix/os_posix.cpp)
-  # os_posix.cpp's ReleaseModule / ExecutableImageBase (dlclose, dl_iterate_phdr).
+  # os_posix.cpp's ExecutableImageBase (dl_iterate_phdr).
   set(UNIT_POSIX_LIBS ${CMAKE_DL_LIBS})
   if(APPLE)
     # On Apple a src/platform/darwin twin, when one exists, replaces its posix twin (the
@@ -735,7 +735,7 @@ if(NOT APPLE)
   list(FILTER UNIT_SRCS EXCLUDE REGEX "/platform_mac_data_test\\.cpp$")
 endif()
 # tests/unit/vulkan_*_test.cpp test the Vulkan backend's pure parts and build only when that backend
-# is configured (BANISHED_RENDER_BACKEND=vulkan): they need its RENDER_BACKEND_UNIT_SRCS / _LIBS.
+# is configured (vulkan in the BANISHED_RENDER_BACKEND list): they need its RENDER_BACKEND_UNIT_SRCS / _LIBS.
 if(NOT "vulkan" IN_LIST BANISHED_RENDER_BACKENDS)
   list(FILTER UNIT_SRCS EXCLUDE REGEX "/vulkan_[a-z_]+_test\\.cpp$")
 endif()

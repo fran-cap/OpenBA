@@ -35,90 +35,9 @@
 // All twenty-four names in this lane's scope (the twenty above plus the four
 // held back at the bottom of this file) were checked against the shipped export
 // directory of C:\GOG Games\Banished\Runtime-x64.dll with pefile BEFORE any body
-// was written — reference_resolveexport_phantom_names.md: a name the DLL does
-// not contain resolves to NULL in silence, the port still registers and the
-// census still counts it. **Zero phantoms.** The addresses and ordinals above
+// was written. **Zero phantoms.** The addresses and ordinals above
 // are that query's output, not Ghidra's and not an inference.
 //
-// REGISTRATION: by NAME for all twenty, and additionally by ADDRESS for
-// GetNodeIndexFromName, whose one address-only call site is
-// `src/game/Action/showtool.cpp:169`
-// (`ResolveAddr(Module::Runtime, 0x1800fee90)`, a fallback taken because the
-// exe dispatch slot 0x140152970 is empty in standalone). Every other call site
-// in this lane's scope reaches its function through `ResolveExport(<name>)` —
-// including the ones that look address-shaped, because
-// `standalone/address_registry.cpp` spells them
-// `RegisterDispatchSlot(<exeSlot>, ResolveExport(<name>))`: the exe slot is
-// storage, the resolution is by name. A name-only registration is therefore
-// enough for those, and the census's orphan list is what will say if that read
-// of the tree was wrong.
-//
-// ---------------------------------------------------------------------------
-// WHAT STAYS IN THE DLL, AND WHY
-// ---------------------------------------------------------------------------
-// Everything this file calls out to falls into one of three groups.
-//
-// 1. Collection::Array<T> out-of-line instantiations (`Rt*Array*` below).
-//    MSVC emits one copy/resize/free per element width, and each body takes the
-//    allocator's own CRITICAL SECTION around MemoryAllocator::Free
-//    (`EnterCriticalSection(_singleton + 0x640)`, plainly visible in the
-//    decompile of every one of them). PLAN §4.1 decision 1 keeps src/engine/
-//    free of <windows.h> outside a `_win` twin, and PLAN §4.3 risk 1 warns that
-//    a ported Set/Array body cannot serve two element widths. So these are
-//    called at their retail addresses, exactly as retail's own code does — the
-//    same shape Wave 5 lane D used for Picking's eight FUN_ internals and Wave 4
-//    lane C used for Map_Find / Map_Insert.
-//
-// 2. Neighbouring EXPORTED engine functions retail reaches by a direct internal
-//    CALL, not through the export table: Geometry's ctor/copy-ctor/dtor and
-//    SetBounds, AnimationState's ResetAnimationState / PlayAnimation, and
-//    Quaternion::operator* / Quaternion::Rotate. These are resolved ONCE with
-//    the raw DLL door and then called through the cached pointer.
-//
-//    Why the raw DLL door (the DLL) and not ResolveExport (whatever is
-//    registered)? Because retail's `MeshInstance::UpdateHierarchy` contains a
-//    direct `CALL 0x18001e280`, so calling the DLL's body IS the byte-faithful
-//    thing, and it removes a registration-ORDER dependency between lanes that
-//    run concurrently in one tree. It also keeps this lane's diff oracle honest:
-//    a divergence reported here is this lane's, not a neighbour's.
-//
-//    *** NO GetProcAddress SITS ON A HOT PATH IN THIS FILE. *** rt_port.h is
-//    explicit that the raw DLL door IS GetProcAddress — an export-table binary search
-//    under the loader lock — and that two of them inside System::Time's body
-//    cost 5.6 percentage points of sim time while hiding as ntdll self time
-//    (reference_rtoriginal_is_getprocaddress.md, WAVE3_LANE_P.md). Every
-//    resolution in this file is either inside an `if (the diff-oracle guard)` guard (the
-//    oracle, which no shipping run enters) or wrapped in the raw DLL door /
-//    a function-local static, which resolves once per call site for the life of
-//    the process. `MeshInstance::UpdateHierarchy` and `IsAnimating` in
-//    particular execute nothing per call that retail did not.
-//
-// 3. Video::VertexBuffer / IndexBuffer::PlatformConstruct, which EdgeMesh's
-//    ctor calls eight times. These are Wave 6 lane C's classes AND they are the
-//    seam into `src/render/dx11/` — PlatformConstruct asks Device::_singleton's plugin for
-//    a companion object and then links the buffer into the device's GLOBAL
-//    intrusive buffer list. Lane E calls them; it does not port them, and the
-//    global list is the reason `EdgeMesh::EdgeMesh` gets no scratch-buffer
-//    oracle (see the oracle note above that function).
-//
-// ---------------------------------------------------------------------------
-// IS THE CLASS SPLIT?  (PLAN §4.1 decision 5, §4.3 risk 3 — the real hazard.)
-// ---------------------------------------------------------------------------
-// MeshInstance and EdgeMeshInstance are VIRTUAL classes whose objects are built
-// by these ctors and carry the DLL's own exported vtable
-// (??_7MeshInstance@Graphics@@6B@ at 0x180154dc0, stamped by the ctor and
-// resolved BY NAME here rather than cloned). So the DLL's `Renderer::Draw` and
-// `Scene::Clean` keep dispatching MeshInstance's virtuals — Update, Draw,
-// AddDrawItems, Clean, GetInstanceTransform — into the DLL, and this lane
-// changes none of them. What flips is the NON-virtual surface our tree calls
-// directly. Both implementations then operate on ONE object with ONE layout,
-// which is the condition WAVE6.md sets for a Video/Graphics lane to be safe.
-//
-// The two exceptions are stated where they occur: `~MeshInstance` is virtual
-// (UEAA) and IS ported, because the only caller that reaches it is ours through
-// dispatch slot 0x1401514a8, which is a direct call and not a vtable dispatch;
-// and `AddDrawItems` is virtual and is NOT ported, for a separate reason given
-// at the bottom of this file.
 //
 // PORTABILITY: no <windows.h>, per PLAN §4.1 decision 1.
 // ============================================================================
@@ -150,7 +69,7 @@ using RtGraphics::kEdgeMeshVertexScale;
 namespace {
 
 // ============================================================================
-// The DLL internals this lane calls, by body name (B3R). The Array<T> helpers
+// The Array<T> instantiations this file uses, by body name (B3R). In retail they
 // are NOT exported (they are template instantiations):
 //   Array<ExternalPtr<MaterialInstance>>, element 8 bytes:
 //     0x180014c70  operator=   rtcoll::RtColl_ArrayAssign_180014c70
@@ -161,106 +80,21 @@ namespace {
 //   instantiation from the layer array even though the stride matches — its
 //   SetSize default-constructs new elements to an identity Transform pair):
 //     0x18001b810 / 0x18001c550 / 0x18005ac50
-//       rtcoll::Rt_ArrayAssign_18001b810 / Rt_ArrayDtor_18001c550 / Rt_SetSize_18005ac50
+//       rtcoll::Rt_ArrayAssign_18001b810 / InterpTransformArray::~Array / Rt_SetSize_18005ac50
 //   Array<GraphicsMesh::TriangleList>, element 0x18, alignment 4 — EdgeMesh::Set
 //   uses it for both its triangle list and its edge list:
 //     0x1800136f0  rtcoll::RtColl_ArraySetSize_1800136f0
 // ============================================================================
 
-// The exported neighbours, by mangled name. Each is a direct internal CALL in
-// the retail body it replaces, so going to the DLL is the byte-faithful choice
-// as well as the one that removes a cross-lane registration-order dependency.
-// NOTE: the "going to the DLL is the byte-faithful choice" sentence above is
-// about the CALL being a direct internal one in retail, not about which door
-// resolves it. ENDGAME B.3.5 caller batch: the two AnimationState typedefs that
-// used to sit here (`AnimResetFn`, `AnimPlayFn`) are gone with their doors.
-// ENDGAME B.3.1 step 2: Math::Quaternion's operator* and Rotate, called as
-// members. The `(self, ret, arg)` SHAPE is kept because the call sites below
-// work on raw offsets into GraphicsMesh's untyped node/pool storage.
-//
 // B.4: the two `(self, ret, arg)` wrappers (QuaternionMultiply /
 // QuaternionRotate) that viewed raw node / pool storage as those classes are
 // gone with the raw storage; the call sites call the members on typed operands.
 
-// RT_EXPORT_ONCE on the four below (Wave 9 lane R, 2026-09-07). All four names
-// are PORTED, and the raw door skipped the port registry by design -- so
-// MeshInstance::UpdateHierarchy was running the DLL's Quaternion::operator* on
-// every node of every model while Wave 1's port of it sat registered and
-// unreached. A dependency belongs on the seam.
-// ENDGAME B.3.9 block GFX: `RtGeometryCtor` / `RtGeometryCopyCtor` /
-// `RtGeometryDtor` (the three Geometry name doors the MeshInstance /
-// EdgeMeshInstance ctor, copy-ctor and dtor doors called) are gone with those
-// doors; the real classes chain Geometry's members.
-// ENDGAME B.3.5 caller batch: `?SetBounds@Geometry@Graphics@@` is a DEFINED
-// member of the real `Graphics::Geometry` (scene.cpp:1373), and its one caller in
-// this file is `EdgeMeshInstance::SetMesh`, whose `this` IS a Geometry — so the
-// resolve-and-return accessor and the `GeometrySetBoundsFn` typedef are GONE and
-// the call site is a qualified non-virtual member call. The door stays registered.
-//
-// THE NOTE THAT DIED WITH IT, kept because it names a live tool gap:
-// `tools/port_bypass_audit.py --by-name` could not see this site and still
-// cannot. The accessor stored the pointer and RETURNED it, so the brace-matched
-// enclosing function the classifier follows was the four-line accessor, in which
-// the pointer is indeed never called — the call was in the CALLER, one frame out.
-// Do not read that gate's 0 as covering the resolve-and-return family until the
-// audit follows a returned pointer to its callers. Three accessors of exactly
-// that shape in this file converted in this batch.
-// RT_EXPORT_ONCE on both, not the raw DLL door (closure batch 3b, 2026-09-12),
-// for exactly the reason the four-door note above gives — and this pair is the
-// same defect one more time, found the same way.
-//
-// WHAT WAS BELIEVED: that these two names had no port, so the raw door and the
-// seam door led to the same place and the raw one was merely cheaper to spell.
-// WHAT IS TRUE NOW: `?ResetAnimationState@` was ported in closure batch 3
-// (src/engine/graphics/animationstate.cpp, retail 0x1800fd930) and
-// `?PlayAnimation@AnimationState@` in batch 3b
-// (animationstate_transforms.cpp, retail 0x1800fdf50). From the moment each
-// landed these two lines were LIVE-PATH PORT BYPASSES, with nothing in this
-// file changing — which is the hazard WAVE9.md's bypass row states in as many
-// words ("re-run after every LANDING, not after every edit"). The diff oracle
-// cannot see it either: a bypassed port never runs, so it never disagrees, and
-// both bodies read `entered=0` in the summary while this file called the DLL's
-// copies hundreds of times a session.
-// ENDGAME B.3.5 caller batch: both are DEFINED members of the real
-// `Graphics::AnimationState` today (`ResetAnimationState` in animationstate.cpp,
-// `PlayAnimation` in animationstate_transforms.cpp), so both resolve-and-return
-// accessors are GONE and the two call sites below are member calls through the
-// 0x18-byte `_animation` PREFIX that `Mesh.h` embeds — `AnimationState.h` pins
-// that boundary with `offsetof(_rootOffset) == 0x18`. `AnimResetFn` and
-// `AnimPlayFn` went with them. Both doors stay registered for outside callers.
-// Video buffer platform constructors, called eight times by EdgeMesh's ctor.
-//
-// RT_EXPORT_ONCE (Wave 9 lane W, 2026-09-08). BOTH NAMES ARE NOW PORTED —
-// src/engine/video/buffers.cpp registers them, together with the four other
-// Platform{Construct,Destruct} bodies — so on the raw door these two became
-// live-path port BYPASSES the moment that landed, with nothing in THIS file
-// changing. That is the hazard WAVE9.md's bypass row states in as many words
-// ("re-run after every LANDING, not after every edit"), and it was caught here
-// by the audit's own denominator moving: `ported names 573 -> 579` and
-// `OK-RESOLVE-ONLY 4 -> 11`, the +7 being these two plus five siblings that
-// only acquired a verdict because their name became a ported one.
-// ENDGAME B.3.5 caller batch: both are DEFINED members of the real
-// `Video::{Vertex,Index}Buffer`, so the two accessors are gone with their typedef
-// and `EdgeMesh`'s constructor calls the members on its eight buffer sub-objects.
+// The two `AnimationState` members this file calls through `_animation` are
+// ported: `ResetAnimationState` (src/engine/graphics/animationstate.cpp, retail
+// 0x1800fd930) and `PlayAnimation` (animationstate_transforms.cpp, retail
+// 0x1800fdf50).
 
-// The vtables the ctors stamp. All four are REAL EXPORTED SYMBOLS in the
-// shipped DLL — PLAN §2.2 hazard D was corrected once already ("the DLL exports
-// 147 ??_7 vtable symbols") and this lane confirms four more of them by name.
-// Stamping the DLL's own vtable, rather than cloning slots into an array we
-// own, is what keeps the object dispatchable by the DLL's Renderer after our
-// ctor built it (§4.3 risk 3). The per-class argument PLAN demands is easy
-// here: these classes are not subclassed anywhere in our tree, our ctor is the
-// ONLY writer of slot 0, and every virtual the DLL then dispatches is a DLL
-// body this lane did not port.
-// PORT-AWARE, and it must be. This helper feeds the vtable a ported ctor
-// stamps into slot 0. the raw DLL door is GetProcAddress: at cutover it returns
-// NULL for a symbol the Wave 9 mint carries correctly just as much as for one
-// it has never heard of, so a raw door here writes a NULL vtable into every
-// object of these classes and the first virtual call is an EXEC-of-0.
-// ResolveExport checks the port registry first and falls through to the same
-// GetProcAddress, so while the DLL is loaded and the mint unregistered this is
-// the identical pointer -- the change is a no-op today and a crash avoided at
-// cutover. Audited by tools/rt_data_door_audit.py.
 // ENDGAME B.3.9 block GFX: `RtVtable` and the five lazy vtable caches
 // (MeshInstance, EdgeMeshInstance, EdgeMesh, Object::Base, Object::External)
 // are gone -- every class these ctors built is real and the stamps are the
@@ -281,16 +115,13 @@ namespace {
 //   retail 0x1800126c0, ordinal 2768
 //
 // The whole body is `return *(mesh + 0x70) + index * 0x10` — the +0x70 field is
-// a pointer to an ARRAY OF Array headers, one per detail level, and 0x10 is
+// a pointer to an ARRAY OF Array headers, one per skin, and 0x10 is
 // sizeof(Collection::Array<T>).
 //
-// ORACLE: FULL. Pure pointer arithmetic on a const object, no side effects, so
-// both implementations can run on the live object and the two results compared
-// directly.
+// Pure pointer arithmetic on a const object, no side effects.
 // ============================================================================
-// ENDGAME B.3.5 block G: BODY MOVED to
-// `Graphics::GraphicsMesh::GetMaterialList(int32_t)`. The door keeps its name and
-// its registration and delegates with a QUALIFIED non-virtual call.
+// ENDGAME B.3.5 block G: the BODY is
+// `Graphics::GraphicsMesh::GetMaterialList(int32_t)`, near the bottom of this file.
 // ============================================================================
 // Graphics::GraphicsMesh::GetNodeIndexFromName(const char*) const
 //   ?GetNodeIndexFromName@GraphicsMesh@Graphics@@QEBAHPEBD@Z
@@ -311,7 +142,7 @@ namespace {
 //    crash retail does not have.
 //  * The scan returns the FIRST match, and -1 when nothing matches.
 //
-// ORACLE: FULL. Const, no side effects.
+// Const, no side effects.
 // ============================================================================
 // ENDGAME B.3.5 block G: BODY MOVED to
 // `Graphics::GraphicsMesh::GetNodeIndexFromName(const char*)`.
@@ -329,15 +160,12 @@ namespace {
 // 6 lane G and are read here, not pinned here.
 //
 // PERF: this is called per model per frame from
-// src/game/Component/naturalresourcecomponent.cpp and through dispatch slot
-// 0x1401514b0. The body below is four loads and a compare — the same work
+// src/game/Component/naturalresourcecomponent.cpp. The body below is four loads
+// and a compare — the same work
 // retail does — and resolves nothing.
-//
-// ORACLE: FULL. Const, no side effects.
 // ============================================================================
-// ENDGAME B.3.5 block E: the BODY MOVED to `Graphics::MeshInstance::IsAnimating`
-// at the bottom of this file. This door keeps its name and its registration and
-// delegates with a QUALIFIED non-virtual call.
+// ENDGAME B.3.5 block E: the BODY is `Graphics::MeshInstance::IsAnimating`,
+// near the bottom of this file.
 namespace {
 
 // The pool pose the two "instanced" branches share.
@@ -433,8 +261,7 @@ const ::Graphics::InstancedAnimationState* RtInstancedPoolSlot(const ::Graphics:
 // and then reads the index out of `in_R8D`. Declaring this function without the
 // return slot would be the recorded WILD WRITE — a scribble through a stale RCX
 // that still returns the right answer, live on every scene load
-// (reference_hidden_retslot_wild_write.md, Wave 1's
-// fn_Math_Transform3_Identity). tools/abi_retslot_audit.py enforces the rule.
+// (Wave 1's fn_Math_Transform3_Identity).
 //
 // Two branches:
 //  * NOT instanced (_animation._instanced == 0): copy _nodes[node]._state[0]
@@ -446,17 +273,9 @@ const ::Graphics::InstancedAnimationState* RtInstancedPoolSlot(const ::Graphics:
 //    an identity (`w = 1.0f` at +0x0c, zeros elsewhere) BEFORE the two
 //    quaternion calls; that store is reproduced because it is observable if
 //    either call were ever to fault.
-//
-// ORACLE: FULL, through a scratch buffer. Ours writes the caller's real slot,
-// theirs writes a private 0x1c-byte buffer, and the two are compared byte for
-// byte — the diff-oracle header's "functions that write through an out-parameter" case.
-// Never let the original write into live state.
 // ============================================================================
-// ENDGAME B.3.5 block E: the BODY MOVED to
-// `Graphics::MeshInstance::GetNodeToWorld(int)`. The door keeps the RETAIL ABI —
-// `this` in RCX, the caller's Math::Transform buffer in RDX, RAX = RDX on return
-// — because that is what its 246 by-name call sites and the `fn_*` typedefs
-// spell. The member returns by value, which is safe for a NON-virtual member
+// ENDGAME B.3.5 block E: the BODY is `Graphics::MeshInstance::GetNodeToWorld(int)`.
+// The member returns by value, which is safe for a NON-virtual member
 // (both ends of a member call are this same GCC); see Geometry.h's B5-12 block
 // for why the same is NOT true of a vtable slot.
 // ============================================================================
@@ -476,9 +295,7 @@ const ::Graphics::InstancedAnimationState* RtInstancedPoolSlot(const ::Graphics:
 // speed is |MeshInstance::RootAnimationOffset()| per tick", and "instanced
 // anims read the AnimationManager pool pose") describes exactly these two
 // branches, and this port does not change which branch is taken: it reads the
-// same `_instanced` byte perf_experimental reasons about.
-//
-// ORACLE: FULL, through a scratch buffer, same shape as GetNodeToWorld.
+// same `_instanced` byte render_culling reasons about.
 // ============================================================================
 // ENDGAME B.3.5 block E: BODY MOVED to
 // `Graphics::MeshInstance::RootAnimationOffset()`.
@@ -495,19 +312,15 @@ const ::Graphics::InstancedAnimationState* RtInstancedPoolSlot(const ::Graphics:
 //
 // *** THIS IS THE HOTTEST FUNCTION IN THIS LANE AND THIS PROJECT HAS PAID FOR
 // THIS PATH TWICE. *** `?_rootOnlyUpdates@MeshInstance@Graphics@@0_NA` being
-// unregistered cost 38% of sim time
-// (project_stress_perf_rootonly_and_libcalls.md), and
+// unregistered cost 38% of sim time, and
 // src/ext/render_culling/render_culling.cpp's default-on ANIM_BATCH path reads
-// MeshInstance state every frame. Three things this port does about that:
-//   * It resolves NOTHING per call. `QuaternionMultiply` is a function-local static
-//     resolved once for the life of the process (the raw DLL door); calling
-//     the raw DLL door directly here would be the recorded 5.6-point defect.
+// MeshInstance state every frame. Two things this port does about that:
+//   * It resolves NOTHING per call: the rotation half is a direct
+//     `Math::Quaternion::operator*` member call.
 //   * It does not touch `_rootOnlyUpdates`, which retail's UpdateHierarchy does
-//     not read either. The flag is read by MeshInstance::Update, which stays in
-//     the DLL, so perf_experimental's save/clear/restore of it keeps working
-//     unchanged.
-//   * The whole oracle, including its allocation, sits inside `if
-//     (the diff-oracle guard)`. A shipping run executes the loop and nothing else.
+//     not read either. The flag is read by MeshInstance::Update
+//     (wave29_lane_slots.cpp), so render_culling's save/clear/restore of it keeps
+//     working unchanged.
 //
 // THE FLOAT MATH IS TRANSCRIBED, NOT REDERIVED. The position half is retail's
 // own INLINED quaternion rotate — including the two `* 0.0f` terms, which are
@@ -515,38 +328,9 @@ const ::Graphics::InstancedAnimationState* RtInstancedPoolSlot(const ::Graphics:
 // away without -ffast-math (x * 0.0 is not 0.0 for NaN or -0.0). The
 // association of every sum is exactly as the decompiled expression writes it,
 // because a reassociated float sum is a real divergence and Wave 1 found one
-// (`Transform::FromDirection`). The rotation half is the DLL's own
-// Quaternion::operator* — retail emits a direct `CALL 0x18001e280` here, so
-// calling the DLL's body is the faithful thing.
-//
-// THE PARAGRAPH THAT USED TO BE HERE IS NOW FALSE, and Wave 12 corrected it at
-// its source. It read: "AND IT LEAVES A WAVE 1 PORT STILL UNEXERCISED,
-// deliberately ... So Wave 1's port of `??DQuaternion@Math@@QEBA?AV01@AEBV01@@Z`
-// keeps its zero-caller status (it is still on the census orphan list) ...
-// Switching this call to ResolveExport would flip it and finally exercise it --
-// but that trade is the wave lead's to make, not lane E's."
-//
-// The trade WAS made, and the comment outlived it. `QuaternionMultiply` at line 261 now
-// resolves with RT_EXPORT_ONCE, which DOES consult the port registry (unlike
-// the raw DLL door / the raw DLL door, which is GetProcAddress and is always the
-// DLL), and it is called at lines 629 and 816. So the Wave 1 port that
-// reference_uncalled_port_is_not_verified.md was written about IS exercised now,
-// and it is NO LONGER on the census orphan list.
-//
-// This was found by the stale-verdict self-check added to tools/runtime_census.py
-// in Wave 12, on that check's first run: it reported the row's old "caller-less"
-// verdict as STALE, and following that back surfaced this comment. Kept as a
-// record of the old claim so a reader who meets it quoted elsewhere recognises
-// it -- and note the one part still true: routing a neighbouring lane's port
-// into this lane's call site does fold that lane's correctness into any
-// divergence reported here.
-//
-// ORACLE: FULL, by REPLAY. UpdateHierarchy is a pure function of (Geometry::
-// _transform, mesh nodes) into _nodes — running it twice yields the same array,
-// so ours runs, the result is snapshotted, theirs runs on the same object, and
-// the two are compared. Nothing is mutated that the second call does not
-// rewrite identically. This is the same "FULL (replay)" oracle Wave 5 lane D
-// used for Picking::Scene::SetTransform.
+// (`Transform::FromDirection`). The rotation half is Math::Quaternion::operator*
+// — retail emits a direct `CALL 0x18001e280` here, so calling the ported
+// operator is the faithful thing.
 // ============================================================================
 // ENDGAME B.3.5 block E: BODY MOVED to
 // `Graphics::MeshInstance::UpdateHierarchy()` at the bottom of this file. (B3R
@@ -560,9 +344,6 @@ const ::Graphics::InstancedAnimationState* RtInstancedPoolSlot(const ::Graphics:
 //
 // One store: `materials[index] = value`. No bounds check — retail has none, and
 // CLAUDE.md forbids adding one.
-//
-// ORACLE: FULL by replay. The store is idempotent, so running theirs after ours
-// writes the same qword to the same slot and the comparison is real.
 // ============================================================================
 // ENDGAME B.3.5 block E: BODY MOVED to
 // `Graphics::MeshInstance::SetMaterialInstance`.
@@ -574,8 +355,8 @@ const ::Graphics::InstancedAnimationState* RtInstancedPoolSlot(const ::Graphics:
 //
 // In order:
 //   1. store the mesh handle at +0xc0;
-//   2. copy the mesh's detail-level-0 material Array into _materials, through
-//      the DLL's Array<ExternalPtr>::operator= (0x180014c70);
+//   2. copy the mesh's skin-0 material Array into _materials, through
+//      Array<ExternalPtr>::operator= (0x180014c70);
 //   3. OR `1 << *(int*)(material + 0x20)` into Geometry::_materialTypeFlags for
 //      every material now in _materials — note the loop reads the count from
 //      +0xd0 BEFORE the loop and re-reads the buffer pointer once, exactly as
@@ -590,13 +371,6 @@ const ::Graphics::InstancedAnimationState* RtInstancedPoolSlot(const ::Graphics:
 //
 // Step 7's comparison is a float `!=` chain, so a NaN in either box makes the
 // test "different" and forces the copy. Reproduced as written.
-//
-// ORACLE: FULL by replay. Every step is idempotent for a fixed argument: the
-// array copy re-copies the same elements, the flag ORs re-OR the same bits,
-// ResetAnimationState re-clears an already-cleared state, the resize to the
-// same count is the "exact-equal is a no-op" path of Array<T>::SetSize, and
-// UpdateHierarchy is pure. So ours runs, the whole 0x120-byte object plus both
-// heap buffers are snapshotted, theirs runs, and the two are compared.
 // ============================================================================
 // ENDGAME B.3.5 block E: BODY MOVED to `Graphics::MeshInstance::SetMesh`,
 // including the "read the stars, not the offsets" note that cost the first
@@ -617,19 +391,10 @@ const ::Graphics::InstancedAnimationState* RtInstancedPoolSlot(const ::Graphics:
 // THE RISK HERE IS THE ABI, NOT THE LOGIC. `const Time&` is a POINTER argument
 // and this project's recorded trap is that a pointer parameter typed `int` only
 // goes wrong from the fifth argument onward, where the stack slot's high dword
-// is garbage (reference_hidden_retval_and_int_pointer_args.md). `blendTime` is
+// is garbage. `blendTime` is
 // this function's fifth argument and `weight` its sixth, so both live on the
 // stack and both are exactly where that trap bites. They are typed `const
-// void*` and `float` here, counted against the mangled name, not guessed.
-//
-// ORACLE: POST-STATE, and it checks the thing that can actually be wrong. There
-// is no replay: PlayAnimation starts or blends an animation, so calling the
-// original a second time would apply the blend twice. Instead the port verifies
-// that the layer AnimationState just wrote carries the group handle and the
-// animation index we forwarded — which is what a mis-marshalled argument would
-// corrupt. It does NOT verify the two Time references or the weight; those
-// three are declared unverified in WAVE6_LANE_E.md rather than covered by a
-// predicate that does not actually test them.
+// System::Time*` and `float` here, counted against the mangled name, not guessed.
 // ============================================================================
 // ENDGAME B.3.5 block E: BODY MOVED to `Graphics::MeshInstance::PlayAnimation`.
 // ============================================================================
@@ -648,13 +413,7 @@ const ::Graphics::InstancedAnimationState* RtInstancedPoolSlot(const ::Graphics:
 // half of the +0x100 qword. And Geometry's own ctor leaves +0x14 and +0xbc
 // uninitialised (lane D's header records that); this port does not fill them.
 //
-// ORACLE: FULL, through a scratch buffer. `Geometry::Geometry` is pure field
-// initialisation — no allocation, no registration, no global list (checked at
-// 0x1800a4270) — so running theirs into a private 0x120-byte buffer has no side
-// effect at all, and the two objects can be compared byte for byte. The two
-// uninitialised gaps are excluded from the comparison, because comparing
-// uninitialised bytes is comparing whatever two different stacks happened to
-// hold.
+// The Geometry base ctor is `??0Geometry@Graphics@@QEAA@XZ`, retail 0x1800a4270.
 // ============================================================================
 //
 // ENDGAME B.3.9 block GFX: the door is RETIRED. Geometry() and the stamp are the
@@ -672,17 +431,6 @@ const ::Graphics::InstancedAnimationState* RtInstancedPoolSlot(const ::Graphics:
 // _instanced byte; copy the eight scalars at +0x100..+0x11c, the last as a WORD.
 //
 // The zero-then-copy order matters and is the reason this is not a memcpy.
-//
-// ORACLE: POST-STATE (invariant), and deliberately NOT a scratch comparison.
-// Running the original into a scratch buffer would allocate three arrays and
-// leave them to be freed, and the only way to free them is ~MeshInstance, which
-// runs `Geometry::~Geometry` — and Geometry's copy ctor copied the ATTACH ARRAY,
-// so the scratch object's dtor would walk live sibling geometries and clear
-// their parent link and their sceneId. That is corruption of live state to run
-// an oracle, which the diff-oracle header forbids in as many words ("Never let the original
-// write into live state"). The check therefore verifies that every field this
-// port itself writes equals the source's, plus that the three copied arrays
-// have the source's element counts.
 // ============================================================================
 //
 // ENDGAME B.3.9 block GFX: the door is RETIRED; its body is the real member copy
@@ -728,23 +476,14 @@ Graphics::MeshInstance::MeshInstance(const MeshInstance& other) : Geometry(other
 //
 // TWO MANGLING / LIFETIME NOTES, both recorded landmines:
 //  * `??1` and `UEAA`. This dtor is VIRTUAL, so it mangles `UEAA`, not `QEAA`.
-//    The non-virtual spelling is a name the DLL does not contain and would
-//    resolve to NULL in silence behind whatever guard the caller has
-//    (reference_phantom_dtor_mangling_qeaa_vs_ueaa.md). The name registered at
-//    the bottom of this file was verified against the export directory.
+//    The non-virtual spelling is a name the DLL does not contain.
 //  * `MeshInstance` is NOT an `Object::Internal` and does NOT live in the
 //    handle table, so the swap-remove that Wave 5 found missing from
-//    `~Goal` — and that
-//    reference_internalfactory_swapremove_wild_write.md describes — has no
+//    `~Goal` — and that writes 4 bytes through a stale handle-table entry
+//    when an object is freed without ~Internal — has no
 //    analogue here. The class derives from Graphics::Geometry, whose dtor is
 //    the only registry-like teardown, and it is called. (`EdgeMesh` DOES derive
-//    from Object::External; its dtor is not in this lane's scope and is not
-//    ported.)
-//
-// ORACLE: POST-STATE only. There is no way to run both: the original would
-// double-free three buffers. The check asserts the three arrays are cleared,
-// which is the observable the DLL's own ~Array guarantees and the thing a
-// wrong-offset port would get wrong.
+//    from Object::External; its dtor is in batchc_gfx_leaves.cpp.)
 // ============================================================================
 //
 // ENDGAME B.3.9 block GFX: the door is RETIRED with the RT_DELDTOR row
@@ -794,10 +533,8 @@ Graphics::MeshInstance::~MeshInstance() {
 // which is C's float->int conversion followed by a narrowing store — not a
 // round), then a zero int16 at +6. The 512.0f is DAT_180161728, read out of the
 // shipped DLL as the bytes 00 00 00 44; it is not an inferred "probably 256".
-//
-// ORACLE: FULL, through a scratch buffer. No side effects.
 // ============================================================================
-// B3R RT-VG: external linkage (declared in types/graphics/Mesh.h) for the
+// B3R RT-VG: external linkage (declared in src/engine/graphics/Mesh.h) for the
 // exe-side reader in src/game/Player/tool_base_render.cpp.
 // B.4 wave Y: `self` is typed. B.4 S4 GFX2: `vec3` is retail's
 // `const Math::Vector3&` (as a pointer): its caller's ribbon endpoints
@@ -826,10 +563,8 @@ TriangleVertex* RtGraphics_EdgeMesh_TriangleVertex_Ctor(TriangleVertex* self, co
 // mangled name is a back-reference to the first TriangleVertex parameter, which
 // is why the second argument is also a `const TriangleVertex&` and not the
 // non-const reference an eye-parse of the decompile suggests.
-//
-// ORACLE: FULL, through a scratch buffer. No side effects.
 // ============================================================================
-// B3R RT-VG: external linkage (declared in types/graphics/Mesh.h), as above.
+// B3R RT-VG: external linkage (declared in src/engine/graphics/Mesh.h), as above.
 EdgeVertex* RtGraphics_EdgeMesh_EdgeVertex_Ctor(EdgeVertex* self, const TriangleVertex* a,
                                                 const TriangleVertex* b, int flags) {
     EdgeVertex* ev = self;
@@ -867,8 +602,6 @@ EdgeVertex* RtGraphics_EdgeMesh_EdgeVertex_Ctor(EdgeVertex* self, const Triangle
 // nothing to warn a future reader about. The member below names all four
 // parameters, so the pairing is visible at the call site instead of being a note.
 //
-// ORACLE: FULL by replay — four idempotent stores.
-//
 // ENDGAME B.3.5 block G: BODY MOVED to `Graphics::EdgeMesh::SetMaterials`.
 // ============================================================================
 // ============================================================================
@@ -887,16 +620,10 @@ EdgeVertex* RtGraphics_EdgeMesh_EdgeVertex_Ctor(EdgeVertex* self, const Triangle
 // constructed object is observable if any of the eight PlatformConstruct calls
 // re-enters (it calls into src/render/dx11/ through Device::_singleton's plugin).
 //
-// ORACLE: POST-STATE only, and the reason is not laziness.
 // `Video::VertexBuffer::PlatformConstruct` (0x1800f57e0) asks
-// `Video::Device::_singleton`'s plugin for a companion object AND LINKS THE
-// BUFFER INTO THE DEVICE'S GLOBAL INTRUSIVE LIST (`_firstBuffer`, under the
-// device's critical section). Running the original into a scratch buffer would
-// therefore register eight phantom buffers in a live global list and create
-// eight orphan dx11 companions — real corruption of live state, which the diff-oracle header
-// forbids. The check verifies the fields THIS port writes, and states plainly
-// that the eight PlatformConstruct calls are unchecked because they are the
-// DLL's own, called unchanged.
+// `Video::Device::_singleton`'s plugin for a companion object and links the
+// buffer into its class's global intrusive list (`_firstBuffer`, under the
+// device's critical section).
 // ============================================================================
 //
 // ENDGAME B.3.9 block GFX: the door is RETIRED; this is the real
@@ -964,24 +691,14 @@ Graphics::EdgeMesh::EdgeMesh() {
 //
 // The 25-parameter signature is counted against the MANGLED NAME, not against
 // the decompiler's parameter list — the recorded rule for anything past the
-// fourth argument (reference_hidden_retval_and_int_pointer_args.md). Reading it
+// fourth argument. Reading it
 // out: (int, const TriangleList*, int, const TriangleList*, then four groups of
-// (int, ushort*, int, void*, int, int), then const Box&) — where `1` and `2`
+// (int, ushort*, int, void*, int), then const Box&) — where `1` and `2`
 // are back-references to `PEAG` (ushort*) and `PEAX` (void*).
-//
-// ORACLE: POST-STATE only. The four uploads go to the GPU through src/render/dx11/; a
-// replay would re-create and re-fill four vertex and four index buffers per
-// call, and the second Create on an already-sized buffer is not a proven no-op.
-// The check verifies the bounds copy and the two array sizes — the part of the
-// body that is this port's own arithmetic — and leaves the eight virtual
-// uploads to the return value, which the caller already tests.
 // ============================================================================
-// ENDGAME B.3.5 closing pass: BODY MOVED to `Graphics::EdgeMesh::Set` (defined
+// ENDGAME B.3.5 closing pass: the BODY is `Graphics::EdgeMesh::Set` (defined
 // beside the class's other members, below). Mesh.h declares the member with the
-// 25-slot list tokenised out of the mangled name; this door keeps its
-// registration and its address and delegates with the QUALIFIED non-virtual call.
-// `Set` is not virtual, so the qualification is belt-and-braces, not a recursion
-// guard -- but it is the shape every other moved body in this file uses.
+// 25-slot list tokenised out of the mangled name.
 // ============================================================================
 // Graphics::EdgeMeshInstance::EdgeMeshInstance()
 //   ??0EdgeMeshInstance@Graphics@@QEAA@XZ
@@ -997,11 +714,6 @@ Graphics::EdgeMesh::EdgeMesh() {
 // (`Entry::_userValue2`). Zeroing it here would make our ctor differ from
 // retail's on a live shared object, which is the one thing WAVE6.md says a
 // Video/Graphics lane must not do.
-//
-// ORACLE: FULL, through a scratch buffer — `Geometry::Geometry` has no side
-// effects. +0xc8 is excluded from the comparison for the reason above: two
-// different stacks hold two different pieces of garbage there, and comparing
-// them would report a divergence on every single call.
 // ============================================================================
 //
 // ENDGAME B.3.9 block GFX: the door is RETIRED; the real public
@@ -1016,22 +728,6 @@ Graphics::EdgeMesh::EdgeMesh() {
 // Geometry copy ctor, vtable stamp, copy +0xc0 and +0xc8. Note that copying
 // +0xc8 propagates whatever the source holds there, INCLUDING the garbage a
 // default-constructed source still has — again, faithful.
-//
-// A STALE COMMENT THIS PORT DISPROVES, quoted so the next reader recognises it.
-// `engine/funcs/engine_funcs.h:5515` says
-//     "// ??0EdgeMeshInstance@Graphics@@QEAA@XZ   (Runtime 0x1800174f0)"
-// and `engine/funcs/engine_funcs.cpp:3389-3392` uses that address as a FALLBACK
-// for the DEFAULT ctor, taken when the by-name resolve of the default ctor
-// returns null. The export directory of the shipped DLL says 0x1800174f0
-// is the COPY ctor (ordinal 162) and the default ctor is 0x1800a3ab0 (ordinal
-// 163). The fallback is latent, not live — the name resolves — but if it ever
-// fired it would run the copy ctor with an uninitialised RDX and dereference it
-// twice. Lane E is not allowed to edit engine/funcs/, so the correction is
-// reported to the wave lead instead; see WAVE6_LANE_E.md.
-//
-// ORACLE: POST-STATE (invariant), for the same reason as MeshInstance's copy
-// ctor: destroying a scratch copy would run Geometry::~Geometry over an attach
-// array shared with the source and clear live siblings' parent links.
 // ============================================================================
 //
 // ENDGAME B.3.9 block GFX: the door is RETIRED; its body is the real member
@@ -1046,17 +742,13 @@ Graphics::EdgeMeshInstance::EdgeMeshInstance(const EdgeMeshInstance& other)
 // Graphics::EdgeMeshInstance::~EdgeMeshInstance()
 //   ??1EdgeMeshInstance@Graphics@@UEAA@XZ   retail 0x1800174d0, ordinal 581
 //
-// ENDGAME B.3.9 block GFX (INVENTORY_B finding 2): until now NOTHING registered
-// this address, so RT_DELDTOR row 0x1800175d0 (slot 0 of the minted
-// ??_7EdgeMeshInstance@) resolved its ~Class to NULL. Retail's whole body, read
+// ENDGAME B.3.9 block GFX (INVENTORY_B finding 2). Retail's whole body, read
 // from the listing:
 //     MOV [RSP+8],RCX ; SUB RSP,0x38 ; MOV qword [RSP+0x20],-2
 //     ADD RSP,0x38    ; JMP 0x1800a41c0                     ; ~Geometry
 // No restamp, and `_mesh` (+0xc0) is NOT released -- the ExternalPtr is a plain
 // handle to retail's dtor. The member (below) is therefore empty and the chain
-// into ~Geometry is the compiler's; this door, for the minted objects the row
-// still destroys, is the same tail into ~Geometry by address (the
-// ~MeshInstance door's shape). Row and door both go with the W2 mint row.
+// into ~Geometry is the compiler's.
 // ============================================================================
 
 // ============================================================================
@@ -1073,67 +765,20 @@ Graphics::EdgeMeshInstance::EdgeMeshInstance(const EdgeMeshInstance& other)
 // The OR order is observable: retail writes _materialTypeFlags back to memory
 // after EACH of the four ORs (the decompile shows four separate stores), so a
 // re-entrant read between them would see the partial value. Reproduced.
-//
-// ORACLE: FULL by replay. Two idempotent stores, four idempotent ORs, and
-// SetBounds — whose own body compares before it writes and only ORs a dirty bit
-// — so a second call changes nothing.
 // ============================================================================
 // ENDGAME B.3.5 block E: BODY MOVED to
 // `Graphics::EdgeMeshInstance::SetMesh`.
 // ============================================================================
-// Registration.
-//
-// Every name below is a string LITERAL at the registration call, never one of
-// the local constants, because tools/runtime_census.py cannot see through a
-// NAMED CONSTANT — which is exactly how Wave 3's Object count stood at 21/41
-// when it was really 27/41 for a whole wave
-// (reference_census_cannot_see_nonliteral_registrations.md). The census CAN
-// join adjacent literals since Wave 5 lane E added concat_literal() to both
-// tools, so the long template names are wrapped for readability.
-//
-// GetNodeIndexFromName is ALSO registered by ADDRESS. It is the one function in
-// this lane with a live `ResolveAddr(Module::Runtime, ...)` call site
-// (src/game/Action/showtool.cpp:169); leaving it name-only would put the
-// held-item bone lookup on the DLL while every other consumer used the port —
-// two implementations taking turns, which is the failure mode Wave 5 lane D
-// documented for Picking::Scene::AddMesh.
-//
-// The four functions in this lane's scope that are NOT registered are listed
-// below the register block, each with its reason.
-// ============================================================================
-// ============================================================================
-// WAVE 27 LANE GFXMESH — four more vtable slot bodies on the two instance
-// tables. Everything below this banner is that lane's; nothing above it moved.
-//
-// SUBJECT AND DENOMINATOR. The Wave 27 census prints
-//     ??_7EdgeMeshInstance@Graphics@@6B@   4 / 9      (5 / 9 after slot 0)
-//     ??_7MeshInstance@Graphics@@6B@       2 / 9      (3 / 9 after slot 0)
-// and the four ported here are
+// WAVE 27 LANE GFXMESH — four vtable slot bodies on the two instance tables:
 //     ?Update@EdgeMeshInstance@               slot 1   0x1800a39b0  ord 4487
 //     ?GetInstanceTransform@EdgeMeshInstance@  slot 6   0x1800a3840  ord 2719
 //     ?GetSubTransform@MeshInstance@           slot 5   0x180101200  ord 2950
 //     ?GetInstanceTransform@MeshInstance@      slot 6   0x180101280  ord 2721
-// every address confirmed against the export directory BY VA with pefile
-// against the RETAIL Runtime-x64.dll, not by name pattern and not against the
-// profile build. They leave EdgeMeshInstance at 7/9 (slots 2 Draw and 3
-// AddDrawItems open) and MeshInstance at 6/9 (1 Update, 2 Draw, 3 AddDrawItems
-// open). Neither table is COMPLETE and neither is promoted here.
 //
 // ALL FOUR READ FROM THE DISASSEMBLY, never from Ghidra's C output. Two of the
 // four hinge on details that output actively hides — a MOVSXD that prints as a
 // zero extension, and a W-COLUMN THAT IS NOT PART OF THE MATRIX — and both are
 // called out at the body.
-//
-// THE CLASS-SPLIT BANNER AT THE TOP OF THIS FILE STILL APPLIES AND IS THE
-// REASON THESE FOUR ARE REGISTERED ANYWAY. These are virtual slots the DLL
-// dispatches out of its own table, so registering the export redirects nothing
-// that runs today — the value is that the four rows become PORTED, which is
-// what an unpromoted table's missing slots are (WAVE27_KICKOFF.md §1), and that
-// they are there when the table is promoted or the DLL is gone. `calls=` will
-// read 0 for all four on a normal run and that is not verification
-// (reference_uncalled_port_is_not_verified.md).
-//
-// KILL SWITCH: RT_GFXMESHVT=0 leaves all four on the DLL.
 // ============================================================================
 
 namespace {
@@ -1150,14 +795,13 @@ namespace {
 // `?GetNodeToWorld@MeshInstance@Graphics@@QEBA?AVTransform@Math@@HM@Z` (retail
 // 0x180016c20, ordinal 2814 — the (int, float) INTERPOLATED overload, a
 // DIFFERENT body from the (int) overload at 0x180016a40; the two mangled names
-// differ only in a trailing `M`, which is the pair
-// reference_resolveexport_phantom_names.md exists for).
+// differ only in a trailing `M`, the kind of pair where a guessed name fails
+// silently unless it is checked against the DLL's real export table).
 //
 // The old note said "it is NOT ported anywhere in this tree … until then it is
 // the DLL's" and named it in WAVE27_LANE_GFXMESH.md §6 as INHERITED CUTOVER
-// WORK. *** THAT ROW IS NOW CLOSED. *** It was ported in this same file (the
-// `RtGraphics_MeshInstance_GetNodeToWorldInterp` door registers 0x180016c20 by
-// name), and block E moved that body onto
+// WORK. *** THAT ROW IS NOW CLOSED. *** It was ported in this same file, and
+// block E moved that body onto
 // `Graphics::MeshInstance::GetNodeToWorld(int, float)`. Its one caller,
 // `EdgeMeshInstance::GetInstanceTransform`, now calls the member directly and
 // qualified, so the registry hop is gone along with the door.
@@ -1166,9 +810,7 @@ namespace {
 // ordinal 3193. ENDGAME B.3.1 step 2: `Math::Transform::Lerp`, called as the
 // member it is; there is no address door left to resolve. RCX = the FROM
 // transform, R8 = the TO transform, R9 = &t — the argument order
-// wave9_lane_gfx.cpp records from the shipped call site, kept in the shape
-// below because the caller works on raw offsets into the interpolated-state
-// pair.
+// wave9_lane_gfx.cpp records from the shipped call site.
 // B.4: called as `prev.Lerp(cur, t)` on the typed pair; the wrapper is gone.
 
 // ?SetTransform@Geometry@Graphics@@QEAAXAEBVTransform@Math@@@Z — retail
@@ -1180,7 +822,7 @@ namespace {
 // Both interpolate a PAIR of Math::Transforms — 0x38 bytes, `cur` at +0x00 and
 // `prev` at +0x1c — from prev towards cur by `t`, and both spell it the same way
 // the already-ported Graphics::Geometry::GetInstanceTransform (0x1800154a0,
-// scene.cpp:1285) spells it:
+// scene.cpp:1268) spells it:
 //     rotation    = Quaternion::Lerp(prev.rotation, cur.rotation, t)
 //     translation = prev + (cur - prev) * t,  component by component, x then y
 //                                             then z, in the order the shipped
@@ -1195,13 +837,12 @@ namespace {
 // quaternion from pair+0x1c and the TO from pair+0x00 (`LEA RCX,[R8+0x1c]`
 // with R8 = pair, then R8 stays as the third argument), and subtracts
 // pair+0x2c.. from pair+0x10.. for the translation. So +0x00 is CURRENT and
-// +0x1c is PREVIOUS, and that matches Geometry's +0x84 `_transform` /
-// +0xa0 `_prevTransform` ordering in src/engine/graphics/Geometry.h.
+// +0x1c is PREVIOUS, and that matches Geometry's +0x84 `_transform` pair
+// (`_current` / `_previous`) in src/engine/graphics/Geometry.h.
 // ---------------------------------------------------------------------------
 //
 // B.4: the pair is named -- `cur` / `prev` are the two halves of an
-// `InterpolatedState<Math::Transform>`, or Geometry's `_transform` /
-// `_prevTransform`, which are laid out the same way.
+// `InterpolatedState<Math::Transform>` -- Geometry's `_transform` is one.
 void RtLerpTransformPair(const Transform& cur, const Transform& prev, float t,
                          Transform* out) {
     out->rotation = prev.rotation.Lerp(cur.rotation, Math::Scalar(t));
@@ -1244,13 +885,6 @@ void RtLerpTransformPair(const Transform& cur, const Transform& prev, float t,
 // (CLAUDE.md, "Don't fix a faithful crash with a null check"): a non-null
 // garbage pointer faults here precisely as it faults in the DLL, and if it ever
 // does, the bug is the missing SetMesh upstream.
-//
-// ORACLE: NONE, and the reason is a WRITE. SetTransform mutates `this` — it
-// rolls _transform into _prevTransform and raises two dirty bits — so a
-// differential replay would roll the pair TWICE and hand the renderer a
-// previous transform that is one frame too new. That is the same refusal
-// wave24_lane_gfxmat.cpp makes for the Serialize pair, for the same structural
-// reason. Attendance is recorded; no comparison is emitted.
 // ============================================================================
 
 // ============================================================================
@@ -1273,17 +907,10 @@ void RtLerpTransformPair(const Transform& cur, const Transform& prev, float t,
 // the node most likely to look right by accident.
 //
 // GetNodeToWorld (0x180016a40) IS PORTED, in this same file, and is called
-// DIRECTLY rather than through a resolver: retail's own call is a rel32 into
-// that body and a direct call is the faithful spelling. Its own diff plumbing
-// rides along, which is instrumentation and not behaviour.
+// DIRECTLY: retail's own call is a rel32 into that body and a direct call is
+// the faithful spelling.
 //
 // HIDDEN RETURN SLOT in RDX, node index in R8D, RAX = RDX on return.
-//
-// ORACLE: FULL on the fallback arm only. The lookup arm is left to
-// GetNodeToWorld's own oracle rather than compared again here — running theirs
-// would call the DLL's GetNodeToWorld into a scratch buffer, which is exactly
-// the comparison that body already makes, and doing it twice would report one
-// divergence as two.
 // ============================================================================
 
 // ============================================================================
@@ -1335,9 +962,6 @@ void RtLerpTransformPair(const Transform& cur, const Transform& prev, float t,
 // AsMatrix produced, untouched. Two sibling overrides of one slot that differ in
 // their last four stores; carrying either body's ending over to the other would
 // be a silent, plausible, wrong port.
-//
-// ORACLE: FULL. Pure read on both arms; both sides write private Matrix buffers
-// and all 64 bytes are compared.
 // ============================================================================
 
 // ============================================================================
@@ -1355,8 +979,8 @@ void RtLerpTransformPair(const Transform& cur, const Transform& prev, float t,
 //     SAR    R8,0xc          ; an ARITHMETIC shift of the SIGN-EXTENDED value
 //     AND    R8D,0xf         ; level   = (packed >> 12) & 0xf
 //     IMUL   R8,R8,0xb0      ; ... times the detail-level stride
-// The MOVSXD/SAR pair is the trap reference_ghidra_c_output_vs_disassembly.md
-// names and that this very file already hit once (the pool-id shift in
+// The MOVSXD/SAR pair is a trap of trusting Ghidra's C over the disassembly
+// and one this very file already hit once (the pool-id shift in
 // RtInstancedPoolSlot above): Ghidra prints the widening as `(ulonglong)`, which
 // reads as a zero extension, and a logical shift here would pick a different
 // detail level for any negative `packed`. The `AND 0xf` masks the result back
@@ -1413,10 +1037,6 @@ void RtLerpTransformPair(const Transform& cur, const Transform& prev, float t,
 //
 // The four column stores are UNCONDITIONAL — they happen on all three arms,
 // after the branch rejoins. Nothing about the node lookup changes them.
-//
-// ORACLE: FULL. Pure read; both sides write private Matrix buffers and all 64
-// bytes are compared, the colour column included — it is the half of the result
-// a geometric check cannot see.
 // ============================================================================
 
 // ============================================================================
@@ -1426,16 +1046,15 @@ void RtLerpTransformPair(const Transform& cur, const Transform& prev, float t,
 //
 // *** THIS IS NOT THE FUNCTION 900 LINES ABOVE. *** That one is
 // `…?AVTransform@Math@@H@Z`, retail 0x180016a40, ordinal 2813. The two mangled
-// names differ only in a trailing `M` and BOTH are exported, which is the pair
-// reference_resolveexport_phantom_names.md exists for; both VAs were confirmed
+// names differ only in a trailing `M` and BOTH are exported, the kind of pair
+// where a guessed name fails silently; both VAs were confirmed
 // against the retail export directory with pefile. They are separate bodies:
 // 0x180016a40 reads a pose, 0x180016c20 INTERPOLATES between two.
 //
 // WHY IT IS HERE AND NOT IN THE NEXT LANE'S WORKLIST. It is not a vtable slot of
 // any of this lane's three tables, so strictly it is out of scope. It is ported
 // because `?GetInstanceTransform@EdgeMeshInstance@` above CALLS it, and porting
-// that body made this address newly `called`
-// (reference_porting_can_grow_the_cutover_surface.md): the census `called` column
+// that body made this address newly `called`: the census `called` column
 // went 1372 -> 1373 and the BODY gap 18 -> 19. A lane that opens a row and hands
 // it on has moved work, not done it — so this closes the one row this lane
 // opened, and closes it in the file that already holds the shared helper.
@@ -1449,15 +1068,15 @@ void RtLerpTransformPair(const Transform& cur, const Transform& prev, float t,
 // *** HIDDEN RETURN SLOT. *** RCX = this, RDX = the caller's Math::Transform
 // buffer, R8D = the node index, XMM3 = t, RAX = RDX on return. Declaring it
 // without the return slot is the recorded WILD WRITE that still returns the
-// right answer (reference_hidden_retslot_wild_write.md).
+// right answer.
 //
 // TWO ARMS:
 //
 //  * NOT instanced (`_animation._instanced == 0`) — retail emits a CALL, not
 //    inline arithmetic:
 //        Transform::Lerp(pair+0x1c, ret, pair+0x00, &t)     0x18001d690
-//    where pair = _nodes._data + node*0x38. That helper is PORTED and registered
-//    BY ADDRESS (wave9_lane_gfx.cpp:555), so the call reaches our own body, and
+//    where pair = _nodes._data + node*0x38. That helper is PORTED
+//    (Math::Transform::Lerp, src/engine/math/transform.cpp), and
 //    calling it rather than re-deriving its arithmetic is the faithful spelling
 //    AND the one that keeps a single owner for it.
 //
@@ -1481,10 +1100,6 @@ void RtLerpTransformPair(const Transform& cur, const Transform& prev, float t,
 // everything it wrote, for the reason 0x180016a40's port gives: it is observable
 // if either call were ever to fault, and a port that computes the same bytes by a
 // different route is a different function under any interruption.
-//
-// ORACLE: FULL, through a scratch buffer. Pure read on both arms; ours writes the
-// caller's real slot, theirs writes a private 0x1c buffer, and all seven dwords
-// are compared. Never let the original write into live state.
 // ============================================================================
 
 // ============================================================================
@@ -1583,20 +1198,6 @@ namespace {
 //   GraphicsMesh::TriangleList (stride 0x18) is `_materialIndex` (+0x10, the index into
 //   MeshInstance::_materials) and `_node` (+0x14, NEGATIVE means "skinned").
 
-// The name door for the append. Spelled on ONE line: runtime_census.py's
-// called-scan cannot see a mangled name split across a C++ string-literal
-// concatenation (reference_census_three_blind_spots.md), and
-// wave27_lane_gfxpart.cpp:625 has exactly such a split at ITS AddDrawItem door
-// — so that door may be invisible to the census today. Recorded, not fixed;
-// it is another lane's file and this wave builds no tooling.
-//
-//   SYMBOL:      ?AddDrawItem@Renderer@Graphics@@QEAAXPEBVGeometry@2@PEBVMaterialInstance@2@GGMMHPEBXI@Z
-//                retail 0x1801057b0, ordinal 1547.
-//   CONDITION:   a public export, ALREADY PORTED (wave9_lane_gfx.cpp). Reached
-//                BY NAME so ResolveExport's registry-first lookup hands back our
-//                body rather than the DLL's.
-//   CONSEQUENCE: null means nothing this instance owns is ever queued — a
-//                silent empty screen, which is why the miss is announced once.
 // The `AddDrawItemFn` typedef and the `RtRendererAddDrawItem()` resolver that
 // used to sit here are GONE -- block GC item 6. Their last two callers are
 // `MeshInstance::AddDrawItems` and `EdgeMeshInstance::AddDrawItems` below, and
@@ -1622,7 +1223,7 @@ uint64_t g_addDrawItemsEdgeQ  = 0;
 //   `max` of the two boxes' maxima, `min` of the two minima, centre = (min+max)
 //   * 0.5f, then the squared distance from the current draw group's view
 //   position. Retail sums the terms as `(dy2 + dx2) + dz2` — the ORDER of a
-//   float sum is part of the body (reference_moved_term_hides_where_terms_cancel.md),
+//   float sum is part of the body,
 //   so it is reproduced rather than tidied.
 //   The level is then the FIRST whose `switchDistance²` EXCEEDS that distance;
 //   if none does, level 0 is used (the counter never advances past the loop
@@ -1682,146 +1283,26 @@ extern "C" void RtGraphics_MeshInstance_AddDrawItems(const ::Graphics::MeshInsta
 // reload is an observable act, not a redundancy.
 //
 // The material choice is a SIGN TEST on each list's +0x14, selecting from
-// `_material0`/`_material1` (+0x28/+0x30) in the triangle pass and
-// `_material2`/`_material3` (+0x38/+0x40) in the edge pass. Mesh.h already
-// records that `SetMaterials` stores its four arguments into those slots with
-// THE MIDDLE TWO CROSSED; this body reads them in slot order and inherits that
-// note without re-deriving it.
-// ============================================================================
-
-// ============================================================================
-// HELD BACK — the four names in this lane's scope that are NOT registered.
-// ============================================================================
-//
-// 1. ?AddDrawItems@MeshInstance@Graphics@@UEBAXAEBVScene@2@AEAVRenderer@2@@Z
-//    retail 0x180100f20, ordinal 1550.
-//    TWO independent reasons, either of which is sufficient.
-//    (a) It is VIRTUAL and it is the DLL that dispatches it. Objects built by
-//        the ctor above carry ??_7MeshInstance@Graphics@@6B@, the DLL's own
-//        vtable, and the only caller is the DLL's Graphics::Renderer walking
-//        the scene. Registering the export would redirect nothing that runs;
-//        the port would be a registered function with zero callers, which
-//        reference_uncalled_port_is_not_verified.md is explicitly about.
-//    (b) Registering it by ADDRESS would be ACTIVE HARM. Our tree's only use of
-//        0x180100f20 is `src/diag/scene_watch.cpp:401`, and it is not a call
-//        — it is an IDENTITY TOKEN. `IsMeshInstance()` resolves the address and
-//        compares it against `vtable[3]` of a live object to decide whether the
-//        object is a MeshInstance. Register the address and ResolveAddr hands
-//        back OUR function, the compare fails for every object, and
-//        `BANISHED_LOD_CENSUS` / `BANISHED_FORCE_LOD0` silently see an empty
-//        scene. Exactly the shape of `0x1400f2f00` in PLAN §1.1 ("must stay
-//        unregistered": registering makes the dispatcher call itself).
-//    The body is reversed and understood (it is transcribed in
-//    WAVE6_LANE_E.md); it depends on Graphics::Renderer::AddDrawItem, which is
-//    lane F's. If lane F ever needs it, it must first give scene_watch a
-//    different identity token.
-//
-//    *** REASON (b) IS DEAD AS OF WAVE 27 LANE GFXMESH. DO NOT REPEAT IT. ***
-//    `src/diag/scene_watch.cpp` no longer asks ResolveAddr for that address.
-//    `IsMeshInstance` now matches vtable[3] against ResolveRuntimeRaw's
-//    registry-FREE answer -- what the DLL's constructor actually stamped, which
-//    no registration can move -- OR against RtPortLookupAddr's, our own port if
-//    one exists. So registering this symbol can no longer blind the LOD census,
-//    and the RT_UNPROMOTABLE tag at standalone/reg_mint_promoted.cpp:2257 is
-//    RETIRED (the retirement is recorded beside the tag, not only here).
-//    REASON (a) STILL STANDS UNCHANGED, and it is the one that keeps the body
-//    unwritten: it is a virtual the DLL dispatches, so a port of it has zero
-//    callers until ??_7MeshInstance@ is promoted or the DLL is gone. Lane
-//    GFXMESH removed the blocker and did NOT write the body; the addressee for
-//    the body itself is named at reg_mint_promoted.cpp:2288.
-//
-// 2. ?Serialize@MeshInstance@Graphics@@QEAAXAEAVSerializer@IO@@@Z
-//    retail 0x1800ff680, ordinal 3707.
-//    NO SAFE ORACLE, and the failure mode is the worst one this project has.
-//    The body forwards to AnimationState::Serialize, then serialises the
-//    material count through the Encoding vtable slot at +0xa0, then (on the
-//    read path) resizes the material array and streams it. A differential run
-//    would consume or emit the record TWICE and desync the stream — and a
-//    stream desync does not surface where it happens, it surfaces later on an
-//    innocent record (reference_slot3_wrapper_must_resolve_first.md,
-//    reference_serialize_lazy_resolve_and_wrong_slot.md). Wave 5 held four
-//    functions back for the same reason (constructing an IO::Serializer emits a
-//    12-byte header and admits no oracle) and this lane applies that standard
-//    unchanged. There is a second, independent hazard: the Encoding vtable
-//    OFFSETS DIFFER between retail and the profile build (+0xa0 here vs +0xb8
-//    there, reference_encoding_vtable_offsets_differ_between_builds.md), so a
-//    port written from the profile decompile would desync every save while
-//    looking correct.
-//    It stays on the DLL, where dispatch slot 0x140152990 already points it.
-//
-// 3. ?_rootOnlyUpdates@MeshInstance@Graphics@@0_NA
-//    retail 0x1801fc70b, ordinal 4796.
-//    A DATA export — a single static bool, not a function. The runtime registry
-//    redirects CALLS; there is nothing to register, and its three consumers
-//    (citizenai_executor.cpp, address_registry.cpp:1086,
-//    render_culling.cpp:125) already resolve it correctly and read/write it
-//    in place. Wave 3 and Wave 4 left `FileSystem::_singleton` and
-//    `MemoryAllocator::_singleton` unregistered for the same reason: a data
-//    symbol cannot be registered before cutover. Verified present in the export
-//    directory so that the counts in WAVE6.md are not silently short by one.
-//
-// 4. ?_typeInfo@GraphicsMesh@Graphics@@0VBaseTypeInfo@Object@@A
-//    retail 0x1801fa708, ordinal 4869.
-//    Also a DATA export — the class's Object::BaseTypeInfo instance, resolved
-//    by `standalone/reg_unreg_lane3.cpp:193` and stored into an exe .rdata
-//    slot. Same reasoning as 3.
-//
-// ============================================================================
-// NOT A HOLD-BACK, BUT SAY IT PLAINLY: the EdgeMesh family may not execute.
-//
-// `standalone/address_registry.cpp:584` describes RegisterPlayerRenderBatch —
-// the selection-outline chain that is the ONLY consumer of EdgeMesh,
-// EdgeMeshInstance and the two vertex ctors — as "GATED default-OFF on
-// BANISHED_SELECTION_OUTLINE". If that is still true, all seven EdgeMesh ports
-// above will report `calls=0` in the diff summary, and a port with zero callers
-// is not verified no matter how clean the run looks
-// (reference_uncalled_port_is_not_verified.md). The wave lead should take one
-// run with BANISHED_SELECTION_OUTLINE=1 and a building selected, and read the
-// `calls=` column, not just `divergences=`.
+// `_maskMaterial`/`_skinMaskMaterial` (+0x28/+0x30) in the triangle pass and
+// `_edgeMaterial`/`_skinEdgeMaterial` (+0x38/+0x40) in the edge pass.
 // ============================================================================
 
 // ############################################################################
 // ENDGAME B.3 step 5 (block E) — THE BODIES ABOVE, MOVED ONTO THE MEMBERS
 // ############################################################################
 //
-// Fifteen bodies in this file belong to `Graphics::MeshInstance` and
-// `Graphics::EdgeMeshInstance`, which are real C++ classes as of block E
-// (`src/engine/graphics/Mesh.h`). Each body MOVED here; each registered door
-// above kept its name and its address and became a one-line delegation with a
-// QUALIFIED non-virtual call (`reinterpret_cast<Ns::C*>(self)->Ns::C::M(args)`).
-// The qualification is load-bearing, not decoration: a live instance in this
-// build wears the MINTED table out of `standalone/rt_data_mint_tables.inc`,
-// whose slots resolve back to these very doors, so an unqualified virtual call
-// inside a door would dispatch into itself (B34_BRIEFS §A.1).
+// The members of `Graphics::MeshInstance` and `Graphics::EdgeMeshInstance` (real
+// C++ classes, `src/engine/graphics/Mesh.h`), then `GraphicsMesh::GetMaterialList`,
+// `GraphicsMesh::GetNodeIndexFromName`, `EdgeMesh::Set` and `EdgeMesh::SetMaterials`.
+// The MeshInstance constructors and destructor, `EdgeMesh::EdgeMesh` and the
+// EdgeMeshInstance copy constructor are defined above, beside their write-ups.
 //
-// WHAT DID **NOT** MOVE, and why:
-//
-//  * `??0MeshInstance`, `??0MeshInstance(const&)`, `??1MeshInstance`,
-//    `??0EdgeMeshInstance`, `??0EdgeMeshInstance(const&)`. ENDGAME §B.1
-//    decision 2 and B35_RULES §11 keep the constructor and destructor doors:
-//    there is NO real constructor on a polymorphic class here, and the classes
-//    are ABSTRACT (slot 0's body is a minted row), so a door physically cannot
-//    placement-new one. The destructor additionally must not move: it frees the
-//    three `Array` buffers through retail's own out-of-line `~Array` and then
-//    runs `~Geometry`, and a compiler-emitted member/base destructor chain on
-//    top of that would be retail's own decomposition run twice (the
-//    `Object::External::_refs` discussion in External.h).
-//  * `GraphicsMesh::GetMaterialList`, `GraphicsMesh::GetNodeIndexFromName`,
-//    `EdgeMesh::*` (the two vertex ctors, `SetMaterials`, `EdgeMesh::EdgeMesh`,
-//    `EdgeMesh::Set`). `Graphics::GraphicsMesh` and `Graphics::EdgeMesh` are
-//    BLOCK G's classes; this file holds a fragment of them and the brief leaves
-//    such a body as a door untouched. All seven are listed in block E's report.
-//
-// NAME-LOOKUP HYGIENE (B34B_RULES §7.2, armed here for the first time in this
-// directory): inside `namespace Graphics` a bare `Geometry`, `MeshInstance`,
-// `EdgeMeshInstance` or `EdgeMesh` binds the REAL CLASS, not the `RtGraphics`
-// POD the `using` declarations at the top of this file introduce. Every POD
-// spelling below is therefore qualified `RtGraphics::`, and the file-local
-// helpers (`B`, `Rd`, `RtInstancedPoolSlot`, `RtLerpTransformPair`,
-// `QuaternionRotate`, `TransformAsMatrix`, `RtRendererAddDrawItem`, the
-// `kDetail_*`/`kList_*` constants and the four counters) are reached by
-// unqualified lookup falling through to the global unnamed namespace, which is
-// what B34_BRIEFS §A.2 records as the arrangement that works.
+// NAME-LOOKUP HYGIENE (B34B_RULES §7.2): inside `namespace Graphics` a bare
+// `Geometry`, `MeshInstance`, `EdgeMeshInstance` or `EdgeMesh` binds the REAL
+// CLASS. The file-local helpers (`RtInstancedPoolSlot`, `RtLerpTransformPair`
+// and the two counters) are reached by unqualified lookup falling through to
+// the global unnamed namespace, which is what B34_BRIEFS §A.2 records as the
+// arrangement that works.
 // ############################################################################
 
 namespace Graphics {
@@ -1845,8 +1326,7 @@ bool MeshInstance::IsAnimating() const {
 // ?GetNodeToWorld@MeshInstance@Graphics@@QEBA?AVTransform@Math@@H@Z
 //                                                        retail 0x180016a40
 // NON-VIRTUAL, so the C++ by-value return is safe: it is never reached through
-// a vtable slot, both ends of every call are this same GCC, and the registered
-// door keeps retail's `(self, ret, node)` shape as a separate function. (A
+// a vtable slot and both ends of every call are this same GCC. (A
 // VIRTUAL by-value return would NOT be safe — see Geometry.h's B5-12 block.)
 // ---------------------------------------------------------------------------
 Math::Transform MeshInstance::GetNodeToWorld(int node) const {
@@ -2021,8 +1501,8 @@ const InstancedAnimationState* (*MeshInstance::_extInstancedState)(const MeshIns
 // ---------------------------------------------------------------------------
 // ?SetMesh@MeshInstance@Graphics@@QEAAXV?$ExternalPtr@…@Z retail 0x1800ffea0
 //
-// The one trap this body cost an integration run for is preserved in the
-// comment at the array copy: GraphicsMesh+0x70 is the `_skinMaterials` Array
+// The one trap this body cost an integration run for: GraphicsMesh+0x70 is the
+// `_skinMaterials` Array
 // of Arrays, so the source of the copy is its `_data` (the first skin's
 // Array header), not the address of the field. Read the stars, not the offsets.
 // ---------------------------------------------------------------------------
@@ -2069,10 +1549,10 @@ void (*MeshInstance::_extMeshAssigned)(const MeshInstance& instance) = nullptr;
 // ---------------------------------------------------------------------------
 // ?PlayAnimation@MeshInstance@Graphics@@QEAAXV?$ExternalPtr@…HAEBVTime@…1M@Z
 //                                                        retail 0x1800ff840
-// `startTime` and `blendTime` stay `const void*` in the declaration: that is the
-// signature code/Game's callers hold. They are the FIFTH and SIXTH arguments,
-// which is exactly where the recorded pointer-typed-as-int trap bites, so they
-// are typed against the callee's mangled name rather than guessed.
+// `startTime` and `blendTime` are `const System::Time*` in the declaration (Mesh.h).
+// `blendTime` and `weight` are the FIFTH and SIXTH arguments, which is exactly where
+// the recorded pointer-typed-as-int trap bites, so they are typed against the
+// callee's mangled name rather than guessed.
 // ---------------------------------------------------------------------------
 void MeshInstance::PlayAnimation(Object::ExternalPtr<AnimationGroup> group, int index,
                                  const System::Time* startTime, const System::Time* blendTime,
@@ -2109,7 +1589,7 @@ Math::Transform* MeshInstance::GetSubTransform(Math::Transform* ret, int node) c
 //
 // THE PACKED ARGUMENT IS 12 + 4 AND IT IS SIGNED (MOVSXD then SAR), and THE
 // FOURTH COLUMN OF THE RETURNED MATRIX IS NOT PART OF THE MATRIX — it carries
-// the instance colour. Both findings are written out at the door above; neither
+// the instance colour. Both findings are written out in the block above; neither
 // is re-derived here.
 // ---------------------------------------------------------------------------
 Math::Matrix* MeshInstance::GetInstanceTransform(Math::Matrix* ret, int packed,
@@ -2261,7 +1741,7 @@ void MeshInstance::AddDrawItems(const Scene& scene, Renderer& renderer) const {
 }
 
 // ??1EdgeMeshInstance@Graphics@@UEAA@XZ 0x1800174d0 -- retail's body is the
-// bare tail into ~Geometry (see `RtGraphics_EdgeMeshInstance_Dtor`), which the
+// bare tail into ~Geometry (the listing is in the write-up above), which the
 // compiler's chain is. Empty. (ENDGAME B.3.9 block GFX.)
 EdgeMeshInstance::~EdgeMeshInstance() {}
 
@@ -2338,7 +1818,7 @@ void EdgeMeshInstance::SetMesh(Object::ExternalPtr<EdgeMesh> mesh, MeshInstance*
     _materialTypeFlags |= 1u << (static_cast<uint8_t>(em->_skinMaskMaterial->_shaderClass) & 0x1f);
 
     // ENDGAME B.3.5 caller batch: `Graphics::Geometry::SetBounds` is a DEFINED
-    // member (scene.cpp:1373) and `this` IS a Geometry, so the call is qualified
+    // member (scene.cpp:1216) and `this` IS a Geometry, so the call is qualified
     // and non-virtual, as retail's is.
     this->::Graphics::Geometry::SetBounds(em->_aabb);
 }
@@ -2413,8 +1893,7 @@ void EdgeMeshInstance::AddDrawItems(const Scene& scene, Renderer& renderer) cons
 
 // ############################################################################
 // ENDGAME B.3.5 step 5, block G — `Graphics::GraphicsMesh`'s two members whose
-// live bodies were this file's doors. `GraphicsMesh` is block G's class; the two
-// doors above keep their registrations and now delegate here.
+// live bodies were this file's doors. `GraphicsMesh` is block G's class.
 // ############################################################################
 
 // ---------------------------------------------------------------------------
@@ -2540,6 +2019,5 @@ void EdgeMesh::SetMaterials(Object::ExternalPtr<MaterialInstance> mask,
 }  // namespace Graphics
 
 // ?_rootOnlyUpdates@MeshInstance@Graphics@@0_NA  retail 0x1801fc70b -- the
-// class static (ENDGAME B.3.9 block GFX, B39_RULES D7 row A22), redirected onto
-// the mint's storage row by RtGraphicsPortInit (foreign readers remain).
+// class static (ENDGAME B.3.9 block GFX, B39_RULES D7 row A22).
 bool Graphics::MeshInstance::_rootOnlyUpdates = false;

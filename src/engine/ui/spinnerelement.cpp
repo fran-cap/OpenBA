@@ -4,7 +4,7 @@
 //
 // `??_7SpinnerElement@UI@@6B@` (retail 0x180157660):
 //
-//   0  vector deleting dtor  0x18004b3b0  -> deleting_dtor.cpp row (this batch)
+//   0  vector deleting dtor  0x18004b3b0  the compiler's (virtual ~SpinnerElement)
 //   1  TypeName              0x18004b110  here
 //   2  Type                  0x18004b0f0  here
 //   4  ComputeSize           0x1800d83b0  here
@@ -14,9 +14,9 @@
 //
 // plus ??0SpinnerElement (0x1800d8670) and ??1SpinnerElement (0x1800d8640).
 //
-// ENDGAME B.3.6 block C5: the six slot bodies MOVED into the members of the
-// real `UI::SpinnerElement`; each registered door is a one-line QUALIFIED
-// delegation. The ctor / dtor stay doors (B4b-2).
+// ENDGAME B.3.6 block C5: the six slot bodies are the members of the real
+// `UI::SpinnerElement`. The ctor is inline in SpinnerElement.h; the dtor is in
+// this file.
 //
 // A spinner is THREE children and one int, exactly as
 // src/engine/ui/SpinnerElement.h describes: children[0] is the

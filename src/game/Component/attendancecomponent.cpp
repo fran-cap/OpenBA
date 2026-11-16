@@ -32,8 +32,8 @@
 
 // ============================================================
 // Helpers, called directly (B.3R): FUN_140002e10 FindComponent<WorkPlaceComponent>
-// (get the WorkPlaceComponent from the entity), FUN_140043f60 ProcessQueue (drain the
-// attendance queue), both defined below.
+// (get the WorkPlaceComponent from the entity, Entity/ComponentEntity.h), FUN_140043f60
+// ProcessQueue (drain the attendance queue, defined below).
 // ============================================================
 
 static void AttendanceComponent_ReportMissingWorkplace(AttendanceComponent* self, ComponentEntity* entity,
@@ -71,12 +71,11 @@ static void AttendanceComponent_ReportMissingWorkplace(AttendanceComponent* self
 }
 
 // Queue-drain dispatch helpers, called directly: 0x140115a50
-// AttendanceComponent_ReleasePartnerSlot, 0x1401159b0 AttendanceComponent_ReleaseLink59b0,
-// 0x140111650 AttendanceComponent_ReleaseLink1650 (all defined below).
+// CitizenComponent::LeaveSchool, 0x1401159b0 CitizenComponent::ReleaseCareBuilding,
+// 0x140111650 CitizenComponent::ReleaseLink230 (all defined below).
 // Callees of the two worker-release helpers (Entity_impl_1650/59b0): 0x140002cc0
 // Array<T>::Remove, 0x140002f90 FindComponent<StatusIconComponent>, 0x14012c3f0
-// CitizenComp_FUN_14012c3f0; CitizenComponent::TryFindPartner (0x140111840) is
-// CitizenComp_TryEnrolInSchool.
+// CitizenComp_FUN_14012c3f0; CitizenComponent::TryEnrolInSchool (0x140111840).
 
 // Slot-3 (Persist) helpers: Component::Persist 0x1401189b0; the queue array grow
 // 0x1400032e0; and CitizenComponent::TypeId() (0x1401c7158), the type id the
@@ -87,8 +86,8 @@ static void AttendanceComponent_ReportMissingWorkplace(AttendanceComponent* self
 // Reimpl of FUN_140115a50 (0x140115a50):
 // release the citizen's school slot (+0x208): detach from the school's waiting
 // queue (002cc0), reset its status icon flag 2 off (12c3f0), null the slot; then
-// if param_2 set, immediately re-roll for a new school (TryFindPartner) and clear the
-// slot again on failure. Closure-safe after the cascade registered TryFindPartner.
+// if param_2 set, immediately re-roll for a new school (TryEnrolInSchool) and clear the
+// slot again on failure.
 // A CitizenComponent member (0x140115a50).
 void CitizenComponent::LeaveSchool(char reroll) {
     Object::InternalPtr<AttendanceComponent>& slot = school;
@@ -178,8 +177,8 @@ void AttendanceComponent::ProcessQueue() {
 // their own: the attendance building's "work" checkbox IS the workplace's accepting
 // flag (WPC+0x50). That is why this class overrides instead of inheriting — and why
 // both bodies start by re-finding the WPC off the owner entity via 0x140002e10
-// (FindComponent<WorkPlaceComponent>). WorkPlaceComponent_SetAccepting
-// (0x14012fc00) is declared in exe_bodies.h.
+// (FindComponent<WorkPlaceComponent>). WorkPlaceComponent::SetAccepting
+// (0x14012fc00) is declared in WorkPlaceComponent.h.
 
 // ── slot 13 — retail 0x140043f10 — availability mask ──────────────────────────────
 // Retail body: find the WPC, then `return -(*(char*)(wpc+0x50) != 0) & 2 | 1;`
@@ -212,8 +211,8 @@ void AttendanceComponent::ProcessQueue() {
 // Vtable slot 7 — retail 0x1400443d0 — leave the town attendance registry
 // ============================================================
 // Ghidra calls this "AttendanceComponent_OnCreate". It is slot 7, which on this
-// component family is OnRemove, not OnAdded — the usual off-by-one mislabel (see
-// reference_ghidra_oncreate_onremove_mislabel). The body is a single erase-by-value
+// component family is OnRemove, not OnAdded — the usual off-by-one mislabel.
+// The body is a single erase-by-value
 // from the town attendance list at gameWorld+0xf0 +0x60, the list that state 2's enter
 // appends to and that AllFull walks. Without it a demolished school stays in the list
 // forever and every surviving school reads as "full".

@@ -10,8 +10,8 @@
 // `has_virtual_destructor`); flags 0 is `~T()`, flags 1 `delete`, and the
 // vector arm is retired (`delete[]` replaces it).
 //
-// No tree source links (the class bodies stand on the port registry, the
-// Device singleton and the serializer), so the out-of-line members are defined
+// The class bodies' sources do not link (they stand on the Device singleton
+// and the serializer), so the out-of-line members are defined
 // HERE as markers -- which is also what makes GCC emit each class's vtable in
 // this translation unit. The inline members under test (the constructor and
 // slot 0) are the real ones from the headers.

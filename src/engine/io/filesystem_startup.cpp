@@ -11,9 +11,7 @@
 // line was written. No new Win32 API and no new import library.
 //
 // It lives in its own file rather than in `filesystem.cpp` (Wave 4 lane D)
-// purely so that two lanes are not editing one file while both are in flight;
-// it registers through its own `RtIoFileSystemStartupRegister()`, wired into
-// `rt_io_port.cpp` beside lane D's.
+// purely so that two lanes were not editing one file while both were in flight.
 //
 // ---------------------------------------------------------------------------
 // THE BODY, AND THE ONE THING THAT IS NOT OBVIOUS IN IT
@@ -36,23 +34,17 @@
 // (see src/engine/system/configuration.cpp §2), so `found` is false and the
 // gate keeps the value `SetupDirectories` left in it.
 //
-// The unguarded `*(Configuration**)0x1801fc6f8` is retail's and is KEPT. What is
-// guarded is the SLOT itself -- see the comment at the call.
+// The unguarded `*(Configuration**)0x1801fc6f8` is retail's and is KEPT -- see
+// the comment at the call.
 //
 // ---------------------------------------------------------------------------
-// THIS ROW CLOSES; ITS TWO CALLEES DO NOT
+// THE TWO CALLEES
 // ---------------------------------------------------------------------------
-// Per the triage rule, state it plainly: porting this does NOT make
-// `Engine::Startup` get past step 3. It moves the fault from
-// `?Startup@FileSystem@IO@@QEAA_NXZ` to
-// **`?SetupDirectories@FileSystem@IO@@QEAAXXZ`** (0x1800abd00, ord 4029), which
-// is 722 instructions with thirteen distinct callees, six of them large and
-// unported. That is the next real wall and it wants a lane, not a tail-end.
-// `?LoadPackages@FileSystem@IO@@QEAAXXZ` (0x1800ab460, ord 3209) is behind it.
-//
-// Porting it anyway is worth one iteration's cost: it converts an anonymous
-// "the boot stops in FileSystem" into a named 722-instruction target with a
-// measured callee list, which is the whole value of this queue.
+// `?SetupDirectories@FileSystem@IO@@QEAAXXZ` (0x1800abd00, ord 4029) is
+// FileSystem::SetupDirectories (filesystem_setupdirs.cpp) and
+// `?LoadPackages@FileSystem@IO@@QEAAXXZ` (0x1800ab460, ord 3209) is
+// FileSystem::LoadPackages (filesystem_packages.cpp); Startup calls both as
+// members.
 // ============================================================================
 
 #include <cstdint>
@@ -75,8 +67,8 @@
 //
 // Same callees in the same order, the same unguarded Configuration
 // dereference, the same single `return true`. B3R RT-IO: SetupDirectories and
-// LoadPackages are member calls and the map find is RtSystem_ConfigMap_Find by
-// name (they were two RT_EXPORT_ONCE doors and a by-address resolve).
+// LoadPackages are member calls and the map find is `Configuration::_map.Find`
+// (they were two RT_EXPORT_ONCE doors and a by-address resolve).
 namespace IO {
 
 bool FileSystem::Startup() {

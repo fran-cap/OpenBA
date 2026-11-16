@@ -65,9 +65,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     const Entries a = Sorted(first);
     const Entries b = Sorted(second);
     // MASK (finding "settings BOM key"): a key that starts with the bytes EF BB BF and sorts first is
-    // written at the very start of the file, where Parse skips it as a BOM, so the key loses those
-    // three bytes. Recorded once (scratchpad crashes/settings_file/bom_key_roundtrip); skipped here to
-    // reach other mismatches.
+    // skipped here. Serialize writes a real BOM in front of such a file, so the key reads back whole
+    // (settings_file.cpp, review F-085).
     if (!a.empty() && a[0].key.compare(0, 3, "\xEF\xBB\xBF") == 0)
         return 0;
     if (!Same(a, b)) {

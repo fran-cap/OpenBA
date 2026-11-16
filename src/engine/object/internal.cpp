@@ -15,78 +15,6 @@
 // `Object/InternalPtr.h`. There is no `Object\Internal.cpp`. This file's name
 // is the wave scaffolding's, not the engine's.
 //
-// ----------------------------------------------------------------------------
-// THE ONE THING THAT MAKES THIS LANE SAFE
-// ----------------------------------------------------------------------------
-// PLAN.md §4.3 risk 3 says a half-ported class with two vtables in play is the
-// swap-remove UAF family again. That failure mode DOES NOT EXIST here, for the
-// same reason it did not exist for the Wave 2 allocator, and for one extra
-// reason of its own:
-//
-//   * There is ONE table. Every function below reaches the LIVE
-//     `?_singleton@InternalFactory@Object@@0PEAV12@EA` and mutates the DLL's
-//     own arrays in place. No replica, no second table, no second heap — the
-//     buffers are allocated and freed through the DLL's own
-//     System::MemoryAllocator statics.
-//   * There is ONE vtable per class, the compiler's (ENDGAME B.3.9 OBJ): the
-//     `??0Internal` / `??1Internal` doors that hand-stamped the exported
-//     `??_7Internal@Object@@6B@` / `??_7Base@Object@@6B@` tables are gone with
-//     those minted rows; every Internal is built by `Object::Internal()`.
-//
-// What is left is therefore an ordinary faithfulness question — does our body
-// compute the same indices and the same array growth as theirs — and that is
-// exactly what the shadow mode below measures.
-//
-// ----------------------------------------------------------------------------
-// THREE ARMING TIERS
-// ----------------------------------------------------------------------------
-//   the old DLL-era switch            nothing in this file registers.
-//
-//   (default)                         TIER 1 only — the functions with no
-//                                     shared state: both InternalBasePtr
-//                                     constructors, Copy, DeletePtr,
-//                                     Internal::Persist, and — since Wave 11
-//                                     lane OBJINT — InternalFactory::
-//                                     ClearPersistState, which touches
-//                                     _persistIds and never the handle table.
-//
-//   the old DLL-era switch     adds observe-only wrappers around
-//                                     Internal::Internal, ~Internal,
-//                                     ClearPersistState and ResetPersistState.
-//                                     OUR CODE NEVER WRITES THE TABLE in this
-//                                     mode: it predicts the post-state, calls
-//                                     the DLL to do the real work, and asserts
-//                                     the prediction held. This is the oracle
-//                                     (PLAN.md §4.3 risk 2's the diff oracle
-//                                     contract, verbatim). Requires
-//                                     the old DLL-era switch to report.
-//
-//   the old DLL-era switch      TIER 2 IS DEFAULT-ON as of Wave 11
-//                                     follow-up lane ARM (2026-09-09); this is
-//                                     its KILL SWITCH. The real ports of the
-//                                     table mutators drive the live handle
-//                                     table on every ordinary run. (
-//                                     InternalBasePtr::Serialize LEFT this tier
-//                                     in Wave 9: lane S verified it, and
-//                                     gated-because-unverified is not the same
-//                                     as gated-because-dangerous.)
-//                                     TABLE and SHADOW are mutually exclusive;
-//                                     asking for both is refused.
-//
-//   the old DLL-era switch              ALSO ARMS TIER 2, and is why the old
-//                                     "*** VERDICT: NO-GO ***" line is gone
-//                                     from here (Wave 9 lane Y, 2026-09-08).
-//                                     The NO-GO was about TWO writers driving
-//                                     one live table; with the DLL absent there
-//                                     is one writer and no fallback. See the
-//                                     long note in RtObjectInternalRegister.
-//
-// CheckPtr is REGISTERED UNCONDITIONALLY as of 2026-09-08 (Wave 9 lane Y). It
-// used to say "DELIBERATELY NOT REGISTERED in any tier"; the reason for that has
-// been fixed at its source rather than worked around — see the long comment on
-// RtObject_InternalBasePtr_CheckPtr. It is not part of any tier: it touches no
-// shared state, and the cutover needs the symbol to exist.
-//
 // No C++ exceptions anywhere in this file (PLAN.md §4.3 risk 5).
 // ============================================================================
 
@@ -104,9 +32,7 @@ namespace {
 // `MemAlloc`/`MemFree`/`RandomRand` and the `?_singleton@InternalFactory@...`
 // door used to live here. They are now `Object::detail::InternalMemAlloc` /
 // `InternalMemFree` / `InternalRand` and `Object::InternalFactory::Get()`
-// (src/engine/object/internal_class.cpp), which is the file that can link into
-// `make unit`. The doors are the SAME mangled names resolved through the SAME
-// registry; only the spelling moved.
+// (src/engine/object/internal_class.cpp), which the unit build links.
 //
 //   ?MemAlloc@MemoryAllocator@System@@SAPEAX_KH@Z  0x1800c7a50
 //   ?MemFree@MemoryAllocator@System@@SAXPEAX@Z     0x1800c7ad0
@@ -146,7 +72,7 @@ namespace {
 // reader; the body is `Object::Internal::Persist` (internal_class.cpp).
 
 // ============================================================================
-// TIER 2 — the table mutators.  NO-GO by default; see the file header.
+// Internal's constructor and destructor — the bodies are in internal_class.cpp.
 // ============================================================================
 
 // ??0Internal@Object@@QEAA@XZ          retail 0x1800bfd10, profile 0x18008b370
@@ -180,11 +106,8 @@ namespace {
 // `?Serialize@InternalBasePtr@Object@@QEAAXAEAVSerializer@IO@@@Z`
 //   retail 0x1800c0180, profile 0x18008c460.
 //
-// Moved here from `RtObject_InternalBasePtr_Serialize` unchanged except for the
-// member spelling: it needs this file's `Factory()` and the `PersistObject`
-// name door, and `IO::Serializer`, `Object::Internal`'s vtable and
-// `InternalFactory` are all still unconverted, so it reaches them through
-// exactly the doors the C body used (SMARTPTR_INVENTORY.md §4). No new casts.
+// It takes the real `IO::Serializer` and calls the ReaderWriter's Serialize
+// members, `Type()` and `InternalFactory::PersistObject` by name. No new casts.
 //
 //     bool present = (_ptr != 0);
 //     rw->Serialize(present);                      // rw vtbl +0x78
@@ -213,12 +136,10 @@ namespace {
 // ============================================================================
 namespace Object {
 
-// B.3.4 block 3 — the parameter is the REAL `IO::Serializer`, and the three
-// slot constants are `rt::io::rw_vtbl::k*` instead of the identical
-// `RtObject::kEncSerialize*` that died with `SerializerLite`. Same three retail
-// offsets (0x78 / 0x98 / 0xa0), one spelling. B3X W0: the minted tables are
-// retired (B.3.9), so the ReaderWriter and the object's Type() are called by
-// name -- the same slots.
+// B.3.4 block 3 — the parameter is the REAL `IO::Serializer`. B3X W0: the minted
+// tables are retired (B.3.9), so the ReaderWriter and the object's Type() are
+// called by name. The three retail offsets (0x78 / 0x98 / 0xa0) are spelled
+// `rt::io::rw_vtbl::k*` in io/Serializer.h.
 void InternalBasePtrSerializeBody(Internal** self,
                                   ::IO::Serializer& ser) {
     ::IO::ReaderWriter* const enc = ser._readerWriter;

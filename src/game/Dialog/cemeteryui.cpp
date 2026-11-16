@@ -1,4 +1,4 @@
-// engine/src/ui/cemeteryui.cpp
+// src/game/Dialog/cemeteryui.cpp
 // Clean reimplementation of CemeteryUI game logic.
 //
 // CemeteryUI (0x38 bytes) — cemetery progress bar panel.
@@ -50,7 +50,7 @@ static int CemeteryGetBurialCount_Impl(CemeteryComponent* cemetery) {
 // src/game/Dialog/cemeteryui.cpp were fully ported but wired into NOTHING -- the stub
 // vtable left slots 4 and 7 as no-ops, so neither ProgressElement text parameter was
 // ever set and the panel rendered a literal "  of   graves" with both numbers blank.
-// Same shape as AttendanceUI directly above.
+// Same shape as AttendanceUI (attendanceui.cpp).
 
 // The data source's CemeteryComponent (retail's checked cast of +0x28, then
 // FindComponent<CemeteryComponent> 0x140010a00). The generic finder the tree

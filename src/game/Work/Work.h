@@ -32,7 +32,7 @@
 // read, exactly as its C body did.
 //
 // LAYOUT: Object::Internal (0x10) + 0x38 = 0x48. The field names are the ones
-// the leaves' PODs used (engine/types/BuildActions.h); +0x10 and +0x18 are
+// the leaves' PODs used; +0x10 and +0x18 are
 // InternalPtrs (Persist post-validates +0x10 as a ComponentEntity and +0x18 as
 // a WorkComponent), +0x30/+0x38 are System::Time values (Persist v3+).
 // ============================================================================
@@ -51,8 +51,8 @@ class CompleteTask;
 class Profession;        // B4 P2 S2: slot 10's return buffer
 
 // The AVL sets the Work leaves keep their workers in are Collection::Set
-// instantiations the exe inlines (insert / erase / serialize: work_base_bst.cpp
-// and work_base_cellbst.cpp). Two element shapes:
+// instantiations the exe inlines (insert / erase / serialize: Work/KeyBst.h,
+// Work/CellBst.h and work_base_cellbst.cpp). Three element shapes:
 //   the citizens working the job, keyed on the citizen (0x28-byte node; 0x1400296b0
 //   validates each key against CitizenComponent);
 using WorkCitizenSetNode = Collection::Set<CitizenComponent*>::Node;
@@ -147,8 +147,8 @@ public:
     uint8_t  _pad44[4];  // +0x44 never written
 
     // The body of the shared base ctor 0x1400f72e0 MINUS its `??0Internal` call
-    // and vptr store. `Work(void*)` runs it after the compiler's stamps (its
-    // by-address door `Work_Ctor25_Impl` went at ENDGAME B.3.9 OBJ).
+    // and vptr store. `Work(ComponentEntity* const*)` runs it after the compiler's stamps
+    // (its by-address door `Work_Ctor25_Impl` went at ENDGAME B.3.9 OBJ).
     void InitFromEntity(ComponentEntity* const* pEntityIBP);
 
     // 0x1400f7100: is `citizen` still working this job? True when one of the
@@ -179,9 +179,6 @@ protected:
     explicit Work(ComponentEntity* const* pEntityIBP);
 
 public:
-    // Vtable() (DECLARE_EXE_TYPE) is the compiler's vtable (B38 D5): served at
-    // 0x140161a80 while by-address readers (the unconverted dtors that re-stamp
-    // the base) remain.
 };
 
 static_assert(sizeof(Work) == 0x48, "Work is 0x48 bytes (0x10 Internal + 0x38)");

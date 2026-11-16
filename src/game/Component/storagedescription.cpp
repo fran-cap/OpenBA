@@ -14,7 +14,7 @@
 //   +0x38  int32  volumeCount
 //
 // The +0x30 array element layout (stride 0x10):
-//   elem+0x00 : External* ref  (ExternalPtr; serialized via fn_ExternalPtr_Serialize2)
+//   elem+0x00 : External* ref  (ExternalPtr; serialized via Object::SerializeExternal<ComponentDescription>, 0x140002340)
 //   elem+0x08 : int32          (serialized as int)
 //
 // Decompiled from Application-x64.exe (READ-ONLY Ghidra).

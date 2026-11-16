@@ -5,7 +5,7 @@
 // Retail: Runtime-x64.dll, image base 0x180000000. The complete reverse
 // engineering — tag bit layout, bins, the free-list encoding, the arena
 // lifecycle — is in src/engine/system/MemoryAllocator.h. Read that first;
-// this file is the transcription and the shadow oracle, not the explanation.
+// this file is the transcription, not the explanation.
 //
 // Address map (all verified against the export table with pefile, not guessed):
 //
@@ -146,8 +146,8 @@ inline uint64_t  TagC(const uint8_t* t)      { return *reinterpret_cast<const ui
 inline uint64_t& Node(uint8_t* freeTag)      { return *reinterpret_cast<uint64_t*>(freeTag); }  // CAST-OK: alloc_header
 
 // The file-static at Runtime 0x1801ff300: largest `size` ever requested.
-// Nothing in retail reads it; it is maintained because it is an observable
-// store the shadow oracle can compare.
+// Nothing in retail reads it, and nothing in the tree does; the store is kept
+// because retail makes it.
 uint64_t g_largestRequestedSize = 0;
 
 // Retail's fatal path. This comment used to end "after cutover this becomes our
@@ -666,8 +666,9 @@ MemoryAllocator* MemoryAllocator::Get() {
 
 // --- MemAlloc (0x1800c7a50) / MemFree (0x1800c7ad0) ------------------------
 // Both open with the instrument seat (MemoryAllocator.h): STANDALONE DEVIATION,
-// instrument seat, retail has no such branch. Null unless BANISHED_REDZONE or
-// BANISHED_ALLOC_STATS armed it at boot; the armed hook does the whole call.
+// instrument seat, retail has no such branch. Null unless the AddressSanitizer
+// build (BANISHED_ASAN_HEAP, above), BANISHED_REDZONE or BANISHED_ALLOC_STATS armed
+// it; the armed hook does the whole call.
 void* MemoryAllocator::MemAlloc(uint64_t size, int align) {
     if (System::g_memoryAllocatorInstrument.memAlloc)                // STANDALONE DEVIATION
         return System::g_memoryAllocatorInstrument.memAlloc(size, align);
@@ -696,9 +697,10 @@ int64_t MemoryAllocator::PointerOffset(void* a, void* b) {
 }
 
 // --- The Platform* family (0x1800c7b30 / b50 / b60 / bb0 / c40 / c70) ------
-// These six are defined in src/platform/win/allocator_win.cpp. They are the
-// platform seam the ORIGINAL authors drew, and PLAN.md 4.1's `_win` rule falls
-// on the same line, so the OS header goes there and nowhere else.
+// These six are defined in each platform twin: src/platform/win/allocator_win.cpp,
+// src/platform/posix/allocator_posix.cpp and src/platform/darwin/allocator_darwin.cpp.
+// They are the platform seam the ORIGINAL authors drew, and PLAN.md 4.1's `_win` rule
+// falls on the same line, so the OS headers go there and nowhere else.
 
 // ===========================================================================
 // rtalloc:: — what is left of the free-function door.
@@ -732,9 +734,9 @@ void Destruct(MemoryAllocator* self) {
     g_plat.lockDelete(&self->lock);
 }
 
-// --- The cutover armer's pair ---------------------------------------------
-// g_armCutover composes the locked entry points from these two `self`-explicit
-// bodies. B3R RT-Core: the other fifteen registration thunks went with their
+// --- The `self`-explicit pair ----------------------------------------------
+// Nothing calls these two `self`-explicit bodies (no header declares them).
+// B3R RT-Core: the other fifteen registration thunks went with their
 // rows, which had no reader.
 void*    Allocate(MemoryAllocator* self, uint64_t size, int align) { return self->Allocate(size, align); }
 void     Free(MemoryAllocator* self, void* p)                      { self->Free(p); }
@@ -810,10 +812,11 @@ static void AttestArming(const char* verdict) {
 }
 
 void RtSystemAllocatorArm() {
-    // Every platform installs its seam here: allocator_win.cpp (Win32) or allocator_posix.cpp
-    // (mmap / pthread). The Wave 2 `#if defined(_WIN32)` around this call predates any POSIX
-    // body; off Windows it left the seam empty, the arm refused, MemoryAllocator::_singleton
-    // stayed null and the first allocation called through it (Phase D.4 LINUX-1's first boot).
+    // Every platform installs its seam here: allocator_win.cpp (Win32), allocator_posix.cpp or
+    // allocator_darwin.cpp (mmap / pthread). The Wave 2 `#if defined(_WIN32)` around this call
+    // predates any POSIX body; off Windows it left the seam empty, the arm refused,
+    // MemoryAllocator::_singleton stayed null and the first allocation called through it
+    // (Phase D.4 LINUX-1's first boot).
     if (!g_platInstalled) RtSystemAllocatorInstallPlatform();
     if (!g_platInstalled) {
         const char* missing = PlatformSeamMissing();
@@ -845,73 +848,16 @@ void RtSystemAllocatorArm() {
     AttestArming("ARMED (cutover, DLL absent)");
 }
 
-// ============================================================================
-// The ADDRESS registrations — cutover only, and the "only" is the whole point
-// ============================================================================
-//
-// Wave 9, attempt 13. The DLL-less boot got eight frames past attempt 12 and
-// then died `EXEC of 0` at `rtcoll::MemAlloc +0x81`:
-//
-//     #4 AppendFilename +0x2D  ->  #3 RtColl_ArraySetSizeFill_180026880 +0x39
-//     #2 rtcoll::SetSizeCore +0x181  ->  #1 rtcoll::MemAlloc +0x81
-//
-// Nothing was missing a NAME. `src/engine/collection/array.cpp` reaches the
-// allocator through the two exported statics BY ADDRESS, deliberately (read its
-// "THE ALLOCATOR BOUNDARY" banner), and its own comment states this dependency
-// in advance: "At cutover ResolveAddr(Module::Runtime, 0x1800c7a50) resolves
-// nothing, because there is no DLL. These two accessors MUST be repointed at
-// lane E's allocator in the same commit that arms it." That commit is this one.
-// No name-based instrument could ever have seen it, because the call site does
-// not mention a name — which is also why gate row E named the wrong mechanism
-// (it predicted an unminted `?_singleton@`; that symbol IS minted).
-//
-// The four addresses, and who reaches each:
-//
-//   0x1800c7a50  ?MemAlloc@ (static, locking)  src/engine/collection/array.cpp
-//                                              src/engine/graphics/scene.cpp
-//   0x1800c7ad0  ?MemFree@  (static, locking)  src/engine/collection/array.cpp
-//                                              src/engine/ui/widgets_input.cpp
-//                                              standalone/filename_runtime_hook.cpp
-//   0x1800c6e60  ?Allocate@ (member)           engine/funcs/engine_funcs.cpp:1631
-//   0x1800c6c00  ?Free@     (member)           (no live reader today; registered
-//                                              so the pair cannot drift apart)
-//
-// The member pair gets `allocateEntry`/`freeEntry`, which on this path are the
-// COMPOSED (locked) stubs — the same pointers `?Allocate@`/`?Free@` are given
-// three lines above. The static pair gets rtalloc::MemAlloc/MemFree, which take
-// the critical section themselves exactly as retail's statics do. So both doors
-// into the free list are locked, which is the invariant WAVE2_ALLOCATOR.md §4
-// exists to protect.
-//
-// *** WHY THIS IS NOT CALLED ON THE DLL-PRESENT PATH ***
-//
-// Two reasons, and the second is a live hazard, not a preference:
-//
-//  1. It is unnecessary. With the DLL present the swap is a DETOUR: retail's
-//     bytes at 0x1800c6e60/0x1800c6c00 JMP to our composed stubs. An
-//     unregistered `ResolveAddr` there hands back the DLL's address, and calling
-//     it lands in our port anyway. The heap is entirely ours either way.
-//  2. It would collide with standalone/allocator_lock.cpp, which resolves those
-//     same two addresses in order to PATCH the prologue it finds there.
-//     `ResolveAddr(Module::Runtime, ...)` consults this registry FIRST
-//     ([[reference-resolveaddr-consults-port-registry-first]]), so registering
-//     them would hand the patcher OUR function to patch. Its memcmp guard would
-//     refuse — safely, but the refusal would read as a mysterious prologue
-//     mismatch rather than as what it is.
-//
-// At cutover neither reason applies: there is no DLL to detour and no prologue
-// for allocator_lock to have patched (it prints "could not resolve" and stands
-// down, which is the correct behaviour and was never the wall).
 // 0x180009c30 -- the allocator-lock Free wrapper, and a TRAP worth spelling out
 //
 // Retail's body is `if (p) { Enter; Free(_singleton, p); Leave; }` -- byte for
-// byte the `?MemFree@` static registered above -- but its SIGNATURE is not the
+// byte the `?MemFree@` static -- but its SIGNATURE is not the
 // same. It takes TWO parameters and ignores the first: retail's
 // RemoveGlobalObject tail-calls it passing `this` in RCX and the pointer in RDX
-// (see src/engine/graphics/scene.cpp:238, `RtFreeLocked(void*, void*)`).
+// (the shim below, `rtalloc::FreeLockedIgnoringSelf(void*, void*)`).
 //
-// So registering `rtalloc::MemFree` here -- which is what "it is exactly the
-// MemFree static" invites -- would be silently, catastrophically wrong. Our
+// So substituting `MemoryAllocator::MemFree` for it -- which is what "it is
+// exactly the MemFree static" invites -- would be silently, catastrophically wrong. Our
 // MemFree reads its one argument from RCX, which at this call site holds the
 // IGNORED `this`. It would free an object pointer instead of the buffer, leave
 // the buffer leaked, and corrupt the free list with a block the allocator never
@@ -943,28 +889,8 @@ void RtSystemAllocatorArm() {
 //     unarmed run was already mutating retail's arena with our code, by a route
 //     no kill switch could reach and no counter reported.
 //
-// The fix is the rule this file's own neighbours already state
-// (src/engine/collection/linkedlist.cpp:153, src/engine/graphics/
-// scene_grid.cpp:181): reach the heap through the ONE door
-// `RegisterAllocatorAddresses()` arms, never by binding to our body directly.
-// Retail's 0x180009c30 IS `Enter; Free(_singleton, p); Leave`, i.e. byte for
-// byte `?MemFree@` at 0x1800c7ad0, so resolving that address is also the
-// FAITHFUL port and not a workaround:
-//   * unarmed, DLL present — the door hands back retail's MemFree, which calls
-//     retail's Free through its patched entry: observed, and identical to what
-//     retail's own 0x180009c30 would have done;
-//   * armed / at cutover — `RegisterAllocatorAddresses()` has registered
-//     0x1800c7ad0 -> `rtalloc::MemFree`, so the door hands back exactly the
-//     body this code used to call directly. Behaviour there is unchanged.
-//
-// RETRIES A NULL rather than caching one, for the reason linkedlist.cpp gives:
-// this registration is unconditional and can run before the allocator's arming
-// path supplies the address, and a caller that ran first would otherwise freeze
-// a null in for the life of the process.
-//
-// B3R W0-A0: the static, called directly. The by-address door above was bound
-// to this same function (RegisterAllocatorAddresses), and the instrument seat
-// now lives inside it, so the "observed" property the banner asks for holds.
+// B3R W0-A0: the static, called directly; the instrument seat lives inside
+// MemoryAllocator::MemFree, so a free through this shim reaches it.
 // B3R RT-Core: external linkage, declared in src/engine/system/
 // MemoryAllocator.h, so its readers call it by name.
 namespace rtalloc {

@@ -6,14 +6,8 @@
 //
 // WHAT IT PINS, AND WHY IT HAS TO EXIST
 // -------------------------------------
-// Nothing else in the build compiles a real `Graphics::AnimationEvent` or
-// `Graphics::AnimationGroup` vtable. Every live object of either class wears a
-// MINTED table out of `standalone/rt_data_mint_tables.inc`, and every registered
-// door calls QUALIFIED, so a slot declared one line out of place in
-// `src/engine/graphics/Animation.h` or `AnimationGroup.h` would stay
-// invisible right through B.3.5 and surface only when B.3 retires the minted
-// rows — as an `AnimationGroup` that serializes through `Compile`, with no
-// recent change to blame.
+// A slot declared one line out of place in `src/engine/graphics/Animation.h` or
+// `AnimationGroup.h` fails here, at the raw slot call for that offset.
 //
 // The shape is B34_BRIEFS section B.7's: a CONCRETE probe subclass of each real
 // class, every slot overridden with its own marker, then a raw slot call at
@@ -29,9 +23,8 @@
 // references every slot — so pinning `Graphics::AnimationEvent`'s table here
 // requires `TypeName`, `Type` and `~AnimationEvent` to be linkable here. Their
 // real bodies live in `src/engine/graphics/animation.cpp` and
-// `vtbatch7_animgroup_particlesystem.cpp`, which stand on `RegisterRuntimeExport`
-// / `RT_DATA_SLOT` / `ResolveAddr` and cannot link into the unit build (`tools/build.sh unit`) at all
-// (the same reason `external_class_doors.cpp` is kept out of `sources.cmake`).
+// `vtbatch7_animgroup_particlesystem.cpp`, which are not in the unit build
+// (`tools/build.sh unit`).
 // Neither of those files is in `UNIT_TREE_SRCS`, so there is exactly one
 // definition in each binary. The stubs answer with markers, never with data:
 // this file tests the ABI, not the reflection records.
@@ -71,7 +64,7 @@ void Note(const void* self, int mark) { g_lastSelf = self; g_lastMark = mark; }
 const void* g_lastTransform = nullptr;
 void Reset() { g_lastSelf = nullptr; g_lastMark = -1; g_lastTransform = nullptr; }
 
-// The one instruction every raw slot caller in runtime/src compiles to.
+// A raw slot call at a retail byte offset.
 // `byteOffset` is RETAIL's; T (the object's class) decides the compiler's.
 template <typename Fn, class T>
 Fn SlotAt(const void* obj, int byteOffset) {
@@ -228,7 +221,7 @@ UNIT_TEST(graphics_animationevent_slot_order_is_retails) {
 
 UNIT_TEST(graphics_animationevent_layout) {
     // 0x20 — the `MOV EDX,0x20` in its own vector deleting destructor
-    // (0x180011800), and `RT_DELDTOR(0x180011800, 0x1800a2120, 0x020, ...)`.
+    // (0x180011800); the destructor `~AnimationEvent` itself is 0x1800a2120.
     CHECK_EQ((int)alignof(Graphics::AnimationEvent), 8);
 
     // AnimationEvent adds NO bytes to Object::External — the whole class is a
@@ -270,8 +263,8 @@ UNIT_TEST(graphics_animationgroup_layout) {
     CHECK((std::is_base_of<Object::External, Graphics::AnimationGroup>::value));
     CHECK((!std::is_base_of<Object::CompiledExternal, Graphics::AnimationGroup>::value));
 
-    // A field write through the CLASS is visible at the bytes every
-    // `reinterpret_cast` in vtbatch7_animgroup_particlesystem.cpp reads.
+    // A field write through the CLASS is visible at the raw byte offsets +0x28
+    // and +0x30.
     AnimationGroupProbe probe;
     probe._defaultBlend = 0.1f;
     probe._clips._size  = 7;
@@ -397,7 +390,8 @@ UNIT_TEST(graphics_animation_layout) {
 
     // The clip is an ELEMENT of `AnimationGroup::_clips` at stride 0x70 — the
     // `imul $0x70` in `?GetAnimation@AnimationGroup@Graphics@@` (0x180016660).
-    // This is the assert that would catch a field added to the class.
+    // Animation.h's static_assert(sizeof(Animation) == 0x70) is the assert that would
+    // catch a field added to the class.
 
     // `AnimationState.h`'s `AnimationClipPrefix` is a PREFIX VIEW of the same
     // record and both headers must keep agreeing on every field they share.
@@ -418,8 +412,8 @@ UNIT_TEST(graphics_animation_layout) {
     CHECK_EQ((int)offsetof(RtGraphics::AnimationClipPrefix, eventCount),
              (int)offsetof(Graphics::Animation, _events) + 8);
 
-    // And the `anim_clip::k*` constants every unconverted body still uses are
-    // the same numbers. This is the cross-assert that stops the two drifting.
+    // And the `anim_clip::k*` constants are the same numbers. This is the
+    // cross-assert that stops the two drifting.
     CHECK_EQ(RtGraphics::anim_clip::kStride,     0x70);
     CHECK_EQ(RtGraphics::anim_clip::kInstanced,  (int)offsetof(Graphics::Animation, _instanced));
     CHECK_EQ(RtGraphics::anim_clip::kFrameFirst, (int)offsetof(Graphics::Animation, _startFrame));
@@ -451,8 +445,7 @@ UNIT_TEST(graphics_animationstate_layout) {
     CHECK_EQ((int)sizeof(Graphics::AnimationState::Layer),
              (int)sizeof(RtGraphics::AnimationLayer));
 
-    // THE THREE SPELLINGS OF THE 0x48 RECORD must stay aligned: the record,
-    // lane GFXBIG's `RtGraphics::AnimationState` POD (Update's view) and the
+    // THE TWO SPELLINGS OF THE 0x48 RECORD must stay aligned: the record and the
     // serializer's `RtGraphics::AnimStateRec`.
     CHECK_EQ((int)sizeof(Graphics::InstancedAnimationState), (int)sizeof(RtGraphics::AnimStateRec));
     CHECK_EQ((int)offsetof(Graphics::InstancedAnimationState, _state) +

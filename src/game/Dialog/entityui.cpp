@@ -1,4 +1,4 @@
-// engine/src/ui/entityui.cpp
+// src/game/Dialog/entityui.cpp
 // Clean reimplementation of EntityUI panel methods.
 //
 // EntityUI (0x48 bytes): Entity info panel.
@@ -36,8 +36,8 @@
 #include "Component/BuildDescription.h"   // X::TypeId() (ENDGAME B.3.9)
 #include "Player/EditTool.h"   // X::TypeId() (ENDGAME B.3.9)
 #include "Dialog/exe_bodies.h"
-#include "Player/exe_bodies.h"   // B3R: Avl38SetRemove (0x140025740), Avl38Retrace
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "Player/exe_bodies.h"   // B3R: Avl38SetFindRemove (0x14002c690), Avl38Retrace
+#include "system/MemoryAllocator.h"   // B3R: System::MemoryAllocator::MemAlloc
 #include "ui/CheckElement.h"          // B4 DLG-a: EntityUI::checkPin
 #include "Component/StateMachineComponent.h"
 #include "Component/BuildComponent.h"
@@ -127,13 +127,13 @@ bool BuildComponent::IsBuildComplete() const
 }
 
 // ============================================================
-// EntityUI_SetEditMode (0x140102b60)
+// PlayerToolManager::SelectTool (0x140102b60)
 // ============================================================
-// FORWARDER. Retail 0x140102b60 was ported twice, independently: once here as
+// Retail 0x140102b60 was ported twice, independently: once here as
 // EntityUI_SetEditMode_Impl and once in toolbardialog.cpp as
 // Toolbar_ShowGroup_Impl. Same object (gameWorld+0x120), same fields, same
-// retail function. The single surviving body is Toolbar_ShowGroup_Impl; this
-// name is kept because ~15 call sites use it, and it forwards unchanged.
+// retail function. The single surviving body is PlayerToolManager::SelectTool
+// (toolbardialog.cpp).
 //
 // What this copy had WRONG, and why the other body won:
 //   * Its in-order scan did `goto done_search` on the FIRST matching node.
@@ -170,7 +170,7 @@ bool BuildComponent::IsBuildComplete() const
 // SetEditMode is PlayerToolManager::SelectTool (0x140102b60, src/game/Dialog/toolbardialog.cpp).
 
 // ============================================================
-// EntityUI_SelectEntity (0x140102e30)
+// PlayerToolManager::TrackEntity (0x140102e30)
 // ============================================================
 // Inserts or updates entity in the tracking AVL BST at
 // playerController+0x60. Increments count at +0x68 on insert.
@@ -275,11 +275,8 @@ void PlayerToolManager::TrackEntity(ComponentEntity* const* entityPtr,
 }
 
 // ============================================================
-// EditTool_SelectEntity — NEEDS OPUS (0x1400fd3b0)
+// EditTool::SelectEntity (0x1400fd3b0): Dialog/edittool_select.cpp
 // ============================================================
-// 100+ lines: iterates all dialogs finding ToolUI controllers,
-// creates DialogInstance if entity doesn't have one yet.
-// Kept as passthrough via fn_EditTool_SelectEntity.
 
 // ENDGAME B.3.9: ComponentEntity / ToolUI / UIDescription / BuildDescription (was
 // TypeId_ResourceComponent, itself healed here under the WRONG by-name guess
@@ -372,9 +369,6 @@ void EntityUI::OnClosed() {
 // [7] 0x140066d80
 void EntityUI::OnUpdateLayout() {
     if (!SA_DialogEntityAlive(this)) return;
-
-        // (risky in SA, cosmetic only); the page-selection below is what makes the
-        // entity/citizen content actually render, so it always runs.
 
     // Find components on entity to determine page state. The finders the tree
     // called returned null for a null entity (a standalone guard; retail's
@@ -557,8 +551,8 @@ void EntityUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::Eve
     // Gate the entity read like every other EntityUI slot (4/6/7): this body reads
     // the cached datasource copy (+0x30) for center (0x65) and toggles tracking on
     // it for pin (100). On a just-demolished building's still-open panel that +0x30
-    // weak-ref dangles, so a center/pin click would deref freed memory
-    // (fn_FindComponent_Character). SA_DialogEntityAlive checks the +0x28
+    // weak-ref dangles, so a center/pin click would deref freed memory.
+    // SA_DialogEntityAlive checks the +0x28
     // datasource (of which +0x30 is a copy) for null / marked-for-removal (0x400).
     if (!SA_DialogEntityAlive(this)) return;
     (void)param2;
@@ -575,10 +569,10 @@ void EntityUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::Eve
         //     translation (ModelComponent+0x148 Transform, pos at +0x158/+0x15C).
         //   - otherwise -> multi-object building: midpoint of the MapComponent grid
         //     footprint's far corner and origin corner, each mapped tile->world via
-        //     fn_MapGetTerrainPos, then averaged (DAT_140172114 = 0.5).
+        //     Map::GetTerrainPos, then averaged (DAT_140172114 = 0.5).
         // Writes ONLY the camera focus target (game+0xe0 +0x1c/+0x20/+0x24, z forced
         // 0 as retail does); the camera smoothly slides to it. No re-select / no snap
-        // (that is what distinguishes this from Toolbar_CenterOnEntity, which also
+        // (that is what distinguishes this from PlayerToolManager::CenterOnEntity, which also
         // reopens the target dialog).
         GameUpdateLoop* game = GameUpdateLoop::_singleton;
         // The finders the tree called returned null for a null entity (kept).
@@ -680,10 +674,6 @@ void EntityUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::Eve
 }
 
 // ============================================================
-// EntityUI::Shutdown (vtable +0x18) — No-op
-// ============================================================
-
-// ============================================================
 // STANDALONE promotion — real EntityUI controller vtable
 // ============================================================
 // EntityUI is the common outer frame controller for every entity info panel
@@ -716,11 +706,6 @@ void EntityUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::Eve
 }
 
 DEFINE_EXE_TYPE(EntityUI, "UI::DialogController")
-
-// (original comment header retained below)
-// ============================================================
-// EntityUI::Shutdown (vtable +0x18) — No-op
-// ============================================================
 
 // ============================================================
 // PlayerToolManager::Startup (0x140101ee0) and Update (0x1401026a0)

@@ -7,8 +7,7 @@
 // tree helper.  It never touches the 0x38-byte market node layout, never allocates
 // or frees, and is a true LEAF -- disassemble_function(filter_mnemonics="CALL")
 // over the whole body returns ZERO instructions, so there is no direct call, no
-// recursion, and no indirect call through an .rdata dispatch slot.  Nothing here
-// needs resolving or registering beyond the function itself.
+// recursion, and no indirect call through an .rdata dispatch slot.
 //
 // WHAT IT ACTUALLY IS
 //   An inlined median-of-three QUICKSORT over a flat array of 0x18-byte records,

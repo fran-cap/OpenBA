@@ -7,8 +7,8 @@
 // PARENT `UI::Element` — READ, not inferred:
 //     ?_ParentTypeName@LayoutElement@UI@@CAPEBDXZ @0x180043260 -> "Element"
 //
-// RULE B5-15 / B6-7 — THE TWO NAME LITERALS, RECORDED, NOT USED (slots 1/2 keep
-// reading the minted `?_typeInfo@LayoutElement@UI@@…`, 0x1801fa0b0):
+// RULE B5-15 / B6-7 — THE TWO NAME LITERALS (retail's `?_typeInfo@LayoutElement@UI@@…`,
+// 0x1801fa0b0); slots 1/2 read the class's own DEFINE_TYPE record, which carries them:
 //     ?_TypeName@LayoutElement@UI@@CAPEBDXZ       @0x180043250 -> "LayoutElement"
 //     ?_ParentTypeName@LayoutElement@UI@@CAPEBDXZ @0x180043260 -> "Element"
 //
@@ -25,8 +25,7 @@
 // own slot 0 (the vector deleting dtor), a virtual ~LayoutElement holding
 // the retired ??1 door's body, and the factory pair as the class's own statics;
 // every live one wears the COMPILER's table. The minted `??_7LayoutElement@UI@@6B@`,
-// its RT_DELDTOR row 0x180043570 and the ctor / dtor / slot doors are retired
-// (tools/rt_mint_retired/ui-b.txt).
+// its RT_DELDTOR row 0x180043570 and the ctor / dtor / slot doors are retired.
 // ABSTRACT (slot 0 pure), no real ctor: every live one is built by the
 // `??0LayoutElement` DOOR (layoutelement.cpp) or inline by
 // LayoutDescription::CreateInstance, and wears the MINTED table.
@@ -97,7 +96,7 @@ public:
 
     // ---- non-virtual members (private in retail) ----------------------------
     // PORTED, body in ANOTHER BLOCK'S FILE (element_bodies_b5.cpp,
-    // `RtUi_LayoutElement_GetChildLayout`) — fragment pass.
+    // `LayoutElement::GetChildLayout`) — fragment pass.
     void GetChildLayout(int32_t index, int32_t pass, int32_t left, int32_t top,
                         int32_t right, int32_t bottom, bool applyOffsets);  // 0x1800d2dc0
     // Exported, not ported (GetChildLayout's port inlines them): declared, undefined.

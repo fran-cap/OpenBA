@@ -30,7 +30,7 @@
 //       EventArray_Grow(eventLog+0x18, count+1, entry)                  [0x140019b70]
 //   FormatIndexed args: {0}=season {1}=year {2}=titleText — i.e. exactly the
 //   AddEventWithName (0x140095750) shape. Every derived value above matches what
-//   EventLog_AddEventCore already computes for (0x19, 4, null entity), so we route
+//   EventLog::AddEventCore already computes for (0x19, 4, null entity), so we route
 //   through the shared core rather than transcribing a 4th copy of the append —
 //   see the "AddEvent family core" note in eventlog.cpp on how the copies drift.
 //   There is no speed-drop tail (0x19 is outside the 0xb/0xc/0x1e/0x1f set), and
@@ -65,7 +65,7 @@ extern "C" void EventLog_OnAchievementAwarded(int achievementId) {
     // of Runtime's ?_singleton@AchievementManager@Achievement@@0PEAV12@EA, so the
     // manager is ::Achievement::AchievementManager::_singleton. Retail derefs it unguarded; we only ever
     // reach here from Runtime's own handler call, so it is always live — the guard
-    // below only covers the case where the slot never resolved at all.
+    // below only covers a null _singleton.
     const Achievement::AchievementManager* mgr = ::Achievement::AchievementManager::_singleton;
     if (!mgr) return;
 

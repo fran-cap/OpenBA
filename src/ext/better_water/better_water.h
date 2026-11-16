@@ -49,9 +49,10 @@ enum class Kind : int32_t { River = 0, Lake = 1, Strip = 2, ContactRiver = 3, Co
 // (and logs once) when the program could not be made on this device.
 void DrawShore(Video::Context& context, Kind kind, int32_t a, int32_t b, int32_t c, int32_t d);
 
-// The water vertex buffer to draw the contour ranges from (river_mouth.h, BETTERWATER.md section 9): a copy
-// of the water mesh whose lakes fade out where a river leaves them, made when the mesh changes. Null while
-// the row is off, when no lake has a river leaving it, or when the copy could not be made: retail's buffer.
+// The water vertex buffer to draw the contour ranges from (river_mouth.h, river_rows.h, BETTERWATER.md
+// section 9): a copy of the water mesh whose lakes fade out where a river leaves them and whose river rows
+// are laid again, made when the mesh changes. Null while the row is off, when no vertex was faded or
+// relaid, or when the copy could not be made: retail's buffer.
 const Video::VertexBuffer* WaterVertices(const WorldGeometry& geo);
 
 // ---- Fancy: the shore strip -------------------------------------------------------------------

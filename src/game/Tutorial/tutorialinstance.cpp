@@ -14,7 +14,7 @@
 
 #include "Tutorial/TutorialInstance.h"
 #include "object/TypeInfo.h"
-#include "Tutorial/exe_bodies.h"   // 0x1400262b0 TutWave_SerializeTutorialRef
+#include "Tutorial/exe_bodies.h"
 #include "Tutorial/Tutorial.h"
 #include "Tutorial/TutorialStep.h"
 #include "Object/factory_registration.h"
@@ -37,7 +37,7 @@ TutorialInstance::TutorialInstance()
 // TutorialInstance::Persist -- Slot3 (vtable +0x18, 0x1400e1520)
 // ============================================================
 // Serializes the tutorial instance:
-//   1. ExternalPtr<Tutorial> at +0x30 via ExternalPtr_SerializeTutorial
+//   1. ExternalPtr<Tutorial> at +0x30 via ::Object::SerializeExternal<Tutorial>
 //   2. int32_t currentStep at +0x10
 //   3. On load: adjusts currentStep backwards if steps are not completed
 //      (walks backwards through tutorial steps checking the completed flag)

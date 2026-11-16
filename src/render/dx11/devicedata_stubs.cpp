@@ -2,7 +2,7 @@
 //
 // The four one-liner stubs on the DeviceData vtable. These are pure virtuals on
 // the Runtime-side Video::DeviceData that the DX11 backend declines to
-// implement, so their *names* are unknown, but their bodies are three bytes
+// implement, so their *names* are unknown, but their bodies are three or four bytes
 // each and fully decoded:
 //
 //   slot 4  0x180001190   c2 00 00        ret            -> void
@@ -16,8 +16,8 @@
 //
 // B5 DEV-A (the dx11 seam): they are `VideoDX11::DeviceData` members overriding
 // the base's `Slot4`..`Slot7` (src/engine/video/CompanionData.h), so each
-// carries its base slot's signature — the CALLER's dispatch shape — and ignores
-// what it is passed, as the three-byte originals do. The four
+// carries its base slot's signature — the CALLER's dispatch shape. The originals ignore
+// what they are passed; Slot4 reads its bool only for the NOT RETAIL calls below. The four
 // DX11_REGISTER_SLOT lines that installed them in the hand table are gone. (The
 // original slot 4 is `ret 0`, not `ret N` — it pops nothing, so there is no
 // stack adjustment to reproduce either.)

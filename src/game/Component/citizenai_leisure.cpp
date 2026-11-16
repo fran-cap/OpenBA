@@ -24,29 +24,28 @@
 //   m_random (+0xd8), m_citizenList (+0xf0) = CitizenBehavior (its happiness list).
 // The two candidate sets: Component/LeisureCandidateSet.h (B.4 P2 CAI-5).
 //
-// ALREADY-REGISTERED exe sub-callees (resolved via ResolveAddr; bodies NOT duplicated):
-//   0x14009f3e0 CharacterComponent_impl_f3e0 (GridToWorld; writes Vector3, XMM1=2nd ret) [reg]
-//   0x14001a8c0 Pf_AvlRebalanceA_a8c0       (AVL retrace; (root, node))               [reg]
-//   0x140004680 FUN_140004680               (FindComponent MapComponent, type 0x1c79e0)[reg]
-//   0x140014c30 FUN_140014c30               (recursive BST free; (root, node))         [reg]
-//   0x14009c480 FUN_14009c480 / Pf_ZoneRefresh (zone refresh; (grid,?,?,int))          [reg]
-//   0x1400a00f0 FUN_1400a00f0               (cell reachability test; (grid,mask,from,to))[reg]
-//   0x1400ba6b0 PlayAnimation_Action_Ctor4  (push PlayAnimation; 5-arg)                [reg]
-//   0x140002ed0 Entity_FindComponent_Position (FindComponent; (entity,outIBP))         [reg]
-//   0x140122e20 Entity_impl_2e20            (resolve entity world pos -> Vector3)       [reg]
-//   0x140087fb0 Entity_impl_7fb0            (entity anchor cell index; (ibp,outVec?))   [reg]
-//   0x1401158d0 CitizenComponent_CheckWorkplaceValid ((citizen, &entIBP))              [reg]
-//   0x140021a30 CitizenAI_impl_1a30 (AVL/BST insert; (tree,outNode,keyIBP))            [reg]*
+// Exe sub-callees (called by name; bodies NOT duplicated):
+//   0x14009f3e0 CharacterComponent_impl_f3e0 (GridToWorld; writes Vector3, XMM1=2nd ret)
+//   0x14001a8c0 Pf_AvlRebalanceA_a8c0       (AVL retrace; (root, node))
+//   0x140004680 FUN_140004680               (FindComponent MapComponent, type 0x1c79e0)
+//   0x140014c30 FUN_140014c30               (recursive BST free; (root, node))
+//   0x14009c480 FUN_14009c480 / Pf_ZoneRefresh (zone refresh; (grid,?,?,int))
+//   0x1400a00f0 FUN_1400a00f0               (cell reachability test; (grid,mask,from,to))
+//   0x1400ba6b0 PlayAnimation_Action_Ctor4  (push PlayAnimation; 5-arg)
+//   0x140002ed0 Entity_FindComponent_Position (FindComponent; (entity,outIBP))
+//   0x140122e20 Entity_impl_2e20            (resolve entity world pos -> Vector3)
+//   0x140087fb0 Entity_impl_7fb0            (entity anchor cell index; (ibp,outVec?))
+//   0x1401158d0 CitizenComponent_CheckWorkplaceValid ((citizen, &entIBP))
+//   0x140021a30 CitizenAI_impl_1a30 (AVL/BST insert; (tree,outNode,keyIBP))            *
 //
-//   * COLLISION NOTE: 0x140021a30 is registered under the (misleading) name
-//     WorkBST_RegisterWork_1a30(uintptr_t*, void*, void*). Verified by decompile that the
-//     function AT 0x140021a30 IS CitizenAI_impl_1a30 — a key-ordered AVL insert that
-//     reads the key from *param_3 and calls Pf_AvlRebalanceA_a8c0. The 3-arg signature
-//     (tree, outNode, key) matches Leisure's use exactly. We call it via ResolveAddr.
+//   * COLLISION NOTE: 0x140021a30 carries the (misleading) name WorkBST_RegisterWork_1a30
+//     (Work/KeyBst.h). Verified by decompile that the function AT 0x140021a30 IS
+//     CitizenAI_impl_1a30 — a key-ordered AVL insert that reads the key from *param_3 and
+//     calls Pf_AvlRebalanceA_a8c0. The 3-arg signature (tree, outNode, key) matches
+//     Leisure's use exactly; Leisure calls it by that name.
 //
-// SELF-CONTAINED-BRICK type-ids (UNFILLED 0xFFFFFFFF in standalone; resolved via
-//   Object::GetTypeIdByName, scan-result derefs null-guarded). TypeNames recovered from
-//   each global's *_Register[Type] DATA writer:
+// SELF-CONTAINED-BRICK type-ids (each class's TypeId(), cached by EnsureInit). TypeNames
+//   recovered from each global's *_Register[Type] DATA writer:
 //     DWORD_1401c7190 -> "CitizenDescription"  (CitizenDescription_Register)
 //     DAT_1401c42f8   -> "HappinessDescription"(HappinessDescription_Register)
 //     DAT_1401c42c0   -> "HappinessComponent"  (HappinessComponent_RegisterType)
@@ -91,12 +90,12 @@
 #include "Action/exe_bodies.h"
 #include "Work/exe_bodies.h"
 #include "Game/exe_bodies.h"
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
 #include "Object/type_cache.h"   // PERF (TYPECACHE): Type() through the vptr cache
 
 namespace {
 
-// --- registered exe sub-callees ---
+// --- cached type ids and .rdata float consts ---
 
 static uint32_t s_tid_CitizenDescription   = 0;  // DWORD_1401c7190
 static uint32_t s_tid_HappinessDescription  = 0;  // DAT_1401c42f8

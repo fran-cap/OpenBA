@@ -81,8 +81,8 @@ def blob_size(header_text):
 
 
 def source_path(name):
-    """A source or header name relative to better_water/, or under a `winter_ice/` or `better_clouds/` prefix to
-    that directory."""
+    """A source or header name relative to better_water/, or under a `winter_ice/`, `better_clouds/`,
+    `fancy_terrain/` or `dof/` prefix to that directory."""
     if name.startswith("winter_ice/"):
         return os.path.join(ICE_DIR, name[len("winter_ice/"):])
     if name.startswith("better_clouds/"):

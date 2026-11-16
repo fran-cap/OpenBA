@@ -16,7 +16,7 @@ extern "C" int       EditTool_HarnessSelectCitizen(EditTool* editTool);  // B8: 
 extern "C" int       EditTool_HarnessSelectNearby(EditTool* editTool);  // B8: harness / port-only -- standalone driver entry, no retail symbol
 
 // The harness factories of the two build tools (placementtool.cpp / removaltool.cpp,
-// `CreateNewObject` with C linkage; src/diag/tool_harness.cpp is the caller).
+// the bodies `CreateNewObject` forwards to, with C linkage; src/diag/tool_harness.cpp also calls them).
 class PlacementTool;
 extern "C" PlacementTool* PlacementTool_Factory_SA(void);  // B8: harness / port-only -- standalone driver entry, no retail symbol
 class RemovalTool;

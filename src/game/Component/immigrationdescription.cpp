@@ -36,7 +36,7 @@
 #include "Component/ComponentDescription.h"   // the SerializeExternalArray<ComponentDescription> instantiation
 #include "object/TypeInfo.h"
 #include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
-#include "Game/exe_bodies.h"   // Reimpl_ExternalPtr_Serialize_StringTable (0x140002340)
+#include "Game/exe_bodies.h"
 #include <cstdint>
 #include <new>
 #include "Component/ComponentDescription.h"   // B8 RT2: ::Object::SerializeExternal<ComponentDescription> (the downcast needs it complete)

@@ -1,4 +1,4 @@
-// engine/src/ui/attendanceui.cpp
+// src/game/Dialog/attendanceui.cpp
 // Clean reimplementation of AttendanceUI game logic.
 //
 // AttendanceUI (0x38 bytes) — attendance progress bar panel.
@@ -28,8 +28,7 @@
 //
 // Both bodies have been ported in src/game/Dialog/attendanceui.cpp since that
 // file was written, and both were wired into NOTHING — the generic stub's 48
-// no-op slots. This is the "stub sweep is a WIRING job" shape again
-// (project_next_stub_controller_sweep): a ported body is not a reached body.
+// no-op slots. This is the "stub sweep is a WIRING job" shape again: a ported body is not a reached body.
 //
 // The count is not a label of its own; it is TEXT PARAMETER 0 of the panel's
 // ProgressElement ("{0} students" in the .rsc). With idx7 a no-op the parameter

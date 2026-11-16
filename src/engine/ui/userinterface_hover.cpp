@@ -2,12 +2,7 @@
 // src/engine/ui/userinterface_hover.cpp — Wave 10C lane UIF6
 // ============================================================================
 //
-// The four ORDINARY-MEMBER rows that entered the UI census last wave because
-// two faithful ports (lane ELEM's ??_7Element@UI@@6B@ slots and lane CLOSEDLG's
-// CloseDialog) began calling callees retail itself calls, and both lanes
-// resolved them BY NAME rather than through a silent address door. That is the
-// correct trade (reference_porting_can_grow_the_cutover_surface.md); this file
-// is the follow-through.
+// The four members this file defines:
 //
 //   0x180120830  ?IsInsideClipRegion@UserInterface@UI@@QEBA_NHH@Z
 //   0x180120af0  ?EndDragDrop@UserInterface@UI@@QEAAXXZ
@@ -16,35 +11,11 @@
 //                    V?$InternalPtr@VDialogInstance@UI@@@Object@@
 //                    V?$InternalPtr@VElement@UI@@@4@HH@Z
 //
-// All four were confirmed ABSENT from the tree before a line was written, by
-// ADDRESS and by MANGLED NAME across code/, runtime/, engine/ and standalone/
-// (reference_grep_for_the_port_before_writing_it.md). Every hit was a CONSUMER
-// -- an RT_EXPORT_ONCE / ResolveExport call site in element_vtable.cpp or
-// userinterface_close.cpp -- never a definition. `?BeginToolTip@` in particular
-// is referenced through a SPLIT STRING LITERAL (element_vtable.cpp:749-750),
-// which a naive grep for the full mangled name does not find; the search that
-// found it was for the bare identifier.
-//
-// ---------------------------------------------------------------------------
-// THE ONE ADDRESS DOOR, DECLARED RATHER THAN HIDDEN
-// ---------------------------------------------------------------------------
 // 0x180033690 `Collection::Array<UI::Event>::SetSize(int, const Event*)` and
 // 0x18007a0d0 `Collection::Array<InternalPtr<DialogInstance>>::SetSize` are the
-// only two callees in this file with no exported name (checked against the
-// shipped export table with pefile, not assumed). NEITHER IS NEW DEBT:
-//   * 0x180033690 is already owned by userinterface_frame.cpp:216,
-//     userinterface_close.cpp:201 and element_vtable.cpp:177 -- this is the
-//     FOURTH call site of the same helper, not a fourth obligation.
-//   * 0x18007a0d0 is already owned by userinterface_showdialog.cpp:110, and is
-//     already PORTED and registered by src/engine/collection/array.cpp
-//     (J3_ENTRY3(18007a0d0, kSpec_Fill8Z)).
-// Both go through ResolveAddr(Module::Runtime, ...), which consults the port
-// registry FIRST, so a port of either is reached
-// (reference_resolveaddr_consults_port_registry_first.md).
-//
-// EVERY OTHER callee is reached by NAME. That was checked against the export
-// table rather than assumed -- several of them mangle `QEAA`/`SA`, and this DLL
-// exports its private members anyway (reference_aeaa_is_private_not_unexported).
+// only two callees in this file with no exported name in retail. Both are
+// called directly as rtcoll::RtColl_ArraySetSizeFill_180033690 /
+// rtcoll::RtColl_ArraySetSizeFill_18007a0d0 (collection/Collection.h).
 // ============================================================================
 
 #include <cstdint>
@@ -57,10 +28,6 @@
 #include "ui/ToolTipDialog.h"
 #include "ui/String.h"
 #include "system/Timer.h"   // ENDGAME B.3.9 SS1: Timer::_secondsPerTick
-// ResolveAddr lives in standalone/resolve.h, which drags in <windows.h> and so
-// must not be included from runtime/src (rt_port.h explains why).
-// ENDGAME B.3.6 block E: element_common.h carries the declaration exactly as
-// ~30 sibling runtime files spell it, and the RULE B6-5 atomic door caches.
 #include "element_common.h"
 #include "collection/Collection.h"
 
@@ -86,15 +53,7 @@ void GetToolTipStringInto(const Element* elem, System::String* ret) {
 }
 
 // ---------------------------------------------------------------------------
-// ENTRY COUNTERS — the evidence that a registered body RAN AT ALL.
-//
-// Deliberately separate from any oracle counter: none of those could
-// distinguish "the port ran and the oracle was quiet" from "the port was never
-// reached"
-// (reference_calls_zero_can_mean_always_took_the_uncovered_branch.md,
-// reference_uncalled_port_is_not_verified.md). These count EVERY entry in EVERY
-// configuration and print unconditionally, so a zero here means the row is
-// registered and DEAD whatever else the board says.
+// ENTRY COUNTERS, printed once at exit by g_hoverSummary's destructor below.
 // ---------------------------------------------------------------------------
 uint64_t g_clipEntries       = 0;
 uint64_t g_clipInside        = 0;   // effectiveness control: how many said true
@@ -180,7 +139,7 @@ bool UI::UserInterface::IsInsideClipRegion(int32_t x, int32_t y) const {
 //
 //  1. The event's `elementId` field (+0x14) is -1 here, where EndHover writes 0.
 //     0x180120b2e: MOV dword ptr [RSP+0x34],0xffffffff.
-//  2. +0x24 of the record is NEVER WRITTEN (see EventRecord above). The record
+//  2. +0x24 of the record is NEVER WRITTEN (see the `UI::Event` note above). The record
 //     is a raw stack local in retail and stays one here.
 //  3. `_dragDropActive` (+0x88) is NOT cleared, even though every neighbouring
 //     field is. Retail simply does not touch it -- the stores stop at +0x80.
@@ -251,7 +210,7 @@ void UI::UserInterface::EndDragDrop() {
 // ============================================================================
 // ENDGAME B.3.6 block E: this is a `UI::DialogInstance` member (block B
 // declared it on the real class and left it undefined because the body lives
-// in this file); DEFINED here, the door delegates.
+// in this file); DEFINED here.
 void UI::DialogInstance::EndHover(UserInterface* ui) {
     ++g_endHoverEntries;
 
@@ -284,7 +243,7 @@ void UI::DialogInstance::EndHover(UserInterface* ui) {
 // Both InternalPtr<> parameters are passed BY ADDRESS, not by value: MSVC hands
 // a class with a non-trivial copy constructor to a callee by hidden reference,
 // and the disassembly reads through both (MOV RAX,[R8] at 0x18012088e, MOV
-// RCX,[R14] at 0x180120904). element_vtable.cpp:747 already calls it that way,
+// RCX,[R14] at 0x180120904). element_vtable.cpp already calls it that way,
 // passing `&dlgLocal` / `&elemLocal`, so the two agree.
 //
 // THE FOUR EARLY-OUT GUARDS (0x18012088e..0x1801208b8), all on the ELEMENT:
@@ -298,7 +257,7 @@ void UI::DialogInstance::EndHover(UserInterface* ui) {
 // compares a register with ITSELF, so the branch is never taken and the guard
 // it looks like is inert: an existing tooltip is ALWAYS closed. This is the
 // same class of thing as the "retail re-tests `tip`" note at
-// element_vtable.cpp:781 -- it is the body, so it is reproduced. Writing the
+// element_vtable.cpp -- it is the body, so it is reproduced. Writing the
 // comparison the code LOOKS like it wanted (tip->_dataSource != elem) would be
 // a behavioural change, not a cleanup.
 //
@@ -310,7 +269,7 @@ void UI::DialogInstance::EndHover(UserInterface* ui) {
 
 // ENDGAME B.3.6 block E: the body is the member. Both InternalPtr arguments are
 // the ADDRESSES of the caller's temporaries (RULE B6-11, see above), spelled
-// `dlgPtr`/`elemPtr` below as the port always spelled them.
+// `dialog`/`element` below.
 void UI::UserInterface::BeginToolTip(Object::InternalPtr<DialogInstance>* dialog,
                                      Object::InternalPtr<Element>* element,
                                      int32_t x, int32_t y) {
@@ -333,9 +292,8 @@ void UI::UserInterface::BeginToolTip(Object::InternalPtr<DialogInstance>* dialog
     }
 
     // --- allocate and construct the ToolTipDialog ---------------------------
-    // 0xc0 is retail's literal, and it is why DialogInstance.h's size assert
-    // says the ALLOCATED size of a DialogInstance-derived object is 0xc0 while
-    // the ctor-initialised extent is 0xb8.
+    // 0xc0 is retail's literal: `UI::ToolTipDialog` is 0xc0 bytes, DialogInstance's
+    // 0xb8 plus the two dwords it adds at +0xb8/+0xbc (DialogInstance.h).
     //
     // `??2ToolTipDialog` stays a MemoryAllocator door (B36_RULES 7). ENDGAME
     // B.3.9 UI-D: the construction is retail's inlined ??0ToolTipDialog
@@ -359,7 +317,7 @@ void UI::UserInterface::BeginToolTip(Object::InternalPtr<DialogInstance>* dialog
     // RELEASES that string, and then asks a SECOND time on the non-empty arm.
     // The double call is retail's (0x180120948 and 0x18012099f); it is not
     // hoisted, because GetToolTipString is not obviously pure and hoisting it
-    // would change the refcount traffic the DLL sees.
+    // would change the refcount traffic.
     bool nonEmpty;
     {
         System::String probe;
@@ -396,7 +354,7 @@ void UI::UserInterface::BeginToolTip(Object::InternalPtr<DialogInstance>* dialog
 
     if (self->_toolTipDialog != nullptr) {                              // 0x180120a0c
         // y is offset UP by the tooltip root element's laid-out height, so the
-        // tip sits ABOVE the cursor. element_vtable.cpp:761 does the same sum
+        // tip sits ABOVE the cursor. element_vtable.cpp does the same sum
         // for the tooltip MOVE arm, from the same two offsets. `_root` (+0x50)
         // through the dialog's own one-load accessor (0x180045580).
         const int32_t h = self->_toolTipDialog->GetRoot()->_layoutHeight;   // 0x180120a15 / 0x180120a1d

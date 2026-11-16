@@ -7,8 +7,7 @@
 #                       them on N parallel processes (run_unit below)
 #   backend [flavour]   compile the renderer backend's own sources as OpenBA would, link nothing
 #                       (target render-backend; CI's second Windows configure)
-#   deploy  [flavour]   build + copy the exe to the game directory (BANISHED_DIR), then
-#                       tools/ext_resources.sh --deploy (the extension .crs files, loose in WinData/Dialog/)
+#   deploy  [flavour]   build + copy the exe to the game directory (BANISHED_DIR)
 #   run     [flavour]   deploy + launch with BANISHED_AUTOSTART=1 and /profile:faithful (THE GATE's by-hand run)
 #   run-menu [flavour]  deploy + launch, stops at the main menu
 #   stress  [flavour]   build perf (default), deploy, tools/stress_run.sh --no-build $STRESS_ARGS
@@ -22,8 +21,8 @@
 #               Metal on Darwin.
 #   flavours: debug (default) | og | perf | release   -- CMakeLists.txt's BANISHED_FLAVOUR
 #
-# Jobs: --jobs N or BUILD_JOBS (default 8 since 2026-10-17, the user: no wide multi-agent builds any more; agents still use 2 -- memory
-# feedback_build_parallelism_low_memory). Extra cmake args: CMAKE_EXTRA (e.g. "-DBANISHED_USE_CCACHE=OFF").
+# Jobs: --jobs N or BUILD_JOBS (default 8 since 2026-10-17, the user: no wide multi-agent builds any more; agents use
+# jobs = 8 / agents building at once, minimum 2). Extra cmake args: CMAKE_EXTRA (e.g. "-DBANISHED_USE_CCACHE=OFF").
 # Toolchain: cmake + ninja from pip on PATH; on Windows the compiler is the PINNED WinLibs GCC
 # (tools/toolchain/install_winlibs.sh; docs/reference/environment.md), found through BANISHED_GCC_DIR
 # (default C:/winlibs-gcc16/mingw64/bin), put first on PATH here and handed to CMake explicitly; a build dir
@@ -69,7 +68,7 @@ elif [ "$EXT" = .exe ]; then
   BACKEND_CMAKE="-DBANISHED_RENDER_BACKEND=dx11+vulkan"
   WANT_BACKEND="dx11+vulkan"
 fi
-# The checking builds (CMakeLists.txt BANISHED_SANITIZE, docs/reference/checking_builds.md): env
+# The checking builds (CMakeLists.txt BANISHED_SANITIZE): env
 # BANISHED_SANITIZE=check|asan|ubsan|tsan|fuzz keys its own build directory, build/cmake-<flavour>[-<backend>]-<sanitize>.
 SANITIZE="${BANISHED_SANITIZE:-none}"
 if [ "$SANITIZE" != none ]; then

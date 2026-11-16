@@ -23,8 +23,8 @@
 #include "object/Internal.h"   // ENDGAME B.3.4 caller batch G
 
 // FUN_14000d030 -- resize Vector3 array. ENDGAME B.3.2 step 2: this IS
-// Collection::Array<Vector3>::SetSize — Persist's call site goes straight through
-// the GameColl bridge. (The free BoatComponent_ResizeVec3Array copy and its
+// Collection::Array<Vector3>::SetSize — Persist calls route.SetSize(count)
+// directly. (The free BoatComponent_ResizeVec3Array copy and its
 // reader-less 0x14000d030 row went at the B.3.8 close.)
 
 // ============================================================================

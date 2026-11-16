@@ -35,7 +35,7 @@
 //   0x1400537f0  ParticleStopFade— fade the infestation VFX out (sign-flipped rate)
 //
 // ⚠ Ghidra's symbol names for this class are shifted by one vtable slot. Slots were
-// identified by READING THE VTABLE BYTES at 0x140159290 (see engine/types/DiseaseComponent.h):
+// identified by READING THE VTABLE BYTES at 0x140159290 (see src/game/Component/DiseaseComponent.h):
 //   Ghidra "_Shutdown"(0x140048ca0) is slot 3 Serialize; "_Serialize"(0x140048c50) is
 //   slot 4 Startup; "_Draw"(0x140048c00) is slot 6 OnAdded; "_OnCreate"(0x140048bb0)
 //   is slot 7 OnRemoved. The call targets in OnAdded/OnRemoved were confirmed by
@@ -71,10 +71,7 @@
 // Once infested it is very visible: duration 8 months (pasture 12), a kill every
 // 0.03 months and a spread attempt every 0.125.
 //
-// Opt-in.  BANISHED_LIVE_CROPDISEASE=1 graduates vtable slots 3/4/6/7/9 to the
-// real bodies. Unproven feature => NOT in the default-on table. With the gate off the
-// component stays byte-for-byte the inert component it was before this wave.
-// Trace: BANISHED_CROPDISEASE_TRACE (defaults ON when the feature is live, =0 mutes).
+// Trace: BANISHED_CROPDISEASE_TRACE (off when unset; a non-empty value not starting with '0' turns it on).
 
 #include "Component/diseasecomponent_funcs.h"
 #include "options.h"
@@ -132,26 +129,27 @@ namespace {
 
 // ============================================================
 // Leaves, called directly — every one is ported elsewhere:
-//   0x140004fe0 PastureComponent finder   WorkLeaf_FindComp_4fe0
-//   0x140004680 MapComponent finder       FloorComponent_FindResData
-//   0x140005200 ParticleComponent finder  NaturalResourceComponent_FindComponentByType
-//   0x1400052c0 NaturalResource finder    WorkBase_FindComponent_52c0
-//   0x140005500 AnimalComponent finder    ActHunt_FindComponent_5500
-//   0x140003ea0 StateMachine finder       PlayerPath_FindComponent_3ea0
-//   0x140005160 description finder        DragTool_FindDescription_5160
-//   0x14009fc00 GetTilesInArea            WorkLeaf_GetTilesInArea_9fc00
-//   0x1400c2ea0 MarkRemoval               ActHunt_MarkEntityRemoval_c2ea0
-//   0x140003110 ResizeFill                ActHunt_DynArraySetCount_3110
+//   0x140004fe0 PastureComponent finder   FindComponent<PastureComponent>
+//   0x140004680 MapComponent finder       FindComponent<MapComponent>
+//   0x140005200 ParticleComponent finder  FindComponent<ParticleComponent>
+//   0x1400052c0 NaturalResource finder    FindComponent<NaturalResourceComponent>
+//   0x140005500 AnimalComponent finder    FindComponent<AnimalComponent>
+//   0x140003ea0 StateMachine finder       FindComponent<StateMachineComponent>
+//   0x140005160 description finder        FindDescription<ToolbarDescription>
+//   0x14009fc00 GetTilesInArea            Map::GetTilesInArea
+//   0x1400c2ea0 MarkRemoval               ComponentEntity::MarkForRemoval
+//   0x140003110 ResizeFill                Array<T>::SetSize / SetSizeFill
 //   0x140002cc0 EraseByValue              Array<T>::Remove
-//   0x140002340 ExternalPtr serialize     Reimpl_ExternalPtr_Serialize_StringTable
-//   0x140126440 SetAnimIndex              ActCNR_SetAnimIndex_126440
-//   0x140005380 / 0x140005440 CropField / Orchard finders WorkAcc_FindComponent_5380/_5440
+//   0x140002340 ExternalPtr serialize     Object::SerializeExternal<ComponentDescription>
+//   0x140126440 SetAnimIndex              NaturalResourceComponent::SetAnimation
+//   0x140005380 CropField finder          FindComponent<CropFieldComponent>
+//   0x140005440 Orchard finder            FindComponent<OrchardComponent>
 // ============================================================
 
 // Event-log leaves exported from src/game/Game/eventlog.cpp.
 
 // Particle VFX (src/game/Component/particlecomponent.cpp, 0x140053660):
-// ParticleComponent_StartEmitterFade, declared in particlecomponent_funcs.h.
+// ParticleComponent::StartEmitterFade, declared in ParticleComponent.h.
 
 static int  s_trace = -1;
 
@@ -290,7 +288,7 @@ extern "C" ComponentDescription** DiseaseComp_GrownIdentity(ComponentDescription
 // ============================================================
 // 0x1400537f0 — ParticleComponent: fade the emitters OUT
 // ============================================================
-// Sibling of ParticleComponent_StartEmitterFade (0x140053660). Writes the same
+// Sibling of ParticleComponent::StartEmitterFade (0x140053660). Writes the same
 // per-emitter fade-rate field (geoArray + i*0x18 + 0x10) but XORs the float's BIT
 // PATTERN with 0x80000000 (the .rdata sign mask at 0x1401722c0) to negate it —
 // a *bit* operation, not a numeric cast, whatever the decompiler's `(uint)` says.
@@ -327,7 +325,7 @@ bool DiseaseComponent::CheckCure() {
         PastureComponent* pasture = _entity->FindComponent<PastureComponent>();   // 0x140004fe0
         // Faithful: retail derefs unguarded — isPasture==1 means the finder
         // already located a PastureComponent at Startup. The herd count is
-        // PastureComponent::animalCount.
+        // the size of PastureComponent::animals (+0x38).
         if (pasture->animals._size != 0) return false;
         return true;
     }
@@ -566,7 +564,7 @@ void DiseaseComponent::KillOneAnimal() {
     EntityList* entityMgr = gw ? gw->m_entityList : nullptr;
 
     PastureComponent* pasture = _entity->FindComponent<PastureComponent>();   // 0x140004fe0
-    // The herd (+0x30 animals, +0x38 animalCount).
+    // The herd (+0x30 animals, its count at +0x38).
     if (pasture->animals._size == 0) return;
 
     int attempts = 0;

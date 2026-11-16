@@ -6,16 +6,16 @@
 //
 // Layout:
 //   +0xB8  mode (byte): 0 = save mode, nonzero = load mode
-//   +0xB9  saveFlag (byte): set to 1 when save completes
-//   +0xBA  loadFlag (byte): set to 1 when load completes
+//   +0xB9  saveFlag (byte): set to 1 when a save is started
+//   +0xBA  loadFlag (byte): set to 1 when a load is started
 //   +0xBB  refreshFlag (byte): set to 1 to trigger file list refresh
-//   +0xBC  deleteFlag (byte): set to 1 when delete completes
+//   +0xBC  deleteFlag (byte): set to 1 when a delete is started
 //   +0xC0  selectedIndex (int32): currently selected save slot (-1 = none)
 //   +0xC4  saveCount (int32): number of save files
 //   +0xC8  rotation (float): loading spinner angle
 //   +0xD0  sprite (16 bytes): UI::Sprite sub-object
-//   +0xE0  loaderLoop1 (ptr): used for save/load transition
-//   +0xE8  loaderLoop2 (ptr): used for save/load transition
+//   +0xE0  menuLoop (ptr): the owning front-end menu loop (0 in game)
+//   +0xE8  game (ptr): the running game (0 at the front end)
 //   +0xF0  mainPage (InternalBasePtr): PageElement for page switching
 //   +0xF8  labelLoad (InternalBasePtr)
 //   +0x100 labelSave (InternalBasePtr)
@@ -55,7 +55,7 @@
 #include "Dialog/ui_dialogs.h"
 // ENDGAME B.3.5 batch K1: the runtime type headers come FIRST — they reach
 // src/engine/volume/Volume.h, whose global-scope `struct Rectangle` is hidden by
-// <wingdi.h>'s `Rectangle()` once <windows.h> has been seen through resolve.h.
+// <wingdi.h>'s `Rectangle()` once <windows.h> has been seen.
 #include "video/ImageBuffer.h"
 #include "graphics/Material.h"
 #include "options.h"
@@ -79,7 +79,7 @@
 #include "Dialog/exe_bodies.h"
 #include "Game/exe_constants.h"   // B3R: kRdata_*
 #include "system/Configuration.h"   // B3R: System::Configuration::GetVersionString
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
 
 
 #include "Game/MenuDialogLoopT.h"
@@ -437,7 +437,7 @@ void SaveLoadDialog::OnOpened() {
 }
 
 // ============================================================
-// Update (vtable +0x30): Refresh file list, update preview
+// OnUpdateLayout (vtable +0x30): pages, buttons, selection marks and status text
 // ============================================================
 // Original: 0x1400b6880
 //
@@ -573,7 +573,7 @@ void SaveLoadDialog::OnUpdateLayout() {
 }
 
 // ============================================================
-// Load (vtable +0x38): Process timed operations, trigger state transitions
+// OnUpdate (vtable +0x38): Process timed operations, trigger state transitions
 // ============================================================
 // Original: 0x1400b79b0
 //
@@ -1082,7 +1082,7 @@ void SaveLoadDialog::DoLoad() {
 }
 
 // ============================================================
-// SaveLoadDialog::OnEvent (0x1400b67e0) — Slot8
+// SaveLoadDialog::OnElementEvent (0x1400b67e0) — Slot8
 // ============================================================
 // Handles button clicks and list selection changes.
 // eventType 2 = list selection change:
@@ -1156,8 +1156,7 @@ void SaveLoadDialog::OnElementEvent(Object::InternalPtr<UI::Element>* element, U
 #include "Object/factory_registration.h"
 
 // ENDGAME B.3.8 block DLG: SaveLoadDialog is a real class (Dialog/SaveLoadDialog.h);
-// the hand-built table is gone. engine_funcs.cpp does not read 0x14015f900 back,
-// so its registration went with the table; the ctor door stays.
+// the compiler emits its table.
 
 // The ctor body of exe 0x1400b8270 after the DialogInstance base ctor: mode
 // byte at +0xB8, flags/selection/rotation zeroed, Sprite default-ctor at +0xD0,

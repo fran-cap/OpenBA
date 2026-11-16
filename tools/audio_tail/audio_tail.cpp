@@ -11,11 +11,11 @@
 // stands out from the body is a click retail's XAudio2 plays too (the PCM is the
 // decoder's, measured within 1 LSB of XAudio2: handins/XWMA.md).
 //
-// Build (from the repo root, after `mingw32-make standalone-debug` built the
+// Build (from the repo root, after `tools/build.sh build` built the
 // decoder library):
 //   g++ -std=c++17 -O1 -I. -Isrc/engine -Isrc/platform/common -Ithird_party/wmadec/include \
 //       tools/audio_tail/audio_tail.cpp src/engine/audio/xwma_decode.cpp \
-//       build/third_party/wmadec/libwmadec.a -o build/audio_tail.exe
+//       build/cmake-debug/third_party/wmadec/libwmadec.a -o build/audio_tail.exe
 // Run:  build/audio_tail.exe <run.bin>...        (one line per file)
 //       build/audio_tail.exe --pcm out.raw <run.bin>   (also writes the S16 PCM)
 // ============================================================================

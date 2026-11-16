@@ -2,7 +2,7 @@
 // src/ext/item_limits/panel_row.cpp -- ext.item_limits' row on the workshop panel
 // ============================================================================
 // docs/extensions/handins/ITEMLIMITS.md section 4. A workshop's panel (ConsumeProduceUI, consumeproduceui.cpp)
-// gets one more row under its category limit ("Tools Limit [200]"): a check box, "<product> limit" and a
+// gets one more row under its Product row (the combo's row): a check box, "<product> limit" and a
 // spinner. The row is our own description (ItemLimitsPanel.rsc:ribbonItemLimitsRow: the check box and the
 // text); the spinner is a copy of the category limit's own spinner ("editLimit", ResourceLimitUI), made from
 // its description, so it looks exactly like the category limit's in the retail panel or a mod's. A vertical
@@ -10,7 +10,7 @@
 // that row, then ours, so ours gets its own line under it and the panel grows by its height. Under the category
 // limit it overlapped: that row sits in the tab strip, the page below does not follow its height, and a
 // second category row (a sawmill's) has its own fixed place.
-// A panel with no category limit spinner gets no row (logged once).
+// A panel with no category limit spinner gets no row (logged the first four times).
 //
 // The row follows the product the panel's combo selects. Checked = that item has its own limit, the
 // spinner's value; unchecked = only the category limit applies. The limit is the item's, town-wide (one

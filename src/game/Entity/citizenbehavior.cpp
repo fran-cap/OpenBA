@@ -36,12 +36,12 @@
 #include "Entity/ComponentEntity.h"
 #include "Game/ProfessionList.h"
 #include "Entity/exe_bodies.h"
-#include "Action/exe_bodies.h"      // Pf_IsDstReachable_f810, Pf_EntityAnchorCell_7fb0, PathPairs_Clear_25b30
+#include "Action/exe_bodies.h"      // EntityAnchorCell, PathPairs_Clear_25b30
 #include "Action/PathAvl.h"         // PathCostTreeInsert (0x140025a10)
-#include "Component/exe_bodies.h"   // CitizenEmploy_Strat_c4b0, PathGraph_ReassignWorkers, CitizenAssignCitizens, CitizenComp_AssignHousing
+#include "Component/exe_bodies.h"
 #include "diag/stress_harness.h"     // g_pfProfOn, the [Stress::pathgraph] drain line
-#include "Game/exe_bodies.h"        // EventLog_AddEvent, ResizeStride0x20
-#include "Work/exe_bodies.h"        // WorkBase_TreeNodeFree_e320, WorkBase_CalcDistance_8830
+#include "Game/exe_bodies.h"
+#include "Work/exe_bodies.h"        // WorkBase_TreeNodeFree
 #include "Game/EventLog.h"   // EventLog::AddEvent (0x140095580)
 #include "Action/region_search.h"   // RegionSearch::Stats (the [Stress::pairs] line)
 #include "diag/err_line.h"          // ErrLine: one write per diagnostic line
@@ -50,8 +50,8 @@
 #include "Object/type_cache.h"   // PERF (TYPECACHE): Type() through the vptr cache
 #include <chrono>
 
-// Tick-driven Builder pool (builder_pool_driver.cpp). No-op unless BANISHED_BUILDER_NATURAL
-// is set. Called at the end of CitizenBehavior_Update.
+// Builder pool tick (builder_pool_driver.cpp): an empty body. Called at the end of
+// CitizenBehavior::Update.
 extern "C" void BuilderPool_Tick();
 
 
@@ -125,8 +125,7 @@ void CitizenBehavior::Update(const System::Time* deltaTime) {
             if (pg) pg->BuildPathGraph();
         } else if (pg && pg->m_pendingIdx < 0 && pathInterval < pathGraphTimer._ticks) {
             // Clamp accumulated time: subtract intervals until within one interval.
-            // Guard against pathInterval <= 0 (BANISHED_PATHGRAPH_FAST forces 0, or a failed
-            // interval resolve) â€” `acc -= 0` would spin forever. This branch is reached only
+            // Guard against pathInterval <= 0: `acc -= 0` would spin forever. This branch is reached only
             // when ProcessPaths returns true (pairs drained), which requires townMgr+0x100 to
             // be non-empty (e.g. a registered construction site) â€” so it stayed latent until
             // the natural builder flow first populated that BST.
@@ -160,12 +159,9 @@ void CitizenBehavior::Update(const System::Time* deltaTime) {
         diseaseRiskTimer._ticks = 0;
     }
 
-    // Tick-driven Builder pool (BANISHED_BUILDER_NATURAL, opt-in): keep registered
-    // construction sites staffed by seating idle Laborers as Builders via the real
-    // FindAvailableBuilding cascade, nearest-first, capped by site capacity. No-op unless
-    // the natural flow is enabled. This is the headless stand-in for the player's town-hall
-    // Builder count â€” the engine has no player-free first-builder seater (the periodic
-    // employment allocator only rebalances already-staffed sites). See builder_pool_driver.cpp.
+    // Tick-driven Builder pool (builder_pool_driver.cpp): the body is empty. The engine has no
+    // player-free first-builder seater (the periodic employment allocator only rebalances
+    // already-staffed sites); see that file's header.
     BuilderPool_Tick();
 }
 
@@ -231,14 +227,14 @@ void PathGraph::CostClear() {
 }
 
 // ============================================================
-// CitizenBehavior::ProcessPaths (0x1400d6f00)
+// PathGraph::ProcessPaths (0x1400d6f00)
 // ============================================================
 // Processes up to 7 pending path distance calculations per call.
-// For each pair (cellA, cellB), computes path cost via fn_Map_CalcPathCost.
+// For each pair (cellA, cellB), computes path cost via Map::PathDistance.
 // If cost < 2 (unreachable), falls back to Euclidean grid distance.
 // Stores result in a BST keyed by (max(regionA, regionB), min(regionA, regionB)).
 // When all pairs are processed (pendingIdx < 0), triggers worker reassignment
-// via fn_PathGraph_ReassignWorkers and fn_PathGraph_AssignCitizens.
+// via PathGraph::ReassignWorkers and PathGraph::AssignCitizens.
 //
 // Original: FUN_1400d6f00
 // NOT RETAIL -- HITCH_PAIRSPREAD diagnostic (only while g_pfProfOn): one [Stress::pairs]
@@ -390,7 +386,7 @@ bool PathGraph::ProcessPaths() {
 }
 
 // ============================================================
-// CitizenBehavior::BuildPathGraph (0x1400d70c0)
+// PathGraph::BuildPathGraph (0x1400d70c0)
 // ============================================================
 // Rebuilds the path distance graph when no computation is pending.
 // 1. Collects grid cell IDs for all buildings
@@ -470,7 +466,7 @@ void PathGraph::BuildPathGraph() {
     // The map's cell array, for region lookups
     MapCell* cells = map->cells.GetData();
 
-    // Building list at citizenBehavior+0xb0 (via game world +0xb0)
+    // The ProfessionList at game world +0xb0 (m_professionList)
     int profGroupCount = buildingList->professions.GetSize();
 
 
@@ -602,7 +598,7 @@ void PathGraph::BuildPathGraph() {
 // ============================================================
 // CitizenBehavior::CountResources (0x140089ed0)
 // ============================================================
-// Iterates two entity arrays (workplaces at +0x00/+0x08 and buildings
+// Iterates two entity arrays (storageLocations at +0x00/+0x08 and marketLocations
 // at +0x10/+0x18), finds StorageComponent on each entity, then iterates
 // stored items to find RawMaterialDescription and tally resource counts
 // by profession type (RawMaterialFlags at +0x5c of the description).
@@ -618,7 +614,7 @@ void PathGraph::BuildPathGraph() {
 // DISASM-FAITHFUL — verified against 0x140089ed0 on 2026-07-19. NOTE: the
 // flag/profession NAMES were derived from the old wrong toolkit-order flag
 // table; the real bit 5 = EDIBLE (not Fuel), bit 6 = Fuel — and bit 6 is not
-// tallied here at all. See engine/types/RawMaterialDescription.h.):
+// tallied here at all. See Component/RawMaterialDescription.h.):
 //   bit 5  (Edible)    -> entry 5                  offset 0xa0
 //   bit 7  (Wood)      -> entry 3  (Fisherman)    offset 0x60
 //   bit 8  (Stone)     -> entry 9  (Stonecutter)  offset 0x120
@@ -809,7 +805,7 @@ void CitizenBehavior::CountResources() {
             uint32_t flags = rawMat->_flags;
 
             // Update notification summary: split by flag 0x1c40
-            // 0x1c40 = Tool(6) | Health(10) | Clothing(11) | Textile(12)
+            // 0x1c40 = Fuel(6) | Wood(10) | Stone(11) | Iron(12) (RawMaterialFlags)
             if (notifySummary) {
                 if ((flags & 0x1c40) == 0) {
                     // Normal resources (food, fuel, etc.)
@@ -902,7 +898,7 @@ void CitizenBehavior::CountResources() {
 // Original: Entity_helper_c100
 void CitizenBehavior::CheckThresholds(const System::Time* deltaTime) {
     float notifyInterval = 120.0f; // DAT_140172210 = 120.0f seconds
-    // GameUpdateLoop +0x138 is the event notifier (still void* in GameUpdateLoop.h)
+    // GameUpdateLoop +0x138 is the event notifier (m_eventNotifier, an EventLog*)
     EventLog* notifMgr = GameUpdateLoop::_singleton->m_eventNotifier;
 
     // Part 1: Check profession resource thresholds (21 entries)
@@ -1003,7 +999,7 @@ void CitizenBehavior::CheckThresholds(const System::Time* deltaTime) {
 //     +0x50: educated percentage (0-100)
 //     +0x60: health percentage (0-100)
 //     +0x70: working percentage (0-100)
-//   +0x80..+0x490: 21 profession entries, each 0x30 bytes with 3 sub-arrays:
+//   +0x80..+0x460: 21 profession entries, each 0x30 bytes with 3 sub-arrays:
 //     +0x00: currentCount (profRes entry +0x00)
 //     +0x10: field_0C (profRes entry +0x0C) — accumulated per-tick resource delta
 //     +0x20: field_10 (profRes entry +0x10) — accumulated resource count

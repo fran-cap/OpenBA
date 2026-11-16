@@ -1,4 +1,4 @@
-// engine/src/ui/residenceui.cpp
+// src/game/Dialog/residenceui.cpp
 // Clean reimplementation of ResidenceUI game logic.
 //
 // ResidenceUI (0x40 bytes) — residence info panel.
@@ -40,7 +40,7 @@
 #include "Component/StorageComponent.h"     // fix.residence_goto faithful arm (finder 0x140006270)
 #include "ext/registry.h"                   // Ext::Fix().residence_goto
 #include "Entity/ComponentEntity.h"   // X::TypeId() (B.3.8 callers)
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"
 #include "Game/exe_constants.h"   // B3R: kRdata_*
 #include "Dialog/ResidenceUI.h"
 #include "Game/Profession.h"
@@ -51,11 +51,8 @@
 #include "Component/AttendanceComponent.h"   // B4 S4 RT2: InternalPtr<AttendanceComponent>::Get() needs the class complete
 #include "Game/PlayerToolManager.h"   // CenterOnEntity 0x140103040 (row 452)
 
-// ResidenceUI::Slot7 is the per-frame roster refresh (driven via the +0x40 W_OnUpdate
-// hack in standalone). Its _DEBUG bring-up logs used to fflush an unbuffered log once
-// per resident EVERY frame — the dominant cost that tanked the framerate once a second
-// entity panel could stay pinned open. Gate them behind BANISHED_DIALOG_TRACE (cached
-// once). Kept inside _DEBUG so release builds are unchanged.
+// ResidenceUI::Slot7 is the per-frame roster refresh (driven from the slot-8 OnUpdate
+// below in standalone).
 #ifdef _DEBUG
 #endif
 
@@ -183,24 +180,16 @@ void ResidenceUI::OnCreated() {
 }
 
 // ============================================================
-// ResidenceUI::Slot9 (vtable +0x48) — Button dispatch
-// ============================================================
-// Handles resident row button clicks. Each row has element ID = 300 + index.
-// Clicking navigates camera to that resident citizen.
-//
-// Original: 0x1400B5820.
-
-// ============================================================
 // ResidenceUI::Slot7 (vtable +0x38) — Update resident display
 // ============================================================
-// Iterates storage component rooms to display resident info per row.
+// Iterates the ResidenceComponent's families to display resident info per row.
 // For each occupied slot: show gender icons, set name/age/profession text.
 // For unused rows beyond active count: hide and clear.
 //
-// Storage layout: +0x50 = room array ptr (0x10-byte entries: ptr, count),
-//                 +0x58 = room count.
+// ResidenceComponent layout: +0x50 = family array ptr (0x10-byte entries: ptr, count),
+//                            +0x58 = family count.
 // Each resident ptr -> citizen entity with name at +0x28, gender at +0x38,
-// age at +0x3c, profession at +0x1f0, description at +0x288, death at +0x208.
+// age at +0x3c, profession at +0x1f0, description at +0x288, school at +0x208.
 //
 // Original: 0x1400B51F0.
 
@@ -326,10 +315,10 @@ void ResidenceUI::OnUpdateLayout() {
                     if (textAge) textAge->SetParameter(0, ageStr);
 
                     // Determine profession text. Faithful to retail 0x1400B51F0:
-                    //   if (age < desc.childThreshold(+0x44) || job(+0x208) != 0):
-                    //       job == 0 -> ProfessionList+0x40 (child/student label)
-                    //       job != 0 -> ProfessionList+0x48 (employed label)
-                    //   else (adult, no job) -> the citizen's own profession (+0x1f0)
+                    //   if (age < desc.adultAge(+0x44) || school(+0x208) != 0):
+                    //       school == 0 -> ProfessionList+0x40 (child label)
+                    //       school != 0 -> ProfessionList+0x48 (student label)
+                    //   else (adult, not at school) -> the citizen's own profession (+0x1f0)
                     // (The prior port had these branches scrambled and read +0x208 as a
                     //  "dead" flag; corrected here.) Every deref is range-guarded so a
                     // standalone citizen with a garbage description cache can't fault.
@@ -349,13 +338,13 @@ void ResidenceUI::OnUpdateLayout() {
                                           ? static_cast<const CitizenDescription*>(descPtr)->adultAge : 1e30f;
 
                     // UI::String ctor needs 3 args: (retbuf, externalPtr at +0x20,
-                    // stringName at +0x30). fn_UIString_Ctor passes all three; the
-                    // Ghidra decompile drops R8 (the +0x30 name) on the call.
+                    // stringName at +0x30); the Ghidra decompile drops R8 (the +0x30
+                    // name) on the call.
                     UI::String uiStr;
                     bool builtProf = false;
                     if (age < oldAgeThreshold || jobEntity != nullptr) {
-                        // Child (no job) -> ProfessionList::childProfession (+0x40);
-                        // employed -> ProfessionList::studentProfession (+0x48).
+                        // Child (not at school) -> ProfessionList::childProfession (+0x40);
+                        // at school -> ProfessionList::studentProfession (+0x48).
                         GameUpdateLoop* world = GameUpdateLoop::_singleton;
                         ProfessionList* profList = world ? world->m_professionList : nullptr;
                         if (RUI_OkPtr(profList)) {

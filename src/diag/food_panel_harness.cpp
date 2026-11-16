@@ -1,7 +1,9 @@
 // src/diag/food_panel_harness.cpp
-// BANISHED_FOOD_PANEL=<class> — dialog harness for the six food-production panels.
+// BANISHED_FOOD_PANEL=<class> — dialog harness for the six food-production panels and
+// four non-food workplace panels.
 //
-//   <class> = cropfield | orchard | pasture | fishing | hunting | gatherer | all
+//   <class> = cropfield | orchard | pasture | fishing | hunting | gatherer |
+//             consumeproduce | market | forester | attendance | all
 //
 // The placement harnesses answer "does the building work"; this answers "does its
 // PANEL work", which is a separate failure surface with its own well-documented traps
@@ -12,8 +14,8 @@
 // For each class it reports, as OUTCOMES rather than intent:
 //   * whether an entity of that class exists at all,
 //   * whether selecting it actually opened a dialog,
-//   * every UI controller on that dialog (count + type id + name where resolvable),
-//   * whether the component's command slots 13/14 are filled, and
+//   * every UI controller on that dialog (count + type id), and whether the expected
+//     panel controller class, where one is known, is present, and
 //   * the CanCommand verdict for command ids 0..7, which is what greys or enables each
 //     panel button. "All zero" is the signature of a panel whose buttons are all dead.
 //
@@ -44,7 +46,7 @@
 #include "Dialog/ToolUI.h"
 #include "Dialog/WorkPlaceUI.h"
 #include "Dialog/exe_bodies.h"
-#include "Component/exe_bodies.h"   // CitizenComp_TryEnrolInSchool (0x140111840)
+#include "Component/exe_bodies.h"
 #include "object/TypeInfo.h"        // Object::IsDerivedFromNullSafe
 #include <cstdint>
 #include <cstdio>
@@ -64,12 +66,11 @@
 // EditTool_HarnessSelectEntity / _HarnessAcquire / _IsEditTool: Player/edittool_funcs.h.
 extern "C" class ComponentDescription* StartTown_ResolveTemplateByPath(const char* path);
 
-// EntityUI_SetEditMode_Impl: Dialog/exe_bodies.h.
-// Retail close path (port of Entity_impl_cc90 0x1400fcc90) — destroys the
-// DialogInstance and runs every controller's teardown. C++ linkage taking EditTool*,
-// so the real declaration is needed for the mangled name to match.
-// RadiusUI::Slot6 is dispatched through the controller's own vtable[6] instead of by
-// name, which is also the honest test: it proves the SLOT is filled, not just that a
+// SetEditMode is PlayerToolManager::SelectTool (Game/PlayerToolManager.h).
+// The retail close path (0x1400fcc90) is EditTool::CloseInfoDialog (Player/EditTool.h):
+// it destroys the DialogInstance and runs every controller's teardown.
+// RadiusUI's slot 6 (OnClosed) is dispatched through the controller's own vtable,
+// which is also the honest test: it proves the SLOT is filled, not just that a
 // body exists somewhere in the tree.
 #include "Player/edittool_funcs.h"
 
@@ -441,13 +442,11 @@ void ProbeClass(PlayerToolManager* entityUI, const FoodClass& fc) {
     //   (a) dispatch the controller's own idx6 and re-read +0x30 while the object is
     //       still ALIVE. Reading it after CloseDialog would be a use-after-free, and a
     //       freed-memory read that happens to contain -1 proves nothing.
-    //   (b) then run the real retail close path (EditTool_CloseInfoDialog ->
+    //   (b) then run the real retail close path (EditTool::CloseInfoDialog ->
     //       UI::UserInterface::CloseDialog), which destroys the DialogInstance and every
     //       controller. Slot6 gets dispatched a second time there, so this also proves
     //       the teardown is IDEMPOTENT — the second pass must see overlay=-1 and must
     //       not call RadiusDisplay_Remove again on a slot it no longer owns.
-    //
-    // Pair with BANISHED_DIALOG_TRACE=1 to see the `[RadiusUI] Slot6 ... overlay=N` lines.
     if (!ValOn(Opt().foodPanelClose)) return;
 
     const uint32_t tidRadius = RadiusUI::TypeId();
@@ -478,7 +477,7 @@ void ProbeClass(PlayerToolManager* entityUI, const FoodClass& fc) {
     }
 
     // BANISHED_FOOD_PANEL_CLOSE=2 — close through the PLAYER'S path: the panel's
-    // ToolUI close button (slot 9, msg 0x12 id 1), not EditTool_CloseInfoDialog.
+    // ToolUI close button (slot 9, msg 0x12 id 1), not EditTool::CloseInfoDialog.
     // That is the call site in the open HighlightClear crash report ("closing a
     // panel"), and it differs from the harness close in one way that matters: it
     // reaches Impl_cb40 through the ACTIVE tool it looks up itself, instead of the
@@ -696,7 +695,7 @@ void FollowUp(int frameNum) {
                                  want[k] == keyP ? "  == THIS building" : "");
                 }
                 // The SCHOOL key is the third ref, +0x20, consumed by the misnamed
-                // CitizenComp_TryEnrolInSchool (0x140111840) — enrollment, which runs ONLY
+                // CitizenComponent::TryEnrolInSchool (0x140111840) — enrollment, which runs ONLY
                 // at the child->adult transition. So an empty queue here is expected
                 // unless somebody actually grew up during the run.
                 if (czArr && czN > 0) {
@@ -763,8 +762,7 @@ void FollowUp(int frameNum) {
     std::fflush(stderr);
 }
 
-// The tool manager (gameupdateloop.cpp hands its `m_toolManager`; its local
-// declaration still spells the parameter void*).
+// The tool manager (gameupdateloop.cpp hands its `m_toolManager`).
 extern "C" void FoodPanel_Tick(PlayerToolManager* entityUI, int frameNum) {
 
     Init();

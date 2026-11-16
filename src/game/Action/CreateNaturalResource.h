@@ -32,7 +32,7 @@ public:
     int  AbstractImpl(ActionStack* actionStack) override;             // [4] 0x1400c6650
     bool GetTarget(ComponentEntity** param) override;                      // [9] 0x1400c6610
 
-    // ---- fields, retail order (PUBLIC: the slot bodies are C functions) ----
+    // ---- fields, retail order (PUBLIC) ----
     ComponentDescription* descEntity;   // +0x20 ExternalPtr<ComponentDescription>: the resource template
     Object::InternalPtr<ComponentEntity> parentEntity;   // +0x28 parent entity (Persist checks ComponentEntity)
     int32_t   cellIndex;         // +0x30 map cell index / resource slot

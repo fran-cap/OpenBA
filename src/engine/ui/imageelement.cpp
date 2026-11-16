@@ -8,8 +8,8 @@
 //   slot  method                       retail       where
 //   ----  ---------------------------  -----------  --------------------------
 //    0    vector deleting dtor         0x180036600  ImageElement.h (the class's own)
-//    1    TypeName                     0x1800362b0  here
-//    2    Type                         0x180036290  here
+//    1    TypeName                     0x1800362b0  ImageElement.h (DECLARE_TYPE)
+//    2    Type                         0x180036290  ImageElement.h (DECLARE_TYPE)
 //    3    Element::Persist             0x180116870  element_vtable.cpp
 //    4    ComputeSize                  0x180118650  here
 //    5    ComputeLayout                0x1801186f0  here
@@ -26,15 +26,14 @@
 //
 // SLOTS 4/5/6 ARE ALSO ANIMATEDIMAGEELEMENT'S. `??_7AnimatedImageElement@UI@@6B@`
 // repeats these three addresses (the subclass overrides only Update), so they
-// are registered ONCE, here; in C++ the subclass simply does not override them.
+// are defined ONCE, here; in C++ the subclass simply does not override them.
 //
 // `GetSprite` / `SetRotation` / `SetSprite` / `SetWidthHeight` are
-// widgets_layout.cpp's doors (fragment pass).
+// members defined in widgets_layout.cpp (fragment pass).
 //
-// ENDGAME B.3.6 block C2: slots 1/2/4/5/6 are MEMBERS of `UI::ImageElement`;
-// the registered doors are one-line QUALIFIED delegations. The border's raw
-// slot-6 read is a virtual member call; the rotated AddSprite (by address
-// 0x18011cb10 before) is the real `UI::SpriteContext` member.
+// ENDGAME B.3.6 block C2: slots 1/2/4/5/6 are MEMBERS of `UI::ImageElement`.
+// The border's raw slot-6 read is a virtual member call; the rotated AddSprite
+// (by address 0x18011cb10 before) is the real `UI::SpriteContext` member.
 //
 // ENDGAME B.3.9 block UI-A: the class is CONCRETE; the slot doors and the
 // copy / ??1 doors, read only by the retired minted tables and RT_DELDTOR row,

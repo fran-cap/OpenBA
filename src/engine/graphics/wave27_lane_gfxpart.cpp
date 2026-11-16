@@ -7,9 +7,7 @@
 // docs/history/runtime_port/WAVE27_LANE_GFXPART.md. Read §4 before adding a body here.
 //
 // EXPORT TABLE, read with pefile out of the shipped
-// C:\GOG Games\Banished\Runtime-x64.dll BEFORE a line of this file was written
-// (reference_resolveexport_phantom_names.md — a name the DLL does not contain
-// resolves NULL in silence):
+// C:\GOG Games\Banished\Runtime-x64.dll BEFORE a line of this file was written:
 //
 //   | Export                                                 | Retail      |
 //   |--------------------------------------------------------|-------------|
@@ -24,10 +22,10 @@
 // 0x1801550e0), `??_7ParticleSystemInstance@Graphics@@6B@` (0x180155040) and
 // `??_7Particle@Graphics@@6B@` (0x180155130). The three ParticleInstance bodies
 // are SHARED slots: they appear at the same indices in the
-// ParticleSystemInstance table, so one registration closes two rows.
+// ParticleSystemInstance table, so one body serves both tables.
 //
 // EVERY BODY BELOW WAS TRANSCRIBED FROM `disassemble_function`, NOT FROM
-// GHIDRA'S C (reference_ghidra_c_output_vs_disassembly.md: the decompiler drops
+// GHIDRA'S C (the decompiler drops
 // dereferences, prints MOVSXD as a zero extension, and drops whole arguments at
 // a mistyped vtable call — and these bodies are nothing but mistyped vtable
 // calls and float chains).
@@ -37,18 +35,16 @@
 // ---------------------------------------------------------------------------
 // `?_rng@Particle@Graphics@@1VRandom@System@@A` (retail 0x1801fe7f0) is a
 // PROTECTED STATIC `System::Random` — one MT19937 shared by every Particle in
-// the process, seeded from `time()` at load by 0x180149650. It is tagged
-// RT_UNPROMOTABLE | HARMFUL in standalone/reg_mint_promoted.cpp on the
-// DLL-PRESENT route, precisely because in-DLL RIP-relative readers keep using
-// the DLL's copy.
+// the process, seeded from `time()` at load by 0x180149650. The port spells it
+// as the class static `Graphics::Particle::_rng` (defined in animation.cpp).
 //
 // `ParticleInstance::SetParticle` DRAWS FROM IT, and retail INLINES the draw —
 // the tempering, the index advance and the 0x270 wrap are in SetParticle's own
-// bytes, not behind a call. So this port must read and write THAT OBJECT, at
-// that address, through the same door `src/game/Game/tornado.cpp:253` already
-// uses. Constructing our own generator would compile, run, look right, and
-// desync every particle placement from the DLL's other consumers — a divergence
-// that would not look like a port bug.
+// bytes, not behind a call. So this port must read and write THAT OBJECT, the
+// one `src/game/Game/tornado.cpp` also draws from. Constructing our own
+// generator would compile, run, look right, and desync every particle placement
+// from the generator's other consumers — a divergence that would not look like a
+// port bug.
 //
 // The tempering constants below are the SHIPPED ones, lifted from the
 // disassembly rather than retyped from an MT19937 reference: retail's masks are
@@ -57,8 +53,7 @@
 // already cleared (`0x9d2c5680 & (0xffffffff >> 7)` style), which is what MSVC
 // does when it can prove the high bits are shifted out. Retyping the textbook
 // values would be arithmetically equivalent HERE and is still not what this file
-// does, because nothing in the port proves the shift amounts it pairs them with
-// (reference_crt_coefficients_must_be_lifted_not_retyped.md).
+// does, because nothing in the port proves the shift amounts it pairs them with.
 //
 // ---------------------------------------------------------------------------
 // FLOAT ASSOCIATION ORDER IS LOAD-BEARING
@@ -66,8 +61,7 @@
 // Every lerp below is written in retail's own order — `prev + (cur - prev) * a`
 // where retail subtracts, multiplies and adds in that sequence, and
 // `((1 - a) * prev) + (a * cur)` where it does that instead. The two are
-// algebraically identical and numerically different
-// (reference_moved_term_hides_where_terms_cancel.md), and a particle system is
+// algebraically identical and numerically different, and a particle system is
 // exactly where a 1-ULP difference becomes a visibly different frame.
 //
 // `1.0f` appears in three of these bodies as `[0x18016169c]`. Its shipped bit
@@ -96,17 +90,16 @@
 #include "system/MemoryAllocator.h"
 
 namespace rtcoll {
-// Lane Q's `?MemAlloc@MemoryAllocator@System@@SAPEAX_KH@Z` (0x1800c7a50) door:
+// `?MemAlloc@MemoryAllocator@System@@SAPEAX_KH@Z` (0x1800c7a50):
 // `EnterCriticalSection(_singleton+0x640); Allocate(_singleton, n, align);
-// LeaveCriticalSection`. Declared, not re-derived, so lane E has ONE place to
-// repoint when the allocator moves. Defined in src/engine/collection/array.cpp.
+// LeaveCriticalSection`, i.e. `System::MemoryAllocator::MemAlloc`. Declared, not
+// re-derived. Defined in src/engine/collection/array.cpp.
 void* MemAlloc(uint64_t bytes, int align);
 }  // namespace rtcoll
 
 // ============================================================================
 // Attendance counters. A run that entered none of these says so rather than
-// staying silent, and `calls=` is read separately from any comparison
-// (reference_uncalled_port_is_not_verified.md).
+// staying silent, and `calls=` is read separately from any comparison.
 // ============================================================================
 namespace {
 
@@ -167,7 +160,7 @@ inline float DegToRad() {
 // `System::Random` — MT19937 (`_index` +0x00, zero means "regenerate before
 // use"; `_mt[624]` +0x04). `?NextGroup@Random@System@@AEAAXXZ` (0x1800c7dd0) is
 // the twist. AEAA means PRIVATE, not unexported — this DLL exports its private
-// members (reference_aeaa_is_private_not_unexported.md); our header declares
+// members; our header declares
 // it public, so it is a member call (B3R).
 // ---------------------------------------------------------------------------
 
@@ -261,9 +254,8 @@ bool Particle::Serialize(IO::Stream& streamv) {
     rw->SerializeInt(_subCount, nullptr);      // +0xa0
 
     // 0x180014520, the `Object::ExternalBasePtr::Serialize` instantiation
-    // (UNNAMED in the export directory) — RtObject_ExternalPtrSerialize_
-    // MaterialInstance, by name. LEFT: it takes object's POD spellings
-    // (External.h).
+    // (UNNAMED in the export directory): `Object::SerializeExternal`
+    // over the bare `T*` field (External.h).
     Object::SerializeExternal<Graphics::MaterialInstance>(ser, _material);
 
     if (stream._direction == IO::kReading && _active != 0) {
@@ -848,7 +840,7 @@ void ParticleInstance::Draw(Video::Context& context, const Camera& camera,
 // The emitter's allocate / destroy / free trio   (cutover closure batch D1)
 // ============================================================================
 // *** ENDGAME B.3.5 block H2 CHECKED THE EXPORT TABLE: "Emitter" AND
-// "ParticlePool" ARE NOT RETAIL CLASSES. *** `standalone/rt_export_addrs.inc`
+// "ParticlePool" ARE NOT RETAIL CLASSES. *** The export directory
 // contains no `@Emitter@Graphics@@`, no `Pool@Graphics@@` and no mangled name at
 // any of 0x1800205a0 / 0x180020600 / 0x180020d60 / 0x180061a80 / 0x180103bf0 —
 // the only `Emitter` symbols in the whole DLL are `Audio::Scene`'s
@@ -859,8 +851,8 @@ void ParticleInstance::Draw(Video::Context& context, const Camera& camera,
 // wrappers — and `Emitter` / `ParticlePool` are THIS FILE'S OWN NAMES for them,
 // not retail's. They stay file-local free functions: there is no class here to
 // convert, and inventing `Graphics::Emitter` would put a name in
-// `src/engine/` that the binary does not contain
-// (reference_resolveexport_phantom_names.md's failure, one level up).
+// `src/engine/` that the binary does not contain (a name inferred rather than
+// checked against the shipped export table, one level up).
 //
 //   0x1800205a0  `operator new` for the 0x18-byte emitter record. The size AND
 //                the alignment are immediates: `MOV EDX,0x18` then
@@ -924,8 +916,7 @@ RtGraphics::ParticleBoundsRecord::ParticleBoundsRecord(const Graphics::Particle*
 // The attendance line names THIS lane, so a run log carries a line only this
 // build emits — the on-disk md5 says which exe is on disk, not which one ran.
 // Attendance is printed SEPARATELY from any comparison so a reader cannot
-// mistake "the body ran" for "the body was verified"
-// (reference_uncalled_port_is_not_verified.md).
+// mistake "the body ran" for "the body was verified".
 void RtGraphicsWave27GfxpartSummary() {
     printf("[GFXPART27] ParticleSer=%llu (records=%llu) PIDraw=%llu (quads=%llu) "
                 "AddDrawItems=%llu (emitted=%llu) GetInstXform=%llu "

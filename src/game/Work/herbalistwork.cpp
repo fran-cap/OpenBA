@@ -54,30 +54,30 @@
 // Sub-functions, called by name (B3R; the module exe_bodies.h headers)
 // ============================================================
 //   0x1400e3db0  Work::TryAutoPickup
-//   0x140003050  WorkBase_FindComponent_3050
-//   0x140002f90  WorkBase_FindComponent_2f90
-//   0x14012c3f0  CitizenComp_FUN_14012c3f0
+//   0x140003050  ComponentEntity::FindComponent<WorkComponent>
+//   0x140002f90  ComponentEntity::FindComponent<StatusIconComponent>
+//   0x14012c3f0  StatusIconComponent::SetFlag
 //   0x14012e5c0 WorkComponent::CalcMaxWorkers
 //   0x140132010  WorkImpl_Sqrtf_132010
-//   0x140087fb0  Pf_EntityAnchorCell_7fb0
-//   0x140008830  WorkBase_CalcDistance_8830
-//   0x14009ccf0  WorkGrid_FindCell_9ccf0
-//   0x1400a00f0  WorkBase_ValidateCell_a00f0
-//   0x1400052c0  WorkBase_FindComponent_52c0
-//   0x14009f3e0  Reimpl_MapGetTerrainPos
+//   0x140087fb0  EntityAnchorCell
+//   0x140008830  Map::CalcDistance
+//   0x14009ccf0  Map::FindCell
+//   0x1400a00f0  Map::ValidateCell
+//   0x1400052c0  ComponentEntity::FindComponent<NaturalResourceComponent>
+//   0x14009f3e0  Map::GetTerrainPos
 //   0x1400c1eb0  WorkAct_PerformWorkCtor_c1eb0
 //   0x1400c2490  WorkAct_PlayAnimationCtor_c2490
 //   0x140021a30  WorkBST_RegisterWork_1a30
-//   0x140115e60  CitizenAI_State_LongTermPlan
-//   0x140006270  WorkBase_FindComponent_6270
+//   0x140115e60  CitizenComponent::LongTermPlan
+//   0x140006270  ComponentEntity::FindComponent<StorageComponent>
 //   0x14012cf10  StorageComponent::QueryCount
 //   0x1400296b0  WorkBST_BST_Serialize_296b0
 //   0x1400f7100  Work::ValidateTask
 //   0x14001a6e0  WorkBST_BSTRemove_a6e0
 //   0x140025520  WorkBST_BSTFindRemove_25520
-//   0x1400c5400  WorkBase_TaskListCleanup_c5400
-//   0x140002e10  AttendanceComponent_GetJobHostComponent
-//   0x140014c30  WorkBase_TreeNodeFree_14c30
+//   0x1400c5400  ActionStack::Clear
+//   0x140002e10  ComponentEntity::FindComponent<WorkPlaceComponent>
+//   0x140014c30  WorkBase_TreeNodeFree
 //   0x140172184  kRdata_140172184 (.rdata)
 //   0x140172114  kRdata_140172114 (.rdata)
 //   0x14017214c  kRdata_14017214c (.rdata)
@@ -135,8 +135,7 @@ static void AssignWorkToEntity(HerbalistWork* self, CitizenComponent** citizenIB
         citizen->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
     }
 
-    // Register work with citizen AI subsystem at self+0x48 (the tree helper takes the
-    // container as uintptr_t*: LEFT)
+    // Register work with citizen AI subsystem at self+0x48
     WorkCitizenSetNode* inserted;   // the out-node slot (retail reuses workEntity's)
     WorkBST_RegisterWork_1a30(&self->_citizens, &inserted, citizenIBP);
 }
@@ -217,8 +216,7 @@ int HerbalistWork::Execute(CitizenComponent** citizenIBP, System::Time* /*contex
     // Get herb count (the assigned count, self+0x50)
     int herbCount = _citizens._count;
 
-    // If the worker capacity cache is 0, calculate it (the tree's port of 0x14012e5c0
-    // called here takes the component as an integer: LEFT)
+    // If the worker capacity cache is 0, calculate it (0x14012e5c0)
     if (matDesc->workState == 0) {
         int maxWorkers = matDesc->CalcMaxWorkers();
         matDesc->workState = maxWorkers;
@@ -234,8 +232,6 @@ int HerbalistWork::Execute(CitizenComponent** citizenIBP, System::Time* /*contex
     // -------------------------------------------------------
     System::Random* rng = gameWorld->m_random;
     Map* map = gameWorld->m_game;
-    // The map helpers (0x140008830, 0x14009ccf0, 0x1400a00f0, 0x14009f3e0) take the map
-    // as int* / void*: LEFT.
     Map* mapGrid = map;
 
     int workplaceRadius = materialComp->_radius;
@@ -361,7 +357,7 @@ int HerbalistWork::Execute(CitizenComponent** citizenIBP, System::Time* /*contex
                 }
 
                 // Check path to the nearest passable cell
-                bool canPath = static_cast<uint8_t>(mapGrid->ValidateCell(PathBits::Walk, nearestCell, citizenGridCell)) != 0;   // the bool door read AL
+                bool canPath = static_cast<uint8_t>(mapGrid->ValidateCell(PathBits::Walk, nearestCell, citizenGridCell)) != 0;   // the bool is the low byte (AL)
                 if (!canPath) {
                     continue;
                 }
@@ -433,7 +429,6 @@ int HerbalistWork::Execute(CitizenComponent** citizenIBP, System::Time* /*contex
             citizenEnt2->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
         }
 
-        // (the tree helper takes the container as uintptr_t*: LEFT)
         WorkCitizenSetNode* inserted;   // the out-node slot (retail reuses workEnt's)
         WorkBST_RegisterWork_1a30(&_citizens, &inserted, citizenIBP);
 
@@ -446,10 +441,9 @@ int HerbalistWork::Execute(CitizenComponent** citizenIBP, System::Time* /*contex
 
 
 // ============================================================
-// HerbalistWork::Slot6 — NOT HOOKABLE (RIP-relative CALL)
+// HerbalistWork::Slot6
 // Thunk: sub rsp,0x28; add rcx,0x48; call CitizenAI_impl_5520; xor al,al; add rsp,0x28; ret
 // Calls BSTFindRemove on the BST at self+0x48, returns false.
-// (The tree helper takes the container as uintptr_t*: LEFT.)
 // ============================================================
 int HerbalistWork::OnComplete(CitizenComponent** param2, ComponentEntity** /*arg2*/, int /*arg3*/) {
     WorkBST_BSTFindRemove_25520(&_citizens, param2);
@@ -458,7 +452,7 @@ int HerbalistWork::OnComplete(CitizenComponent** param2, ComponentEntity** /*arg
 
 
 // ============================================================
-// HerbalistWork::Slot7 — 9-byte thunk, too small to hook.
+// HerbalistWork::Slot7 — 9-byte thunk.
 // Thunk: add rcx,0x48; jmp CitizenAI_impl_5520
 // Calls BSTFindRemove on the BST at self+0x48.
 // ============================================================
@@ -500,7 +494,7 @@ int HerbalistWork::Cleanup() {
 // HerbalistWork::Slot9 / RemoveInvalid (164 instructions)
 // Iterates BST, validates each entry via FUN_1400f7100,
 // collects invalid ones, removes them from tree.
-// Returns true if tree becomes empty, false otherwise.
+// Returns true if all entries are valid (none removed), false otherwise.
 // ============================================================
 int HerbalistWork::Validate() {
     AssignmentNode* root = _citizens._root;
@@ -585,8 +579,7 @@ int HerbalistWork::Validate() {
         }
     }
 
-    // Remove all invalid entries from BST (keys compare unsigned; the tree helper takes
-    // the container as uintptr_t*: LEFT)
+    // Remove all invalid entries from BST (keys compare unsigned)
     if (removeCount > 0) {
         for (uint32_t i = 0; i < removeCount; i++) {
             // Find and remove the node with this key from BST
@@ -638,7 +631,7 @@ void HerbalistWork::Persist(IO::Stream& stream) {
     // Create second serializer (version=0) for BST + int
     IO::Serializer serializer2(stream, 0);
 
-    // Serialize BST at self+0x48 (the helper takes the container as uintptr_t*: LEFT)
+    // Serialize BST at self+0x48
     WorkBST_BST_Serialize_296b0(&_citizens, &serializer2);
 
     // Serialize int at self+0x58

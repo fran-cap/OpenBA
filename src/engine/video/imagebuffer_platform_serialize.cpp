@@ -13,8 +13,7 @@
 // `AEAA` MEANS PRIVATE, NOT UNEXPORTED. Checked against the shipped export
 // directory before writing anything: ordinal 3387, address 0x1800f3130, sitting
 // in a run with its four siblings (GraphicsMesh, ShaderProgram, SoundBuffer,
-// VertexLayout). So this is a plain NAME door and there is no address-door
-// justification to make (`reference_aeaa_means_private_not_unexported.md`).
+// VertexLayout).
 //
 // Confirmed absent before writing: `PlatformSerialize` appears NOWHERE in
 // `code/ engine/ runtime/ standalone/ src/render/dx11/`. Not ported, not gated, not
@@ -86,39 +85,19 @@
 // class of "equivalent" simplification before.
 //
 // ---------------------------------------------------------------------------
-// THE TWO Collection HELPERS, AND WHY ONE OF THEM COST NOTHING
+// THE TWO Collection HELPERS
 // ---------------------------------------------------------------------------
-// Retail reaches both by in-DLL `rel32`, which our registry cannot intercept,
-// so this body has to call something. Both go through
-// `ResolveAddr(Module::Runtime, …)`, which is REGISTRY-FIRST and is therefore
-// not "the DLL" (`reference_resolveaddr_consults_port_registry_first.md`):
+// Retail reaches both by in-DLL `rel32`; both are ported rows of
+// src/engine/collection/array.cpp:
 //
-//   0x180029630  Array<uint8>::SetSize        **ALREADY PORTED** — lane Q
-//                registers it as `J3_ENTRY2(180029630, kSpec_Bool)`
-//                (array.cpp:1469, RegisterRuntimeAddr at :1686), so this call
-//                reaches OUR body today. Found by grepping the address before
-//                writing a line, which is the whole of
-//                `reference_grep_for_the_port_before_writing_it.md`.
+//   0x180029630  Array<uint8>::SetSize        `kSpec_Bool`
+//   0x180053f00  Array<Array<uint8>>::SetSize  `kSpec_InnerArrayU8`, NON-TRIVIAL
+//                (inner-array element operations)
 //
-//   0x180053f00  Array<Array<uint8>>::SetSize  UNPORTED. 107 instructions, the
-//                non-trivial J3 shape with inner-array element operations.
-//                It is COLLECTION lane work, not Video: porting it here would
-//                mean adding an `ArraySpec` row to lane Q's `array.cpp`, which
-//                another lane owns. It is named here so the Collection wave
-//                inherits it as ONE address rather than rediscovering it.
-//
-// So this row grows the cutover surface by exactly ONE address, and that
-// address has an owner (`reference_porting_can_grow_the_cutover_surface.md`).
-//
-// THE CLAIM THAT USED TO STAND HERE WAS WRONG, TWICE OVER, AND IS WITHDRAWN
-// (ENDGAME B.3.5 block VC). It read: "The per-element serialize loop at
-// 0x180054080 IS written out below rather than called by address: it is 20
-// instructions, it is this function's own helper, and nothing else in the tree
-// resolves it. It is deliberately NOT registered." In fact
-// `src/engine/video/closure_batch2b.cpp` registers it at that address, and it has
-// THREE retail callers of which this function is only one. It is a SHARED helper
-// and there is now exactly one body of it. See the note at `SerializeLevelBlobs`
-// below for the full read.
+// THE PER-ELEMENT SERIALIZE LOOP at 0x180054080 is a SHARED helper with THREE
+// retail callers, of which this function is only one; its one body is
+// `RtVideo_SerializeBlobArray` in `src/engine/video/closure_batch2b.cpp`. See the
+// note at `SerializeLevelBlobs` below for the full read.
 // ============================================================================
 
 #include <cstdint>
@@ -132,10 +111,8 @@
 #include "../collection/array_destroy_internal.h"
 
 // `kSpec_InnerArrayU8` (0x180053f00) is defined in
-// src/engine/collection/array.cpp but, like `kSpec_EmitterInstance`
-// (src/engine/audio/audio_effectslot_serialize.cpp), was never added to
-// array_internal.h's `extern` list — declared locally rather than editing
-// that shared header, which this batch does not own.
+// src/engine/collection/array.cpp and declared in array_internal.h's `extern`
+// list; the declaration below repeats it.
 namespace rtcoll { extern const ArraySpec kSpec_InnerArrayU8; }
 
 // The door over `Video::ImageBuffer::PlatformSerialize`, which is PRIVATE in
@@ -168,18 +145,13 @@ namespace {
 //     either offset.
 //   * `kImageBufferCreateSlot` (+0x48) and `CreateFn`: slot 9 is
 //     `Video::ImageBuffer::Create`, so `self->Create(...)` IS retail's
-//     `CALL [R10+0x48]` — a C++ virtual call reads the object's own vptr, which
-//     on every live image is still the MINTED table, so the dispatch is
-//     unchanged and the slot INDEX is now checked by the compiler instead of by
-//     a comment.
+//     `CALL [R10+0x48]` — a C++ virtual call reads the object's own vptr, and
+//     the slot INDEX is checked by the compiler instead of by a comment.
 // ---------------------------------------------------------------------------
 
 using SetSizeFn = void (*)(rtcoll::ArrayHdr* self, int32_t newSize);
 
-// ENDGAME B.3.2 step 2 — both forwarders above (`OuterSetSize`, `InnerSetSize`)
-// are GONE. STALE COMMENT KEPT FOR THE RECORD: "0x180053f00 ... unported
-// today" stopped being true once array.cpp's `kSpec_InnerArrayU8` row was
-// registered (array.cpp:4028) — it is a registered port, not a DLL call.
+// The two Collection helpers, as this body reaches them:
 //
 //   0x180053f00  kSpec_InnerArrayU8 {0x10,8,AssignInnerArrayU8,
 //                InitInnerArrayU8,DestroyInnerArrayU8Range,byteCopy=false}
@@ -192,7 +164,7 @@ using SetSizeFn = void (*)(rtcoll::ArrayHdr* self, int32_t newSize);
 //   0x180029630  kSpec_Bool == `SpecFor<uint8_t>()` field for field (see
 //                achievement_manager.cpp's `completed` for the same row),
 //                trait-derived. Each per-level element `e` in
-//                `SerializeLevelBlobs` IS ALREADY a real
+//                `RtVideo_SerializeBlobArray` IS ALREADY a real
 //                `Collection::Array<uint8_t>*` (retail's Array<uint8>
 //                instantiation), so `e->SetSize(size)` is that exact body —
 //                no bridge needed.
@@ -203,7 +175,7 @@ using SetSizeFn = void (*)(rtcoll::ArrayHdr* self, int32_t newSize);
 // to write the loop out, on the strength of a banner claim that 0x180054080 "is
 // this function's own helper, nothing else in the tree resolves it" and "is
 // deliberately NOT registered". BOTH HALVES WERE FALSE.
-// `src/engine/video/closure_batch2b.cpp` registers it at that exact address, and
+// `src/engine/video/closure_batch2b.cpp` holds the body of that exact address, and
 // Ghidra `getReferencesTo` on the retail DLL (15290 functions) gives it THREE
 // callers -- 0x180053d90 in FUN_180053d40, 0x180053eeb in FUN_180053ea0, and
 // 0x1800f31d0 in this very function -- plus a `.rdata` reference at 0x180207870.
@@ -233,8 +205,7 @@ inline void SerializeLevelBlobs(IO::Serializer& ser, int32_t count,
 // ENDGAME B.3.5 block C: this is now slot 9 by NAME. `Create` is a virtual of
 // the real `Video::ImageBuffer`, declared at index 9, so `self->Create(...)` is
 // retail's `CALL [R10+0x48]` with the index checked by the compiler. The virtual
-// call reads the object's own vptr, which on every live image is the MINTED
-// table, so the dispatch is exactly what it was.
+// call reads the object's own vptr.
 void RecreateFromFields(Video::ImageBuffer* self, int32_t kind,
                         Video::ImageBuffer::LevelArray* initialData) {
     self->Create(
@@ -250,12 +221,6 @@ void RecreateFromFields(Video::ImageBuffer* self, int32_t kind,
         self->_addressW,   // [RSP+0x50]     +0x40
         initialData);      // [RSP+0x58]
 }
-
-// Live coverage counter. `calls=` is the only thing that separates "verified
-// clean" from "never ran", and lane VDATA's warning applies directly here: its
-// save-trace oracle recorded NO ENTRY at all for the seven ImageBuffer vtable
-// slots, which is the calls=0 column and not a pass. Static storage duration,
-// per array.cpp's 144-dangling-registrations note.
 
 }  // namespace
 
@@ -286,8 +251,7 @@ void ImageBuffer::PlatformSerialize(IO::Serializer& ser) {
     }
 
     // ---- the gate ----------------------------------------------------------
-    // ENDGAME B.3.5 block C FINDING — THE GATE HAS A NAME, and this file's
-    // banner (written before `IO::Encoding` was a class) says it does not.
+    // ENDGAME B.3.5 block C FINDING — THE GATE HAS A NAME, as the banner says.
     // `stream->encoding->vtable[0]()` returning a bool is slot 0 of
     // `??_7…Encoding@IO@@6B@`, and B.3.4 block 1 named all five of those slots
     // from the three concrete tables: slot 0 is

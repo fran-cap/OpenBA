@@ -84,8 +84,8 @@
 // cleanly and prove nothing: theirs would find the same node and store the same
 // zero, and every comparison would be green whether or not our descent landed
 // on the right entry. A site like that is worse than none, because a green
-// `calls=` reads as coverage (reference_uncalled_port_is_not_verified.md, one
-// level up). What DOES check the descent is the same machinery `Find` is
+// `calls=` reads as coverage (one level up from a port with zero calls, which is
+// unverified, not clean). What DOES check the descent is the same machinery `Find` is
 // checked by: `rtresset::Find` is lane RES's ported body with its own lockstep
 // probe, and this function contributes only the key normalisation, which is
 // byte-identical to the one `Object::ExternalFactory::Find`'s full diff oracle
@@ -122,7 +122,7 @@ void RtObject_ExternalFactory_ForceUnload(ExternalFactory* self, const System::F
     // ---- 0x1800beedc-0x1800bef29: `Filename key = path`, then adjust again --
     // ENDGAME B.3.1 step 2. Null-init + operator= + the redundant second
     // AdjustDelimiters IS the copy constructor (0x1800067d0), whose ported body
-    // normalises exactly twice for that reason: 0x1800bef20 and 0x1800bef25 are
+    // normalises exactly twice for that reason: 0x1800bef20 and 0x1800bef29 are
     // both still spent.
     System::Filename key(*path);                         // [RBP+0x28]
 

@@ -39,8 +39,10 @@ namespace {
     return ::IO::Persistence::_singleton;
 }
 
-// The 16 keys in retail's order. Order matters only for log readability, but
-// keeping it identical makes a diff against the decompile trivial.
+// The 16 keys, ints and bools in separate tables. Retail (0x140098b60 / 0x140098970)
+// makes the calls in field order with the bools in between: +0x0, +0x4, +0x8, +0xC,
+// +0x10, +0x15, +0x14, +0x16, +0x17, +0x18, then +0x1C..+0x30. Each key is its own
+// Get / Set, so only the call order differs.
 struct IntKey  { const char* key; int32_t GameSettings::* field; };
 struct BoolKey { const char* key; bool GameSettings::* field; };   // retail's bool, Get(bool&) / Set(bool)
 
@@ -84,8 +86,8 @@ void GameSettings::Load() {
         fprintf(stderr, "[GameSettings] Load SKIPPED — persistence=%p\n", p);
         return;
     }
-    // ENDGAME B.3.4a closing: onto IO::Persistence::Get. The DOOR names the
-    // overload (int& / bool&), as §7.3 requires — the bool keys are one byte at
+    // ENDGAME B.3.4a closing: onto IO::Persistence::Get. The field's type picks the
+    // overload (int& / bool&) — the bool keys are one byte at
     // settings+0xC/+0x14/+0x18 and must not pick the int& overload.
     bool haveUiScale = false;
     for (const auto& k : kIntKeys) {
@@ -119,7 +121,7 @@ void GameSettings::Save() {
         fprintf(stderr, "[GameSettings] Save SKIPPED — persistence=%p\n", p);
         return;
     }
-    // ENDGAME B.3.4a closing: onto IO::Persistence::Set, DOOR-typed as above.
+    // ENDGAME B.3.4a closing: onto IO::Persistence::Set, typed as above.
     for (const auto& k : kIntKeys)
         p->Set("Game", k.key, this->*k.field);
     // 0x1400989d7 MOVZX R9D,byte ptr [RBX+0xc] -> CALL [0x140152300] Set(bool): the byte is passed

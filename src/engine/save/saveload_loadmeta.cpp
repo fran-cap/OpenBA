@@ -6,8 +6,7 @@
 // ONE FUNCTION:
 //   ?LoadMetaData@SaveLoad@Save@@QEAAXAEAVString@System@@PEAPEAXAEAH22AEAV?$Array@UModInfo@SaveLoad@Save@@@Collection@@@Z
 //   retail 0x1800c1b30, ordinal 3208 (name, ordinal and address all read out of
-//   the shipped export directory with pefile before this file was written —
-//   reference_resolveexport_phantom_names.md).
+//   the shipped export directory with pefile before this file was written).
 //
 // It is the READ half of the save-file metadata record: given the compressed
 // byte image the async loader has already dropped into `this->_embeddedState`,
@@ -39,14 +38,12 @@
 // **a register-based screen cannot see arguments 5, 6 and 7 at all** — this
 // project scored a positive control 3/3 on the UNION of two screens and only
 // later found that one of them caught 1/3, precisely because it was blind to
-// every 5th-or-later argument (reference_union_control_hides_a_blind_screen).
-// The oracle at the bottom of this file therefore compares OUT-PARAMETER VALUES,
-// not registers, and gives height, version and the mod array a screen each.
+// every 5th-or-later argument.
 //
 // ----------------------------------------------------------------------------
 // GHIDRA'S C IS WRONG ABOUT THIS BODY IN TWO PLACES. THE DISASSEMBLY WINS.
 // ----------------------------------------------------------------------------
-// Both are the documented failure modes of reference_ghidra_c_output_vs_disassembly:
+// Both are known failure modes of Ghidra's decompiled C:
 //
 //  1. IT DROPS ARGUMENTS AT EVERY VTABLE CALL. The decompiler renders the
 //     encoding factory call as `(**(code **)(*local_b8 + 0x18))()` — no
@@ -87,20 +84,19 @@
 //   cms.~CompressedMemoryStream();               // ??1CompressedMemoryStream
 //
 // The three wrapper-level calls (`Open`, `Close`, the ctor/dtor) are made
-// through the CompressedMemoryStream exports rather than re-inlined here.
+// through the CompressedMemoryStream members rather than re-inlined here.
 // That is not a shortcut: ?Open@CompressedMemoryStream (0x1800a9500) IS
 // `CompressedStream::Open(*this, _memoryStream, 1)` and nothing else, and
 // ?Close@ / ??1 are transcribed in src/engine/io/compressedstream.cpp from
 // the same bytes retail inlined here — so the call reaches OUR transcription of
-// the identical instructions, and it does not grow the cutover surface with a
-// by-address door (reference_porting_can_grow_the_cutover_surface).
+// the identical instructions.
 //
-// THE SERIALIZER CTOR AND DTOR *ARE* RE-INLINED, deliberately. Constructing an
+// THE SERIALIZER CTOR AND DTOR are inlined by retail. Constructing an
 // IO::Serializer consumes a 12-byte header off the stream (see the big note in
 // src/engine/io/Serializer.h), so it is not a wrapper — it is work, and the
 // exact factory slot it picks (+0x18 reading, +0x20 writing) is chosen from
-// `cms.direction`, a field this body must be seen to read. Both are written out
-// instruction for instruction.
+// `cms.direction`. This body builds the real `IO::Serializer`, whose constructor
+// is that inlined body; the end of its scope is the inlined ~Serializer.
 //
 // ----------------------------------------------------------------------------
 // FOUR THINGS A READER WOULD OTHERWISE "FIX"
@@ -170,8 +166,8 @@
 #include "saveload_internal.h"
 
 // ENDGAME B.3.2 step 2 — `kSpec_MetaEntry20` (src/engine/collection/array.cpp)
-// has external linkage (namespace rtcoll there, non-static) but is declared
-// `extern` in no header this batch may edit, so it is declared here, at FILE
+// has external linkage (namespace rtcoll there, non-static) and is declared
+// `extern` in collection/array_internal.h, included above; this repeat is at FILE
 // SCOPE and not inside the anonymous namespace below (which would give a
 // re-declaration internal linkage and sever it from the real definition). See
 // the banner on its call site for why this row and not the trait-derived one.
@@ -196,21 +192,18 @@ using ModArray = Collection::Array<ModInfo>;
 // ENDGAME B.3.2 step 2: `0x180034010` names `kSpec_MetaEntry20`, the
 // HAND-DERIVED row Collection.h's Array banner calls out by this exact
 // address: String-adopting assign, String-zeroing init, String-releasing
-// destroy, `byteCopy == false`. It is NOT what `ModArray`'s own
-// (trait-derived) `SetSize` would run: `ModInfo` (src/engine/save/
-// SaveLoad.h) stores its two Strings as raw `const char* name/path`, not a
-// real `System::String` member, so `is_trivially_copyable<ModInfo>` reads
-// true and the trait-derived spec would silently drop retail's refcount
-// bump/release. Reached through the hand-derived row instead, per
-// B32_RULES.md — never substitute the trait default for a row this shape.
+// destroy, `byteCopy == false`. `ModInfo` (src/engine/save/SaveLoad.h) holds
+// two real `System::String` members, and SaveLoad.h records that its ctor /
+// copy / dtor give `ModArray`'s trait-derived spec this same behaviour. The
+// call names the hand-derived row, per B32_RULES.md.
 // (`kSpec_MetaEntry20` itself is declared at file scope above — see there.)
 
 // ---- callee shapes ---------------------------------------------------------
 //
 // EVERY ONE of these was counted off the disassembly, not off Ghidra's C, and
 // none of them returns a class by value — so not one has a hidden return slot
-// (tools/abi_retslot_audit.py agrees; a typedef that omits one is a wild write
-// that still returns the right answer, reference_hidden_retslot_wild_write).
+// (a typedef that omits one is a wild write that still returns the right
+// answer).
 // ENDGAME B.3.1 step 2: the String::Serialize door typedef is gone with its
 // three call sites — all three are `System::String::Serialize` now.
 // ENDGAME B.3.2 step 2: the `SetSizeFn` door typedef is gone with its one call
@@ -302,10 +295,7 @@ void Save::SaveLoad::LoadMetaData(System::String& description, void** pixels,
 
         // ---- 0x1800c1c09 : out-param 1 = the description String ----------------
         // ENDGAME B.3.1 step 2: `?Serialize@String@System@@QEAAXAEAVSerializer@IO@@@Z`
-        // (0x1800c9930) is the class's own member now. The out-param is modelled as
-        // the String's single field (`const char**`) because that is the shape the
-        // registered entry point's callers spell, so it comes through a
-        // transitional cast (B31_RULES, "not-yet-converted").
+        // (0x1800c9930) is the class's own member.
         description.Serialize(ser);
 
         // ---- 0x1800c1c1c / 0x1800c1c34 : out-params 3 and 4 --------------------

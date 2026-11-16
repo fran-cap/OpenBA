@@ -9,18 +9,16 @@
 // animatenaturalresource.cpp, createnaturalresource.cpp).
 #include "Action/exe_bodies.h"
 // Closure (bodies NOT duplicated; called by name, B3R):
-//   Entity_ClearPathQueue        0x140003f60 ActCNR_FindComponent_3f60 (action_base_cnr.cpp)
-//   FUN_140004680                0x140004680 FloorComponent_FindResData (floorcomponent.cpp)
-//   CharacterComponent_impl_f3e0 0x14009f3e0 Reimpl_MapGetTerrainPos (mapquery.cpp / cell->world)
+//   Entity_ClearPathQueue        0x140003f60 ComponentEntity::FindComponent<ModelComponent>
+//   FUN_140004680                0x140004680 ComponentEntity::FindComponent<MapComponent>
+//   CharacterComponent_impl_f3e0 0x14009f3e0 Map::GetTerrainPos (mapquery.cpp / cell->world)
 //   Math::Vector3::Normalize     slot 0x1401512c0 / ?Normalize@Vector3@Math@@QEBA?AV12@XZ
 //   Math::Vector3::Heading       slot 0x1401512d8 / ?Heading@Vector3@Math@@QEBAMXZ
-//
-// Registration: RegisterActionChildCtorsBatch() in standalone/reg_action_child_ctors.cpp.
 
 #include "object/TypeInfo.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
-#include "Component/exe_bodies.h"   // FloorComponent_FindResData
-#include "Game/exe_bodies.h"        // Reimpl_MapGetTerrainPos
+#include "Component/exe_bodies.h"
+#include "Game/exe_bodies.h"
 #include "math/Math.h"
 #include "Component/MapComponent.h"
 #include "Component/ModelComponent.h"

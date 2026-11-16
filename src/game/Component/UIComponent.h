@@ -3,7 +3,7 @@
 // src/game/Component/UIComponent.h — ENDGAME B.3.8 block VIS
 //
 // `UIComponent` as a real C++ class with a compiler-generated vtable
-// (B38_RULES.md D1-D4). The engine/types POD is a forwarder to this file.
+// (B38_RULES.md D1-D4).
 //
 // RETAIL (Application-x64.exe, B38_SLOTS.md §6):
 //   reflected "UIComponent", parent "Component", ti 0x1401c7fc8

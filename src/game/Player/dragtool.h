@@ -23,10 +23,6 @@
 //   [12] 0x1400fc9d0 `MOV EAX,5; RET` (cursor)
 //   [13], [14] _purecall — CalcPath (commit) / CalcCost (preview), introduced
 //
-// DOORS (B38 D5 (b) rows): reg_code_lane6.cpp / reg_player_drag.cpp register
-// the names `DragTool_OnKey` (0x1400fc6b0) and `DragTool_CancelDrag_Impl`
-// (0x1400fc640), so those two stay as one-line doors onto the members, which
-// hold the bodies (ENDGAME B.3.8 callers CB4).
 // ============================================================================
 
 #include <cstdint>

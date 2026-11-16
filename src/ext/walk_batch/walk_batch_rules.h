@@ -8,10 +8,10 @@
 // Every function here is a literal copy of one piece of a retail body, in retail's operation
 // order (x86-64 SSE, no FMA in any build flavour: the same expression gives the same bits):
 //   WorldToCell   MoveTo::Execute's position -> clamped cell (0x1400c8570; moveto.cpp WorldToCell)
-//   TerrainSpeed  MoveTo::Execute's per-cell speed, the follow flag clear (moveto.cpp:436-452)
-//   Heading       the move tick's heading recurrence fVar14 (0x1401094c0; citizenai_executor.cpp:323-352)
-//   RootSpeed     |RootAnimationOffset()| x +0x38 with Vector3::Dot's (y, x, z) order (:356-367)
-//   StepPos       the step and the intermediate-iteration z (:368-375, :436-456 with rootOnly set)
+//   TerrainSpeed  MoveTo::Execute's per-cell speed, the follow flag clear (moveto.cpp:460-472)
+//   Heading       the move tick's heading recurrence fVar14 (0x1401094c0; citizenai_executor.cpp:357-386)
+//   RootSpeed     |RootAnimationOffset()| x +0x38 with Vector3::Dot's (y, x, z) order (:388-401)
+//   StepPos       the step and the intermediate-iteration z (:402-409, :470-512 with rootOnly set)
 //   DecideWalk    the decline rule: the walking branch of MoveTo::Execute case 2, and nothing else
 // ============================================================================
 #include <cstdint>
@@ -53,7 +53,7 @@ inline float TerrainSpeed(uint8_t terrainType, float descRoad34, float descNorma
     return kRdata_14017214c;
 }
 
-// The move tick's heading recurrence (citizenai_executor.cpp:323-352): fVar14 from the target
+// The move tick's heading recurrence (citizenai_executor.cpp:357-386): fVar14 from the target
 // heading (+0x3C), the live yaw, desc +0x24 and desc +0x28. The tail then writes
 // yaw = fVar14 + desc +0x24.
 inline float Heading(float target3C, float yaw, float descF24, float descSlow28) {

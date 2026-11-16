@@ -14,12 +14,14 @@
 // BinaryWriter and read again; the second read must give the same length and bytes (round trip).
 //
 // MASKS (FUZZ_NO_MASK, set by string_serialize2_fuzz.cpp, turns them off):
-//   M2  The 31-bit length word goes straight into SetLength(n - 1) / MemAlloc(n * 2) with no cap
-//       (finding SS-1: a 0x7FFFFFFF word asks for a 2 GB / 4 GB block). Every 4-byte read is a
-//       length word here (the payloads are read 1 or 2 bytes at a time), so the stream clamps the
-//       low 31 bits of every 4-byte read to 0x1FFFF.
-//   M3  The plain arm does not write the terminator: the String ends in whatever the stream's
-//       last byte was (finding SS-2). Only the NO_MASK variant walks the result to its NUL.
+//   M2  The 31-bit length word goes straight into SetLength(n - 1) / MemAlloc(n * 2) here: the
+//       length cap (IO::StringLengthExceedsStream) applies only to a stream with a binary encoding,
+//       and this stream has none (finding SS-1: a 0x7FFFFFFF word asks for a 2 GB / 4 GB block).
+//       Every 4-byte read is a length word here (the payloads are read 1 or 2 bytes at a time), so
+//       the stream clamps the low 31 bits of every 4-byte read to 0x1FFFF.
+//   M3  Finding SS-2, a String ending in whatever the stream's last byte was: the plain arm stores
+//       the terminator at the payload's last byte (review F-023). Only the NO_MASK variant walks the
+//       result to its NUL.
 // ============================================================================
 #include "io/PackageFile.h"
 #include "io/Serializer.h"
@@ -40,7 +42,8 @@ void ShowErrorMessage(const uint16_t*, const uint16_t*) {}
 }  // namespace Platform::Window
 
 // Link stubs: the type-record tables pulled in with the BinaryReader name these factories, whose
-// bodies live in registry-side sources outside the archive (as b39_obj_externallist_test.cpp does).
+// bodies live in external_list.cpp and package_file.cpp, outside the archive (as
+// b39_obj_externallist_test.cpp does).
 Object::Base* Object::ExternalList::CreateNewObject() { return nullptr; }
 Object::Base* Object::ExternalList::CreateInPlaceObject(void*) { return nullptr; }
 Object::Base* IO::PackageFile::CreateNewObject() { return nullptr; }

@@ -8,20 +8,20 @@
 // Field layout (from ModelDescription_Factory @ exe and Serialize @ 0x140124dc0):
 //   +0x20  void*  meshGroupArray  (dyn-array of MeshGroup, 0x18 stride)
 //   +0x28  int32  meshGroupCount
-//   +0x30  int32  lod0            (int)
-//   +0x34  int32  lod1            (int)
-//   +0x38  bool   castShadow      (bool)
+//   +0x30  int32  _defaultMeshGroup  (int)
+//   +0x34  int32  _defaultMeshIndex  (int)
+//   +0x38  bool   _randomMeshGroup   (bool)
 //
 // MeshGroup element (stride 0x18):
-//   elem+0x00 : External* mesh           (ExternalPtr<GraphicsMesh>; FUN_140035b40)
-//   elem+0x08 : void*     materialArray  (dyn-array of External*, 0x08 stride)
-//   elem+0x10 : int32     materialCount
+//   elem+0x00 : External* animations     (ExternalPtr<AnimationGroup>; FUN_140035b40)
+//   elem+0x08 : void*     meshes         (dyn-array of ExternalPtr<GraphicsMesh>, 0x08 stride)
+//   elem+0x10 : int32     meshCount
 //
 // Serialize order per MeshGroup (exe 0x140124dc0):
-//   1. mesh ExternalPtr (elem+0)         — fn_ExternalPtr_Serialize_GraphicsMesh
-//   2. materialCount (int, elem+0x10)
-//   3. resize materialArray (elem+8)     — fresh-load: alloc+zero
-//   4. serialize each material External* — fn_Array_Serialize_External_GraphicsMesh
+//   1. animations ExternalPtr (elem+0)   — Object::SerializeExternal<Graphics::AnimationGroup>
+//   2. meshCount (int, elem+0x10)
+//   3. resize the mesh array (elem+8)    — fresh-load: alloc+zero
+//   4. serialize each mesh External*     — Object::SerializeExternalArray<Graphics::GraphicsMesh>
 //
 // Decompiled from Application-x64.exe (READ-ONLY Ghidra).
 //
@@ -37,7 +37,7 @@
 #include "object/External.h"
 #include "object/TypeInfo.h"
 #include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
-#include "Game/exe_bodies.h"   // Reimpl_ExternalPtr_Serialize_GraphicsMesh, Reimpl_Array_Serialize_External_GraphicsMesh
+#include "Game/exe_bodies.h"
 #include <cstdint>
 #include <new>
 #include "graphics/AnimationGroup.h"   // B8 RT2: ::Object::SerializeExternal<Graphics::AnimationGroup> (the downcast needs it complete)
@@ -68,7 +68,7 @@ ModelDescription::ModelDescription()
       _defaultMeshIndex(0),
       _randomMeshGroup(false) {}
 
-// dtor (slot 0 0x140035a70 minus the stamps): frees every MeshGroup's material array, then the group array.
+// dtor (slot 0 0x140035a70 minus the stamps): frees every MeshGroup's mesh array, then the group array.
 // The compiler then chains ~Description -> ~External.
 ModelDescription::~ModelDescription() {
     // Free each MeshGroup's mesh sub-array, then the MeshGroup array.

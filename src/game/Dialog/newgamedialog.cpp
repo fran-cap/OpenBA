@@ -6,12 +6,6 @@
 //
 // Original source: C:\Projects\Buildy\code\Game\Dialog/NewGameDialog.h
 //                  Dialog\NewGameDialog.cpp
-//
-// LEFT (B.4 W1 DLG-b): the three generator classes (Game/MapGenerator.h,
-// ClimateGenerator.h, TerrainGenerator.h) declare their StringTable ExternalPtr
-// and their name / description Strings as `void*`; the reads of those fields
-// stay casts until those headers are typed. EditElement::_text is the String's
-// raw `char*` (H5, runtime UI header).
 
 #include "load_time.h"   // [LoadTime] stamps (NOT RETAIL, print-only; block LOADSTAMP)
 #include "ui/Sprite.h"   // ENDGAME B.3.6 UI callers (K2)
@@ -56,7 +50,7 @@
 #include "Game/ClimateGenerator.h"   // X::TypeId() (ENDGAME B.3.9)
 #include "Game/TerrainGenerator.h"   // X::TypeId() (ENDGAME B.3.9)
 #include "Dialog/exe_bodies.h"
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc
 #include "rt_crt.h"   // rtcrt::StrICmp, retail's _stricmp (D.4 Q9)
 
 // ============================================================
@@ -74,7 +68,7 @@ static T* FindElementAs(NewGameDialog* dialog, const char* name) {
 
 // Type-check a loaded resource. In STANDALONE the Runtime factory tree is
 // incomplete, so Object::IsDerivedFrom walks up the type's parent chain into a
-// NULL factory and crashes (NULL-this). Per feedback_factory_cascade_strategy we
+// NULL factory and crashes (NULL-this). Stub factories never fake IsDerivedFrom passing, so we
 // trust FindOrLoad's result and skip the derivation check. typeId is unused (kept
 // as a parameter so every call site still names which type it means).
 static inline bool ResourceIsType(const ::Object::External* resource, uint32_t typeId) {
@@ -147,9 +141,9 @@ static void GenerateTownName(System::String& retStr, System::Random* random, int
     }
 
     // minLen 5 is retail's constant; maxLen is derived from the edit box's
-    // _maxLength by the caller. NameDB_GenerateName (0x1400a4b30, registered by
-    // standalone/reg_namedb.cpp) constructs the String in retStr even when the
-    // database is missing, so retStr is always live for the suffix fix-up below.
+    // _maxLength by the caller. NameDB_GenerateName (0x1400a4b30, citizen_names.cpp)
+    // constructs the String in retStr even when the database is missing, so retStr
+    // is always live for the suffix fix-up below.
     NameDB_GenerateName(&retStr, nameDB, random, 5, maxLen);   // 0x1400a4b30
 
     // Retail: a name longer than 4 chars ending in "vill" gets an "e" appended,
@@ -484,25 +478,6 @@ void NewGameDialog::OnOpened() {
     UpdateDescription();
 }
 
-// ============================================================
-// OnUpdateLayout (0x140070650): sync OK button enabled state
-// ============================================================
-// Enables buttonOk if editName has content, disables if empty.
-
-// ============================================================
-// NewGameDialog::OnElementEvent (0x140070110)
-// ============================================================
-// Handles button clicks and combo changes in the New Game dialog.
-// eventType 0x12 = button click:
-//   eventData 0 = buttonNewName → generate random name
-//   eventData 1 = buttonNewSeed → generate random seed
-//   eventData 2 = buttonOk     → start new game
-//   eventData 3 = buttonCancel → close dialog
-// eventType 0x14 = combo change:
-//   eventData 4 = comboCondition → update description text
-//
-// Original: 0x140070110.
-
 void NewGameDialog::StartGame() {
     // Read combo selected items
     int condIdx = comboCondition->_currentItem;
@@ -743,6 +718,19 @@ void* MainMenuDialog::StartNewGame(const System::String& name, uint32_t seed, ui
     }
 }
 
+// ============================================================
+// NewGameDialog::OnElementEvent (0x140070110)
+// ============================================================
+// Handles button clicks and combo changes in the New Game dialog.
+// eventType 0x12 = button click:
+//   eventData 0 = buttonNewName → generate random name
+//   eventData 1 = buttonNewSeed → generate random seed
+//   eventData 2 = buttonOk     → start new game
+//   eventData 3 = buttonCancel → close dialog
+// eventType 0x14 = combo change:
+//   eventData 4 = comboCondition → update description text
+//
+// Original: 0x140070110.
 void NewGameDialog::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, UI::EventId eventType, int32_t eventData, int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
     fprintf(stderr, "[NewGameDialog::OnEvent] this=%p type=0x%x data=%d\n",
             (void*)this, eventType, eventData);
@@ -783,6 +771,10 @@ void NewGameDialog::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/
 // No-op shutdown; nothing to clean up.
 void NewGameDialog::OnClosed() {}
 
+// ============================================================
+// OnUpdateLayout (0x140070650): sync OK button enabled state
+// ============================================================
+// Enables buttonOk if editName has content, disables if empty.
 void NewGameDialog::OnUpdateLayout() {
     // The name edit box's text length (0 when empty).
     int len = editName->GetText().GetLength();
@@ -808,7 +800,8 @@ void NewGameDialog::OnUpdateLayout() {
 //   +0x48 Slot9 OnSerializeSettings — 0x14003a954 (runtime thunk)
 //
 // The real ctor is exe 0x140071040 (Ghidra mislabels it "NewGameDialog_CopyCtor";
-// it is the 5-arg ctor MainMenuDialog::OpenNewGame calls). 0x140071120 is the Dtor.
+// it is the 5-arg ctor MainMenuDialog::OpenNewGame calls). 0x140071120 is the default
+// ctor that create 0x140012c70 and createInPlace 0x140012cb0 run.
 
 #include "Object/factory_registration.h"
 

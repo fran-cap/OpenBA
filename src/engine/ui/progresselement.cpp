@@ -4,7 +4,7 @@
 //
 // `??_7ProgressElement@UI@@6B@` (retail 0x180159180):
 //
-//   0  vector deleting dtor  0x180078150  -> deleting_dtor.cpp row (this batch)
+//   0  vector deleting dtor  0x180078150  -> ProgressElement.h (the class's own)
 //   1  TypeName              0x180077d40  here
 //   2  Type                  0x180077d20  here
 //   4  ComputeSize           0x1801198f0  here
@@ -17,8 +17,7 @@
 // the background colour and the two floats, every one written by the ctor).
 //
 // ENDGAME B.3.6 block C5: the five slot bodies MOVED into the members of the
-// real `UI::ProgressElement`; each registered door is a one-line QUALIFIED
-// delegation. The ctor / dtor stay doors (B4b-2).
+// real `UI::ProgressElement`.
 //
 // ~ProgressElement does NOT restamp the vtable — it is a bare tail jump to
 // ~Element (five instructions at 0x180077ef0, disassembled). That asymmetry
@@ -189,7 +188,7 @@ void ProgressElement::Draw(SpriteContext& context, uint8_t alpha) const {
     const int32_t top    = _layoutTop;
     const int32_t rightX = _layoutRight;
 
-    // UI::SpriteContext::AddSprite (block D's class) — by address, doors stay.
+    // UI::SpriteContext::AddSprite (block D's class), a direct member call.
     context.AddSprite(_trackLeft, left, top, trackColor);
 
     const int32_t midH   = _trackMiddle.Height();

@@ -24,13 +24,10 @@
 #include "graphics/FrameCopyImageBuffer.h"
 
 // ===========================================================================
-// PART A — `Video::ImageBuffer`'s layout, and its agreement with the POD.
+// PART A — `Video::ImageBuffer`'s layout.
 //
-// B4b-1 moved the POD to `RtVideo::ImageBuffer` and left a global alias; the two
-// must keep describing the same bytes for as long as block D2's five files read
-// the POD while this block's four read the class. A field accidentally added to
-// either would move `_data` at +0x60, which `src/render/dx11/` reads, and fail HERE rather
-// than in a black window.
+// A field accidentally added would move `_data` at +0x60, which `src/render/dx11/`
+// reads; ImageBuffer.h's static_asserts pin the layout.
 // ===========================================================================
 UNIT_TEST(video_imagebuffer_layout) {
     CHECK_EQ(alignof(Video::ImageBuffer), (size_t)8);
@@ -39,45 +36,18 @@ UNIT_TEST(video_imagebuffer_layout) {
     // which is what puts `_width` at +0x20 rather than anywhere else.
     CHECK_EQ(sizeof(Object::External), sizeof(Object::CompiledExternal));
 
-    // THE ONE dx11 READS. `src/render/dx11/dx11_backend_access.h`'s deleted
-    // `ImageBufferOwner` pinned exactly this offset (RULE B5-2.1).
-
-    // Class and POD, field for field on the fourteen that matter.
-
     // `_data` is the real abstract base block A declared, not a `void*`.
     CHECK(  (std::is_same<decltype(Video::ImageBuffer::_data),
                           Video::ImageBufferData*>::value) );
 }
 
 // ===========================================================================
-// PART B — slot order across the whole chain, on mirrors.
-//
-// Retail slot 0 is the deleting destructor. Since B3X W1 the real chain
-// declares `virtual ~T()` there, which GCC lays out as TWO entries (D1
-// complete, D0 deleting): retail slot n >= 1 is compiler slot n + 1, and the
-// SlotAt reads translate (RetailByteOffset). The mirrors follow the product,
-// with a recording class-scope operator delete for the root's MemFree one.
-// The mirrors give slot 9, `Compile` and
-// `Generate` a BODY where the real classes declare them `= 0`; that is the one
-// deliberate difference, and the reason is the same as block A's — the real
-// bodies are `deleting_dtor.cpp` table rows and `buffers.cpp` /
-// `wave23_lane_gfxbody.cpp` doors, not linkable here, and a probe has to be
-// instantiable to have a vtable to read. The slot INDEX is what is under test,
-// and it does not move.
-//
-// The shape mirrored is the one B35_SLOTS.md read from bytes:
-//   Video::ImageBuffer                10 slots, 0..9   (Create introduced at 9)
-//   Graphics::GeneratedImageBuffer     12 slots        (Generate 10, Render 11)
-//   Graphics::FrameCopy / Reflection   12 slots
-// ===========================================================================
-// ===========================================================================
 // PART D — the chain's three derived layouts.
 //
 // `GeneratedImageBuffer` adds exactly ONE field (the int latch at +0x68) plus the
 // four bytes MSVC leaves before the 8-aligned tail of the two concretes, and the
 // two concretes' owned pointers start at +0x70. Each size is its own deleting
-// destructor's `MOV EDX,imm`, and each is cross-checked against the POD the
-// unconverted `wave23_lane_gfxbody.cpp` still uses.
+// destructor's `MOV EDX,imm`; the headers' static_asserts pin them.
 // ===========================================================================
 UNIT_TEST(graphics_imagebuffer_chain_layout) {
     // The latch, inherited by both concretes at the SAME offset — which is why
@@ -126,8 +96,8 @@ UNIT_TEST(video_renderstate_layout) {
 
     // The three nested value types. `?Initialize@` copies each of them dword by
     // dword INCLUDING the padding, which the member expresses as a struct
-    // assignment — sound only while all three stay trivially copyable, which the
-    // real constructors below do not break.
+    // assignment — sound only while all three stay trivially copyable, which their
+    // inline default constructors (RenderState.h) do not break.
     CHECK(std::is_trivially_copyable<Video::RenderState::AlphaBlend>::value);
     CHECK(std::is_trivially_copyable<Video::RenderState::Depth>::value);
     CHECK(std::is_trivially_copyable<Video::RenderState::Stencil>::value);
@@ -151,14 +121,11 @@ UNIT_TEST(video_renderstate_layout) {
 // ===========================================================================
 // PART F — the explicit padding in the three nested value types.
 //
-// NOT a behavioural test, and the reason is worth stating rather than leaving as
-// a gap: the three exported default constructors (0x1800f4b30 / 0x1800f4a80 /
-// 0x1800f49d0) are DEFINED in `src/engine/video/renderstate.cpp`, which stands
-// on `RT_DATA_SLOT` and the port registry and cannot link into a host test, so
-// nothing here may construct one — a `Video::RenderState::AlphaBlend ab;` would
-// be an undefined reference. Their constants are verified by the real run (the
-// `RenderState` ctor door writes the same values and the resave gate reads them
-// back out of a save).
+// NOT a behavioural test: the three exported default constructors (0x1800f4b30 /
+// 0x1800f4a80 / 0x1800f49d0) are inline in `src/engine/video/RenderState.h` and
+// are not run here. Their constants are verified by the real run (the
+// `RenderState` ctor runs all three and the resave gate reads them back out of a
+// save).
 //
 // What IS checkable here, and matters: retail writes a BYTE at `AlphaBlend+0x00`
 // and never touches +0x01..+0x03, and a WORD at `Depth+0x00` and never +0x02.

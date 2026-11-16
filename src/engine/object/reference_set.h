@@ -34,14 +34,14 @@
 //   | subtree free | 0x180008340        | 0x18002eea0 (factory_dtors)  | 0x18002ebf0 (factory_dtors) |
 //
 // (set_avl.h's prose lists its four addresses in a different order from
-// set_avl.cpp's registrations. The .cpp is right — 0x18000adc0 is the RETRACE,
+// set_avl.cpp's body headers. The .cpp is right — 0x18000adc0 is the RETRACE,
 // 0x18000b170 the rotate RIGHT — and that was checked by disassembling both
 // rather than by reading either comment.)
 //
 // **The last row is why this lane wrote seven bodies and not eight.** The brief
 // that opened it named TWO missing bodies — the insert `0x18002cb90` and the
-// destroy-whole-tree `0x18002ebf0` — but `0x18002ebf0` has been ported AND
-// REGISTERED since Wave 11 lane OBJLIFE, as `RtObjFactoryDtor::
+// destroy-whole-tree `0x18002ebf0` — but `0x18002ebf0` has been ported since
+// Wave 11 lane OBJLIFE, as `RtObjFactoryDtor::
 // ReferenceSubtreeFree` in `src/engine/object/factory_dtors.cpp`. A census
 // `unported` row has four meanings and "a body the tree already has" is one of
 // them; the grep took a minute and saved a duplicate registration, which is
@@ -75,17 +75,6 @@
 // the `Filename`, and `Insert` builds and releases a `ReferenceEntry` on its
 // own stack. So this file uses the real `RtObject::ReferenceEntry` and the
 // layout claim is the one External.h already `static_assert`s.
-//
-// ORACLE
-// ------
-// Every entry point here mutates one shared tree, so a live ours-then-theirs
-// replay is not weak, it is WRONG: retail's second insert of the same key
-// returns the existing node and inserts nothing, which makes the comparison
-// vacuously green. Verification is the LOCKSTEP SYNTHETIC-SUBJECT probe in
-// reference_set_probe.cpp: two private `Set`s, one script, ours through these
-// bodies and theirs through the shipped ones reached with `ResolveRuntimeRaw`,
-// compared after every step on shape, balance, height, parent linkage AND the
-// element payload.
 //
 // PORTABILITY: no <windows.h>, per PLAN.md §4.1 decision 1.
 // ============================================================================

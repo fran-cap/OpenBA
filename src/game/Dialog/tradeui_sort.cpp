@@ -2,11 +2,9 @@
 // Wave A — the TradeUI table sorts: two introsort drivers, their two comparators,
 // and their two small-range sorts. Six exe functions, one shared algorithm.
 //
-// The gate in ui_dialog_stub_factories.cpp names only the two DRIVERS
-// (0x1400162d0 fn_IntroSort_ByName, 0x1400165d0 fn_IntroSort_ByComponent), which
-// undersells the job: neither driver's comparator or small-range sort was ported
-// either, and all four were unregistered. What the gate can see is not the same as
-// what has to exist.
+// tradeui.cpp calls only the two DRIVERS (0x1400162d0 fn_IntroSort_ByName,
+// 0x1400165d0 fn_IntroSort_ByComponent); their comparators and small-range sorts are
+// the other four.
 //
 // ── ABI, taken from the DISASSEMBLY (the decompile is wrong about arity) ──────
 // Ghidra gives these functions phantom trailing parameters, because MSVC reuses the
@@ -15,9 +13,8 @@
 // locals). Every signature below was read off the prologue instead:
 //
 //   0x1400162d0  ByName driver        RCX=array, EDX=count            — 2 params.
-//                                     R8/R9 are never read. The existing call site
-//                                     in tradeui.cpp passes 4 args; the extra two
-//                                     are harmless on Win64 and are left alone.
+//                                     R8/R9 are never read; the call site in
+//                                     tradeui.cpp passes 2 args.
 //   0x1400165d0  ByComponent driver   RCX=array, EDX=count, R8=ctx    — 3 params,
 //                                     with an entry guard `CMP EDX,1 ; JLE ret`.
 //   0x140015ad0  ByName small sort    RCX=first, RDX=last             — 2 params.
@@ -137,7 +134,7 @@ bool ComponentLess(SortCtx ctx, const TradeUI::StorageItem* a, const TradeUI::St
 
 } // namespace
 
-// ── Registered entry points ──────────────────────────────────────────────────
+// ── Entry points (declared in Dialog/TradeUI.h) ──────────────────────────────
 
 // 0x1400162d0 — sort the trade table by name. RCX=array, EDX=count: retail
 // never reads R8/R9 (the two "phantom" parameters the caller used to pass are gone).
@@ -158,5 +155,5 @@ extern "C" void TradeUI_IntroSort_ByComponent_165d0(TradeUI::StorageItem* array,
 }
 
 // The BANISHED_TRADE_SORT_SELFTEST introsort self-test was deleted with the flag
-// (ENDGAME C). standalone/reg_tradeui_leaves.cpp still calls it; the stub goes with it.
+// (ENDGAME C).
 

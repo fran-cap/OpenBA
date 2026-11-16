@@ -47,23 +47,19 @@
 //
 // ---------------------------------------------------------------------------
 // Deviations from retail, all forced by standalone and all logged:
-//   a) Entity_FindComponent_Citizen (0x140009790) is NOT registered, and the exe
-//      type-id global it reads (DAT_1401c7158) is null on a default run. The finder is
-//      reimplemented inline (identical body: scan entity+0x30 array of entity+0x38
-//      IBPs, match vtable+0x10 GetTypeId) with the type id taken from the exe global
-//      when present and ::Object::GetTypeIdByName("CitizenComponent") otherwise — the
-//      same fallback the in-game birth path uses (citizencomponent.cpp).
+//   a) Entity_FindComponent_Citizen (0x140009790) is reimplemented inline (identical
+//      body: scan entity+0x30 array of entity+0x38 IBPs, match vtable+0x10 GetTypeId)
+//      with the type id CitizenComponent::TypeId().
 //   b) IsDerivedFrom against DWORD_1401c7190 fails in standalone (the description's
 //      type-id isn't recognised), which would leave retail's `desc` NULL and fault on
 //      desc+0x44. Established derive-or-TRUST pattern: keep the check, but fall back to
 //      the linked description at comp+0x18 when it fails.
-//   c) FUN_14001b1d0 is not registered either; the equivalent is the inline
-//      ResolveExternalByName_Impl. It is find-only and caches its result, so a re-resolve
-//      that missed would null the template starttown.cpp loaded via FindOrLoad. The
-//      caller therefore passes the already-resolved template as a fallback and we restore
-//      the cache if the re-resolve comes back empty.
-//   d) A garbage jitter radius (NaN / negative / absurd) is clamped to 0, same guard
-//      SetCitizenSpawnTransform already applied. The field is read raw from the .rsc.
+//   c) FUN_14001b1d0 is NamedExternalRef::ResolveDescription. It is find-only and caches
+//      its result, so a re-resolve that missed would null the template starttown.cpp loaded
+//      via FindOrLoad. The caller therefore passes the already-resolved template as a
+//      fallback and we restore the cache if the re-resolve comes back empty.
+//   d) A garbage jitter radius (NaN / negative / absurd) is clamped to 0. The field is
+//      read raw from the .rsc.
 
 #include <new>
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
@@ -71,9 +67,9 @@
 #include "Game/GameUpdateLoop.h"   // caller batch CB6: the world's named fields
 #include "Entity/ComponentEntity.h"   // ComponentEntity(ComponentDescription*) (0x1400c3720)
 #include "Entity/EntityList.h"        // EntityList::RegisterEntity (0x1400c48a0)
-#include "Component/exe_bodies.h"            // CitizenComp_DeferredInit_117080
+#include "Component/exe_bodies.h"
 #include "Action/exe_bodies.h"               // Vector3Slot (the spawn position)
-#include "Game/exe_bodies.h"                 // fn_Random_RandFloatTol
+#include "Game/exe_bodies.h"
 #include "Object/factory_registration.h"
 #include "object/TypeInfo.h"                 // caller batch CB6: Object::Base::Type()
 #include "Component/CitizenComponent.h"     // caller batch CB6: TypeId()
@@ -94,8 +90,8 @@ static constexpr int ENTITY_SIZE     = 0x48;
 
 static constexpr float kAdultAgeBias = 0.5f;   // DAT_140172114
 
-// CitizenComp_DeferredInit_117080 (0x140117080) — the whole per-citizen init, called by
-// name (Component/exe_bodies.h), with the age argument typed as FLOAT: it was long
+// CitizenComponent::Initialize (0x140117080) — the whole per-citizen init, called by
+// name (Component/CitizenComponent.h), with the age argument typed as FLOAT: it was long
 // declared `int` and only worked because every existing caller passed literal 0 (same
 // bit pattern as 0.0f). See open H.
 
@@ -103,8 +99,7 @@ static int  s_trace = 0;
 
 // ---------------------------------------------------------------------------
 // Type ids — read directly (D5, ENDGAME B.3.9 CG3): cells 0x1401c7158 and
-// 0x1401c7190 through the classes' own X::TypeId(), never the engine_funcs
-// TypeId_* globals (which read the SAME cells).
+// 0x1401c7190 through the classes' own X::TypeId().
 // ---------------------------------------------------------------------------
 static uint32_t TidCitizenComponent() {
     return CitizenComponent::TypeId();
@@ -155,8 +150,8 @@ static CitizenDescription* FoundingCitizenDescription(const ComponentDescription
             if (!desc) continue;
             // Slot 2 on a template description-array element.
             if (desc->Type() == want) {
-                // Retail keeps the hit only if IsDerivedFrom agrees; standalone trusts
-                // the GetTypeId match when the derive check can't run (deviation (b)).
+                // Retail keeps the hit only if IsDerivedFrom agrees; standalone keeps
+                // the GetTypeId match without the derive check (deviation (b)).
                 found = static_cast<CitizenDescription*>(desc);
                 break;
             }

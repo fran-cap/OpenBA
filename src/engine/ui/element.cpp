@@ -2,7 +2,7 @@
 // src/engine/ui/element.cpp — Wave 7 lane A — UI::Element + ContainerElement
 // ============================================================================
 //
-// Ports 21 of the 23 `UI::Element` / `UI::ContainerElement` exports our tree
+// Ports 22 of the 23 `UI::Element` / `UI::ContainerElement` exports our tree
 // calls (PLAN.md §4.2 wave 7, §6). The recovered layout and the evidence for
 // every offset are in src/engine/ui/Element.h; the per-function write-up,
 // the oracle argument for each row and everything this lane could NOT verify
@@ -40,7 +40,7 @@
 //
 // All 23 mangled names were checked against the shipped export directory of
 // C:\GOG Games\Banished\Runtime-x64.dll with a pefile-style reader BEFORE any
-// body was written (reference_resolveexport_phantom_names.md: a name the DLL
+// body was written (a name the DLL
 // does not contain resolves to NULL in silence, the port still registers, and
 // the census still counts it). All 23 are present; the addresses and ordinals
 // above are that query's output, not Ghidra's guess. The six Wave 7 phantoms
@@ -53,16 +53,8 @@
 // ("port classes whole") is live here in a way it was not for Wave 6's
 // non-polymorphic `Video::Context`. It is defused, not ignored:
 //
-//   * `??_7Element@UI@@6B@` is an EXPORTED data symbol (retail 0x180156160),
-//     and the ported ctor stamps THAT address, resolved by name at run time,
-//     rather than minting a table of its own. So a half-ported hierarchy never
-//     puts two vtables in play: every object built by our ctor and every object
-//     built by the DLL's ctor carry the identical pointer, and a virtual call
-//     from either side lands on the same twelve slots.
-//   * No method in this lane is registered as a vtable slot. Registering
-//     redirects OUR direct callers only; the DLL's own internal near-CALLs and
-//     its widgets' vtables still reach the DLL's bodies. That is fine here
-//     because every ported body is a pure function of the object's fields.
+//   * `??_7Element@UI@@6B@` is an EXPORTED data symbol (retail 0x180156160);
+//     the real constructor (Element.h) stamps the class's own table.
 //   * The two functions that would have made this dangerous — the dtor and
 //     `RemoveChildren`, which DESTROY objects — are held back (see below).
 //     WAVE 9: BOTH HAVE SINCE LANDED. `RemoveChildren` in lane B3, the dtor in
@@ -82,7 +74,7 @@
 //       grep across code/, engine/, standalone/, runtime/ and src/render/dx11/ finds the
 //       declaration, the assignment and no call. A registered port on a path
 //       nothing executes reports `calls=0 divergences=0` forever, which READS
-//       as a pass (reference_uncalled_port_is_not_verified.md — a wrong
+//       as a pass (a wrong
 //       Quaternion::operator* survived all of Wave 1 exactly that way).
 //   (b) It is the most destructive function in the class and it has no oracle:
 //       it releases a System::String, destroys every child through vtable slot
@@ -117,15 +109,9 @@
 #include "ui/ClipRegionElement.h"  // B.3.9 TI-UI: the two type ids SetOffsets
 #include "ui/ScrollElement.h"      // reads (retail `MOV EDX,[0x1801f9d68]`)
 #include "video/Device.h"   // ENDGAME B.3.9 SS1: Video::Device::_singleton
-// `enum class Module` + `ResolveAddr` (declared once there, byte-identical to
-// standalone/resolve.h) and `rtuielem::AtomicExport`, the B6-5 door cache.
 #include "element_common.h"
 
-// ENDGAME B.3.6 block A: `UI::Element` is the REAL class now (Element.h), so
-// every door below receives a typed `Element*` and delegates with a QUALIFIED
-// non-virtual call (`self->UI::Element::M(…)`): a live Element wears the MINTED
-// table, whose slots resolve back to these doors, so an unqualified call from a
-// door into a virtual would re-enter the door (B34_BRIEFS A.1).
+// ENDGAME B.3.6 block A: `UI::Element` is the REAL class (Element.h).
 using UI::Element;
 using ::UIString;   // src/engine/ui/String.h
 
@@ -135,42 +121,11 @@ constexpr size_t kElementSize = sizeof(Element);   // 0xC0, static_assert'd in t
 
 // ============================================================================
 // Dependencies this lane CALLS rather than reimplements.
-//
-// Two different resolution rules, on purpose (Wave 4 lane C's rule, restated in
-// achievement_manager.cpp:80):
-//
-//  * ResolveExport(name) — "whatever is registered". Used where retail called
-//    another engine function that a sibling wave may have ported: our body
-//    should then use the port, exactly as every other one of our call sites
-//    does. That is what Wave 6 lane A did with Math::Matrix::Inverse.
-//  * ResolveAddr(Module::Runtime, addr) — "the address door". Used for the
-//    Collection::Array helpers and the other unexported internals, which are
-//    header-only template instantiations with NO exported symbol to ask for.
-//
-//    WAVE 9 LANE UIF CORRECTION: this bullet used to read "always the DLL",
-//    and that has been FALSE for the whole runtime port. Read the
-//    implementation — standalone/resolve_standalone.cpp:471 — `ResolveAddr`
-//    consults `RtAddrReg()` BEFORE it touches the module handle and before it
-//    applies the ASLR delta, so an address another lane has registered comes
-//    back as OUR code (reference_resolveaddr_consults_port_registry_first.md,
-//    and lane K's src/engine/object/deleting_dtor.cpp says the same thing in
-//    its own words). The correction matters here rather than being pedantic:
-//    `??1Element` below reaches RemoveChildren, ~Array and ~Internal through
-//    this door precisely BECAUSE it lands on the ports, which is what lets the
-//    destructor close its cutover row instead of moving it one frame deeper.
-//    Believing the old sentence would have made that port look useless.
-//
-// Every one of these is looked up ONCE and cached. ResolveExport
-// are GetProcAddress and cost like a syscall — two of them in the body of
-// System::Time cost 5.6 points of sim time in Wave 2 and were invisible to both
-// profilers (reference_rtoriginal_is_getprocaddress.md).
 // ============================================================================
 
 // B3R RT-UI: `?MemFree@MemoryAllocator@System@@SAXPEAX@Z` (0x1800c7ad0) and
 // `?IsDerivedFrom@Base@Object@@QEBA_NI@Z` (0x1800c0390) are called directly.
-// NOTE for whoever reads a crash log: 0x1800c0390 is the function
-// src/app/main.cpp's crash handler recognises by the offset +0xC0390,
-// because retail calls it on a possibly-null child (see SetOffsets).
+// NOTE: retail calls 0x1800c0390 on a possibly-null child (see SetOffsets).
 
 // ENDGAME B.3.2 step 2 — the 0x180076900 forwarder that used to sit here is
 // GONE. `Element::_children` is a real `Collection::Array<Element*>` member
@@ -190,11 +145,9 @@ const ::Video::Device* VideoDeviceSingleton() {
 // ============================================================================
 // The member bodies (ENDGAME B.3.6 block A)
 // ============================================================================
-// Each body below MOVED here from its registered door (`self->x` became `x`),
-// and the door, further down, is now a one-line QUALIFIED delegation. Virtual
-// calls onto OTHER elements (the border's slot 5/6, a child's slot 2/4) are
-// plain virtual calls: they dispatch through the RECEIVER's table — minted or
-// GCC's, slot for slot the same — exactly where the old `VSlot<Fn>(p, N)` read.
+// Each body below MOVED here from its registered door (`self->x` became `x`).
+// Virtual calls onto OTHER elements (the border's slot 5/6, a child's slot 2/4)
+// are plain virtual calls: they dispatch through the RECEIVER's table.
 namespace UI {
 
 // ---- ?SetNeedsSizeCalc@  0x180035470 ---------------------------------------
@@ -216,7 +169,7 @@ void Element::SetNeedsSizeCalc() {
 // ============================================================================
 // Every body is byte-faithful to the retail disassembly — read as
 // DISASSEMBLY, not as Ghidra's C, because that C drops dereferences and prints
-// MOVSXD as a zero extension (reference_ghidra_c_output_vs_disassembly.md; three
+// MOVSXD as a zero extension (three
 // Wave 6 defects, one a crash, came from trusting it). Where retail derefs
 // without a null check, so do we: CLAUDE.md's rule is that retail's unguarded
 // derefs are load-bearing, and a guard skips the behaviour rather than
@@ -653,9 +606,7 @@ void Element::ReleaseFields() {
     UI::Element::RemoveChildren();
 
     // The border element, destroyed through ITS OWN slot 0 with flag 1 —
-    // scalar delete. Not `??1Element`: slot 0 is `??_E`, and picking the wrong
-    // one of the three spellings resolves null behind a guard
-    // (reference_phantom_dtor_mangling_qeaa_vs_ueaa.md).
+    // scalar delete. Not `??1Element`: slot 0 is `??_E`.
     if (_border != nullptr) {
         Element* border = _border;
         if (border != nullptr)             // retail's second, redundant test
@@ -698,9 +649,7 @@ void Element::ReleaseFields() {
 
 
 // ---- ?SetOffsets@ContainerElement@UI@@QEAAXHH@Z  0x1800cc1e0 ---------------
-// ENDGAME B.3.6 fragment pass F2: block C4's class, its body in block A's file
-// (the evidence, the UNGUARDED first write and the re-load of `_children` per
-// read are documented at the door `RtUi_ContainerElement_SetOffsets` below).
+// ENDGAME B.3.6 fragment pass F2: block C4's class, its body in block A's file.
 void ContainerElement::SetOffsets(int32_t x, int32_t y) {
 
     Element* child0 = _children.GetData()[0];
@@ -730,54 +679,16 @@ void ContainerElement::SetOffsets(int32_t x, int32_t y) {
 
 }  // namespace UI
 
-// ============================================================================
-// The DOORS. Registered names and addresses unchanged; each is now a one-line
-// QUALIFIED delegation. The retslot ones keep retail's `(this, ret, …)` shape
-// and placement-new the member's prvalue into the caller's slot (B5-12).
-// ============================================================================
-
 // (ENDGAME B.3.9 UI-D: the ComputeLayout / Draw slot doors are retired with
 // the minted table.)
-
-// ---- ?SetOffsets@ContainerElement@UI@@QEAAXHH@Z  0x1800cc1e0 ---------------
-
-// ============================================================================
-// Registration
-// ============================================================================
-// Each ported function is registered TWICE, under its mangled name and under
-// its retail address, even though today every live call site in our tree uses
-// the name form (verified by grep across code/, engine/, standalone/, runtime/
-// and src/render/dx11/: all of them go through engine/funcs/engine_funcs.cpp or
-// standalone/address_registry.cpp, both of which call ResolveExport). The
-// address registration costs nothing and closes the Wave 5 lane D failure mode
-// where one live object is split between two implementations because a later
-// call site used the other door.
-//
-// The four exe PE-import slots that carry lane-A methods —
-// 0x1401518d8 (ctor), 0x1401518e0 (dtor), 0x1401518e8 (ComputeLayout),
-// 0x1401518f0 (GetAlignedPosition member) and 0x1401518f8 (Draw) — are filled
-// by `RegisterDispatchSlot(slot, ResolveExport(name))` in
-// standalone/address_registry.cpp, and `AddressRegistryInit()` runs AFTER
-// `RuntimePortInit()` (src/app/main.cpp:1614 then :1626). So those slots
-// pick this port up too, without this file touching them. CHECKED, because a
-// slot filled BEFORE the port registered would have kept the DLL pointer and
-// quietly halved the lane. (WAVE 9 LANE UIF: this used to end "0x1401518e0
-// keeps the DLL's dtor, which is correct: the dtor is held back." The dtor is
-// no longer held back, so that slot now picks up `RtUi_Element_Dtor` by the
-// same after-the-fact ResolveExport the other four use — no change needed
-// here, but the sentence had to go rather than stay and be wrong.)
-//
-// src/engine/ui/rt_ui_port.cpp before this function is called.
-// ============================================================================
 
 // ============================================================================
 // ??1Element@UI@@UEAA@XZ  retail 0x1801161a0  ord 584   (WAVE 9 LANE UIF)
 // ============================================================================
 //
 // WHY THE WAVE 7 HOLD-BACK NO LONGER STANDS. It rested on two reasons, and
-// BOTH were re-read rather than assumed (reference_holdback_blockers_are_stale
-// _check_them_first.md — three stated blockers in one session turned out to be
-// facts the tree already had):
+// BOTH were re-read rather than assumed (three stated blockers in one session
+// turned out to be facts the tree already had):
 //
 //   (a) "NOTHING IN OUR TREE CALLS IT." That was true of DIRECT callers and is
 //       still true of them. It is no longer the whole picture, because it was
@@ -788,13 +699,8 @@ void ContainerElement::SetOffsets(int32_t x, int32_t y) {
 //       ported all 37 of those slot-0 bodies. 0x180035c10 was disassembled for
 //       this lane: it reaches `??1Element` at 0x1801161a0 on BOTH branches
 //       (`LEA R9,[0x1801161a0]` into the array iterator at 0x180035c28, and
-//       `CALL 0x1801161a0` in the scalar branch at 0x180035c61). Lane K calls
-//       `~Class` by ADDRESS through ResolveAddr, which consults the port
-//       registry first, so the registration below is what makes that edge land
-//       in our code. Until it did, lane K's ported slot 0 called into the DLL —
-//       and with the DLL absent, into NULL. That is the shape the brief warned
-//       about: a null reached through a LIVE MINTED VTABLE, faulting far from
-//       its cause.
+//       `CALL 0x1801161a0` in the scalar branch at 0x180035c61). Our slot 0 is
+//       the compiler's deleting destructor, which runs `UI::Element::~Element`.
 //
 //   (b) "It is the most destructive function in the class and it has no
 //       oracle." Still exactly true, and nothing below pretends otherwise —
@@ -805,8 +711,7 @@ void ContainerElement::SetOffsets(int32_t x, int32_t y) {
 //       is worse than a hold-back assumed a working DLL underneath it. There
 //       is none after cutover.
 //
-// THE BODY, read from the disassembly at 0x1801161a0 and not from Ghidra's C
-// (reference_ghidra_c_output_vs_disassembly.md):
+// THE BODY, read from the disassembly at 0x1801161a0 and not from Ghidra's C:
 //
 //     this->_vtable = &??_7Element@UI@@6B@;         // 0x180156160
 //     RemoveChildren(this);                         // 0x180115570
@@ -837,15 +742,13 @@ void ContainerElement::SetOffsets(int32_t x, int32_t y) {
 // So this row closes rather than relocating.
 //
 // THE TAIL CALL TO ~Internal IS LOAD-BEARING AND IS NOT OPTIONAL. 0x1800bfdb0
-// is the InternalFactory swap-remove that
-// reference_internalfactory_swapremove_wild_write.md is about: an Element freed
+// is the InternalFactory swap-remove, which stores the moved entry's new index
+// at its +0x08: an Element freed
 // without it leaves a stale handle-table entry that a later swap-remove writes
-// through. Reached here by ADDRESS, exactly where retail reaches it, so
-// whichever variant internal.cpp has live (plain or shadowed) is what runs.
+// through. It runs in the compiler's destructor chain, after ~Element's body.
 //
 // THE ORACLE QUESTION — THERE IS NO ORACLE, AND THIS PORT SHIPS WITHOUT ONE.
-// Stated plainly because a quiet site reads as a pass
-// (reference_uncalled_port_is_not_verified.md). A replay here would not be a
+// Stated plainly because a quiet site reads as a pass. A replay here would not be a
 // comparison but a SECOND DESTRUCTION: it would destroy every child again
 // through slot 0, decrement two String refcounts our body may already have
 // taken to zero and FREED, free the child array again, and run the handle
@@ -853,7 +756,7 @@ void ContainerElement::SetOffsets(int32_t x, int32_t y) {
 // heap corruption; the last is this project's worst failure family. So this is
 // a NO-ORACLE PORT in the exact disposition Wave 9 lane M established and lane
 // Z reused four rows over in src/engine/ui/userinterface.cpp: a real body,
-// registered, with NO call into the shipped body at all.
+// with NO call into the shipped body at all.
 //
 // Nothing in this file is evidence that the body is right; the evidence is the
 // disassembly transcribed above.
@@ -895,9 +798,9 @@ void ContainerElement::SetOffsets(int32_t x, int32_t y) {
 // and hoisting it is the kind of tidy-up that turns a transcription into an
 // assumption. Reproduced.
 //
-// No null test on `self`: retail has none, and the two callers
-// (`?SetUpperLeft@DialogInstance@` 0x180114a60 and this body itself) both test
-// before calling. CLAUDE.md's rule — the deref is load-bearing.
+// No null test on `self`: retail has none, and its engine callers
+// (`?SetUpperLeft@DialogInstance@` 0x180114a60, layoutelement.cpp and this body
+// itself) test before calling. CLAUDE.md's rule — the deref is load-bearing.
 namespace UI {
 void Element::AdjustUpperLeft(int32_t dx, int32_t dy) {
     Element* e = this;

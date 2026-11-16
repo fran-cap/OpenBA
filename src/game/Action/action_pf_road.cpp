@@ -2,25 +2,23 @@
 // Wave 3 (Action) — pathfinding / road-mesh-rebuild / geometry-wrapper / entity-resolve
 // closure batch (the "PF-ROAD" family).
 //
-// Faithful 1:1 ports of 11 exe helpers (decompiled + disassembly-verified in Ghidra). The big
+// Faithful 1:1 ports of 8 exe helpers (decompiled + disassembly-verified in Ghidra). The big
 // one (0x1400af370 road-mesh rebuild) had two index-math details pinned against the disassembly:
 // the 3x3 mask -> ae180 arg order and the per-vertex AO-uv overwrite offsets (see its block).
-//   0x1400acaa0  Pf_RoadVtxFill_caa0       — fill one road-mesh vertex (uv/height/blend)
-//   0x1400acc10  Pf_RoadQuad_cc10          — build the 4 verts of one road-tile quad
+//   0x1400acaa0  FillRoadVertex                  — fill one road-mesh vertex (uv/height/blend)
+//   0x1400acc10  WorldGeometry::BuildRoadQuad    — build the 4 verts of one road-tile quad
 #include "Action/exe_bodies.h"
-//   0x1400af370  Pf_RoadMeshRebuild_f370   — rebuild the whole road mesh (vert/index buffers)
+//   0x1400af370  WorldGeometry::RebuildRoadMesh  — rebuild the whole road mesh (vert/index buffers)
 //   (0x1400aaa20 WorldGeometry::CellQuadRay and 0x1400b0f90 HeightUnderPoint are in
 //   Game/worldgeometry_ray.cpp)
-//   0x1400ab150  Pf_RegionDirty4_b150      — enqueue up-to-4 coarse cells into the dirty AVL
-//   0x1400a8c90  Pf_FineCellDirty_a8c90    — mark a fine cell + its 3x3 neighbourhood dirty
-//   0x140122e20  Pf_EntityResolvePos_2e20  — recursive child-entity transform/position resolve
-//   0x14004edb0  Pf_PickReachableCell_edb0 — pick a random nearby reachable cell
-//   0x140087fb0  Pf_EntityAnchorCell_7fb0  — compute an entity's spawn/anchor cell + worldpos
+//   0x1400ab150  WorldGeometry::MarkChunksDirty  — enqueue up-to-4 coarse cells into the dirty AVL
+//   0x1400a8c90  RegionGraph::MarkCellDirty      — mark a fine cell + its 3x3 neighbourhood dirty
+//   0x140122e20  InteractComponent::NodePosition — recursive child-entity transform/position resolve
+//   0x14004edb0  Component::PickReachableCell    — pick a random nearby reachable cell
+//   0x140087fb0  EntityAnchorCell                — compute an entity's spawn/anchor cell + worldpos
 //
 // All sub-callees that are themselves in the broader closure are called by name (B3R):
 //   1fa80 acc10 ae180 1f8d0 aa810 ae270 a8420 123070 1a4f0  (+ engine members).
-// The registration point RegisterPfRoadBatch() (standalone/reg_pf_road.cpp) stays for readers
-// other blocks have.
 //
 // Faithfulness is everything: none of this is runtime-exercised on the autostart path, so a
 // wrong port is undetectable silent corruption. Each function is a literal transcription of the
@@ -36,9 +34,9 @@
 #include "graphics/Material.h"            // Graphics::MaterialInstance (an Object::External)
 #include "Action/PathAvl.h"           // AvlInsert28 (0x14001a4f0), AvlTreeHead, AvlNode28
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
-#include "Work/exe_bodies.h"          // WorkBase_FindComponent_2ed0, WorkBase_ValidateCell_a00f0, WorkBase_CalcDistance_8830
-#include "Component/exe_bodies.h"     // FloorComponent_FindResData
-#include "Game/exe_bodies.h"          // Reimpl_TradeWork_helper_e270, Reimpl_MapGetTerrainPos
+#include "Work/exe_bodies.h"
+#include "Component/exe_bodies.h"
+#include "Game/exe_bodies.h"
 #include "Game/exe_constants.h"       // kRdata_*
 #include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
 #include <cstring>
@@ -46,7 +44,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include "Object/factory_registration.h"   // ::Object::GetTypeIdByName (M-D scoped finder fallback)
+#include "Object/factory_registration.h"
 #include "system/Value.h"      // ENDGAME B.3.4b System callers
 #include "Component/ModelComponent.h"   // ENDGAME B.3.8 CB3: ModelComponent::TypeId()
 #include "Component/InteractDescription.h"
@@ -91,14 +89,14 @@ static_assert(std::is_trivially_default_constructible<GeometryBatchVertex>::valu
 // ------------------------------------------------------------
 // Exe sub-helpers + .rdata constants, called / read by name (B3R).
 // ------------------------------------------------------------
-//   ae270 Reimpl_TradeWork_helper_e270 (road normal)    ae180 Pf_TileShapeLut_ae180
+//   ae270 WorldGeometry::TerrainNormal (road normal)     ae180 Pf_TileShapeLut_ae180
 //   fa80 / f250  GeometryBatchArray::SetSize (fill / 2-arg; GeometryBatch_Resize)
 //   1a4f0 AvlInsert28
-//   a8420 Pf_DirtyCoarseCellB_8420                       123070 Pf_RecursiveChildSum_123070
-//   002ed0 WorkBase_FindComponent_2ed0                   003f60 ActCNR_FindComponent_3f60
-//   004680 FloorComponent_FindResData                    122e20 Pf_EntityResolvePos_2e20 (self-rec)
-//   a00f0 WorkBase_ValidateCell_a00f0                    008830 WorkBase_CalcDistance_8830
-//   9f3e0 Reimpl_MapGetTerrainPos (f3e0, grid -> world)
+//   a8420 RegionGraph::MarkAdjacencyDirty                123070 InteractComponent::NodeCount
+//   002ed0 FindComponent<InteractComponent>              003f60 FindComponent<ModelComponent>
+//   004680 FindComponent<MapComponent>                   122e20 InteractComponent::NodePosition (self-rec)
+//   a00f0 Map::ValidateCell                              008830 Map::CalcDistance
+//   9f3e0 Map::GetTerrainPos (f3e0, grid -> world)
 // 021d0 (int-array SetSize), c890 (uint16 SetSize) and 1f8d0/ee40 (0x14-byte-element
 // SetSize/SetSizeFill) are the exe-side Collection::Array<T> monomorphisations --
 // ENDGAME B.3.2 step 2 converted their call sites below to Collection::Array<T>
@@ -130,7 +128,7 @@ static inline int ClampCell(int v, int w) {
 // FUN_1400acaa0 — fill one road-mesh vertex.
 // ============================================================
 // `geo`: the WorldGeometry. _gridSize = tile span (>>1 = half), _heightRowStride = heightmap width,
-// _arrayD8 = the heightmap (int16). Computes the surface normal (e270) into a local Vector3,
+// _heights = the heightmap (int16). Computes the surface normal (e270) into a local Vector3,
 // then writes the packed vertex: x-half, y-half, the clamped heightmap sample, the blend,
 // the normal as three bytes, the AO uv shorts.
 // Bit-exact transcription (disassembly-verified for the IMUL using the heightmap width).
@@ -326,8 +324,8 @@ void WorldGeometry::MarkChunksDirty(int x, int y) {
 // self (param_1): a region/dirty grid. +0x58 cellW, +0x5c cellH, +0x60 gridW, +0x64 gridH,
 // +0x78 cell array (stride 0x20: [+0]=col, [+4]=row, [+8]=dirtyFlag byte), +0x88 dirty-list
 // (int* ptr), +0x90 count, +0x94 cap. If the owning coarse cell isn't already flagged, flag it,
-// append its index to the dirty list (grow-by-3 on a non-empty append), then walk the 3x3 fine
-// neighbourhood and call a8420 on each in-bounds fine cell.
+// append its index to the dirty list (grow-by-3 on a non-empty append), then walk the 3x3 block
+// neighbourhood and call a8420 on each in-bounds block.
 void RegionGraph::MarkCellDirty(int x, int y) {
     int cellW = blockWidth;
     int cellH = blockHeight;
@@ -483,8 +481,7 @@ int Component::PickReachableCell(uint32_t param_2, float* param_3) const {
     gy = ClampCell(gy, w);
     uint32_t cell = static_cast<uint32_t>(w * gy + gx);
 
-    // LEFT: 0x1400a00f0 / 0x140008830's C declarations (Work/exe_bodies.h, WORK-a's header)
-    // take the Map as int*.
+    // 0x1400a00f0 / 0x140008830 are Map::ValidateCell / Map::CalcDistance (Game/Map.h).
     Map* mapGrid = map;
     uint64_t ok = mapGrid->ValidateCell(PathBits::Walk, param_2, static_cast<int>(cell));   // 0x1400a00f0
     if (static_cast<char>(ok) == '\0') return -1;
@@ -564,13 +561,13 @@ int EntityAnchorCell(ComponentEntity* const* entityIBP, float* param_2) {
 // FUN_1400af370 — rebuild the whole road mesh (per-tile verts/indices).
 // ============================================================
 // `map`: the Map (its size and cells). The WorldGeometry arrays it uses:
-//   +0x200 (_arrays[6]) the mesh batches (RoadBatch, stride 0x60) — owned by the f250 / fa80
+//   +0x200 (_roadBatches) the mesh batches (GeometryBatch, stride 0x60) — owned by the f250 / fa80
 //                       grow helpers;
-//   +0x210 (_arrays[7]) the per-batch source table (a qword per batch; its count is the
+//   +0x210 (_batchMaterials) the per-batch source table (a qword per batch; its count is the
 //                       batch count);
-//   +0x220 (_arrays[8]) the per-batch fill counters (int).
+//   +0x220 (_batchCounters) the per-batch fill counters (int).
 // _gridSize / _mapSize = tile span / inset; (span - inset) >> 1 = vtxOff. _chunkSize = the
-// block dimension. MapCell::field_0x2A = batchId, roadAlpha = blendId.
+// block dimension. MapCell::roadType = batchId, roadAlpha = blendId.
 //
 // Phases: (1) sync the counter array length to the batch count (021d0) then zero it; (2)
 // f250-size a local working batch array; per block, seed each batch header (source, culling
@@ -782,14 +779,5 @@ void WorldGeometry::RebuildRoadMesh(Map* map) {
     // array's buffer and header.
 }
 
-// ===========================================================================
-// B4 FORWARD: the C spellings other blocks' files still call, one line each.
-// ===========================================================================
-
-// The exported names of the two file-static bodies (callers: Component/quarrycomponent_deform.cpp,
-// Player/tool_base_ray.cpp; Player/tool_base_tilerender.cpp).
 // (Pf_EntityResolvePos_2e20, the void* forwarder to InteractNodePosition, went in B6 once its
 // four callers were typed: rows 643 and the citizenai scans.)
-
-
-// B4 FORWARD: outside callers in ~20 files (Component, Entity, Game, Player, Work)

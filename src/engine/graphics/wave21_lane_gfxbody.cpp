@@ -16,7 +16,7 @@
 // All three names, and every callee named below, were checked against the
 // export directory of the shipped C:\GOG Games\Banished\Runtime-x64.dll with
 // pefile BEFORE a line was written; the addresses and ordinals above are that
-// query's output (reference_resolveexport_phantom_names.md).
+// query's output.
 //
 // GHIDRA WAS NOT AVAILABLE to this lane — the MCP bridge refused connection for
 // its whole run. Every claim below is from `objdump -d` on the shipped DLL over
@@ -75,7 +75,7 @@ static_assert(offsetof(Context, _pixelConstantStaging) == 0x0200,
               "Setup writes ctx+0x208+slot*0x10, i.e. staging[0x08 + slot*0x10]");
 
 // The +0x208 staging window is 0x40 bytes = four float4 slots. That is the
-// length BindResources uploads (Context.h:139), and it is what bounds the slot
+// length BindResources uploads (Context.h:504), and it is what bounds the slot
 // index Setup writes. Not enforced at runtime — retail does not bound it either
 // and this port stays faithful — but recorded so the next reader knows the
 // shape.
@@ -84,19 +84,10 @@ constexpr size_t kMaterialStagingOffset = 0x208 - 0x200;   // into _pixelConstan
 
 
 // ---------------------------------------------------------------------------
-// ATTENDANCE, not a diff oracle. Three bodies, three counters.
-//
-// This exists because a registered port with no caller reports a clean run and
-// reads as verification (reference_uncalled_port_is_not_verified.md), and
-// because the A/B control for these three is `RT_GFXBODY=0`, under
-// which the registrations do not happen at all -- so the flag-off arm MUST show
-// zero here. If it did not, the "kill switch" would not be killing anything,
-// which is the failure reference_the_gate_was_never_a_control.md describes.
+// ATTENDANCE, not a diff oracle. Two operator-new bodies, two counters.
 //
 // Printed at 1, 10, 1000 and every 100000 calls, so a log tail carries the
-// evidence without flooding. Unconditional rather than env-gated: the whole
-// point is that the flag-off arm can be compared against the flag-on arm, and
-// a second env var would just be another thing to get wrong.
+// evidence without flooding.
 // ---------------------------------------------------------------------------
 void Attend(const char* what, unsigned long long& n) {
     ++n;
@@ -112,13 +103,8 @@ unsigned long long g_matNewCalls  = 0;
 
 // ?SetupShaders@VideoProgram@Video@@QEBAXAEAVContext@2@@Z, retail 0x1800f4520.
 //
-// THE "exported and unported" VERDICT ABOVE IS STALE (ENDGAME B.3.5 caller
-// batch). `Video::VideoProgram::SetupShaders` is a DEFINED member today —
-// src/engine/video/video_program.cpp:178, which takes the context as the same
-// `void*` this door passed — so the by-name door, its `Fn` typedef, its
-// function-local cache and its readiness test are GONE and this is a member
-// call. The sentence about growing the cutover surface was true when written and
-// is answered: the surface it named is ours now.
+// `Video::VideoProgram::SetupShaders` is a DEFINED member
+// (src/engine/video/video_program.cpp:168), so this is a member call.
 // B.4 (R-GFX): typed; `Video::VideoProgram::SetupShaders` takes retail's
 // `Context&`. The program is read unguarded, as retail does.
 void SetupShaders(const ::Video::VideoProgram* program, Context& ctx) {
@@ -134,7 +120,7 @@ void SetupShaders(const ::Video::VideoProgram* program, Context& ctx) {
 // Two class `operator new`s. Both bodies are TWENTY-FOUR INSTRUCTIONS and, once
 // the rel32 and RIP-relative fields are discounted, they are the same body as
 // each other and the same body as the two already ported at
-// src/engine/video/context_ctor.cpp:200 (`??2ImageBuffer@Video@@`,
+// src/engine/video/context_ctor.cpp:248 (`??2ImageBuffer@Video@@`,
 // `??2RenderBuffer@Video@@`):
 //
 //     cs = *(void**)0x1801fc718 + 0x640;      // MemoryAllocator singleton lock
@@ -144,7 +130,7 @@ void SetupShaders(const ::Video::VideoProgram* program, Context& ctx) {
 //     return p;
 //
 // ALIGNMENT IS THE WHOLE DIFFERENCE IN THIS FAMILY, AND IT WAS CHECKED BY BODY,
-// NOT BY RESEMBLANCE — context_ctor.cpp:192 makes exactly that point about the
+// NOT BY RESEMBLANCE — context_ctor.cpp:239 makes exactly that point about the
 // sibling at 0x180011640, which is the same nineteen instructions with
 // `MOV R8D,0x4`. Both bodies here disassemble to `MOV R8D,0x8`, at 0x18001eff4
 // and 0x180002854 respectively. Read the two immediates; do not infer them.
@@ -220,54 +206,19 @@ extern "C" void* RtGraphics_MaterialInstance_OperatorNew(uint64_t bytes) {
 // the second run of a differential pair would find every value already stored
 // and take the equal path, raising none of the dirty bits the first run raised.
 // A "clean" diff would therefore be an artefact of replay, not agreement
-// (reference_calls_zero_can_mean_always_took_the_uncovered_branch.md is the
-// same shape one step further on). Its verification tier is stated honestly in
+// (calls=0 with worked>0, meaning the body always took the uncovered branch, is
+// the same shape one step further on). Its verification tier is stated honestly in
 // the lane doc and is not VERIFIED.
 // ============================================================================
 
-// ============================================================================
-// Registration.
-//
-// NAMES ONLY, NO ADDRESSES, AND THAT IS A DECISION RATHER THAN AN OMISSION.
-// Lane GFXBODY's own triage found a row in this same namespace
-// (`?AddDrawItems@MeshInstance@`) where a RegisterRuntimeAddr would be ACTIVE
-// HARM because src/diag/scene_watch.cpp:400 uses the retail address as an
-// IDENTITY TOKEN against a live vtable slot. That is a reason to check every
-// address before registering it, not a reason to register none — so each of the
-// three was checked:
-//
-//   0x18001efc0, 0x180002820  — zero occurrences anywhere in code/ engine/
-//                               runtime/ standalone/ src/render/dx11/. No door, no token.
-//   0x180102c90               — occurs only in COMMENTS (three of them, in
-//                               src/engine/ui/spritecontext_flush.cpp at :95,
-//                               :138 and :260). Both live consumers,
-//                               src/game/Player/
-//                               tool_base_tilerender.cpp:100 and
-//                               src/engine/ui/spritecontext_flush.cpp:267,
-//                               resolve it BY NAME.
-//
-// So a name registration reaches every consumer that exists and an address
-// registration would reach none that a name does not. Adding one anyway would
-// be three lines of dead code that a future reader has to re-derive the safety
-// of; see reference_count_the_doors_not_the_calls.md for why the count that
-// matters is doors, not calls.
-//
-// Each mangled name is repeated as its own STRING LITERAL rather than via a
-// named constant: tools/runtime_census.py matches `RegisterRuntimeExport("<lit>"`
-// and cannot see through a constant, which is how Wave 3's Object count read
-// 21/41 when it was 27/41
-// (reference_census_cannot_see_nonliteral_registrations.md).
-// ============================================================================
-
 // ############################################################################
-// ENDGAME B.3.5 step 5, block GC — `Graphics::MaterialInstance::Setup`'s body,
-// whose live door is `RtGraphics_MaterialInstance_Setup` above.
+// ENDGAME B.3.5 step 5, block GC — `Graphics::MaterialInstance::Setup`'s body.
 //
 // Its own `namespace Graphics { }` block, because a member definition has to
 // appear in a namespace ENCLOSING the class and `Graphics` / `RtGraphics` are
 // siblings (B34_BRIEFS A.2). This file's helpers sit in the GLOBAL unnamed
 // namespace, so unqualified lookup from here DOES reach them (the reachable half
-// of the A.2 trap; wave28_lane_gfxbody.cpp:957 records the other half).
+// of the A.2 trap; wave28_lane_gfxbody.cpp:640 records the other half).
 //
 // The transcription notes (a)-(d) in the door's banner above are unchanged and
 // still describe this body — only the spelling of the receiver changed.
@@ -283,7 +234,8 @@ extern "C" void* RtGraphics_MaterialInstance_OperatorNew(uint64_t bytes) {
 
 namespace Graphics {
 
-// EXT SEAM (NOT RETAIL, docs/extensions/BLOSSOM.md): null unless natural tree growth is on (Material.h).
+// EXT SEAM (NOT RETAIL, docs/extensions/BLOSSOM.md): null unless ext.better_trees' natural tree growth
+// or ext.better_clouds is on (src/ext/material_setup.cpp).
 void (*MaterialInstance::_extAfterSetup)(const MaterialInstance& instance, Video::Context& context) = nullptr;
 
 void MaterialInstance::Setup(Video::Context& context, int32_t shader) const {
@@ -326,7 +278,7 @@ void MaterialInstance::Setup(Video::Context& context, int32_t shader) const {
         context._dirty |= RtVideo::kDirtyMaterialConstants;   // the +0x208 staging upload
     }
 
-    // EXT SEAM (NOT RETAIL, docs/extensions/BLOSSOM.md): the blossom code for this draw; null = retail.
+    // EXT SEAM (NOT RETAIL, docs/extensions/BLOSSOM.md): ext.better_trees / ext.better_clouds; null = retail.
     if (_extAfterSetup != nullptr) {
         _extAfterSetup(*this, context);
     }

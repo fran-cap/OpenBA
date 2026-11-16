@@ -17,9 +17,6 @@
 // not Ghidra's symbol names, which are shifted by one slot for this class:
 //   [3] Serialize 0x140048ca0   [4] Startup 0x140048c50   [6] OnAdded 0x140048c00
 //   [7] OnRemoved 0x140048bb0   [9] Update  0x140048b90
-//
-// All bodies are gated on BANISHED_LIVE_CROPDISEASE (opt-in; unproven feature, so
-// deliberately NOT in the default-on table).
 
 #include "Component/DiseaseComponent.h"
 #include "Component/DiseaseDescription.h"

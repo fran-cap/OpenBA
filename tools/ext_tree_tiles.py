@@ -3,8 +3,8 @@
 
 Writes src/ext/ui/Dialog/Sprite/Extensions/TreeLink<1..15>.png (26 x 14: the arms of a junction, bit 1 up, 2 right,
 4 down, 8 left, matching kArm* in src/ext/family_tree/tree_layout.h), TreeGap.png and TreeGapStem.png (26 x 40: the
-short line between a couple's two boxes, without and with a stem down). The line is 2 px wide, light grey. Sizes are
-the page's constants (kTileW, kLinkH, kBoxH in src/ext/family_tree/toolbar_page.cpp).
+short line between a couple's two boxes, without and with a stem down). The line is 2 px wide, light grey. The tile
+width is kTileW in src/ext/family_tree/tree_view.h.
 
 usage: python tools/ext_tree_tiles.py        (from the repo root; needs Pillow). Then tools/ext_sprites_bake.py.
 """

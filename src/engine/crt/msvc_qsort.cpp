@@ -5,8 +5,8 @@
 //   shortsort  0x18007f340            its small-range fallback
 //
 // WHY THIS EXISTS. `Save::SaveLoad::UpdateList` (saveload_update.cpp) sorts the
-// save list with retail's own qsort, reached by ADDRESS through
-// ResolveAddr(Module::Runtime, 0x18007f050). Every other by-address helper that
+// save list with retail's own qsort (0x18007f050), which it calls by name as
+// RtCrt_Qsort_18007f050. Every other by-address helper that
 // body uses is ported; this one was tagged "CRT -- out of scope" by two lanes
 // (WAVE23_LANE_INTERNAL, WAVE26_LANE_INT33) and the closure report files it
 // under "C runtime routines our own CRT already provides". Our CRT provides a

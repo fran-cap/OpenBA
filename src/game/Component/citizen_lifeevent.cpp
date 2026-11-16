@@ -15,8 +15,7 @@
 // Each source is a resource object whose UI::String name pair sits at
 // {+0x20 string table, +0x30 name String}; converted UI::String -> System::String.
 //
-// Retail callers in Application-x64.exe (all now resolve 0x140113af0 through the
-// address registry): CitizenComponent_Update @140112f9e, HandleLifeEvent
+// Retail callers in Application-x64.exe: CitizenComponent_Update @140112f9e, HandleLifeEvent
 // @140116fdb, helper_17a0 @14011181e, helper_1b90 @140111e73, OnRemove @140113f94.
 
 #include "ui/UserInterface.h"

@@ -27,7 +27,7 @@
 #include "Work/exe_bodies.h"
 #include "Action/exe_bodies.h"          // B3R: bodies called by name
 #include "Component/exe_bodies.h"       // B3R: bodies called by name
-#include "Dialog/dialog_exe_helpers.h"  // B3R: Dialog_FindComponent_d6c0
+#include "Dialog/dialog_exe_helpers.h"
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch C
 #include <cstdio>
 #include <cstdint>
@@ -61,22 +61,22 @@
 //   0x14001a6e0 tree remove node (CitizenAI_impl_a6e0)      WorkBST_BSTRemove_a6e0
 //               (0x140024f30, used earlier, is MID-FUNCTION inside Toolbar_vslot14;
 //                GatherRawMaterials_Update@0x1400ebd24 CALLs 0x14001a6e0)
-//   0x1400c5400 state machine release                       WorkBase_TaskListCleanup_c5400
+//   0x1400c5400 state machine release                       ActionStack::Clear
 //   0x1400f7100 Work::CanStartWork                          Work::ValidateTask
-//   0x140002ed0 Entity_FindComponent_Position               WorkBase_FindComponent_2ed0
-//   0x14000d6c0 FindComponent (BuildComponent)              Dialog_FindComponent_d6c0
-//   0x140002e10 FindComponent_WorkplaceExt                  AttendanceComponent_GetJobHostComponent
-//   0x14008d590 FindStorageForResource                      Pf_PickBestDropTarget_8d590
-//   0x140006270 Entity_FindComponent_Storage                WorkBase_FindComponent_6270
+//   0x140002ed0 Entity_FindComponent_Position               ComponentEntity::FindComponent<InteractComponent>
+//   0x14000d6c0 FindComponent (BuildComponent)              ComponentEntity::FindComponent<BuildComponent>
+//   0x140002e10 FindComponent_WorkplaceExt                  ComponentEntity::FindComponent<WorkPlaceComponent>
+//   0x14008d590 FindStorageForResource                      CitizenBehavior::PickBestDropTarget
+//   0x140006270 Entity_FindComponent_Storage                ComponentEntity::FindComponent<StorageComponent>
 //   0x14012cf10 StorageComponent_QueryCount                 StorageComponent::QueryCount (the member)
-//   0x140116540 GetRemainingCapacity                        WorkLeaf_FreeStorageCapacity_116540
-//   0x140115e60 CitizenAI_State_LongTermPlan                CitizenAI_State_LongTermPlan
-//   0x140122be0 CalcBestTargetPos                           WorkImpl_WalkablePos_122be0
-//   0x140122b00 CalcChildTargetPos                          WorkImpl_WalkablePosRecursive_122b00
-//   0x1400f6ef0 BuildStructure_impl_6ef0 validate           WorkImpl_BuildStructureStep_6ef0
+//   0x140116540 GetRemainingCapacity                        CitizenComponent::FreeStorageCapacity
+//   0x140115e60 CitizenAI_State_LongTermPlan                CitizenComponent::LongTermPlan
+//   0x140122be0 CalcBestTargetPos                           InteractComponent::FindWalkablePos
+//   0x140122b00 CalcChildTargetPos                          InteractComponent::FindWalkablePosRecursive
+//   0x1400f6ef0 BuildStructure_impl_6ef0 validate           Work::StepProgress
 //   0x1400bf790 Pathfinding_FindPath                        WorkAct_GatherRawMatCtor_bf790
 //   0x140021a30 RegisterWork (CitizenAI_impl_1a30)          WorkBST_RegisterWork_1a30
-//   0x140014c30 tree node cleanup                           WorkBase_TreeNodeFree_14c30
+//   0x140014c30 tree node cleanup                           the _citizens member's ~Set (Clear)
 //   MemAlloc / MemFree                                      System::MemoryAllocator::MemAlloc / MemFree
 // B3R_RULES R4: the old code resolved MemAlloc/MemFree by export name and fell back to
 // import slots 0x1401527e8 / 0x1401527f0 under the WRONG names (they are the
@@ -87,8 +87,6 @@
 // disassembles to `0x1400ec8bd: LEA RAX,[0x140161a80]` followed by MOV [RBX],RAX.
 // (0x1401612e0, used earlier, is an INTERIOR address of FireWork's vtable.)
 
-// Gated Execute-decision trace (BANISHED_BUILD_TRACE), to pinpoint where a construction
-// gather work bails before enqueuing a real town->site haul. Diagnostic only.
 #include <cstdlib>
 #include <cstring>
 #include <new>
@@ -265,8 +263,8 @@ int GatherRawMaterials::Execute(CitizenComponent** entityIBP, System::Time* cont
 
                 int carryWeight = rawMatComp->_weight;
                 if (capacity - currentStored < carryWeight * remaining) {
-                    // Not enough carry capacity -- recalculate (0x140116540 takes the
-                    // citizen as an integer: LEFT)
+                    // Not enough carry capacity -- recalculate
+                    // (CitizenComponent::FreeStorageCapacity, 0x140116540)
                     int remCapacity = (*entityIBP)->FreeStorageCapacity();
                     remaining = remCapacity / carryWeight;
                 }
@@ -329,9 +327,7 @@ int GatherRawMaterials::Execute(CitizenComponent** entityIBP, System::Time* cont
                     // CalcBestTargetPos (0x140122be0) walks posDesc+0x38: {ptr, count} of
                     // local-space access offsets, and returns false when the count is 0 or
                     // every offset fails the 0xe1f walkability probe. The child loop above
-                    // is the multi-part fallback (posComp+0x28/+0x30). Log both counts so a
-                    // "site is unreachable" bail is distinguishable from "site has no
-                    // access points at all".
+                    // is the multi-part fallback (posComp+0x28/+0x30).
                     return 1;
                 }
 
@@ -393,7 +389,6 @@ int GatherRawMaterials::Execute(CitizenComponent** entityIBP, System::Time* cont
                     citizenFinal->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
                 }
 
-                // (the tree helper takes the container as uintptr_t*: LEFT)
                 WorkCitizenSetNode* inserted;   // the out-node slot (retail reuses workEntity's)
                 WorkBST_RegisterWork_1a30(&_citizens, &inserted, entityIBP);
 
@@ -422,7 +417,7 @@ int GatherRawMaterials::Execute(CitizenComponent** entityIBP, System::Time* cont
 int GatherRawMaterials::OnComplete(CitizenComponent** param2, ComponentEntity** /*param3*/, int arg3) {
     const uint32_t param4 = static_cast<uint32_t>(arg3);
 
-    // Remove entity from tree at +0x68 (the helper takes the container as uintptr_t*: LEFT)
+    // Remove entity from tree at +0x68
     WorkBST_BSTFindRemove_25520(&_citizens, param2);
 
     // Extract slot index (low byte) and amount (high 24 bits, shifted right by 8)
@@ -450,7 +445,7 @@ int GatherRawMaterials::OnComplete(CitizenComponent** param2, ComponentEntity** 
 int GatherRawMaterials::OnCancel(CitizenComponent** param2, ComponentEntity** /*param3*/, int arg3) {
     const uint32_t param4 = static_cast<uint32_t>(arg3);
 
-    // Remove entity from tree at +0x68 (the helper takes the container as uintptr_t*: LEFT)
+    // Remove entity from tree at +0x68
     WorkBST_BSTFindRemove_25520(&_citizens, param2);
 
     // Extract slot index and amount
@@ -466,8 +461,8 @@ int GatherRawMaterials::OnCancel(CitizenComponent** param2, ComponentEntity** /*
 // Cleanup (0x1400ec480) -- vtable slot 8
 //
 // Release all assigned citizens from tree at +0x68.
-// Walks tree from leftmost node, for each citizen calls
-// CitizenAI::StateMachineRelease.
+// Walks tree from leftmost node, for each citizen clears
+// its action list (ActionStack::Clear).
 // ============================================================
 int GatherRawMaterials::Cleanup() {
     while (true) {
@@ -480,7 +475,7 @@ int GatherRawMaterials::Cleanup() {
             node = node->left;
         }
 
-        // Also try walking up from leftmost
+        // Walk down to the leftmost again (the result is unused)
         AssignmentNode* current = root;
         while (current != nullptr) {
             AssignmentNode* next = current->left;
@@ -601,8 +596,7 @@ int GatherRawMaterials::Validate() {
                     treeNode = treeNode->left;
                 } else {
                     if (searchKey <= nodeKey) {
-                        // Found -- remove this node (the helper takes the container as
-                        // uintptr_t*: LEFT)
+                        // Found -- remove this node (the helper takes the Set)
                         WorkBST_BSTRemove_a6e0(&_citizens, treeNode);
                         break;
                     }
@@ -692,7 +686,7 @@ GatherRawMaterials::GatherRawMaterials()
 DEFINE_EXE_TYPE(GatherRawMaterials, "Work")
 
 // ---- Construction force-harness wrappers (construction_force_harness.cpp) ----
-// Mirror the ForesterWork_Factory/ForceDrive/ExecuteReady trio so the generic
+// Mirror the ForesterWork_ForceDrive / ForesterWork_ExecuteReady pair so the generic
 // ForceWork harness can drive construction gathering.
 
 // Build a GatherRawMaterials bound to a construction SITE entity using the FAITHFUL

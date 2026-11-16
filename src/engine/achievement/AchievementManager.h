@@ -12,7 +12,7 @@
 //
 // Every offset below is pinned by a named instruction in RETAIL
 // Runtime-x64.dll (image base 0x180000000). Runtime-x64-profile.dll is used for
-// NAMES ONLY (reference_encoding_vtable_offsets_differ_between_builds.md).
+// NAMES ONLY (its vtable offsets differ from retail's).
 //
 // PORTABILITY: no <windows.h>, per PLAN.md §4.1.
 // ============================================================================
@@ -97,8 +97,7 @@ public:
     virtual Object::External* Construct();                    // [8] 0x1800012f0
 
     // ---- non-slot exported members (all `@Achievement@1@`, B7-11) ----------
-    // The retslot ones return the prvalue; each registered door keeps
-    // `(this, ret)` and placement-news it (B5-12).
+    // The retslot ones return the prvalue.
     Object::ExternalPtr<UI::StringTable> GetStringTable() const { return _stringTable; }  // 0x180001380
     Object::ExternalPtr<UI::SpriteSheet> GetSpriteSheet() const { return _spriteSheet; }  // 0x180001390
     System::String GetSpriteName() const;                     // 0x1800013a0
@@ -222,11 +221,10 @@ static_assert(offsetof(AchievementInstance, _achievement) == 0x20, "AchievementI
 // stamps no vtable).
 //
 // Allocated by `Engine::Startup` (`MemAlloc(0x48)` at 0x1800dbe42) with the
-// constructor INLINED there, so the ctor stays the door in
-// src/engine/engine/engine_lifecycle.cpp (block B1's file); `_singleton`
-// stays an RT_DATA_SLOT / manifest row until the end of B.3 (carry-over 5).
-// `PlatformStartup` is defined on the member in B1's platform_startup_win.cpp (src/engine/engine/platform_startup_family.cpp since Phase D.4 SDL-5)
-// (the B.3.7 fragment pass); its registered door there delegates to it.
+// constructor INLINED there; the port's ctor body is the free function
+// `RtAchievement_AchievementManager_Ctor` in src/engine/engine/engine_lifecycle.cpp;
+// `_singleton` is the class static (achievement_manager.cpp). `PlatformStartup`
+// is defined on the member in src/engine/engine/platform_startup_family.cpp.
 //
 // THREE OF THE SIX FIELD NAMES ARE THE ENGINE'S OWN, from the profile build's
 // assert strings (`Achievement\AchievementManager.cpp`): `_achievements` (+0x00),
@@ -264,8 +262,9 @@ public:
                                              Collection::ExplicitSpec<&rtcoll::kSpec_U64Zero>>;
     using EventHandler   = void (*)(int);
 
-    // ??0AchievementManager@Achievement@@QEAA@XZ 0x18009eb00 — the DOOR in
-    // src/engine/engine/engine_lifecycle.cpp (B1). Declared, defined nowhere.
+    // ??0AchievementManager@Achievement@@QEAA@XZ 0x18009eb00 — ported as the free
+    // function `RtAchievement_AchievementManager_Ctor` (src/engine/engine/
+    // engine_lifecycle.cpp). Declared, defined nowhere.
     AchievementManager();
     // ??1AchievementManager@Achievement@@QEAA@XZ 0x18009eab0 — real (see the body).
     ~AchievementManager();
@@ -292,16 +291,14 @@ public:
 
     // ?_singleton@AchievementManager@Achievement@@0PEAV12@EA (0x1801fc670) —
     // the class static (ENDGAME B.3.9 ENG, B39_RULES D7). Defined in
-    // achievement_manager.cpp; RtAchievementPortInit redirects the minted row
-    // onto it, so the name door, the address door and this member are the
-    // same eight bytes. Written by the ctor door (engine_lifecycle.cpp) and
-    // ~AchievementManager. PUBLIC while foreign readers still reach it.
+    // achievement_manager.cpp. Written by `RtAchievement_AchievementManager_Ctor`
+    // (engine_lifecycle.cpp) and ~AchievementManager. PUBLIC while foreign
+    // readers still reach it.
     static AchievementManager* _singleton;
 
     // The four private `AEAA` platform hooks (exported — this DLL exports its
-    // privates, reference_aeaa_is_private_not_unexported.md). PUBLIC here, as
-    // in Application.h: each registered door is a free function that has to
-    // call its member, and access control is not ABI (B.3.7 fragment).
+    // privates). PUBLIC here, as
+    // in Application.h: access control is not ABI (B.3.7 fragment).
     void PlatformConstruct();                                  // 0x18009eb50 — not ported
     void PlatformDestruct();                                   // 0x18009eb60 — not ported
     bool PlatformStartup();                                    // 0x18009eb70 — engine/platform_startup_family.cpp (member since the B.3.7 fragment)

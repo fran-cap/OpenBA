@@ -3,11 +3,10 @@
 // src/engine/ui/LabelDescription.h — UI::LabelDescription, the REAL C++ class
 // ============================================================================
 //
-// ENDGAME B.3 step 6, block C3. The POD `RtUI::LabelDescription` stays in
-// DescriptionsBatch1.h untouched (RULE B6-4.4 — the closing pass turns it into
-// an alias); this class is cross-asserted against it at the bottom.
+// ENDGAME B.3 step 6, block C3. `RtUI::LabelDescription` in DescriptionsBatch1.h
+// is an alias of this class (RULE B6-4.4).
 //
-// PARENT `UI::TextDescription` — READ (B36_SLOTS.md section 3), RECORDED, NOT USED:
+// PARENT `UI::TextDescription` — READ (B36_SLOTS.md section 3); DEFINE_TYPE carries both:
 //     ?_TypeName@LabelDescription@UI@@CAPEBDXZ       @0x180042370 -> "LabelDescription"
 //     ?_ParentTypeName@LabelDescription@UI@@CAPEBDXZ @0x180042380 -> "TextDescription"
 //
@@ -46,7 +45,7 @@
 #include <cstddef>
 
 #include "TextDescription.h"
-#include "DescriptionsBatch1.h"   // kVtbl* names; RtUI::LabelDescription aliases this class
+#include "DescriptionsBatch1.h"   // RtUI::LabelDescription aliases this class
 #include "../object/Internal.h"   // Object::detail::InternalMemFree
 
 namespace UI {
@@ -95,7 +94,7 @@ public:
     LabelDescription& operator=(const LabelDescription& src);    // 0x180042630  not ported
     static void* operator new(std::size_t bytes);                // 0x1800423c0  not ported
     static void* operator new(std::size_t bytes, void* place);   // 0x180042430  not ported
-    static void  operator delete(void* p) { ::Object::detail::InternalMemFree(p); }                       // 0x180042440  not ported
+    static void  operator delete(void* p) { ::Object::detail::InternalMemFree(p); }                       // 0x180042440
 
 private:
 

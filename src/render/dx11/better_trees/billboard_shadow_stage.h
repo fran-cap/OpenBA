@@ -1,6 +1,6 @@
 #pragma once
 // ============================================================================
-// src/render/dx11/better_trees/billboard_shadow_stage.h -- ext.billboard_shadow's D3D side: the
+// src/render/dx11/better_trees/billboard_shadow_stage.h -- ext.better_trees' billboard_shadow D3D side: the
 // rewritten billboard vertex shaders (docs/extensions/TREE_SHADOW.md §4.2, handins/TS-CORE.md)
 // ============================================================================
 // NOT RETAIL.

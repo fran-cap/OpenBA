@@ -5,7 +5,7 @@
 // ============================================================================
 // DESIGN.md hook rule 5: an engine-side seam is a null-by-default static the
 // game side sets; src/engine never includes src/ext. Graphics::Scene carries
-// three of them (Scene.h, all null unless ext.draw_gather is on):
+// four of them (Scene.h, all null by default):
 //
 //   _extClean          Scene::Clean's whole body, replaced (one null test at the top)
 //   _extCulledGather   Scene::AddCulledDrawItems' whole body, replaced (ditto)

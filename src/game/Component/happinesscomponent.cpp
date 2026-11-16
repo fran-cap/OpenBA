@@ -16,7 +16,7 @@
 #include <cstdint>
 #include "object/TypeInfo.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
-#include "Work/exe_bodies.h"   // WorkBase_FindComponent_6270
+#include "Work/exe_bodies.h"
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch A
 #include <cstdio>
 #include <cstdlib>
@@ -53,8 +53,7 @@
 // workplace, used by the "needs staff" arm of IsActive.
 // 0x140006270 WorkBase_FindComponent_6270(entity, outIBP) -- the storage, "needs goods" arm.
 // IsDerivedFrom (slot 0x140152a98) is Object::Base::IsDerivedFrom.
-// DAT_1401c3dd8 (the game world) is read through g_pGameWorldSingleton, the engine_funcs
-// global bound to the same cell.
+// DAT_1401c3dd8 (the game world) is GameUpdateLoop::_singleton.
 //
 // ENDGAME B.3.9 C1 (D5): 0x1401c42f8 (HappinessDescription) and 0x1401c7cb8
 // (RawMaterialDescription, whose +0x5c flags the goods test masks) are read
@@ -82,11 +81,10 @@
 //   }
 
 // ============================================================
-// Reimpl of FUN_14004a300 (FishingComponent_impl_a300: notify the population
-//   manager of a fishing tile, mapping the description's mode to a state id)
+// Reimpl of FUN_14004a300 (Ghidra FishingComponent_impl_a300: stamp / lift this
+//   building's influence disk, mapping the description's mode to a state id)
 // ============================================================
-// Despite the local typedef/function names (borrowed from the fishing lane's
-// near-identical shape), this reads a HappinessDescription off owner+0x18 (type
+// This reads a HappinessDescription off owner+0x18 (type
 // 0x1401c42f8 -- INVENTORY_C Table 1 says HappinessDescription, not
 // "FishingDescription" as the old comment guessed), locates the RadiusDescription
 // (type 0x1401c4870 -- Table 1, not a generic "fishing-target component") on the
@@ -433,11 +431,11 @@ void HappinessComponent::Persist(IO::Stream& stream) {
 }
 
 // [7] 0x14004aa20 — if registered: ERASE this component from the happiness list
-// at (gameWorld+0xF0)+0x50, set the entity index to -1, clear the flag.
+// at (gameWorld+0xF0)+0x50, lift the influence disk (UpdateInfluence(-1)), clear the flag.
 //
 // This said "Push" until 2026-08-25 and the function was called OnCreate. Both
 // were wrong and they were the SAME wrong: 0x140002cc0 is DynArray8_EraseByValue,
-// so a slot that erases, sets the entity index to -1 and clears the registered
+// so a slot that erases, lifts the influence disk and clears the registered
 // flag is the REMOVE side.
 void HappinessComponent::OnRemove() {
     if (!registered) return;

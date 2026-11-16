@@ -6,8 +6,8 @@
 // looks up a character object from an array at actions, and calls
 // Character_UpdateAnimation to process the character's animation state.
 //
-// Vtable at 0x140162370. One non-trivial override:
-//   Update (0x140109480) — conditional animation delegate
+// Vtable at 0x140162370. Non-trivial overrides: Persist [3], Startup [4], OnAdded [6],
+//   OnRemove [7], Tick [8] and Update [9] (0x140109480) — conditional animation delegate
 //
 // Decompiled from Application-x64.exe using Ghidra.
 
@@ -30,7 +30,7 @@
 #include "Entity/ComponentEntity.h"
 
 // Character_UpdateAnimation(arrayBase*, InternalBasePtr*, Time)
-// Located at 0x1400c4f80 in Application-x64.exe; Character_UpdateAnimation_Reimpl below,
+// Located at 0x1400c4f80 in Application-x64.exe; ActionStack::UpdateAnimation below,
 // called directly.
 // Iterates a linked list of character objects from the InternalBasePtr,
 // calling each object's vtable[6] (Draw/UpdateAnimation) method.
@@ -60,7 +60,7 @@
 // Reimpl of Character_UpdateAnimation (0x1400c4f80) — Component reg wave "people"
 // Walks the linked list of character objects starting at *param_2; for each node
 // whose enabled-flag (+0x18) is set, invokes vtable slot +0x30 (Draw/UpdateAnimation)
-// with (node, arrayBase, deltaTime); advances via node+0x10. Non-static for registration.
+// with (node, arrayBase, deltaTime); advances via node+0x10.
 // ============================================================
 void ActionStack::UpdateAnimation(Action** ptrRef, const System::Time* deltaTime) {
     Action* node = *ptrRef;
@@ -89,10 +89,8 @@ void ActionStack::UpdateAnimation(Action** ptrRef, const System::Time* deltaTime
 // bails while CharacterComponent+0x68 is null; this brick populates it so the
 // CitizenAI loop can actually evaluate spatial decisions (housing).
 //
-// Startup-ONLY (the heavy move/anim tick + action executor at 0x1401094c0 stays
-// inert — that is Brick 4b): we set +0x60 = -1 (no actions) so even a future
-// move-tick would skip the executor on the empty stack. Default (env off) =>
-// inert => byte-unchanged. Finds are self-contained over the class's TypeId()
+// Startup sets +0x60 = -1 (no actions), so the move-tick (0x1401094c0) skips the
+// executor on the empty stack. Finds are self-contained over the class's TypeId()
 // (ENDGAME B.3.9 TR: was a by-name lookup of the same record).
 // ------------------------------------------------------------------
 // The tree's null-entity, bad-id and null-slot guards are its own (retail's
@@ -115,7 +113,7 @@ static Component* CharComp_FindSiblingByTypeId(ComponentEntity* ownerEntity, uin
 
 // ------------------------------------------------------------------
 // Brick 4b — per-tick move/anim tick + action executor (0x1401094c0).
-// The Update slot (+0x48 / vtable slot 9) routes to the move-tick, which runs the
+// The Tick slot (+0x40 / vtable slot 8) routes to the move-tick, which runs the
 // action executor over the stack at CharacterComponent+0x48 when it is non-empty
 // (+0x60 >= 0), then early-returns when the char render-index (+0x40) is < 0 —
 // which it is until OnAdded registers the character, so the inert-ModelComponent
@@ -137,12 +135,10 @@ extern "C" void CharacterComponent_MoveTick_1094c0(CharacterComponent* self, con
 // integrated movement at the BUCKET rate: citizens at roughly half speed, and
 // Fifth-priority animals (quota 2/frame, ~120 animals) at ~1/60 speed —
 // visually frozen. Slot 8 full-rate dispatch is the fix (2026-07-30).
-// Slot 9's faithful body (CharacterComponent_Update -> action +0x30 tick) is
-// GRADUATED (2026-08-18): BANISHED_LIVE_CHARACTER_UPDATE9 is in the default-on table and
-// the env var is now a kill-switch (=0). It is the ONLY dispatcher of an action's
-// +0x30 slot, so while it was opt-in every action's Enter was dead code — most
-// visibly HuntAnimal::Enter, which is the kill step: hunters chased deer forever and
-// the hunting cabin's production panel read 0. A/B evidence is in the default-on table.
+// Slot 9's faithful body (CharacterComponent_Update -> action +0x30 tick) runs with no
+// flag gate. It is the ONLY dispatcher of an action's +0x30 slot, so while it was
+// opt-in every action's Enter was dead code — most visibly HuntAnimal::Enter, which is
+// the kill step: hunters chased deer forever and the hunting cabin's production panel read 0.
 // ------------------------------------------------------------------
 // Slot 7 (+0x38) — CharacterComponent::OnRemove (retail 0x140109980), the RELEASE half
 // of the char-index allocation OnAdded (slot 6) makes. Retail body is exactly:
@@ -155,7 +151,6 @@ extern "C" void CharacterComponent_MoveTick_1094c0(CharacterComponent* self, con
 // cell. Nothing walked those lists until the action +0x30 tick went live (both callers of
 // the proximity query 0x140092260 are +0x30 slots), which is why this was invisible: the
 // query then reads the stale slot's entity +0x68 -> +0x160 and faults on freed memory.
-// Gated with the same flag as the allocation so the two halves can never be on separately.
 // ------------------------------------------------------------------
 
 // ============================================================================
@@ -197,9 +192,8 @@ void CharacterComponent::Startup() {
     // faithful AND required for Brick 3: the CitizenAI Phase-8 check reads
     // CharacterComponent+0x60 + 1 > 0 as "has actions => busy this tick"; with the
     // empty -1 it is 0 (not >0), so Phase 8 runs the state-selection path
-    // (CheckEducation/CheckAge/TransitionState) to assign a state. (Brick 3 ports
-    // that path + guards it crash-safe; the move-tick/executor is still inert, so
-    // -1 never drives the executor on an empty stack.)
+    // (CheckEducation/CheckAge/TransitionState) to assign a state. The move-tick runs
+    // the executor only while +0x60 >= 0, so -1 never drives it on an empty stack.
     characterIndex = -1;
     actionStack.current = -1;
 

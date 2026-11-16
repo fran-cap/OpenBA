@@ -35,7 +35,7 @@ public:
     int  AbstractImpl(ActionStack* actionStack) override;             // [4] 0x1400c6b40
     bool GetTarget(ComponentEntity** param) override;                      // [9] 0x1400c6aa0
 
-    // ---- fields, retail order (PUBLIC: the slot bodies are C functions) ----
+    // ---- fields, retail order (PUBLIC) ----
     ComponentDescription* descEntity;   // +0x20 ExternalPtr<ComponentDescription>: the material template
     // +0x28: the WORKING CITIZEN, not a building (Persist checks CitizenComponent; AbstractImpl
     // compares its education with its description's maxEducation). The name is the tree's.

@@ -91,7 +91,7 @@ def smooth_glyph(size=SIZE):
 def undo_glyph(size=SIZE):
     big, d = _canvas(size)
     cx, cy, r = 25, 27, 13
-    # an arc from the upper left, over the top and round the right to the bottom
+    # an arc from the left just below the centre, over the top and round the right to the lower right
     pts = []
     for i in range(0, 181):
         a = math.radians(200 - i * 1.35)

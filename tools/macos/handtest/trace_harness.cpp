@@ -2,12 +2,12 @@
 // tools/macos/handtest/trace_harness.cpp -- a fake "owner" for the hands-on test pipeline
 // ============================================================================
 // Links the SHIPPING src/diag/darwin/input_trace_darwin.cpp (the logger) and src/platform/sdl/pump_sdl.cpp
-// (for the Ctrl+Cmd+F chord) on SDL's DUMMY video driver (no window on screen, no sound, no
-// focus change), then performs the whole hands-on checklist with synthetic events:
+// with src/platform/darwin/input_darwin.cpp (the Ctrl+Cmd+F chord) on SDL's DUMMY video driver (no window
+// on screen, no sound, no focus change), then performs the whole hands-on checklist with synthetic events:
 //   mouse to the four window edges, a click, a middle-drag and an Option+drag, wheel up and
 //   down, keys W A S D Q E F1 Space, Right-Option+Up, Ctrl+Cmd+F twice, a resize, Cmd+Q.
 // The trace it writes is what analyze.py is tested against (run_pipeline_test.sh).
-//   usage: trace_harness <out-trace-file> [density]   (density: pretend Retina by mouse coordinates)
+//   usage: trace_harness <out-trace-file>
 // ============================================================================
 #include "input_trace.h"
 #include "platform_window_hooks.h"

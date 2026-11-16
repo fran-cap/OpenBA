@@ -17,11 +17,11 @@
 //
 // It is a plain public export (QEAA). This is the documented trap -- this DLL
 // exports its private members, so "unexported" is a conclusion that has to be
-// MEASURED, never inferred from a mangling or from a name not being to hand
-// (reference_aeaa_is_private_not_unexported.md). The cost was real: input.cpp
+// MEASURED, never inferred from a mangling or from a name not being to hand.
+// The cost was real: input.cpp
 // had already ported and NAME-registered the same function, so the false belief
-// produced a second body, and the export's two doors reached one each. input.cpp
-// now registers both doors at THIS body; see the note there.
+// produced a second body, and the export's two doors reached one each. This file
+// holds the one body.
 //
 // `Engine::Startup` step 14 — the last of the four `Configuration::Startup`
 // calls, and the last thing before `PlatformConfigure`. Off the current reach
@@ -29,7 +29,6 @@
 // candidates that are off it, this is the one whose whole transitive closure is
 // already ported bar ONE function.
 //
-// Kill switch: `RT_INPUTCFGSTART=0`.
 //
 // ---------------------------------------------------------------------------
 // STARTUP (0x1800e0d30)
@@ -49,8 +48,8 @@
 // this immediately after `??0Configuration@Input@@`, which zeroes the field
 // (lane X). It is kept because `Startup` is a public export and nothing stops a
 // second call, which is exactly the case the arm exists for. 0x180053440 is an
-// unnamed scalar deleting destructor reached by address — the SECOND such site
-// in this lane, and like the first it sits on an arm no boot takes.
+// unnamed scalar deleting destructor (`RtInput_KeyMap_DeletingDtor`, keymap_save.cpp)
+// — the SECOND such site in this lane, and like the first it sits on an arm no boot takes.
 //
 // The inlined `operator new` is `MemAlloc(0x18, 4)` and nothing else: the same
 // 20-instruction body as the unexported 0x180011640 (see
@@ -60,7 +59,7 @@
 // ---------------------------------------------------------------------------
 // LOAD (0x1800e0c80) — three registry reads
 // ---------------------------------------------------------------------------
-//   KeyMap::Load(this->keyMap);                       ; ord 3203, UNPORTED
+//   KeyMap::Load(this->keyMap);                       ; ord 3203, keymap_load.cpp
 //   Persistence::Get("Input", "MouseClipping", &this->mouseClipping);
 //   Persistence::Get("Input", "Legacy",        &this->legacy);
 //   Persistence::Get("Input", "MouseDisplay",  &this->mouseDisplay);  ; tail call
@@ -71,7 +70,7 @@
 // which derived them from this function and from `Save`.
 //
 // `?Get@Persistence@IO@@QEBA_NPEBD0AEA_N@Z` is the BOOL overload and is already
-// PORTED (src/engine/io/persistence.cpp:309). Retail does not test any of the
+// PORTED (src/engine/io/persistence.cpp:151). Retail does not test any of the
 // three return values: `Get`'s contract is to leave the out-parameter untouched
 // when the key is absent, so a missing key keeps the constructor's value.
 //
@@ -87,9 +86,9 @@
 //
 //   ?MemAlloc@MemoryAllocator@System@@SAPEAX_KH@Z  Wave 9 lane E
 //   ?Load@KeyMap@Input@@QEAAXXZ                    Wave 9 lane IOA,
-//                                                  src/engine/input/keymap_load.cpp:303
+//                                                  src/engine/input/keymap_load.cpp:240
 //   ?Get@Persistence@IO@@QEBA_NPEBD0AEA_N@Z        Wave 4 lane C,
-//                                                  src/engine/io/persistence.cpp:309
+//                                                  src/engine/io/persistence.cpp:151
 //
 // `KeyMap::Load` was UNPORTED when this lane enumerated the queue in iteration
 // 1; lane IOA landed it since. RE-CHECKING the stated blocker instead of
@@ -102,8 +101,7 @@
 //
 // ORACLE: none for either. `Startup` allocates and publishes into the live
 // configuration object and `Load` reads the registry; a replay would allocate a
-// second KeyMap and leak the first. Both get a shadow on what their callees
-// produced, plus a did-work counter.
+// second KeyMap and leak the first.
 // ============================================================================
 
 #include <cstdint>
@@ -115,7 +113,7 @@
 #include "system/MemoryAllocator.h"
 
 // The unexported KeyMap scalar deleting destructor 0x180053440, ported in
-// keymap_save.cpp and registered there BY ADDRESS. Startup's re-entry arm used
+// keymap_save.cpp. Startup's re-entry arm used
 // to reach it through `ResolveAddr(Module::Runtime, 0x180053440)`; that door
 // resolved to this same body, so it is now a direct call (ENDGAME B.3.7 B5).
 Input::KeyMap* RtInput_KeyMap_DeletingDtor(Input::KeyMap* self);

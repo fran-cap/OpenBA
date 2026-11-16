@@ -2,7 +2,7 @@
 // Terrain height / world-position query — the keystone "Map::GetTerrainPos" utility.
 //
 // Reimplements FUN_14009f3e0 (CharacterComponent_impl_f3e0), exposed project-wide as
-// fn_MapGetTerrainPos. This single function is referenced by ~100 call sites (camera
+// Map::GetTerrainPos. This single function is referenced by ~100 call sites (camera
 // placement, tile classification, every tool/work/component that maps a world XY to a
 // terrain point) and is exe-only, so standalone needs a real body for it.
 //
@@ -23,9 +23,7 @@
 // CharacterComponent's move tick (0x1401094c0) as `max(f3e0(pos).z, desc+0x44)`, so
 // whatever Z the work action resolved is discarded on the next tick and the standing
 // height is entirely whatever this function returns. With the refine missing, a fisherman
-// on a dock stood on the riverbed under it. Implemented below, gated on BANISHED_LIVE_FLOOR
-// (the producer side — FloorComponent registering the deck mesh — shares that gate);
-// default-on since 2026-08-29, so the env var is a kill-switch (=0), not an opt-in.
+// on a dock stood on the riverbed under it. Implemented below.
 //
 // Verified against Runtime/exe decompiles + worldgen.cpp WG_* offsets (2026-05-31);
 // picking-refine branch disassembly-verified at 0x14009f4c6..0x14009f582 (2026-08-29).
@@ -41,9 +39,6 @@
 #include "Game/exe_bodies.h"
 #include "Game/Map.h"
 #include "Game/WorldGeometry.h"
-
-// BANISHED_FLOOR_TRACE is gone (ENDGAME C.2). The symbol stays only until
-// src/game/Component/floorcomponent.cpp drops its call sites; it is dead.
 
 // ---------------------------------------------------------------------------
 // Picking refine — the flag==0 + cellRec+0x2d>0 branch of the original

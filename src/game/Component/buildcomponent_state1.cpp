@@ -1,14 +1,13 @@
 // src/game/Component/buildcomponent_state1.cpp
 // Clean C++ port of BuildDescription_helper_8290 @ 0x140108290 — the BuildComponent
 // state-1 ("gather materials") ENTER handler. This is the construction spawner: it
-//   1. reads the build cost multiplier off the workplace component (+0x4c),
-//   2. resets the site ModelComponent build variant,
+//   1. reads the build cost multiplier (+0x4c) off the MultiObjectComponent (+0x58),
+//   2. resets the site ClearAreaComponent build variant (ClearAreaComponent::FinishClear),
 //   3. registers the site into the construction registry (townMgr+0xd0),
 //   4. if not all materials are delivered (sub_8630) and not instant-build:
 //        - constructs a GatherRawMaterials work (GatherRawMaterials_Ctor),
 //        - POSTS it to the work-reservation ledger via CitizenAI_impl_ec60 (0x14012ec60)
-//          [GUARDED/deferred in standalone — the shared-AVL ledger insert belongs to the
-//           later citizen-consumer brick; here we only trace the intent],
+//          (WorkComponent::PostWork),
 //        - configures the site StorageComponent to ACCEPT the required raw materials
 //          (accept-mask +0x3c = OR of each material's accept bits; capacity +0x38 =
 //           Σ costQty·carryWeight·multiplier),
@@ -20,8 +19,7 @@
 // machine node (preserved through the tail-JMP — bug-class #6 implicit forwarding). The
 // controller_state_table.h Dispatcher<Tag>::Enter forwards `sm` as the 2nd arg.
 //
-// Faithful offset-by-offset port of the Ghidra decompilation of 0x140108290. All
-// exe-internal helpers are resolved guarded; if one is unavailable the step is skipped.
+// Faithful offset-by-offset port of the Ghidra decompilation of 0x140108290.
 
 #include <new>
 #include "object/TypeInfo.h"
@@ -101,7 +99,7 @@ extern "C" { ComponentEntity* g_pConstructionDemoEntity = nullptr; }
 // 0x140108290, the state-1 ENTER handler (sm = the state machine).
 int BuildComponent::State1Enter(StateMachine* smNode) {
     // 0x14000a170 (FindComponent<ClearAreaComponent>) and 0x140118270
-    // (ModelComponent_impl_8270): ClearArea_Finalize8270 is the clean C++ port
+    // (ModelComponent_impl_8270): ClearAreaComponent::FinishClear is the clean C++ port
     // of the second, called below.
 
     // +0x4c = 1 (default multiplier)
@@ -210,8 +208,8 @@ int BuildComponent::State1Enter(StateMachine* smNode) {
         //     if ((int8_t)sm[9] < 0) { Time t(0.0f); StateMachine_Tick(sm,t,0,0); }
         //     i = node->slot08(node, sm[9], &req);
         //     if (i >= 0) { sm[0xb] = i; sm[0xa] = req; }
-        // == ControllerLive::RequestStateTransition, which is the same idiom minus the
-        // nested pre-tick (it bails when sm[9] < 0 instead). That pre-tick cannot fire on
+        // == ControllerLive::RequestStateTransition, which is the same idiom, the nested
+        // pre-tick when sm[9] < 0 included. That pre-tick cannot fire on
         // the path this branch actually takes: StateMachine::Tick writes sm+9 from the
         // node Step BEFORE dispatching the Enter slot, so sm+9 is >= 0 whenever a state's
         // enter handler is running. The one caller that could reach it with sm+9 < 0 is a

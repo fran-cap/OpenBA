@@ -740,8 +740,8 @@ built them wrong, and callbacks stored in data.
   what device-lost recovery stands on); `Device`'s `CRITICAL_SECTION` stays an opaque
   hand-rolled recursive lock (B5-6); `Device::{Adapter,DisplayMode,RefreshRate,GraphicsInterface}`
   and `ShaderProgram::Parameter` take no real special members (their `Array<T>` helpers destroy
-  elements through open-coded copies: a double release); `sizeof(Video::Configuration)` cannot
-  be measured (no allocation site; the header asserts a range); `Camera`'s copy/assign are
+  elements through open-coded copies: a double release); `sizeof(Video::Configuration)` is 0x44
+  (allocated at 0x1800dbc1c and 0x1800a19b0; the header asserts a range); `Camera`'s copy/assign are
   defaulted for trivial copyability while retail's partial copies stay the doors (three pad bytes
   nothing reads); the exe-phase subclasses in `code/Game` (tornado, weather, status icons,
   geometry_draw, the NoiseUI image buffers) — only their calls INTO base members converted, and

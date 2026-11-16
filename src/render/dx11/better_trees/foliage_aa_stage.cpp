@@ -1,7 +1,7 @@
 // ============================================================================
 // src/render/dx11/better_trees/foliage_aa_stage.cpp -- foliage_aa_stage.h, foliage_aa_backend.h
 // ============================================================================
-// NOT RETAIL (ext.foliage_aa). Log lines: `[FoliageAA] ...` on stderr (standalone_error.log).
+// NOT RETAIL (ext.better_trees). Log lines: `[FoliageAA] ...` on stderr (standalone_error.log).
 // ============================================================================
 #include "better_trees/foliage_aa_stage.h"
 

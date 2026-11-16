@@ -170,20 +170,6 @@ void MapParamsDialog::OnOpened() {
     }
 }
 
-// [6] MapParamsDialog::OnUpdateLayout (0x14006b790) — Update
-// Checks if editName field has text; enables/disables OK button accordingly
-// (Element slot 8, Enable).
-// ============================================================
-// [8] MapParamsDialog::OnElementEvent (0x14006b5f0) — OnEvent
-// ============================================================
-// Handles button clicks in the Map Parameters dialog.
-// eventType 0x12 = button click:
-//   eventData 0 = buttonNewName → generate random map name (0x14006b700)
-//   eventData 1 = buttonOk     → save name to game world, close (0x14006b690)
-//   eventData 2 = buttonCancel → close dialog
-//
-// Original: 0x14006b5f0.
-
 // 0x14006b690: the game's save name = the edit box's text, then close.
 void MapParamsDialog::ApplyName() {
     GameUpdateLoop* gameWorld = GameUpdateLoop::_singleton;
@@ -231,9 +217,8 @@ void MapParamsDialog::GenerateName() {
                 ::Object::ExternalFactory::_singleton->FindOrLoad(fnBuf));
             // The IsDerivedFrom type-check retail runs here is skipped, as in
             // NewGameDialog's GenerateTownName and citizen_names.cpp: the
-            // standalone factory tree is incomplete so the walk NULL-faults,
-            // and *TypeId_NameDatabase is itself NULL until something
-            // lazy-resolves it. FindOrLoad by exact filename is authoritative.
+            // standalone factory tree is incomplete so the walk NULL-faults.
+            // FindOrLoad by exact filename is authoritative.
 
             NameDB_GenerateName(&nameSlot.str, nameDB, random, 5, nameLen);   // 0x1400a4b30
 
@@ -254,6 +239,16 @@ void MapParamsDialog::GenerateName() {
     }
 }
 
+// ============================================================
+// [8] MapParamsDialog::OnElementEvent (0x14006b5f0) — OnEvent
+// ============================================================
+// Handles button clicks in the Map Parameters dialog.
+// eventType 0x12 = button click:
+//   eventData 0 = buttonNewName → generate random map name (0x14006b700)
+//   eventData 1 = buttonOk     → save name to game world, close (0x14006b690)
+//   eventData 2 = buttonCancel → close dialog
+//
+// Original: 0x14006b5f0.
 void MapParamsDialog::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, UI::EventId eventType, int32_t eventData, int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
     if (eventType != UI::EventId::Activated) return;
 
@@ -276,6 +271,9 @@ void MapParamsDialog::OnElementEvent(Object::InternalPtr<UI::Element>* /*element
     }
 }
 
+// [6] MapParamsDialog::OnUpdateLayout (0x14006b790) — Update
+// Checks if editName field has text; enables/disables OK button accordingly
+// (Element slot 8, Enable).
 void MapParamsDialog::OnUpdateLayout() {
     // The name edit box's text length (0 when empty).
     int textLen = editName->GetText().GetLength();

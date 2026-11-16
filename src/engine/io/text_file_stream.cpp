@@ -1,6 +1,6 @@
 // ============================================================================
 // src/engine/io/text_file_stream.cpp — Wave 20, lane SAVETEXT
-//   Five of the eight unported slots of `??_7TextFileStream@IO@@6B@`.
+//   Seven of the ten slots of `??_7TextFileStream@IO@@6B@` (2, 3, 4, 5, 6, 8 and 9).
 // ============================================================================
 //
 //   slot [3] +0x18  ?Read@TextFileStream@IO@@UEAA_NHPEAX@Z          0x1800ba900
@@ -10,16 +10,14 @@
 //   slot [9] +0x48  ?Create@TextFileStream@IO@@UEAA_NAEBVFilename.. 0x1800ba940
 //
 // Slots [1] and [7] are FileStream's `GetSource` (0x1800aab50) and `Open`
-// (0x1800aac70) and were ALREADY PORTED by Wave 19 lane FILE — verified here in
-// all three forms before writing a line (mangled name, retail VA, and the
-// `RtIo_FileStream_<Method>` convention; file_stream.cpp:685/784 and :958/974).
-// They are not re-ported. Slots [0], [2] and [8] are NOT in this file; the
-// DEFERRED section at the bottom says exactly why, each with its own reason.
+// (0x1800aac70), ported in file_stream.cpp as `IO::FileStream::GetSource` and
+// `IO::FileStream::Open`; they are not re-ported. Slot [0] is NOT in this file;
+// slots [2] and [8] are `Write` and `OpenWithFormat` below.
 //
 // ---------------------------------------------------------------------------
 // THE ONE FACT THAT ORGANISES ALL FIVE: TextFileStream IS TWO STREAMS
 // ---------------------------------------------------------------------------
-// `TextFileStream::buffer` (+0x70) is the discriminator, and FOUR of these five
+// `TextFileStream::buffer` (+0x70) is the discriminator, and THREE of these five
 // bodies branch on it:
 //
 //     buffer != 0   -> an in-MEMORY stream over that buffer,
@@ -33,13 +31,11 @@
 // buffer field is identified by the inherited field it stands in for, and those
 // two inherited offsets are independently asserted in FileStream.h.
 //
-// FileStream.h models +0x78 as `void* _unk78`, "zeroed by the ctor, never
-// freed". THESE BODIES SHOW IT IS AN int32 SIZE, and the "never freed" half
-// stops being an observation and becomes a consequence: it is not a pointer, so
-// there is nothing to free. The header is not edited by this lane — the field
-// is read here through an explicit offset rather than through the member, so
-// that the disagreement is visible at the point of use instead of being quietly
-// resolved in a shared header that other lanes' bodies also compile against.
+// The `RtIo::TextFileStream` POD in FileStream.h models +0x78 as one
+// `void* bufferSizeAndCursor`, "zeroed by the ctor, never freed". THESE BODIES
+// SHOW IT IS AN int32 SIZE (and an int32 CURSOR at +0x7c), and the "never freed"
+// half becomes a consequence: it is not a pointer, so there is nothing to free.
+// `IO::TextFileStream` declares the pair as `_bufSize` / `_bufCursor`.
 //
 // `Read` (slot 3) is the exception: it does NOT branch. It reads from the
 // buffer unconditionally, with no null check — see its own note.
@@ -70,26 +66,21 @@
 namespace RtIO {
 
 // THE TWO NAMESPACES ARE ONE LETTER APART AND BOTH EXIST. The stream TYPES live
-// in `RtIo` (src/engine/io/FileStream.h:69) and the ported BODIES live in
-// `RtIO` (this namespace, and file_stream.cpp:166). `FileInfo` is in `RtIO`.
-// file_stream.cpp:176-179 carries the same four using-declarations for the same
-// reason; without them `TextFileStream` does not name a type inside `RtIO` and
-// the error points at the parameter list rather than at the namespace.
+// in `RtIo` (src/engine/io/FileStream.h:71) and the ported BODIES live in
+// `RtIO` (this namespace, and file_stream.cpp:157). `FileInfo` is in `RtIO`.
+// file_stream.cpp:164-167 carries four using-declarations (these three plus
+// `BinaryFileStream`) for the same reason; without them `TextFileStream` does not
+// name a type inside `RtIO` and the error points at the parameter list rather
+// than at the namespace.
 using RtIo::Stream;
 using RtIo::FileStream;
 using RtIo::TextFileStream;
 
-// `?Create@FileStream@IO@@IEAA_NAEBVFilename@System@@@Z` (0x1800aa8f0) — PORTED
-// and registered by lane FILE (file_stream.cpp:483 and :559). Called DIRECTLY,
-// not through a door: a door would resolve to this same body and add a resolve
-// site the cutover census has to carry
-// (reference_count_the_doors_not_the_calls.md).
+// `?Create@FileStream@IO@@IEAA_NAEBVFilename@System@@@Z` (0x1800aa8f0) is
+// `IO::FileStream::Create` (file_stream.cpp:400), called by name from Create below.
 
 // ---- Wave 28 lane SLOTS: the callees slots 2 and 8 need -------------------
-// All three are PORTED and are called DIRECTLY rather than through a door, for
-// the reason stated above `RtIo_FileStream_Create`: a door would resolve to
-// these same bodies and add a resolve site the cutover census has to carry
-// (reference_count_the_doors_not_the_calls.md).
+// All three are PORTED:
 //   ?Open@FileStream@IO@@UEAA_NAEBVFilename@System@@@Z  0x1800aac70  file_stream.cpp
 //   ?ReadFile@FileSystem@IO@@QEAA_NAEAUFileInfo@12@HPEAX@Z 0x1800ace00
 //                                                    filesystem_openfile.cpp
@@ -101,7 +92,7 @@ using RtIo::TextFileStream;
 
 // THE FOUR `TfsBufSize` / `TfsBufCursor` OFFSET HELPERS ARE GONE — B.3.4
 // STREAMS (4/6). They existed because the `RtIo::TextFileStream` POD models
-// +0x78 as one `void* _unk78` while these bodies read an int32 SIZE at +0x78
+// +0x78 as one `void* bufferSizeAndCursor` while these bodies read an int32 SIZE at +0x78
 // and an int32 CURSOR at +0x7c, and Wave 20 deliberately reached past the POD
 // rather than edit a header other lanes' bodies compile against.
 //
@@ -115,9 +106,8 @@ using RtIo::TextFileStream;
 
 // ---------------------------------------------------------------------------
 // EFFECTIVENESS COUNTERS. `calls` alone cannot separate a body that ran from
-// one that did anything
-// (reference_calls_zero_can_mean_always_took_the_uncovered_branch.md), so every
-// body here counts WHICH ARM it took. For the four that branch on `buffer` the
+// one that did anything, so every
+// body here counts WHICH ARM it took. For the three that branch on `buffer` the
 // two arms are counted separately; a run where one arm reads 0 has exercised
 // the other arm only, and says so.
 // ---------------------------------------------------------------------------
@@ -138,13 +128,12 @@ struct TfsCounters {
 TfsCounters g_tfs{};
 
 // ---------------------------------------------------------------------------
-// NEGATIVE-CONTROL PERTURBATIONS, set only by text_file_stream_probe.cpp and
-// read HERE, in the bodies under test. They live in the body rather than in the
-// probe because a control that perturbs a COPY of the code catches in a screen
-// it cannot reach (WAVE11_LANE_OBJEXT.md 10.3/10.5). Each is consumed at
-// exactly one site, each site increments `g_tfsAtt`, and each produces a
-// COMPARABLE DIVERGENCE against the shipped export -- never undefined
-// behaviour.
+// NEGATIVE-CONTROL PERTURBATIONS, read HERE, in the bodies under test. Nothing
+// in the tree sets `g_tfsCtl`, so it stays 0 and every perturbation is off. They
+// live in the body because a control that perturbs a COPY of the code catches
+// in a screen it cannot reach (docs/history/runtime_port/WAVE11_LANE_OBJEXT.md
+// 10.3/10.5). Each is consumed at exactly one site and each site increments
+// `g_tfsAtt`.
 //
 //   1  GetSize: drop the `buffer` branch and always return the FILE size.
 //      -> screen A. This is the mistake a port that ignored +0x70 would make.
@@ -173,8 +162,8 @@ uint64_t g_tfsAtt = 0;
 //     file: MOV EAX,[RCX+0x28 or 0x2c] ; RET
 //
 // NEITHER HAS A `.pdata` ENTRY — both are leaf functions with no prologue, so
-// the unwinder needs none. Worth stating because `tools/mint_extent_audit.py`
-// and every other `.pdata`-driven instrument CANNOT SEE THESE TWO FUNCTIONS AT
+// the unwinder needs none. Worth stating because a `.pdata`-driven tool
+// CANNOT SEE THESE TWO FUNCTIONS AT
 // ALL: asked "which function owns 0x1800ba8e0?" it has no answer, and a reader
 // who takes that silence for "no such function" concludes the slot is empty.
 // The vtable is the authority here and the vtable names both.
@@ -211,13 +200,13 @@ uint64_t g_tfsAtt = 0;
 //     there is no failure path, and the return value carries no information.
 //
 // THE COPY IS `memmove`, NOT `memcpy`. 0x18008a290 is the DLL's statically
-// linked `memmove`; src/engine/system/error.cpp:152 established that from its
+// linked `memmove`; src/engine/system/error.cpp:243 established that from its
 // prologue (the `SUB RDX,RCX / JAE` overlap test at 0x18008a2a0, which a
-// `memcpy` does not have) and src/engine/save/saveload_loadmeta.cpp:342 says
+// `memcpy` does not have) and src/engine/save/saveload_loadmeta.cpp:267 says
 // it again. A `std::memcpy` here would be UB for an overlapping range that
 // retail handles, and the compiler is free to make that difference visible.
 //
-// NOTE, NOT ACTED ON: src/engine/ui/spritecontext_flush.cpp:146 calls
+// NOTE, NOT ACTED ON: src/engine/ui/spritecontext_flush.cpp:143 calls
 // 0x18008a290 "the DLL's `memcpy`". That comment disagrees with the two above
 // and with the prologue. It is another row's file and this lane has not touched
 // it; flagged for whoever owns it.
@@ -235,10 +224,9 @@ uint64_t g_tfsAtt = 0;
 //            -1 or -2      -> return SetFilePointer(winHandle,pos,0,0) == pos
 //
 // THE FILE ARM IS `?SetCurrentPos@FileStream@IO@@` (0x1800aac10), which
-// file_stream_write.cpp:128 already ports. It is TRANSCRIBED here rather than
+// file_stream_write.cpp:135 already ports. It is TRANSCRIBED here rather than
 // delegated to that body: retail duplicates the code rather than calling it, so
-// delegating would attribute this slot's calls to the other slot's counters and
-// would make an A/B on `the old DLL-era switch` silently move this row too.
+// delegating would attribute this slot's calls to the other slot's counters.
 //
 // The discriminator is `CMP dword [RCX+0x20],-0x3 ; JA` and it is **UNSIGNED**:
 // the Win32 path is taken when `handle` is -1 or -2 ("nothing opened" and
@@ -329,40 +317,29 @@ uint64_t g_tfsAtt = 0;
 // ---------------------------------------------------------------------------
 // THE SCOPE DECISION THIS LANE WAS ASKED TO MAKE, RECORDED AT THE CODE
 // ---------------------------------------------------------------------------
-// The census lists `?GetObjectName@`, `?GetObjectType@` and `?GetObjectVersion@`
-// as TextFileStream BODY rows reached only by `file_stream_probe.cpp`. **They
-// are NOT slots of this table and are NOT ported.** The table's ten slots were
-// dumped straight out of retail's `.rdata` with pefile — independently of
-// `rt_data_mint_tables.inc`, which is GENERATED and therefore one source, not
-// two — and none of the three appears in it. They are `QEBA` non-virtual const
-// accessors, a `LEA` and a `RET` each, and porting them would move three census
-// rows while satisfying nothing
-// (`reference_cheap_wins_list_is_the_stalest_section.md`).
+// `?GetObjectName@`, `?GetObjectType@` and `?GetObjectVersion@` are TextFileStream
+// bodies but **NOT slots of this table.** The table's ten slots were dumped
+// straight out of retail's `.rdata` with pefile, and none of the three appears
+// in it. They are `QEBA` non-virtual const accessors, a `LEA` and a `RET` each,
+// ported in the WAVE 29 LANE IOLANE section below.
 //
 // ---------------------------------------------------------------------------
-// THE FOUR HELPERS BOTH BODIES SHARE — all four UNEXPORTED, all four DOORS
+// THE FOUR HELPERS BOTH BODIES SHARE — all four UNEXPORTED, all four in text_codec.cpp
 // ---------------------------------------------------------------------------
-// This lane does NOT reimplement the codec tables. Both bodies pass a RUNTIME
-// encoding id in 0..5 to two jump-table dispatchers, so a port from spec would
-// have to reproduce all six entries of both tables; `string.cpp`,
-// `widestring.cpp` and `package_file_read.cpp` each wrote only the ONE OR
-// TWO entries their caller could reach and said so. Here the id is a variable,
-// so the honest shape is a door.
-//
-// *** ALL FOUR ARE PORTED AS OF BATCH 8b (2026-09-12) ***
-// src/engine/io/text_codec.cpp carries all four, and the four `ResolveAddr`
-// helpers below now land on OUR bodies because the resolver is registry-first;
-// the call sites are unchanged. What made this smaller than the paragraph above
-// expected: the two "dispatchers" are not dispatchers onto twelve separate
-// bodies. Both jump tables were read out of the image, and EVERY entry points
-// back INSIDE the dispatching function - they are MSVC switch arms, four
-// distinct ones per table (ids 2/3 share the UTF-8 arm, 4/5 the UTF-16 arm). So
-// the work was two functions with a switch each, not twelve ports from spec.
+// All four are ported in src/engine/io/text_codec.cpp, and both bodies below call
+// them by name. Both pass a RUNTIME encoding id in 0..5, and the two
+// "dispatchers" are not dispatchers onto twelve separate bodies: both jump
+// tables were read out of the image, and EVERY entry points back INSIDE the
+// dispatching function - they are MSVC switch arms, four distinct ones in the
+// decode table and five in the encode table (ids 2/3 share the UTF-8 arm in
+// both, 4/5 the UTF-16 arm in decode only). So the port is two functions with
+// a switch each.
 // The ADDRESSEE block further down is left in place with its own correction.
 //
 //   0x1800c9d60  DetectFormat(src, len) -> format id
 //                Compares a 3-byte "EF BB BF" then a 2-byte "FF FE" then
-//                "FE FF" against the head of the buffer; returns 3, 4, 5 or 0.
+//                "FE FF" against the head of the buffer; returns 3, 4 or 5 on a
+//                match, else 2 when the whole buffer decodes as UTF-8 and 0 when not.
 //   0x1800c9fc0  DecodeOne(fmt, src, end, &cp, fmt) -> bytes consumed
 //                A `JMP` through the table at 0x1800ca1b8 indexed by the FIFTH
 //                argument. **The format is passed TWICE — once in ECX and once
@@ -382,20 +359,11 @@ uint64_t g_tfsAtt = 0;
 //                A port that "fixed" this by zeroing arg6 would change nothing;
 //                a port that omitted the slot would shift args 7, 8 and 9.
 //
-// Each is spelled as a LITERAL inside its own `ResolveAddr` call, never through
-// a shared wrapper: `runtime_census.py` and `addr_door_audit.py` both find doors
-// by grepping for that literal and a door reached through a variable is
-// invisible to both (`reference_literal_grep_blind_to_variables.md`).
-//
-//   CONDITION   live whenever slot 2 or slot 8 runs with a transcode to do.
-//   CONSEQUENCE with the DLL present each resolves to the shipped body.
-//               At cutover all four are NULL and both slots fault.
-//
 // > **[ADDRESSEE — the four text-codec internals 0x1800c9d60, 0x1800c9fc0,
 // > 0x1800c9b60, 0x1800ca260]** ~~the Wave 29 lane that takes IO's remaining
 // > `internal` address rows~~ — **DISCHARGED, BATCH 8b.** All four, plus the
 // > 0x180029bb0 array-of-String serializer this block named as the same
-// > transcoder family, are ported and registered in
+// > transcoder family, are ported in
 // > src/engine/io/text_codec.cpp. The prediction that "roughly half of both
 // > tables is already written down in this tree" was true and was not what the
 // > port needed: the tables' entries are switch arms inside the two functions,
@@ -424,7 +392,7 @@ uint64_t g_tfsAtt = 0;
 // CLOSES it, and installs an owned buffer at `+0x70`; a replay would run
 // against a closed handle and leak the first buffer, and the second call could
 // not read the same bytes because the first one closed the file. Neither is
-// diffable in either direction. `the diff oracle` records liveness only.
+// diffable in either direction. The `g_tfs` counters record liveness only.
 //
 // UNVERIFIED: neither body has been observed executing.
 // ============================================================================
@@ -514,8 +482,8 @@ inline int32_t TfsBomSkip(IO::Text::Format detected) {
 //     Reusing the codepoint slot in pass 2 would work by accident today and is
 //     not what the machine does.
 //  b) **The copy is `memmove`, not `memcpy`** — 0x18008a290, established from
-//     its prologue by `src/engine/system/error.cpp:152` and repeated by
-//     `saveload_loadmeta.cpp:342` and by `Read` above.
+//     its prologue by `src/engine/system/error.cpp:243` and repeated by
+//     `saveload_loadmeta.cpp:267` and by `Read` above.
 //  c) **`_requestedFormat` (+0x68) IS NOT WRITTEN.** Only `_activeEncoding`
 //     (+0x6c) is, and only at the very end. A stream opened this way keeps
 //     whatever +0x68 the constructor left (6), which is exactly what makes a
@@ -584,7 +552,7 @@ inline int32_t TfsBomSkip(IO::Text::Format detected) {
 // ---- THE TWO FIELDS ARE THE OTHER WAY ROUND FROM THE NAMES ----------------
 // `GetObjectType` returns +0x60 and `GetObjectName` returns +0x58 — the LOWER
 // offset is the NAME. That is counter-intuitive and it is already established
-// twice over in src/engine/io/FileStream.h:274-287 (from these three bodies
+// twice over in src/engine/io/FileStream.h:279-292 (from these three bodies
 // AND, independently, from `?SetObject@` writing its FIRST String argument to
 // +0x60 and its SECOND to +0x58). This port is transcription of what that
 // header already asserts with `static_assert`, so a layout drift breaks the
@@ -595,20 +563,6 @@ inline int32_t TfsBomSkip(IO::Text::Format detected) {
 // and nothing else. All three of these DEREFERENCE `this` at a named offset and
 // two of them take its address, so each does observable work. Not empty.
 //
-// ---- THE ORACLE ------------------------------------------------------------
-// `the diff oracle(ours, the raw DLL door<...>)`: `the raw DLL door` is `the raw export door`,
-// i.e. GetProcAddress against the SHIPPED DLL, which never consults the port
-// registry — so this compares OUR body with RETAIL'S body and not with itself
-// (reference_a_probe_whose_ours_side_reaches_the_body_by_address..., and
-// reference_shadow_marker_is_not_an_oracle.md). It costs a GetProcAddress per
-// call and that is only acceptable because `the diff oracle` evaluates nothing
-// at all unless `the old DLL-era switch` (the Wave 2 5.6-point perf breach was
-// exactly this call OUTSIDE a diff guard).
-//
-// Read the `calls=` column and not only `divergences=`: a port with no caller
-// reports clean. And `calls=0` with `worked>0` would mean the body ran every
-// time and always took a branch the oracle does not cover — which here it
-// cannot, since these bodies have no branches at all.
 // ============================================================================
 using FnGetObjStr = char* const* (*)(const TextFileStream*);
 using FnGetObjVer = int32_t      (*)(const TextFileStream*);
@@ -628,8 +582,8 @@ extern "C" char* const* RtIo_TextFileStream_GetObjectName(const TextFileStream* 
     return ours;                                                // 1800ba274
 }
 
-// Read by text_file_stream_probe.cpp so attendance prints beside the verdicts
-// and a reader cannot see one without the other.
+// Copies the Read / SetCurrentPos / GetCurrentPos / GetSize / Create counters
+// into `out[0..10]`. Nothing in the tree calls it.
 void RtIoTextFileStreamCounters(unsigned long long* out) {
     out[0]=g_tfs.read;
     out[1]=g_tfs.setPosBuffer;  out[2]=g_tfs.setPosFile;   out[3]=g_tfs.setPosSeek;
@@ -646,12 +600,12 @@ void RtIoTextFileStreamCounters(unsigned long long* out) {
 // A member of `IO::X` cannot be defined inside `namespace RtIO` — `IO` and
 // `RtIO` are siblings, and C++ requires a member definition to appear in a
 // namespace ENCLOSING the class (B34_BRIEFS section A.2). So the bodies open
-// their own `namespace IO` block after the doors close, and reach this file's
-// helpers and counters as `RtIO::TfsDetectFormat`, `RtIO::g_tfs` and so on —
+// their own `namespace IO` block after `namespace RtIO` closes, and reach this file's
+// helpers and counters as `RtIO::TfsBomSkip`, `RtIO::g_tfs` and so on —
 // which works because a member of an enclosing namespace is reachable by
 // qualification from anywhere else in the same translation unit.
 //
-// SEVEN OF THE TEN SLOTS. Slot 0 is PURE (deleting_dtor.cpp's row 41), slot 1
+// SEVEN OF THE TEN SLOTS. Slot 0 is the destructor (file_stream.cpp), slot 1
 // is `IO::FileStream::GetSource` and slot 7 is `IO::FileStream::Open`, both
 // inherited and not overridden. So this file owns 2, 3, 4, 5, 6, 8 and 9.
 //
@@ -671,8 +625,8 @@ void RtIoTextFileStreamCounters(unsigned long long* out) {
 // `IO::TextFileStream::Write` is the class's KEY FUNCTION (the first non-inline,
 // non-pure virtual it declares), so GCC emits `vtable for IO::TextFileStream`
 // in THIS translation unit. That is why the host unit build needs the stub
-// copies in tests/unit/io_stream_abi_stubs.cpp: this file stands on the port
-// registry, the allocator and <windows.h> and cannot link into a host test.
+// copies in tests/unit/io_stream_abi_stubs.cpp: this file stands on the
+// allocator, IO::FileSystem and the platform file seam and is not in the unit build.
 namespace IO {
 
 // ============================================================================
@@ -775,10 +729,6 @@ bool TextFileStream::SetCurrentPos(int pos) {
 // this body is the only reachable writer of. `_requestedFormat` and
 // `_activeEncoding` are members now; the selector is still `_activeEncoding`
 // ALONE, which is what negative control 4 exists to catch.
-//
-// `?Create@FileStream@IO@@` still takes the `RtIo::FileStream` POD (it belongs
-// to the lifecycle block in file_stream.cpp, not to this one), so the call
-// bridges through the POD view of `this` rather than changing the callee.
 bool TextFileStream::Create(const System::Filename& path,
                             Text::Format requestedFormat, Text::Format activeEncoding) {
     ++RtIO::g_tfs.create;
@@ -1010,19 +960,11 @@ bool TextFileStream::OpenWithFormat(const System::Filename& path, Text::Format f
 // DEFERRED — the three slots NOT in this file, each with its own reason and its
 // own expiry condition, because "needs X" is a TODO and not a blocker.
 // ============================================================================
-//   [0] +0x00  0x18002ba90  deleting dtor — CLOSED, Wave 21 lane ENC. This slot's
-//       expiry was "EXPIRES when `??1TextFileStream@` is ported", which was the
-//       WRONG shape of expiry: the deleting dtor does not need its ~Class
-//       CALLEE ported, only the two ADDRESSES it reaches, and both are reached
-//       by ResolveAddr the same way whether the callee is ours or the DLL's
-//       (the shared eh-vector-iterator generic used by the whole
-//       src/engine/object/deleting_dtor.cpp family already does this for the
-//       ToolTipDialog and CompressedFileStream rows). It is now
-//       src/engine/object/deleting_dtor.cpp's row 41 ("IO::TextFileStream"),
-//       calling `??1TextFileStream@IO@@UEAA@XZ` (0x1800ba490 — EXPORTED, still
-//       NOT ported, so this makes that address newly `called`) through the
-//       family's shared iterator (0x18007ec98). Verified by
-//       tools/rt_deleting_dtor_verify.py against retail's shipped bytes.
+//   [0] +0x00  0x18002ba90  deleting dtor — CLOSED. It is the compiler's deleting
+//       destructor of the virtual `IO::TextFileStream::~TextFileStream`
+//       (`??1TextFileStream@IO@@UEAA@XZ`, 0x1800ba490), whose body is in
+//       file_stream.cpp; retail runs it through MSVC's eh-vector destructor
+//       iterator (0x18007ec98).
 //       IT IS ALSO THE SOURCE OF A LAYOUT FACT ALREADY IN USE: its `MOV EDX,0x80`
 //       element stride is where FileStream.h's `sizeof(TextFileStream) == 0x80`
 //       comes from.
@@ -1032,8 +974,7 @@ bool TextFileStream::OpenWithFormat(const System::Filename& path, Text::Format f
 //       premise to expire", and that was the correct reading: nothing expired,
 //       a later lane simply did the work. Note also that the `.pdata` figure
 //       quoted here is a LOWER bound — MSVC chains fragments through
-//       UNW_FLAG_CHAININFO — so "462 bytes" understated the job
-//       (reference_pdata_is_a_lower_bound_on_function_extent.md). Measured from
+//       UNW_FLAG_CHAININFO — so "462 bytes" understated the job. Measured from
 //       the instruction listing the body runs 0x1800ba9f0..0x1800babbd = 462,
 //       which here happens to agree.
 //   [8] +0x40  0x1800ba640  Open(Filename, Text::Format) — 666 bytes.
@@ -1042,9 +983,4 @@ bool TextFileStream::OpenWithFormat(const System::Filename& path, Text::Format f
 //
 // So `??_7TextFileStream@IO@@6B@` went 2/10 -> 7/10 (Wave 20 lane SAVETEXT)
 // -> 8/10 (Wave 21 lane ENC, slot 0) -> **10/10, WAVE 28 LANE SLOTS.**
-// COMPLETE IS NOT PROMOTABLE. It says only that promoting would put no trap in
-// the table; whether the row may be promoted turns on owning the function that
-// STAMPS it, which no source scan answers
-// (reference_a_green_readiness_screen_is_not_a_route.md). **Wave 28 lane SLOTS
-// did NOT promote this row and establishes nothing about its stamper.**
 // ============================================================================

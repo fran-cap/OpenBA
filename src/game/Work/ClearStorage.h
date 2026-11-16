@@ -20,8 +20,8 @@
 //   [12] = Work (0x140006b10)
 //   ctors 0x1400e7450 / 0x1400e74b0 (NOT transcribed — the tree built the object with
 //   Work_GenericCtor: the Work base init and the leaf fields zeroed; that is kept).
-//   destroycomponent_states.cpp (block MI-A) builds a ClearStorage BY HAND and stamps
-//   0x1401611a0; that registration serves ClearStorage::Vtable() (B38 D5).
+//   destroycomponent_states.cpp (block MI-A) and residence_heattick.cpp build a ClearStorage
+//   with the entity-seeded ctor below; the compiler stamps the class's table (retail 0x1401611a0).
 // ============================================================================
 
 #include <cstdint>
@@ -38,7 +38,7 @@ class ClearStorage final : public Work {
 
 public:
     ClearStorage();                                                 // (Work_GenericCtor shape, see above)
-    // DestroyComponent's state-3 exit (retail builds it inline, 0x14011cfd0):
+    // DestroyComponent's state-4 enter (retail builds it inline, 0x14011cfd0):
     // the entity-seeded Work base ctor 0x1400f72e0, then +0x48..+0x60 zero as
     // four qwords. ENDGAME B.3.9 OBJ: replaces the `??0Internal` door + stamp.
     explicit ClearStorage(ComponentEntity* const* pEntityIBP);
@@ -64,8 +64,8 @@ public:
     // left +0x10, right +0x18; Cleanup 0x1400e72a0 reads the element's +0x278); its count
     // +0x60 is the items-left / GetPriority count (0x14002a0f0 `> 0`). Real members: the ctors
     // zero the set's root (qword) and count (dword) under an EH state and the dtor clears the
-    // set FIRST, then frees +0x48: the reverse of this declaration order. The Set's ctor also
-    // zeroes its +0x0c pad (+0x64), which retail's leaves (row 640).
+    // set FIRST, then frees +0x48: the reverse of this declaration order. The Set's ctor leaves
+    // its +0x0c pad (+0x64) as found, as retail does (row 640).
     using CitizenSet     = Collection::Set<CitizenComponent*>;
     using AssignmentNode = CitizenSet::Node;
     Collection::Array<uint8_t> _unreadArray;   // +0x48

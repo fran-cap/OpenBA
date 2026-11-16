@@ -1,8 +1,8 @@
 // src/diag/food_workers_harness.cpp
 // BANISHED_FOOD_WORKERS=<n> — staffing stand-in for the food-production buildings that
-// have no tool yet: the Fishing Dock, Hunter Lodge, Gatherer's Hut and Crop Field.
-// Direct analogue of BANISHED_ORCHARD_WORKERS / BANISHED_PASTURE_HERDERS, generalised
-// over the four component types instead of copied a fourth and fifth time.
+// have no tool yet: the Fishing Dock, Hunter Lodge, Gatherer's Hut and Crop Field, plus
+// the Market. Direct analogue of BANISHED_ORCHARD_WORKERS, generalised over the five
+// component types instead of copied once per type.
 //
 // WHY THIS IS NEEDED AND NOT A CHEAT: the periodic employment allocator (0x1400d43b0,
 // citizen_assign_citizens.cpp) gates on WPC+0x60 != 0 — the LIVE ROSTER COUNT — so it
@@ -29,8 +29,8 @@
 #include "options.h"
 #include "clamped_atoi.h"     // review F-087: checked parse of BANISHED_* text
 #include "Object/factory_registration.h"   // ::Object::GetTypeIdByName
-#include "Component/exe_bodies.h"   // AttendanceComponent_GetJobHostComponent (0x140002e10)
-#include "Work/exe_bodies.h"        // WorkBase_FindComponent_3050 (0x140003050)
+#include "Component/exe_bodies.h"   // CitizenEmploy_SeatWorkers
+#include "Work/exe_bodies.h"
 #include "Entity/CitizenBehavior.h"            // B4: GameUpdateLoop::m_citizenList
 #include "Entity/ComponentEntity.h"            // B4: the components by name, FindComponent<T>
 #include "Entity/EntityList.h"                 // B4: GameUpdateLoop::m_entityList
@@ -119,8 +119,8 @@ void Fire(int frameNum) {
     uint32_t tids[kClassCount];
     for (int k = 0; k < kClassCount; ++k) tids[k] = ::Object::GetTypeIdByName(kClasses[k]);
 
-    // 0x140002e10 is FindComponent_WorkPlace whatever Ghidra called it — see
-    // reference_misnamed_component_finders. Body: AttendanceComponent_GetJobHostComponent.
+    // 0x140002e10 is FindComponent_WorkPlace whatever Ghidra called it. Body:
+    // ComponentEntity::FindComponent<WorkPlaceComponent>.
 
     int found = 0, considered = 0;
     for (int i = 0; i < n; ++i) {
@@ -143,7 +143,7 @@ void Fire(int frameNum) {
 
         // TEMPORARY INSTRUMENTATION (2026-08-15). The hunting cabin's job-count up-arrow
         // is greyed out, so a laborer can never be assigned to the hunt work class from
-        // the UI. WorkplaceUI::Startup (retail 0x140087080) enables it with exactly
+        // the UI. WorkPlaceUI::OnUpdateLayout (retail 0x140087080) enables it with exactly
         // `workComp+0x30 < workDesc+0x2c`, where workDesc = workComp+0x18. Reading those
         // through the UI needs the panel open, which no soak does -- so sample them
         // straight off the entity here instead, which isolates the DATA question (did the

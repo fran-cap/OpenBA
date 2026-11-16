@@ -5,8 +5,7 @@
 // `?_typeInfo@SoundBuffer@Audio@@` (retail 0x1801fa4d8) and
 // `?_typeInfo@SoundEffect@Audio@@` (0x1801fa510) were MINTED until this block;
 // the classes' own records, built at CRT init and head-inserted into
-// `Object::BaseTypeInfo::_firstTypeInfo`, are the only ones now
-// (tools/rt_mint_retired/ti-rest.txt).
+// `Object::BaseTypeInfo::_firstTypeInfo`, are the only ones now.
 //
 // THE LITERALS ARE THE PERSISTED ABI (ids are `~CRC32(name)`), copied from the
 // minted rows and retail's literal bodies, never respelt:

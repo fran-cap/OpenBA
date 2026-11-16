@@ -8,8 +8,7 @@
 // CreateReader (+0x18) and CreateWriter (+0x20). Neither table was minted, so
 // at cutover `??0VisitorStream` installed an Encoding whose vtable resolved to
 // NULL and the gate died in MakeCodec reading vtable+0x20 — the "READ of 0x20"
-// wall recorded in STATUS.md. Minting the table (tools/rt_mint_gen.py
-// EXTRA_VTABLES_BY_ADDR) makes the slots exist; these bodies make them ours.
+// wall recorded in STATUS.md.
 //
 // Every body below is transcribed from the shipped RETAIL bytes (pefile +
 // objdump on Runtime-x64.dll, not the profile build, not decompiled C — Ghidra
@@ -33,16 +32,15 @@
 //     No stream header is consumed or emitted — unlike the Binary pair. RCX
 //     (the Encoding) is never read. Allocation failure returns NULL unconstructed.
 //
-// TEXT table 0x1801559d0 (bounded by the Visitor table, see VTABLE_EXTENT):
+// TEXT table 0x1801559d0 (bounded by the Visitor table):
 //   slot 0  0x1800b9ab0   32 C0 C3           -> false
 //   slot 1  0x1800b9aa0   B0 01 C3           -> true
 //   slot 2  0x1800b9a90   B8 01 00 00 00 C3  -> 1
 //   slot 3  0x1800b9a80   33 C0 C3           -> NULL   (text serialization was
-//   slot 4  0x1800b9a70   33 C0 C3           -> NULL    stripped from the DLL;
-//                                                       text_file_stream_probe.cpp)
+//   slot 4  0x1800b9a70   33 C0 C3           -> NULL    stripped from the DLL)
 //
-// The {IsBinary, IsText, Kind} reading of slots 0..2 is encoding.cpp's
-// descriptive naming, carried over, not attested: Binary = {true,false,2},
+// The {IsBinary, IsText, GetKind} names of slots 0..2 are Serializer.h's
+// descriptive naming, not attested: Binary = {true,false,2},
 // Text = {false,true,1}, Visitor = {false,false,3}.
 // ============================================================================
 

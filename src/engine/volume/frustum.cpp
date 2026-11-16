@@ -12,9 +12,8 @@
 // profile build's debug strings — src/engine/volume/README.md).
 //
 // FUN_180128110/FUN_180127d90/FUN_180126d10 (sqrtf/sinf/cosf) go through the
-// RtLibm seam (src/engine/rt_libm.h), not <cmath> directly: our own libm
-// by default, or Runtime-x64.dll's own CRT as a
-// diagnostic for attributing a diff-oracle divergence to libm rounding.
+// RtLibm seam (src/engine/rt_libm.h), not <cmath> directly: the ported MSVC CRT
+// bodies in src/engine/crt/msvc_libm.cpp.
 // ============================================================================
 
 #include "rt_libm.h"
@@ -25,17 +24,12 @@
 
 namespace {
 
-// How many bytes of a Frustum are actually DEFINED, for the diff oracle.
+// How many bytes of a Frustum are actually DEFINED.
 //
 // sizeof(Frustum) is 0x64: the six planes plus `isOrthographic` occupy
 // 0x00..0x60, and the compiler pads the tail to 4-byte alignment. Retail never
 // writes those three pad bytes -- the ctors zero 0x00..0x5f in qwords and then
-// store one byte at +0x60 -- and neither do we. Diffing sizeof(Frustum) was
-// therefore comparing three bytes of whatever was previously on the caller's
-// stack against a value-initialised scratch struct's zeros, and it reported a
-// divergence every time the stack happened to be dirty. That is a harness
-// defect, not a port defect: it manufactures false positives that would train
-// us to ignore the oracle. Compare only the defined prefix.
+// store one byte at +0x60 -- and neither do we.
 constexpr size_t kFrustumDefinedBytes = offsetof(Frustum, isOrthographic) + sizeof(bool);
 static_assert(kFrustumDefinedBytes == 0x61, "Frustum defined prefix is 0x61 bytes");
 
@@ -204,9 +198,7 @@ Frustum* RtVolume_Frustum_MulTransform3(const Frustum* self, Frustum* ret, const
 // on NaN -> max for the n-vertex), this port `plane.<axis> < 0` (false on NaN ->
 // min). The select difference cannot change a result (a
 // NaN normal component makes both dN and dP NaN whatever vertex is picked; a
-// unit-test mutation confirmed it); the dN one can: a NaN dN (a NaN anywhere,
-// or 0 * inf, inf - inf) clears the bit here and culls / keeps it on dP in
-// retail. Both agree on every input whose dN is not NaN, -0.0 included.
+// unit-test mutation confirmed it).
 unsigned int RtVolume_Frustum_Contains(const Frustum* self, const Box* box, unsigned int mask) {
     unsigned int ours = mask;
     for (int i = 0; i < 6; i++) {
@@ -371,10 +363,8 @@ Vector3* RtVolume_Frustum_GetScreenDirection(const Frustum* self, Vector3* ret, 
 // plus -2.0 @ 0x180161768, which no earlier wave needed; it is declared beside
 // the body rather than added to the shared table for one user.
 //
-// ORACLE: full 64-byte compare against the shipped body run into a private
-// scratch. Every one of the 16 floats is written on every one of the four
-// paths — checked store by store — so there is no unwritten-byte trap
-// (reference_oracle_must_not_compare_unwritten_bytes.md).
+// Every one of the 16 floats is written on every one of the four
+// paths — checked store by store.
 // ============================================================================
 
 // 0x180161768. Only Projection uses it, so it stays local rather than joining
@@ -383,15 +373,10 @@ static constexpr float kMinusTwo = -2.0f;
 
 Matrix* RtVolume_Frustum_Projection(const Frustum* self, Matrix* ret, bool zeroToOneDepth) {
 
-    // Input snapshot for the oracle, taken before `ret` is touched. The hidden
-    // return slot is a caller-chosen buffer and MAY overlap `self`:
-    // src/engine/graphics/renderer.cpp:290 passes `&self->frustum` and
-    // `&self->projection`, two members of the same Camera. They do not overlap
-    // today, but "two members of one object" is one layout change away from
-    // doing so, and the cost of being wrong is a phantom divergence that reads
-    // exactly like a port defect — which is what Math::Transform::AsTransform3
-    // paid 901 of before the aliasing at gameupdateloop.cpp:1496 was found.
-    // Snapshot, and the question stops mattering.
+    // `selfSnapshot` is a zero-initialised local that nothing reads. The hidden
+    // return slot is a caller-chosen buffer: Camera::SetFrustum
+    // (src/engine/graphics/renderer.cpp) passes `&_frustum` and `&_projection`,
+    // two members of the same Camera.
     Frustum selfSnapshot{};
 
     const float nearDist = self->planes[0].w;

@@ -3,36 +3,20 @@
 //
 // THE EIGHT NON-SLOT-0 BODIES OF `??_7EdgeMesh@Graphics@@6B@` (DLL 0x180154c70).
 //
-// SUBJECT AND DENOMINATOR, STATED FIRST. The Wave 27 census
-// (tools/runtime_census.py, re-run on wave27/base, PROMOTION BACKLOG) prints
 //
-//     ??_7EdgeMesh@Graphics@@6B@            0     9
-//
-// — nine non-purecall slots, NOT ONE of them ported anywhere in the tree. That
-// zero was re-checked before a line was written, by mangled name and by
-// address, across runtime/ code/ standalone/ engine/ src/render/dx11/
-// (reference_grep_for_the_port_before_writing_it.md); it returned nothing.
-//
-// This file is the first body for slots 1..8. SLOT 0 IS NOT HERE: it is the
-// unnamed vector deleting destructor at 0x1800134b0, which belongs to the
-// 37-row family in src/engine/object/deleting_dtor.cpp and is added THERE as a
-// table row, because that file already holds the one correct body and a 45th
-// hand-written copy is exactly what its banner exists to prevent.
-//
-// With this file plus that row, the table reaches 9/9 — COMPLETE. COMPLETE is
-// the STATIC half of readiness ONLY (reference_a_green_readiness_screen_is_not
-// _a_route.md); the promotion verdict is in WAVE27_LANE_GFXMESH.md §5 and this
-// file does not promote anything.
+// This file holds the bodies for slots 1..8. SLOT 0 IS NOT HERE: it is the
+// vector deleting destructor at 0x1800134b0, which the compiler emits for the
+// virtual `~EdgeMesh()` (declared in Mesh.h, defined in batchc_gfx_leaves.cpp).
+// The per-slot table is in docs/history/runtime_port/WAVE27_LANE_GFXMESH.md §3.
 //
 // EVERY BODY BELOW WAS READ FROM THE DISASSEMBLY of the shipped RETAIL
 // Runtime-x64.dll, never from Ghidra's decompiled C, which drops dereferences,
 // prints MOVSXD as a zero extension and drops whole arguments at a mistyped
-// vtable call (reference_ghidra_c_output_vs_disassembly.md).
+// vtable call.
 //
 // EVERY ADDRESS WAS CONFIRMED AGAINST THE EXPORT DIRECTORY BY VA, with pefile
 // against `C:\GOG Games\Banished\Runtime-x64.dll` — not by name pattern, and
-// not against the profile build, whose vtable offsets are known to differ
-// (reference_encoding_vtable_offsets_differ_between_builds.md):
+// not against the profile build, whose vtable offsets are known to differ:
 //
 //     0x180012c90  4382  ?TypeName@EdgeMesh@Graphics@@UEBAPEBDXZ
 //     0x180012c70  4175  ?Type@EdgeMesh@Graphics@@UEBAIXZ
@@ -43,21 +27,9 @@
 //     0x180012e40  2172  ?Destruct@EdgeMesh@Graphics@@UEAAXXZ
 //     0x180012e30  1817  ?Construct@EdgeMesh@Graphics@@UEAAPEAVExternal@Object@@XZ
 //
-// All eight are `UEBA`/`UEAA` — PUBLIC virtual. Nothing here needs an address
-// door on its own account; the address doors that ARE opened are for the two
-// unexported serialize helpers, and each is commented in the §4 #10 shape at
-// its call site.
+// All eight are `UEBA`/`UEAA` — PUBLIC virtual.
 //
-// KILL SWITCH: RT_GFXEDGEVT=0 leaves all eight on the DLL.
 //
-// ⚠ CALLS=0 IS THE EXPECTED READING, AND IT IS NOT VERIFICATION.
-//   mesh.cpp's closing note already says it for the whole EdgeMesh family: the
-//   selection-outline chain (standalone/address_registry.cpp:584,
-//   RegisterPlayerRenderBatch) is the only consumer of EdgeMesh and it is gated
-//   default-OFF on BANISHED_SELECTION_OUTLINE. A run that does not set that
-//   variable exercises none of these eight, and a port with zero callers is not
-//   verified no matter how clean the diff summary looks
-//   (reference_uncalled_port_is_not_verified.md). Read the `calls=` column.
 // ============================================================================
 
 #include <cstddef>
@@ -127,22 +99,15 @@ inline void SerializeBuffer(Video::VertexBuffer& buf, IO::Serializer& ser) {
 }
 
 // ---------------------------------------------------------------------------
-// THE FOUR UNEXPORTED HELPERS THIS BODY CALLS, AND WHY BY ADDRESS.
+// THE FOUR UNEXPORTED HELPERS THIS BODY CALLS.
 //
 // SYMBOL:      none. All four are in-DLL internals with no export-directory
 //              entry — checked by VA against the export table with pefile, not
 //              inferred from an `AEAA` in a mangled name
-//              (reference_aeaa_is_private_not_unexported.md), because these
+//              (`AEAA` means private, and this DLL exports its privates), because these
 //              have no mangled name at all.
-// CONDITION:   they are reached with ResolveAddr(Module::Runtime, <VA>), which
-//              consults the port registry FIRST, so each becomes OUR body the
-//              moment any lane registers that address — no change here.
-// CONSEQUENCE: until then they are the DLL's, and this file makes four
-//              addresses newly `called`
-//              (reference_porting_can_grow_the_cutover_surface.md). They are
-//              NOT claimed as ported by this lane and they are listed in
-//              WAVE27_LANE_GFXMESH.md §6 as inherited cutover work, so the next
-//              census does not have to rediscover them.
+// CALLED:      by name, see the B3R note below the list. The four are the
+//              ones docs/history/runtime_port/WAVE27_LANE_GFXMESH.md §6 lists.
 //
 //   0x180014230  SerializeExternalPtrBase(ExternalPtr*, SerializeCtx*)
 //                the +0x20 slot. Its type check reads the typeId at
@@ -156,19 +121,13 @@ inline void SerializeBuffer(Video::VertexBuffer& buf, IO::Serializer& ser) {
 //                six DWORDs per element at +0,+4,+8,+0xc,+0x10,+0x14, stride
 //                0x18, through the encoding's +0xa0 slot. `TEST EDX,EDX ; JLE`
 //                — a count of zero does nothing, including no virtual call.
-//   0x1800136f0  the TriangleList Array<>::SetSize. ALREADY reached by this
-//                tree: mesh.cpp:201 resolves the same address as
-//                `RtTriListArrayResize()`. Deliberately resolved the same way
-//                here rather than re-derived, so there is ONE place to repoint.
+//   0x1800136f0  the TriangleList Array<>::SetSize.
 // ---------------------------------------------------------------------------
-// B3R: all three are ported and called by name —
-// RtObject_ExternalPtrSerialize_GraphicsMesh (0x180014230),
-// RtObject_ExternalPtrSerialize_MaterialInstance (0x180014520), both in
-// object/external_ptr_serialize.cpp (declared in types/object/External.h), and
-// RtGraphics_EdgeMesh_SerializeTriangleListArray (0x180014850,
-// graphics/closure_batch2b.cpp, declared in types/graphics/Mesh.h).
-// B.4 P2 wave X: the two are `Object::SerializeExternal<T>` / the
-// ExternalPtr<T> member (External.h). The +0x20 slot is a GraphicsMesh*.
+// The first three are ported and called by name: 0x180014230 and 0x180014520 are
+// `Object::SerializeExternal<T>` / the ExternalPtr<T> member (External.h), and
+// 0x180014850 is RtGraphics_EdgeMesh_SerializeTriangleListArray
+// (graphics/closure_batch2b.cpp, declared in graphics/Mesh.h). The +0x20 slot is
+// a GraphicsMesh*.
 inline void ExtBase(Graphics::GraphicsMesh*& slot, IO::Serializer& ser) {
     Object::SerializeExternal<Graphics::GraphicsMesh>(ser, slot);
 }
@@ -186,20 +145,9 @@ inline void ExtBase(Graphics::GraphicsMesh*& slot, IO::Serializer& ser) {
 // class and `Graphics` / `RtGraphics` are siblings (B34_BRIEFS A.2). The
 // anonymous namespace's helpers are reachable unqualified from here.
 //
-// ALL EIGHT NON-SLOT-0 SLOT BODIES MOVED. Every registered door at the bottom of
-// the file keeps its mangled name AND its retail address and is now a one-line
-// QUALIFIED, non-virtual delegation. THE QUALIFICATION IS LOAD-BEARING
-// (B34_BRIEFS A.1): a live `EdgeMesh` wears the MINTED
-// `??_7EdgeMesh@Graphics@@6B@`, whose slots resolve back to these very doors, so
-// an unqualified virtual call inside a door would dispatch into itself instead of
-// delegating.
-//
-// `this` IS NOW GENUINELY UNUSED IN FOUR OF THEM AND NO LONGER NEEDS A
-// `(void)self`: slots 1, 2, 3 and 4 read neither `this` nor their arguments in
-// retail (the encodings have no RCX and no RDX operand), and as members that is
-// simply a body that mentions no field. The four `unused parameter 'self'`
-// warnings this file used to carry in the perf build are gone with the doors'
-// parameters becoming delegation arguments.
+// `this` IS UNUSED IN FOUR OF THE SLOTS: slots 1, 2, 3 and 4 read neither `this`
+// nor their arguments in retail (the encodings have no RCX and no RDX operand),
+// and as members that is simply a body that mentions no field.
 // ############################################################################
 
 namespace Graphics {
@@ -211,13 +159,8 @@ namespace Graphics {
 
 // ---- slot 1  ?TypeName@EdgeMesh@Graphics@@UEBAPEBDXZ  0x180012c90 ----------
 //
-// ⚠ A POINTER DIVERGENCE IS EXPECTED, NOT A REGRESSION, once the
-//   `?_typeInfo@EdgeMesh@` row is promoted: our node lives in our image and the
-//   shipped export returns the DLL's — same characters, different object.
-//   The comparison is deliberately left as a POINTER rather than relaxed to a
-//   strcmp, because it is the one screen that can still see identity move, and
-//   the identity question is retired in both shipped binaries (zero consumers
-//   of any node's +0x08 — reference_basetypeinfo_name_is_content_only.md).
+// DECLARE_TYPE's body over the class's own record (graphics_type_records.cpp);
+// `BaseTypeInfo::name` is content-only, never compared by pointer.
 
 // ---- slot 3  ?GetFileVersion@EdgeMesh@Graphics@@UEBAHXZ  0x1800a23d0 -------
 //
@@ -262,23 +205,13 @@ EdgeMesh::CompileResult EdgeMesh::Compile(const System::Filename& /*path*/) {
 // ---- slot 5  ?Serialize@EdgeMesh@Graphics@@UEAA_NAEAVStream@IO@@@Z ---------
 //                                                            0x1800a21d0
 //
-// NO ORACLE, AND THE REASON IS THE ONE THE TREE ALREADY WROTE DOWN ONCE FOR
-// THIS FAMILY. mesh.cpp's HELD BACK note (item 2) refuses
-// ?Serialize@MeshInstance@ on exactly this ground and the same ground holds
-// here: a differential run would consume or emit the record TWICE and desync
-// the stream, and a stream desync does not surface where it happens — it
-// surfaces later, on an innocent record. Wave 5 held four functions back for
-// the same reason. the diff oracle is recorded so the body's ATTENDANCE is
-// visible; no the diff oracle / the diff oracle is emitted, and the absence is
-// deliberate rather than an omission.
-//
 // WHAT MAKES PORTING IT SAFE ANYWAY, and it is a narrow claim: this body
 // performs NO ARITHMETIC OF ITS OWN. Every line below is a transcription of a
 // call — same helper, same arguments, same order, same vtable byte offsets read
 // from the same retail image. The two places it does branch are both a test of
 // `stream->mode`, and both are reproduced from the shipped compare rather than
 // reasoned about. There is nothing here for a misunderstanding of the format to
-// hide in; the format lives entirely in the four helpers, which are NOT ported.
+// hide in; the format lives entirely in the helpers it calls.
 //
 // THE SHIPPED ORDER, transcribed line for line from 0x1800a21d0:
 //   1. ctx = { stream, nullptr }
@@ -365,11 +298,8 @@ bool EdgeMesh::Serialize(IO::Stream& stream) {
 //
 //   180012e40  MOV RAX,[RCX] ; XOR EDX,EDX ; JMP [RAX]
 //
-// SEVEN BYTES, then padding. Same shape and the same consequence as
-// ?Destruct@MaterialInstance@ (wave24_lane_gfxmat.cpp:399): the body is far
-// smaller than the twelve bytes the smallest inline detour in this tree needs,
-// so this row can NEVER be detoured — a registration is its only door, and with
-// rel32 = 0 a registration reaches every caller there is.
+// SEVEN BYTES, then padding. Same shape as ?Destruct@MaterialInstance@
+// (wave24_lane_gfxmat.cpp).
 //
 // No null test. Retail has none; destructing a null faults here exactly as it
 // faults in the DLL (CLAUDE.md, "Don't fix a faithful crash with a null check").
@@ -384,7 +314,7 @@ void EdgeMesh::Destruct() {
 //
 // TWELVE BYTES. Unlike MaterialInstance::Construct — which INLINES its whole
 // constructor — EdgeMesh::Construct is a guarded TAIL JUMP to the real ctor at
-// 0x1800a2830. The null test is retail's own and returns null; it is kept.
+// 0x1800a2830. The null test is retail's own and returns null.
 //
 // ENDGAME B.3.9 GFX: placement new of the class -- the ctor is the real
 // `EdgeMesh()` (mesh.cpp); a virtual is never entered with null.
@@ -403,10 +333,9 @@ Object::External* EdgeMesh::Construct() {
 // is reused, not freed — then re-run the constructor on the same storage and
 // return what the ctor returns, which is `this`.
 //
-// NO NULL TEST, unlike Construct one slot over. That asymmetry is retail's and
-// is kept: reconstructing a null faults here exactly as it faults in the DLL.
-// The identical asymmetry exists in the MaterialInstance pair and was kept
-// there for the same reason (wave24_lane_gfxmat.cpp:440).
+// NO NULL TEST, unlike retail's Construct one slot over: reconstructing a null
+// faults here exactly as it faults in the DLL. MaterialInstance's Reconstruct
+// (wave24_lane_gfxmat.cpp) has no null test either.
 Object::External* EdgeMesh::Reconstruct() {
     this->~EdgeMesh();
     return ::new (this) EdgeMesh();
@@ -415,8 +344,8 @@ Object::External* EdgeMesh::Reconstruct() {
 // ??1EdgeMesh@Graphics@@UEAA@XZ  0x1800a2780 -- ENDGAME B.3.9 GFX: defined in
 // batchc_gfx_leaves.cpp, which holds the retired door's body.
 
-// ?TypeId@EdgeMesh@Graphics@@SAIXZ 0x180012c80 -- over the minted
-// `?_typeInfo@` record until the W3 fold (B39_RULES D6).
+// ?TypeId@EdgeMesh@Graphics@@SAIXZ 0x180012c80 -- DECLARE_TYPE's TypeId over
+// the class's own record (graphics_type_records.cpp).
 
 // ?CreateNewObject@EdgeMesh@Graphics@@SAPEAVBase@Object@@XZ 0x180012d80 --
 // `??2EdgeMesh` (MemAlloc 0x180, align 8), the null branch, the ctor.

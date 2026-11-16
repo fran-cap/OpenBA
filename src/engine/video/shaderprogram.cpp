@@ -5,9 +5,7 @@
 //
 // ??_7ShaderProgram@Video@@6B@ (retail 0x180157b60) — EIGHT slots, not nine.
 // ShaderProgram is ABSTRACT: three of its slots are `_purecall`
-// (0x18007ec28), and it has no Construct slot at all, which is why its row is
-// two shorter than VertexLayout's and why rt_factories_video.inc gives
-// Video::ShaderProgram a null step list.
+// (0x18007ec28), and it has no Construct slot at all.
 //
 //   0  deleting dtor        0x18004e360  ShaderProgram.h (inline, B.3.9)
 //   1  TypeName             0x18004e0c0  here
@@ -27,7 +25,7 @@
 // ENDGAME B.3.9 block VID: the ctor door (and the ConstructBody the two
 // subclasses' doors reused), the dtor door and the Type / TypeName / Serialize
 // slot doors are GONE with ??_7ShaderProgram@Video@@6B@. The real constructor is
-// protected in the header; the exported non-virtual members keep their doors.
+// protected in the header; the exported non-virtual members are plain members.
 //
 // ============================================================================
 // ENDGAME B.3.5 BLOCK B — THE BODIES MOVED INTO THE MEMBERS.
@@ -36,21 +34,7 @@
 // deriving from the real `Object::CompiledExternal`. Every body below that was a
 // `RtVideo_ShaderProgram_*` function is now a member of that class, defined in
 // the `namespace Video` block at the bottom of this file (B34_BRIEFS A.2: a
-// member of `Video::X` cannot be defined inside a sibling namespace), and each
-// registered DOOR is a one-line QUALIFIED non-virtual delegation.
-//
-// WHY THE QUALIFICATION IS LOAD-BEARING (B34_BRIEFS A.1): a live ShaderProgram
-// subclass wears the MINTED `??_7VertexProgram@Video@@6B@` / `??_7PixelProgram@`
-// table, whose slot 5 resolves BACK to these doors. An unqualified virtual call
-// in a door would dispatch through the minted table into the door itself —
-// infinite recursion, not delegation.
-//
-// NOTHING IS UNREGISTERED OR RETIRED. Every `RegisterRuntimeExport` /
-// `RegisterRuntimeAddr` line is byte-for-byte the one that was here; the ctor
-// door stays a ctor door (B4b-2: no real constructor on a polymorphic class, and
-// no constructor can write the MINTED vtable address the rest of the tree reads);
-// the `RT_DELDTOR` row at deleting_dtor.cpp:843 and the `??_7ShaderProgram` mint
-// row stay for the whole of step 5 (B35_RULES 11).
+// member of `Video::X` cannot be defined inside a sibling namespace).
 //
 // TWO BINDINGS RETIRED, both runtime-internal and both inside this block's file
 // set (BLOCK_BRIEF "runtime-internal callers"):
@@ -65,22 +49,19 @@
 //
 // WHAT THE DESTRUCTOR DOES AND DOES NOT WRITE BY HAND. Retail's ~ShaderProgram
 // is: stamp ??_7ShaderProgram, destroy the three arrays newest-first, stamp
-// ??_7CompiledExternal, tail-JMP ~External. The FIRST stamp is written out by
-// hand below, naming the MINTED address, for block A's reason: GCC emits its own
-// vptr store at the top of a polymorphic destructor and it names GCC's table,
-// while the rest of the tree and the mint rows expect the minted one. The LAST
-// two are the destructor chain's — `~CompiledExternal()` and `~External()` are
-// real members (src/engine/object/external_class.cpp) and emit their own stores,
-// which name the compiler's tables; external_class.cpp's banner records that
-// decision and why the two tables are slot-compatible. The object is mid-teardown
-// at that point and nothing dispatches on it.
+// ??_7CompiledExternal, tail-JMP ~External. Only the three array teardowns are
+// written out below. Both stamps and the tail are the destructor chain's —
+// `~CompiledExternal()` and `~External()` are real members
+// (src/engine/object/external_class.cpp) and emit their own stores, which name
+// the compiler's tables. The object is mid-teardown at that point and nothing
+// dispatches on it.
 //
 // THE THREE ARRAY TEARDOWNS RUN EXACTLY ONCE EACH, and that needs saying because
 // `_textures`/`_constants`/`_byteCode` are real `Collection::Array<T>` members
-// with real destructors now. The bodies below call the REGISTERED retail array
+// with real destructors now. The bodies below call the ported retail array
 // destructors (0x18004fb00 / 0x18004fbd0), which release each element's String /
 // free each inner array AND THEN zero `_data`/`_size`/`_capacity`
-// (`ArrayDtorImpl`, src/engine/collection/array.cpp:225). The compiler-emitted
+// (`ArrayDtorImpl`, src/engine/collection/Collection.h). The compiler-emitted
 // `~Array<T>` that runs after this body therefore sees an empty header and frees
 // nothing. That is the same decomposition `Object::External::~External` uses for
 // `_refs`, with each half running once.
@@ -208,7 +189,7 @@ void PlatformSerializeArm(Video::ShaderProgram* self, IO::Serializer& outer, int
 // src/engine/video/shader_program_names.cpp, which is also where their MEMBER
 // bodies now live. Writing a second copy here would have been the duplicate-body
 // drift this tree keeps warning about, and the linker caught it. Read that file
-// for the hidden-slot analysis (reference_hidden_retslot_wild_write.md).
+// for the hidden-slot analysis.
 
 // ============================================================================
 // THE MEMBER BODIES — `Video::ShaderProgram::*`.
@@ -229,7 +210,7 @@ namespace Video {
 // Both stamps and the tail are the destructor chain's (the compiler's tables).
 ShaderProgram::~ShaderProgram() {
     // The three Array teardowns, in retail's order (+0x40 first, then +0x30,
-    // then +0x20). Each registered body ends in `ArrayDtorImpl`, which zeroes
+    // then +0x20). Each ported body ends in `ArrayDtorImpl`, which zeroes
     // the header, so the compiler-emitted `~Array` that follows frees nothing.
     rtcoll::RtColl_ArrayDtorElem_18004fbd0(&_byteCode);    // ~Array<Array<uint8>>
     rtcoll::RtColl_ArrayDtorElem_18004fb00(&_constants);   // ~Array<Parameter>
@@ -280,8 +261,6 @@ void ShaderProgram::PlatformSerialize(IO::Serializer& ser) {
 
 // slot 5 — ?Serialize@ShaderProgram@Video@@UEAA_NAEAVStream@IO@@@Z 0x1800f5110
 bool ShaderProgram::Serialize(IO::Stream& streamv) {
-    // LEFT (B.4 R-VIDEO): the slot is `Serialize(IO::Stream&)`; the override
-    // keeps `External`'s `void*` parameter (R-OBJ's declaration).
     IO::Serializer ser(streamv, 1);
 
     SerializeParameters(ser, &_constants);   // +0x30 FIRST

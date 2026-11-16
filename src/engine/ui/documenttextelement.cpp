@@ -9,9 +9,9 @@
 //
 //   slot  method                retail       where
 //   ----  --------------------  -----------  ---------------------------------
-//    0    vector deleting dtor  0x18003c650  deleting_dtor.cpp row
-//    1    TypeName              0x18003be50  here
-//    2    Type                  0x18003be30  here
+//    0    vector deleting dtor  0x18003c650  virtual ~DocumentTextElement, here
+//    1    TypeName              0x18003be50  DECLARE_TYPE, DocumentTextElement.h
+//    2    Type                  0x18003be30  DECLARE_TYPE, DocumentTextElement.h
 //    4    ComputeSize           0x1800cdb60  here
 //    5    ComputeLayout         0x1800cda00  here
 //    6    Draw                  0x1800cd7a0  here
@@ -26,8 +26,7 @@
 // layout pass ComputeSize calls, is a member in src/engine/ui/documenttext.cpp.
 //
 // B.3.6 block C5: slots 1, 2, 4-7 are members of UI::DocumentTextElement
-// (src/engine/ui/DocumentTextElement.h); the registered names are one-line
-// qualified doors.
+// (src/engine/ui/DocumentTextElement.h).
 //
 // ---------------------------------------------------------------------------
 // LAYOUT — 0x1c8 bytes (`MOV EDX,0x1c8` at 0x18003c66f). Enumerated from the
@@ -59,17 +58,16 @@
 // ITEM (stride 0x24), from Draw and Update:
 //   +0x00 int32 x       +0x04 int32 y      +0x08 int32 width   +0x0c int32 height
 //   +0x10 int32 substring START (kind 0) / sprite INDEX (kind 1)
-//   +0x14 int32 substring LENGTH
+//   +0x14 int32 substring END (inclusive)
 //   +0x18 uint32 colour  +0x1c int32 table index
-//   +0x20 uint8 kind: 0 text, 1 sprite, 2 capture
+//   +0x20 uint8 kind: 0 text, 1 sprite, 2 capture, 3 blank/tab
 //   +0x21 uint8 underline: 0 none, 1 full width, 2 width minus the font's +0x5c
 //
 // LINK (stride 0x18):
 //   +0x08 int32 first item   +0x0c int32 one past last   +0x10 uint8 armed
 //
-// `??0DocumentTextElement@UI@@QEAA@XZ` (0x1800cf410) is NOT here: it is already
-// ported and registered, table-driven, by src/engine/ui/factory_ui1.cpp
-// (the factory roster). One address, one owner.
+// `??0DocumentTextElement@UI@@QEAA@XZ` (0x1800cf410) is NOT here: it is the
+// inline constructor in src/engine/ui/DocumentTextElement.h.
 // ============================================================================
 #include <new>
 
@@ -133,7 +131,6 @@ static_assert(sizeof(Event) == 0x30, "UI event record stride");
 void PlayInline(UI::UserInterface* ui, int soundIndex) {
     ::Audio::SoundEffect* sound = ui->_sounds[soundIndex];
     if (sound == nullptr) return;
-    // LEFT: UserInterface::_audioScene is void* (UserInterface.h, R-UI-b).
     ::Audio::Scene* scene = static_cast<::Audio::Scene*>(ui->_audioScene);
     if (scene == nullptr) return;
 
@@ -200,7 +197,7 @@ void DocumentTextElement::ComputeLayout(int32_t x, int32_t y, int32_t w, int32_t
 // nothing.
 //
 // The three item kinds:
-//   0  TEXT     — a SUBSTRING of `_sourceText` (start +0x10, length +0x14),
+//   0  TEXT     — a SUBSTRING of `_sourceText` (start +0x10, inclusive end +0x14),
 //                 drawn with `_fonts[+0x1c]`, then optionally an underline bar
 //                 one pixel below the baseline. The temporary String is
 //                 released before the next item.

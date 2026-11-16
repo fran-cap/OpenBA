@@ -94,8 +94,8 @@ def attribute(h):
 
 
 def run_frames(errlog, from_frame):
-    """Draw-to-Draw periods the harness closed, from the [Stress::hitch] window lines (one per CSV row,
-    `frame=` = the row's world frame) of rows after `from_frame`. None when the log has none."""
+    """Draw-to-Draw periods the harness closed: the sum of `frames=` over every [Stress::hitch] window
+    line (one per CSV row); `from_frame` is not read. None when the log has none."""
     import re
     total, seen = 0, False
     with open(errlog, encoding="utf-8", errors="replace") as f:

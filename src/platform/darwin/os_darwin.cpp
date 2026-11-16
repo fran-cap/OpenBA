@@ -25,8 +25,9 @@ bool IsReadablePage(const void* p) {
     return QueryMemoryRegion(p, region) && region.readable;
 }
 
-// Not async-signal-safe (dladdr takes dyld's lock): its callers are the diag validators
-// (entity_comp_validator.cpp, scene_watch.cpp) on normal threads. The Darwin crash handler
+// Not async-signal-safe (dladdr takes dyld's lock): its callers are IsReadablePage, the diag
+// validators (entity_comp_validator.cpp, scene_watch.cpp) and ForceWork's probes
+// (force_work.cpp), on normal threads. The Darwin crash handler
 // (src/diag/darwin/crash_handler_darwin.cpp) never calls it; if it ever must, replace the
 // dladdr with an image-range table built at startup.
 bool QueryMemoryRegion(const void* p, MemoryRegion& out) {

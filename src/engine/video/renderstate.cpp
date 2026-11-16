@@ -3,10 +3,8 @@
 // (original file: code\Runtime\Video\RenderState.h)
 // ============================================================================
 //
-// ENDGAME B.3.5 block C. `Video::RenderState` is now a REAL C++ class
-// (src/engine/video/RenderState.h) and every body below has MOVED INTO a
-// member of it; each registered door is a one-line delegation with a QUALIFIED
-// non-virtual call, so no registration, address or mangled name changed.
+// ENDGAME B.3.5 block C. `Video::RenderState` is a REAL C++ class
+// (src/engine/video/RenderState.h) and every body below is a member of it.
 //
 // ??_7RenderState@Video@@6B@ (retail 0x180157720), nine slots:
 //
@@ -69,10 +67,10 @@
 // only Stencil is a real `CALL 0x1800f48e0`. The two inlined runs are field for
 // field identical to the exported sub-serializers they came from — checked
 // against 0x1800f4aa0 and 0x1800f4a00 — so this file expresses them as calls to
-// the same three members it registers. That is the same code; what it is NOT
+// the same three members it defines. That is the same code; what it is NOT
 // is an invitation to "simplify" Stencil into the other two, because Stencil
-// serializes its write mask as a UChar (+0x08) among eight UInts, and a UInt
-// there would move the next eight fields by three bytes.
+// serializes its stencil reference as a UChar (+0x08) among seven UInts, and a
+// UInt there would move every field after it by three bytes.
 // ============================================================================
 #include <cstddef>
 #include <cstdint>
@@ -84,15 +82,12 @@
 #include "io/Stream.h"
 #include "video/RenderState.h"
 
-// The four registered doors over `Video::RenderState`'s protected surface:
-// `?PlatformConstruct@` / `?PlatformCreate@` / `?PlatformDestruct@` (private in
-// retail, `AEAA`) and `??1RenderState@Video@@` (non-virtual, protected). An
-// `extern "C"` function cannot name a protected member, so the class friends
-// THIS struct (B34_BRIEFS A.4 — friend the holder rather than widen the access,
-// so the header keeps saying what retail says). Declared at global scope because
-// that is where the header's `friend struct ::RenderStateDoorAccess;` names it —
-// it must NOT go in the anonymous namespace, where it would be a different type.
-// It has no fields and is never instantiated.
+// The friend the header names (`friend struct ::RenderStateDoorAccess;`) over
+// `Video::RenderState`'s protected platform halves: `?PlatformConstruct@` /
+// `?PlatformCreate@` / `?PlatformDestruct@` (private in retail, `AEAA`). Declared
+// at global scope because that is where the header's friend declaration names it
+// — it must NOT go in the anonymous namespace, where it would be a different type.
+// It has no fields, is never instantiated, and nothing calls its members.
 struct RenderStateDoorAccess {
     static void PlatformConstruct(Video::RenderState* p) {
         p->Video::RenderState::PlatformConstruct();
@@ -283,9 +278,6 @@ void RenderState::Initialize(const AlphaBlend& alphaBlend, const Depth& depth,
 // that prologue and its destructor is the codec teardown at the end of the
 // body, so the local's SCOPE is what places both; see this file's banner.
 bool RenderState::Serialize(IO::Stream& stream) {
-    // LEFT (B.4 R-VIDEO): the slot's parameter is `IO::Stream&` in retail, but
-    // `Object::External::Serialize` is declared `bool(void*)` across the whole
-    // External family (R-OBJ's declaration).
     IO::Stream& s = stream;
     {
         IO::Serializer ser(s, 0);

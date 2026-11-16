@@ -11,7 +11,7 @@
 //
 // Every address and ordinal above is `pefile`'s reading of the export directory
 // of the shipped C:\GOG Games\Banished\Runtime-x64.dll, taken before a line of
-// this file was written (reference_resolveexport_phantom_names.md). The row list
+// this file was written. The row list
 // was re-derived with `tools/runtime_census.py --unported` on this tip and
 // filtered to ported==0 && symbol_kind==BODY && namespace==Graphics; that filter
 // returns FOUR rows, and the fourth (?AddDrawItems@MeshInstance@Graphics@@)
@@ -44,8 +44,7 @@
 // PE `.pdata` table, which is why no extent above is quoted from .pdata alone:
 // `?Update@AnimationState@Graphics@@` is assembled from FIVE CHAINED .pdata
 // fragments (0x1800fdb20 -> 0xfdb71 -> 0xfdcc0 -> 0xfdf15 -> 0xfdf34 ->
-// 0xfdf46), so its first fragment's 81 bytes understate a 1062-byte body 13x
-// (reference_pdata_is_a_lower_bound_on_function_extent.md).
+// 0xfdf46), so its first fragment's 81 bytes understate a 1062-byte body 13x.
 //
 // ---------------------------------------------------------------------------
 // THE GFXR LESSON, RE-RUN ON THIS LANE'S OWN CALLEES
@@ -70,25 +69,23 @@
 //   0x1800fc870  ?UpdateRootOnly@AnimationState@Graphics@@     ord 4525
 //   0x1800fcc20  ?UpdateNodes@AnimationState@Graphics@@        ord 4522
 //   0x1800fa9a0  ?ApplyEvents@Animation@Graphics@@             ord 1605
-//   0x18005aa30  Array<Node>::SetSize                   NOT EXPORTED  (door)
-//   0x18005b1e0  Array<AnimationState>::SetSize         NOT EXPORTED  (door)
+//   0x18005aa30  Array<Node>::SetSize                   NOT EXPORTED  (ported, array_graphics_anim.cpp)
+//   0x18005b1e0  Array<AnimationState>::SetSize         NOT EXPORTED  (ported, array_graphics_anim.cpp)
 //
 // FOUR of those exported names DECIDED AN ARGUMENT MAPPING that the prologue
 // alone could not, which is the whole reason the lookup came first:
 // `?UpdateNodes@…QEAAXMAEBV?$Array@…@AEBVTransform@Math@@PEAV?$InterpolatedState
 // @…@PEAV56@AEAVVector3@6@@Z` spells six parameters with a FLOAT FIRST, and that
 // is what says the `MOVAPS XMM1,XMM6` at 0x180104c03's analogue is argument 2
-// rather than a spill (reference_read_the_callee_before_holding_back_on_an_arg.md).
+// rather than a spill.
 //
 // ---------------------------------------------------------------------------
 // WHAT THIS LANE DOES NOT CLAIM
 // ---------------------------------------------------------------------------
-// THREE unexported internals are NOT ported and are called at their retail
-// addresses through documented address doors, each commented at its call site in
-// the shape WAVE27_KICKOFF.md §4 #10 asks for (SYMBOL / CONDITION /
-// CONSEQUENCE). They are sized and given a NAMED ADDRESSEE in
-// docs/history/runtime_port/WAVE27_LANE_GFXBIG.md §6. None is a vtable slot and none
-// belongs to another lane's table.
+// THREE unexported internals -- the draw-item sort (0x180062d60) and the two
+// SetSize rows (0x18005aa30, 0x18005b1e0) -- are sized in
+// docs/history/runtime_port/WAVE27_LANE_GFXBIG.md §6. All three are ported and
+// called by name. None is a vtable slot.
 //
 // The ONE unexported internal this lane DID port is 0x180060d30, because
 // BuildParameters cannot run without it and it is a plain `SetSizeCore`
@@ -141,8 +138,7 @@ using rtcoll::ArraySpec;
 // ---------------------------------------------------------------------------
 // Attendance. Counts the DOOR and, separately, the BRANCH that does the work.
 // `calls=0` and `calls=N with the interesting arm never taken` are different
-// findings and an entry counter cannot tell them apart
-// (reference_calls_zero_can_mean_always_took_the_uncovered_branch.md).
+// findings and an entry counter cannot tell them apart.
 // ---------------------------------------------------------------------------
 void Attend(const char* what, unsigned long long& n) {
     ++n;
@@ -173,7 +169,7 @@ unsigned long long g_animStateExpired = 0;   // RARE ARM: layers removed
 //       with a `fill`.
 //   (c) System::String release, inlined at the two Get*Name sites.
 //
-// *** (b) IS NOT kSpec_Fill8. *** kSpec_Fill8 (array.cpp:1012) is stride 8
+// *** (b) IS NOT kSpec_Fill8. *** kSpec_Fill8 (array.cpp:1194) is stride 8
 // ALIGN 8. The allocation inlined at 0x1801035c4 and 0x1801037ec is
 // `MOV R8D,0x4` — align FOUR. The element is a {int32,int32} pair, so 4 is the
 // honest alignment and 8 would be a different call into the allocator. A spec is
@@ -186,8 +182,7 @@ unsigned long long g_animStateExpired = 0;   // RARE ARM: layers removed
 // 0x180005800 is `Collection::Array<T>::~Array` for a trivially-destructible T,
 // instruction-for-instruction lane Q's `ArrayDtorImpl`: MemFree(_data) (the null
 // test lives inside 0x1800c7ad0), then _data = 0 and the _size/_capacity qword
-// = 0. NOT re-written here; lane Q's body is called
-// (reference_grep_for_the_port_before_writing_it.md).
+// = 0. NOT re-written here; lane Q's body is called.
 
 // `Collection::Array<{int32,int32}>::operator=` — retail 0x180005770.
 // Destroys the destination first, then copies `src._size` elements. The loop
@@ -299,7 +294,7 @@ const ArraySpec kSpec_Binding8 = {                // INLINED into BuildParameter
     &Binding8Assign, nullptr, nullptr,
     /*byteCopy=*/true, 0, 0, 0, 0, 0, 0 };
 
-// Retail 0x180060d30, 420 bytes, NOT EXPORTED. Registered BY ADDRESS below.
+// Retail 0x180060d30, 420 bytes, NOT EXPORTED.
 //
 // ENDGAME B.3.2 step 2 (callers) — bridged through `AsArray<&kSpec_MatPass>`
 // rather than naming `rtcoll::SetSizeCore` directly. NOT trait-equivalent:
@@ -325,15 +320,14 @@ extern "C" void RtCollection_Array_MaterialParameterSet_SetSize(void* a, int n) 
 // lane F — it names BuildParameters beside `hasRenderTexture`,
 // `hasRenderedTexture`, `shaderClass` and `MaterialParameterSet`. Every one of
 // those readings held against the disassembly, which is worth stating because
-// the SIGN of such an agreement carries no information until somebody runs it
-// (reference_ghidra_c_output_vs_disassembly.md). Nothing in Material.h needed a
-// correction.
+// the SIGN of such an agreement carries no information until somebody runs it.
+// Nothing in Material.h needed a correction.
 //
 // THE TWO Get*Name CALLS RETURN A String BY VALUE, SO THERE IS A HIDDEN RETURN
 // SLOT, and it is the SECOND argument (RCX=material, RDX=&slot, R8D=pass,
 // R9D=index). An `fn_*` typedef that omitted it would be a wild write that still
 // returned the right answer, because RAX comes back holding the slot address
-// either way (reference_hidden_retslot_wild_write.md). Both mangled names say
+// either way. Both mangled names say
 // `?AVString@System@@` for the return, so this is read off the export table, not
 // guessed from the call site.
 //
@@ -422,10 +416,9 @@ using Graphics::RendererDrawItem;
 // Graphics::Renderer::DrawItemSortSmall  retail 0x180063b90  ( 344 bytes)
 //   - BATCH 8b.  Replaces BATCH 8's std::sort, which was NOT faithful.
 // ============================================================================
-// Neither address is exported (checked against the PE export directory), so
-// both are address-only rows. Both are now ported and registered; the
-// `ResolveAddr` in Draw's pass loop therefore lands on our body, because the
-// resolver consults the port registry first.
+// Neither address is exported (checked against the PE export directory). Both
+// are ported, and Draw's pass loop calls `RtGraphics_Renderer_DrawItemSort` by
+// name.
 //
 // WHY THE PREVIOUS PORT WAS REPLACED. BATCH 8 wrote this as
 // `std::sort(first, last, DrawItemLess)` and argued that the comparator is a
@@ -449,8 +442,8 @@ using Graphics::RendererDrawItem;
 // declined to give it a body ("std::sort's own small-range handling subsumes
 // it"). It is a SELECTION SORT that repeatedly moves the MAXIMUM of [lo,hi] to
 // `hi`: 0x180063c47 `MOV RDI,R8` sits on the JB arms, so the tracked position
-// advances only on STRICTLY less. It is a distinct closure row and is ported
-// and registered here in its own right.
+// advances only on STRICTLY less. It is ported in its own right
+// (`DrawSort::SortReferenceSmall`, draw_sort.cpp).
 //
 // The skeleton itself lives in ../collection/introsort_msvc.h, transcribed once
 // from these bytes and instantiated a second time for the Array<Mod> pair
@@ -458,9 +451,8 @@ using Graphics::RendererDrawItem;
 // element, comparator and swap.
 //
 // NO ORACLE WRAPPER: `sort` mutates the pass list in place and returns nothing,
-// so there is no value to replay. The diff harness sees it as a registered
-// address; the verdict is Draw's per-frame attendance climbing with the frame
-// on screen unchanged.
+// so there is no value to replay; the verdict is Draw's per-frame attendance
+// climbing with the frame on screen unchanged.
 // ============================================================================
 
 // DRAWSORT (2026-10-13): the comparator and the swap MOVED, unchanged, to
@@ -480,7 +472,8 @@ extern "C" void RtGraphics_Renderer_DrawItemSortSmall(RendererDrawItem* lo,
 
 // 0x180062d60. Matches the call site's `(data, int32_t count, void* scratch)`;
 // `scratch` is retail's spare register window and the body never reads R8.
-// Both callers (Renderer::Draw's pass loop, Renderer::EndDrawGroup) come through
+// Its three callers (Renderer::Draw's pass loop, Renderer::EndDrawGroup, and the
+// pass loop in src/ext/render_pipe/passes.cpp) come through
 // here. DrawSort::Sort is retail's sort when `DrawSort::kFastSort` is false, and
 // otherwise the exact keyed sort (draw_sort.h): the same array afterwards, bit
 // for bit.
@@ -516,15 +509,15 @@ extern "C" void RtGraphics_Renderer_DrawItemSort(RendererDrawItem* data, int32_t
 //
 // NO HIDDEN RETURN SLOT. The return is `_N` (bool, in AL: `MOV AL,0x1` at
 // 0x1800fdf32 and `XOR AL,AL` at 0x1800fdb66), so the four register arguments
-// are not shifted (reference_hidden_retslot_wild_write.md — the trap checked for
-// and found absent here).
+// are not shifted (the omitted-hidden-slot trap, checked for and found absent
+// here).
 //
 // TIME IS TICKS, AND THE SCALE IS A RUNTIME GLOBAL, NOT A CONSTANT.
 // `MULSD XMM0,[0x1801fe728]` looks like a literal. It is not: 0x1801fe728 sits
 // at offset 0x8728 in `.data`, whose SizeOfRawData is 0x5400 — i.e. in the
-// uninitialised tail. It is `System::Timer::_secondsPerTick`, already resolved
-// in the tree at engine/funcs/engine_funcs.cpp:1546, and it is written at engine
-// startup. A port that baked in a number read from the file would have baked in
+// uninitialised tail. It is `System::Timer::_secondsPerTick`, and it is written
+// at engine startup. A port that baked in a number read from the file would have
+// baked in
 // zero. Found by trying to read the bytes and getting none.
 //
 // THE dt==0 ARM CONTAINS A NO-OP AND IT IS TRANSCRIBED AS ONE. At
@@ -579,15 +572,14 @@ void RtGraphicsWave27GfxbigSummary() {
 void RtGraphicsWave27GfxbigSummary() { rtgfxbig::RtGraphicsWave27GfxbigSummary(); }
 
 // ############################################################################
-// ENDGAME B.3.5 step 5, block GC -- the member bodies whose live doors are the
-// `extern "C"` functions above.
+// ENDGAME B.3.5 step 5, block GC -- the member bodies.
 //
 // Their own `namespace Graphics { }` block, because a member definition has to
 // appear in a namespace ENCLOSING the class and `Graphics` / `RtGraphics` are
 // siblings (B34_BRIEFS A.2). Every file-local helper here lives in
 // `rtgfxbig`'s own unnamed namespace, NOT the global one, so unqualified lookup
 // does not reach it from `namespace Graphics` -- each is spelled `rtgfxbig::`,
-// the trap wave28_lane_gfxbody.cpp:957 records.
+// the trap wave28_lane_gfxbody.cpp:640 records.
 //
 // The transcription banners stay beside the doors above; only the spelling of
 // the receiver changed.
@@ -605,8 +597,7 @@ void MaterialInstance::BuildParameters() {
     _shaderClass = static_cast<uint32_t>(material->_type);      // material+0x20
 
     // Array<RtGraphics::MaterialParameterSet>::SetSize(material->passCount). 0x180060d30.
-    // `material + 0x30` is `Material::_passes._size` — the pass COUNT, which is
-    // why `rtgfxbig::kPassDesc` and the pass object's own +0x30 share a number.
+    // `material + 0x30` is `Material::_passes._size` — the pass COUNT.
     rtgfxbig::RtCollection_Array_MaterialParameterSet_SetSize(
         &_parameters, material->_passes.GetSize());
 
@@ -738,11 +729,10 @@ void MaterialInstance::BuildParameters() {
 //
 // THE THREE `RT_EXPORT_ONCE` EDGES ONTO THIS CLASS'S OWN PRIVATE MEMBERS ARE
 // GONE (block GC item 6). `CopyInstancedToUnique`, `UpdateRootOnly` and
-// `UpdateNodes` are real members of `Graphics::AnimationState` now — the first
-// two in `animationstate_transforms.cpp`, the third in
-// `wave28_lane_gfxbody.cpp` — so retail's three direct CALLs are three
-// QUALIFIED non-virtual member calls instead of three resolver hits. Their
-// registered doors are untouched and still serve every caller outside this file.
+// `UpdateNodes` are real members of `Graphics::AnimationState` —
+// `CopyInstancedToUnique` and `UpdateNodes` in `animationstate_transforms.cpp`,
+// `UpdateRootOnly` in `wave28_lane_gfxbody.cpp` — so retail's three direct CALLs
+// are three QUALIFIED non-virtual member calls.
 //
 // `?ApplyEvents@Animation@Graphics@@` IS CONVERTED (ENDGAME B.3.5 closing pass).
 // The note that used to stand here said the receiver was "NOT a
@@ -771,8 +761,7 @@ bool AnimationState::Update(const System::Time& timeRef,
     // seconds = ticks * _secondsPerTick, computed in DOUBLE and then narrowed to
     // float by CVTPD2PS — NOT computed in float. The association order is
     // retail's and is preserved exactly, because a moved term in a float sum is
-    // algebraically identical and numerically different
-    // (reference_moved_term_hides_where_terms_cancel.md).
+    // algebraically identical and numerically different.
     const float dt = static_cast<float>(
         static_cast<double>(deltaTicks) * rtgfxbig::SecondsPerTick());
 
@@ -902,7 +891,7 @@ bool AnimationState::Update(const System::Time& timeRef,
             const uint32_t gi = AnimationManager::HandleInstance(handle);    // SAR then MOVZX CL
             // LEFT (B9): the two null tests (the singleton, then its instance
             // buffer) are the tree's; retail reads both unguarded. Kept, not
-            // extended -- their removal is NEXT_SESSION §0.2's.
+            // extended.
             AnimationManager* const mgr = AnimationManager::_singleton;
             AnimationManager::Instance* const groups =
                 mgr != nullptr ? mgr->_instances._data : nullptr;
@@ -968,7 +957,6 @@ void Renderer::Draw(Video::Context& context, float alpha, const Scene& sceneRef,
     _frameIndex = context._frameIndex;        // MOV EAX,[RSI+8] / MOV [RDI+0x44],EAX
 
     // _shaderDetail is read here UNINITIALISED on the first frame. See the banner.
-    // LEFT: Context::_defaultRenderBuffer is `void*` (Context.h).
     this->Graphics::Renderer::AddScene(
         &sceneRef,
         static_cast<const Video::RenderBuffer*>(context._defaultRenderBuffer),
@@ -1014,7 +1002,7 @@ void Renderer::Draw(Video::Context& context, float alpha, const Scene& sceneRef,
 
             if (_detailId != 0) {
                 // ENDGAME B.3.5 caller batch: `Graphics::Scene::AddCulledDrawItems`
-                // is a DEFINED member (cull.cpp:363) and the receiver is this
+                // is a DEFINED member (cull.cpp:409) and the receiver is this
                 // body's own `const Scene&` parameter, so this is the qualified
                 // non-virtual member call retail makes.
                 sceneRef.Graphics::Scene::AddCulledDrawItems(*this);
@@ -1122,7 +1110,7 @@ void Renderer::Draw(Video::Context& context, float alpha, const Scene& sceneRef,
         // the flag word 6 are IMMEDIATES in the instruction stream (0x180104e8d,
         // 0x180104e85); the 1.0f depth is XMM6, loaded once at 0x180104d3d from
         // [0x18016169c], whose four bytes were READ (00 00 80 3f) rather than
-        // assumed (reference_crt_coefficients_must_be_lifted_not_retyped.md).
+        // assumed.
         context.Clear(Video::ClearFlags::Depth | Video::ClearFlags::Stencil, 0x1184d6u, 1.0f, 0);
 
         // Three passes x every drawable. Slot 10.

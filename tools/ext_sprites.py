@@ -179,7 +179,7 @@ def glyph(letter, colour):
 
 
 # Per-entry row icons: the tier's tile with a white pictogram in place of the letter. Each
-# tools/ext_icons/<group>.py holds ICONS = {registry id: draw(px)}; draw paints white (or
+# tools/ext_icons/<group>.py holds ICONS = {registry id: (tier key, draw(px))}; draw paints white (or
 # RIM-dark) pixels into the 12 x 12 interior x, y in [2, 13] of a 16 x 16 tile.
 ICON_SCALE = 3   # saved 48 x 48 (Mod.rsc:imageIcon's size), pixel-tripled so the sheet does not blur it
 TIER_COLOUR = {

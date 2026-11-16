@@ -3,8 +3,7 @@
 // src/game/Component/ForesterComponent.h — ENDGAME B.3.8 block MI-B
 //
 // `ForesterComponent` (the forester lodge) as a real C++ class with a
-// compiler-generated vtable (B38_RULES.md D1-D6). The engine/types POD is a
-// forwarder.
+// compiler-generated vtable (B38_RULES.md D1-D6).
 //
 // RETAIL (B38_SLOTS.md §6, bytes read 2026-09-26):
 //   reflected "ForesterComponent", parent "ResourceProduceComponent", ti 0x1401c7740

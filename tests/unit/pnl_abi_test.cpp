@@ -3,14 +3,14 @@
 //
 // The exe panel classes (UI::DialogController subclasses) and the four
 // UI::DialogControllerConfig subclasses, on their shipped headers:
-//   PART A — LAYOUT: sizeof / alignof and every field offset against retail's
-//            create-function MemAlloc and the bodies that read the fields.
+//   PART A — LAYOUT: sizeof / alignof against retail's create-function
+//            MemAlloc.
 //   PART B — SLOT ORDER: read off pointers to VIRTUAL members (Itanium PMF =
 //            1 + vtable byte offset, adjustment 0 = single inheritance), so a
 //            slot declared out of retail order fails here, not in a run.
 //   PART C — SHAPE: polymorphic, a virtual destructor (B3X W1), abstract exactly where
 //            retail is (SelectResourceUI, slots 11-13 _purecall).
-// The panel bodies stand on the port registry and do not link into a host test.
+// This file reads the panel headers only; it calls no panel body.
 // ============================================================================
 #include "unit.h"
 #include "slot_check.h"

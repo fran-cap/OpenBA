@@ -46,9 +46,8 @@
 // records 1..255, so a freshly initialised stack holds uninitialised stack
 // bytes there. That is not sloppiness to be tidied: nothing reads a record
 // above `top`, and zeroing it would make a byte comparison against the DLL's
-// own stack diverge on whatever the caller happened to leave behind
-// (reference_oracle_must_not_compare_unwritten_bytes.md). The loop below
-// reproduces the partial zero exactly.
+// own stack diverge on whatever the caller happened to leave behind.
+// The loop below reproduces the partial zero exactly.
 //
 // ---------------------------------------------------------------------------
 // ORDER OF OPERATIONS
@@ -152,11 +151,7 @@ Frustum* FrustumTimes(const Frustum* self, Frustum* ret, const Transform3* t) {
 
 // Collection::Array<Geometry*>::Reserve(16384), retail 0x18005f980. Ported in
 // src/engine/collection/array.cpp with the rest of that family (it is one of
-// them, not a Graphics body) and CALLED DIRECTLY rather than through
-// ResolveAddr: the registry door would only buy instrumentation, and reaching
-// it by name keeps <windows.h> — whose <wingdi.h> declares a function called
-// `Rectangle` and so breaks Volume.h — out of this translation unit
-// (the reason rt_port.h does not pull in standalone/resolve.h either).
+// them, not a Graphics body) and called by name.
 namespace rtcoll { void RtColl_ArrayReserve_18005f980(void* a); }
 
 namespace {
@@ -197,7 +192,7 @@ void PushVisible(GeomList* list, Geometry* g) {
 //     cull   max.x = (halfX*2 + x) + bias      shadow  max.x = (x + halfX*2) + bias
 // Float addition is not associative, so folding them into one helper would be
 // a silent last-bit change on the axis a plane test is most likely to be
-// straddling (reference_moved_term_hides_where_terms_cancel.md). Every other
+// straddling. Every other
 // component IS identical between the two and is written once, in NodeBoxCull,
 // which NodeBoxShadow starts from.
 Box NodeBoxCull(const CullStack* st, const CullRecord& r) {
@@ -375,12 +370,9 @@ static void RtGraphics_Scene_CullStackPushChildren(CullStack* self, uint32_t mas
 // ############################################################################
 //
 // `?AddCulledDrawItems@Scene@Graphics@@AEBAXAEAVRenderer@2@@Z` is `AEBA` — a
-// PRIVATE const member that this DLL exports anyway
-// (reference_aeaa_is_private_not_unexported.md). `Scene.h` declares it PUBLIC and
-// records retail's access in a comment, because its registered door is a free
-// `extern "C"` function that has to call it — the same choice block E made for
-// `SunLight::CreateTargets` (`AEAA`). Access control is not ABI; the mangled name
-// the door registers is.
+// PRIVATE const member that this DLL exports anyway. `Scene.h` declares it PUBLIC and
+// records retail's access in a comment — the same choice block E made for
+// `SunLight::CreateTargets` (`AEAA`). Access control is not ABI.
 //
 // FIVE THINGS THE CONVERSION MADE NAMEABLE, each previously a raw byte offset and
 // each now `static_assert`ed in Camera.h:
@@ -394,8 +386,9 @@ static void RtGraphics_Scene_CullStackPushChildren(CullStack* self, uint32_t mas
 //   renderer+0x48  ->  `Renderer::_detailId` (`?GetDetailId@` 0x180018070)
 //
 // The two frusta are still copied through `::Frustum*` cursors rather than by
-// member name, because `Volume::Frustum::operator*` is reached through an export
-// door that takes pointers; the SOURCE of each copy is now a named member.
+// member name, because `Volume::Frustum::operator*` is reached through
+// `RtVolume_Frustum_MulTransform3` (Volume.h), which takes pointers; the SOURCE
+// of each copy is now a named member.
 // ############################################################################
 
 // GATHERPF: the COMPPROF `gather` row's counters (gather_prefetch.h has which thread

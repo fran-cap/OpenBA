@@ -15,7 +15,7 @@
 //     [4] Object::External::Compile (import) — inherited
 //     [5] 0x1400dec30 Serialize: an EMPTY Serializer(stream, 0) scope, MOV AL,1
 //     [6] Reconstruct PURE  [7] Destruct PURE (External's)
-//     [8] PURE, new here: IsComplete — TutWave_StepExecute (0x1400e1db0) calls it
+//     [8] PURE, new here: IsComplete — TutorialInstance::StepExecute (0x1400e1db0) calls it
 //         as `char (this, time, &instanceIBP)` and counts the steps' goals that
 //         answer non-zero. The name is ours (the exe has no symbols).
 //   Every leaf adds slot 9, its own Construct(). sizeof == External's 0x20.

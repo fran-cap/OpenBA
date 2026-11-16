@@ -12,27 +12,24 @@ not crash, does not diverge, and has no oracle short of a rendering diff.
 
 This project already paid for the general form of that mistake once -- a CRT
 port where `sin` and `cos` used DIFFERENT bit patterns for the same term, and
-lifting the coefficients as raw bits was the only thing that caught it
-(reference_crt_coefficients_must_be_lifted_not_retyped.md). The standing rule is
-that coefficients and literals are lifted as bytes, never re-typed from a
-listing. Constant names are literals; this tool is that rule applied to them.
+lifting the coefficients as raw bits was the only thing that caught it. The
+standing rule is that coefficients and literals are lifted as bytes, never
+re-typed from a listing. Constant names are literals; this tool is that rule
+applied to them.
 
 WHAT IT DOES
 ------------
 1. Disassembles nothing. It reads the SHIPPED PE directly with pefile, walks the
    byte range of `AssignConstants`, and finds every `LEA reg,[rip+disp32]` whose
-   target lands in a read-only data section.
+   target lies inside one of the PE's sections.
 2. Reads each target as a NUL-terminated ASCII string straight out of the file
    image.
 3. Emits a generated C++ include with one row per literal: the RVA, the length,
    and the string as a C literal with every byte escaped explicitly.
 
-The emitted rows carry the RVA so the port can CHECK ITSELF at runtime against
-the loaded DLL (see `RtVideoShaderConstantsVerify` in
-src/engine/video/constant_buffer.cpp): with the DLL present, every literal we
-compiled in is compared byte-for-byte against the bytes at its recorded RVA. A
-typo fails loudly at startup instead of silently unbinding a parameter. With the
-DLL absent the check skips, which is exactly when our copy is the only copy.
+The emitted rows carry the RVA each literal was lifted from, so `--verify` can
+re-extract from the DLL and diff the committed .inc row by row: a typo fails the
+diff instead of silently unbinding a parameter.
 
 USAGE
     tools/extract_shader_constants.py                 # print the table

@@ -12,8 +12,8 @@
 // delete records, where T is not final), and the retired vector arm (flags 3)
 // is `delete[]` of a `new T[n]` (destructor order proven on the ArrLog<T>
 // stand-in below where T is not final). The out-of-line member bodies live in
-// src/engine/io/, which stands on the port registry and does not link here;
-// the few this test needs to reach are stubbed below and say so.
+// src/engine/io/; the ones the unit build does not link (tests/unit/sources.cmake)
+// and this test needs to reach are stubbed below or in io_stream_abi_stubs.cpp.
 // ============================================================================
 
 #include "unit.h"
@@ -471,7 +471,7 @@ UNIT_TEST(b39_io_memorystream_shape_ctor_and_both_arms) {
 // ===========================================================================
 // IO::CompressedFileStream -- row 31. 0x1800a93b0 / slot 0 0x180024100.
 // ===========================================================================
-// ~CompressedFileStream and ~CompressedStream are host stubs (release nothing);
+// ~CompressedFileStream is a host stub (releases nothing) and ~CompressedStream is real;
 // the constructors and slot 0 are inline and REAL here.
 UNIT_TEST(b39_io_compressedfilestream_shape_ctor_and_both_arms) {
     CHECK(!std::is_abstract<IO::CompressedFileStream>::value);
@@ -568,7 +568,7 @@ UNIT_TEST(b39_io_packagefile_shape_ctor_and_both_arms) {
 // ===========================================================================
 // IO::CompressedMemoryStream -- row 32 (W2). ??0 0x1800a9520 / slot 0 0x1800244a0.
 // ===========================================================================
-// ~CompressedMemoryStream / ~CompressedStream are host stubs (release nothing);
+// ~CompressedMemoryStream / ~CompressedStream are the real bodies (linked);
 // the constructors and slot 0 are inline and REAL here.
 UNIT_TEST(b39_io_compressedmemorystream_shape_ctor_and_both_arms) {
     CHECK(!std::is_abstract<IO::CompressedMemoryStream>::value);

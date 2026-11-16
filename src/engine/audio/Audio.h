@@ -36,7 +36,7 @@
 //       bits 1..8  = channel index (0..255), i.e. `index << 1`
 //       bits 9..31 = Scene::_playGeneration at allocation time
 //     Validity check used throughout: `(storedTag ^ handle) & 0xfffffe00 == 0`
-//     (top 23 bits — index bit 8 plus the whole generation — must match).
+//     (top 23 bits — the whole generation — must match).
 //   EffectSlot id    (AddEmitter's caller-supplied id, PlayEffect3D,
 //                      FindEffect3D/StopEffect3D/GetEmitterCount):
 //       bits 0      = 1 for a PlayEffect3D-allocated slot, 0 for an
@@ -64,7 +64,7 @@
 //   ?GetEmitterCount@Scene@Audio@@…           0x1800dec00
 //   ?FindEffect3D@Scene@Audio@@…              0x1800dee70
 //   ?PlayEffect@Scene@Audio@@…                0x1800def60  (the REAL, QEAA-
-//       spelled export; see rt_audio_port.cpp's phantom-name note)
+//       spelled export; see audio.cpp's phantom-name note)
 //   ?PlayEffect3D@Scene@Audio@@…               0x1800deeb0
 //   ?IsEffectPlaying@Scene@Audio@@…            0x1800df680
 //   FUN_180051aa0 = Collection::Array<Vector4>::SetSize(n, fillValue) — the
@@ -115,11 +115,11 @@ OPENBA_ENUM_FLAGS(SampleFlags)
 // and there is no `??_7Scene@Audio@@` export.
 //
 // HELD BY VALUE (B37_RULES 2.4 and its addendum): the exe's MenuDialogLoopT
-// embeds one at +0xb30 and GameUpdateLoop::Load allocates another
-// (`MemAlloc(0x38,8)` at 0x14009706a); both holders are unconverted exe PODs
-// that construct in place through `RtAudio_Scene_Ctor`, which runs the C++
-// default constructor `Scene()` (`??0Scene@Audio@@QEAA@XZ`, audio.cpp) by
-// placement new. A holder that declares an `Audio::Scene` member gets the same
+// embeds one at +0xb30 (its `_audioScene` member) and GameUpdateLoop::Load
+// allocates another (`MemAlloc(0x38,8)` at 0x14009706a) and constructs it in
+// place through `RtAudio_Scene_Ctor`, which runs the C++ default constructor
+// `Scene()` (`??0Scene@Audio@@QEAA@XZ`, audio.cpp) by placement new. A holder
+// that declares an `Audio::Scene` member gets the same
 // constructor. CONCRETE, PUBLIC members. Retail's copy constructor
 // (0x180050a50) is DEEP (two Array copies), so the class is not trivially
 // copyable (B7-8).
@@ -128,7 +128,8 @@ OPENBA_ENUM_FLAGS(SampleFlags)
 // `??1Scene@Audio@@QEAA@XZ` (0x1800e0120): the AttenutedEffect range-destroy
 // (FUN_180052110, which frees each slot's `positions` buffer), the +0x20
 // buffer, then the +0x10 buffer — i.e. `~Array<AttenutedEffect>` then
-// `~Array<Channel>`, reverse declaration order. The dtor door calls it.
+// `~Array<Channel>`, reverse declaration order. GameUpdateLoop::Shutdown and
+// ~MenuDialogLoopT run it.
 //
 // THREADS: GameUpdateLoop's slot-6 Load constructs one on the LOADER thread;
 // the main thread updates it every frame.
@@ -235,7 +236,7 @@ public:
     bool     Update(System::Time delta, System::Time now, System::Random& rng,
                     const Vector3& listener, float radiusBias);                     // 0x1800df6c0
     void     Serialize(IO::Serializer& serializer);                                // 0x1800e0050
-    // Retail's are PRIVATE (`AEBA`); public here because their doors call them.
+    // Retail's are PRIVATE (`AEBA`); public here.
     int32_t  FindFree3DEffect(Object::ExternalPtr<SoundEffect> effect, const System::Time& time,
                               const Vector3& pos) const;                           // 0x1800deae0
     float    GetAttenuatedVolume(const AttenutedEffect& effect, const Vector3& listener,
@@ -332,8 +333,8 @@ static_assert(offsetof(Scene, paused)         == 0x30, "Scene::paused @ +0x30");
 // ctor (0x1800ddeb0: 100/50/100/100) and by the eight accessors 0x18000d4a0..
 // 0x18000d510 (one `MOV` each, UI/Music/Ambient/Effect at +0/+4/+8/+0xc).
 // Allocated by `Engine::Startup` (`MemAlloc(0x10)` 0x1800dbd00) and built by
-// the `Ctor_AudioConfiguration` DOOR (singleton_ctors.cpp, owner-retained): no
-// C++ constructor is declared. `_singleton` (0x1801fe758) stays a data slot.
+// `rtengine::Ctor_AudioConfiguration` (singleton_ctors.cpp): no
+// C++ constructor is declared. `_singleton` (0x1801fe758) is the class static below.
 // ============================================================================
 class Configuration {
 public:
@@ -341,7 +342,7 @@ public:
     void Save();                                                   // 0x1800dde10
     bool Startup();                                                // 0x1800ddee0
     // `??1Configuration@Audio@@QEAA@XZ` 0x1800de0d0: clears `_singleton`, frees
-    // nothing (the caller does). Its door calls it.
+    // nothing (the caller does). Engine::Engine::Shutdown calls it.
     ~Configuration();
 
     // ---- exported one-line accessors: faithful inline bodies, NOT REGISTERED
@@ -357,9 +358,7 @@ public:
     // ---- exported, NOT PORTED, no caller: declared, deliberately undefined --
     static Configuration* Get();                                 // 0x18000d490 (reads _singleton)
     // ?_singleton@Configuration@Audio@@0PEAV12@EA (0x1801fe758) — the class static (ENDGAME B.3.9 ENG, B39_RULES D7).
-    // The namespace's *PortInit redirects the minted storage row onto it, so
-    // the name door, the address door and this member are the same bytes.
-    // PUBLIC while foreign readers still reach the row through the doors.
+    // PUBLIC: other files read and write it directly.
     static Configuration* _singleton;
     void Shutdown();                                             // 0x1800ddea0
     Configuration& operator=(const Configuration& src);          // 0x18000d470

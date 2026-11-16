@@ -17,9 +17,9 @@
 //   [7] 0x1400e95f0 OnCancel = `ADD RCX,0x50; JMP 0x140025520` (a member forwarder)
 //   [8] 0x1400e99a0 Cleanup   [9] 0x1400e93c0 Validate  [10] 0x1400e9a30 GetTarget
 //   [11] 0x14002a220 GetPriority (`+0x58 > 0`)  [12] = Work (0x140006b10)
-//   The real producer is the 3-argument ctor 0x1400e9bd0, built BY HAND in
-//   firecomponent_ignite.cpp (block CIT), which stamps 0x1401612a0; that
-//   registration serves FireWork::Vtable() (B38 D5). The default ctor here builds
+//   The real producer is the 3-argument ctor 0x1400e9bd0, which FireComponent::Ignite
+//   (firecomponent_ignite.cpp, block CIT) calls; the compiler stamps the class's table
+//   (retail 0x1401612a0). The default ctor here builds
 //   what the tree's factory built (Work_GenericCtor: the Work base init, the leaf
 //   fields zeroed).
 // ============================================================================
@@ -68,8 +68,8 @@ public:
     // 0x1400e99a0 reads the element's +0x278): the citizens fighting this fire. A real
     // member: the ctor 0x1400e9bd0 zeroes root (qword) and count (dword) under an EH state
     // and the dtor 0x1400e9ac0 runs its Clear. `_citizens._count` (+0x58) is the assigned
-    // count (0x14002a220 `CMP [RCX+0x58],EAX; SETG`). The Set's own ctor also zeroes its
-    // +0x0c pad (+0x5C), which retail's leaves (known_port_issues row 640).
+    // count (0x14002a220 `CMP [RCX+0x58],EAX; SETG`). The Set's own ctor leaves its
+    // +0x0c pad (+0x5C) as found, as retail does (known_port_issues row 640).
     using CitizenSet     = Collection::Set<CitizenComponent*>;
     using AssignmentNode = CitizenSet::Node;
     CitizenSet _citizens;

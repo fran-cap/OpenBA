@@ -12,9 +12,6 @@
 #include "Component/ModelDescription.h"   // ENDGAME B.3.8 CB3: ModelDescription::TypeId()
 #include "Component/RawMaterialDescription.h"   // ENDGAME B.3.8 CB3: RawMaterialDescription::TypeId()
 #include "Component/CitizenComponent.h"   // ENDGAME B.3.8 CB3: CitizenComponent::TypeId()
-// The runtime type headers come FIRST: they reach src/engine/volume/Volume.h,
-// whose global-scope `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()`
-// once <windows.h> has been seen through resolve.h.  ENDGAME B.3.5 batch K1.
 #include "graphics/Geometry.h"
 #include "graphics/Mesh.h"
 #include "graphics/GraphicsMesh.h"
@@ -23,14 +20,14 @@
 #include "object/External.h"
 #include "object/TypeInfo.h"
 #include "graphics/Camera.h"
-#include "Entity/exe_bodies.h"      // fn_FindComponent_Storage (the guarded copy)
+#include "Entity/exe_bodies.h"
 #include "Component/CharacterComponent.h"
 #include "Component/ComponentDescription.h"
 #include "Component/Description.h"
 #include "Component/ModelComponent.h"
 #include "Component/StorageComponent.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
-#include "Action/exe_bodies.h"   // ActCt_HideTool_1176e0, ActCt_ShowToolOnEntity_1173b0
+#include "Action/exe_bodies.h"
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch C
 #include "math/Math.h"
 #include <cstdio>
@@ -50,7 +47,7 @@
 // DAT_1401c7158 -- TypeInfo for entity type check
 
 // B6 (14d G74): the tree's second, guarded port of 0x1401173b0's toolId < 0 branch
-// (ShowTool_ShowCarried and its finder) is gone: AbstractImpl calls ShowCitizenTool
+// (ShowTool_ShowCarried and its finder) is gone: AbstractImpl calls CitizenComponent::ShowTool
 // (action_base_complete.cpp, the one port of 0x1401173b0) for every toolId it shows,
 // as retail 0x14004275e does.
 

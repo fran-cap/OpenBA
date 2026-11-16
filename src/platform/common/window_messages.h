@@ -41,7 +41,7 @@
 // WM_ACTIVATE / WM_SETFOCUS on ACTIVATION, which the foreground lock does not stop: a
 // process launched from a background shell gets WM_NCACTIVATE(0), WM_ACTIVATE(1),
 // WM_SETFOCUS with an inactive title bar, and retail's WindowProc saw all three. On
-// Windows those three are therefore read off the real messages
+// Windows WM_ACTIVATE / WM_SETFOCUS / WM_KILLFOCUS are therefore read off the real messages
 // (src/platform/win/window_hook_win.cpp) and arrive here as RawMessage with retail's
 // wParam / lParam; the pump drops SDL's foreground-based focus events there.
 // FocusGained / FocusLost remain the mapping on other platforms.

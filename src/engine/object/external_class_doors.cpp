@@ -4,8 +4,8 @@
 //
 // The half of `Object::ExternalList` and the whole of `Object::ExternalFactory`
 // whose bodies are DOORS into already-ported C functions. Split out of
-// external_class.cpp so that file stays registry-free and linkable into
-// `make unit` (the same split type_reflection.cpp has against type_system.cpp).
+// external_class.cpp so that file stays linkable into the unit build (the same
+// split type_reflection.cpp has against type_system.cpp).
 //
 // *** EVERY MEMBER BELOW IS A SPELLING CHANGE AND NOTHING ELSE. ***
 // That is the point, not a shortfall. B33_RULES §0 makes the
@@ -29,9 +29,6 @@
 // those lanes, and moving a body out from under its counters is a second change
 // riding on this one. They move when their lane's scaffolding is retired.
 //
-// NOTHING HERE IS REGISTERED. No `RegisterRuntimeExport`, no
-// `RegisterRuntimeAddr`, no row added or removed. Every existing entry point
-// keeps working and keeps its address.
 // ============================================================================
 
 #include <cstddef>
@@ -42,20 +39,19 @@
 #include "object/External.h"
 #include "object/Type.h"     // B.4 P2: ExternalList::Find takes Object::Type
 #include "io/Stream.h"   // B.3.4 STREAMS (5/6): IO::Stream, the
-                                     // parameter of SerializeReferenceTable,
-                                     // and rt::io::Stream, the POD the ported
-                                     // entry point still takes. External.h only
-                                     // forward-declares the class on purpose.
+                                     // parameter of SerializeReferenceTable
+                                     // and of the ported entry point.
+                                     // External.h only forward-declares the
+                                     // class on purpose.
 #include "system/string_internal.h"       // RtSystem::RtMemFree (~ExternalList)
 #include "external_compiled.h"
 #include "external_path_stack.h"
 
 namespace RtObject {
 // Declared in the files that define them; repeated here rather than pulled in
-// through a header, because several of these have no header of their own (the
-// one-body-one-file rule src/engine/object/rt_object_port.cpp states).
+// through a header, because several of these have no header of their own.
 System::Filename* RtObject_External_GetPath(const ::Object::External* self, System::Filename* ret);
-// external_savetext.cpp:246 — `extern "C"`, so the linker name is unqualified.
+// src/engine/io/external_savetext.cpp — `extern "C"`, so the linker name is unqualified.
 extern "C" bool RtObject_External_SaveText(::Object::External* self, const System::Filename* path,
                                            const System::Filename* name);
 const ::Object::External* RtObject_ExternalFactory_Find(const ExternalFactory* self,
@@ -79,7 +75,7 @@ System::Filename* RtObject_ExternalFactory_ExpandRelativePath(const ExternalFact
                                                               System::Filename* ret,
                                                               const System::Filename* path,
                                                               bool appendIdentifier);
-// external_add.cpp:219 — declared inside `namespace RtObject` but `extern "C"`,
+// external_add.cpp — declared inside `namespace RtObject` but `extern "C"`,
 // so the C++ name lives here and the linker name is unqualified.
 extern "C" void RtObject_ExternalFactory_Add(ExternalFactory* self, ::Object::External* external);
 // external_reftable.cpp — C++ linkage inside `namespace RtObject`. Its second
@@ -95,8 +91,8 @@ namespace {
 
 // A `System::Filename` returned by value out of an entry point that writes a
 // HIDDEN RETURN SLOT: the slot is raw, uninitialised bytes, so the callee
-// CONSTRUCTS into it and the local must not be constructed twice
-// (reference_hidden_retslot_wild_write.md). `char storage[8]` + placement is
+// CONSTRUCTS into it and the local must not be constructed twice.
+// `char storage[8]` + placement is
 // what the C bodies already do; the move out is a pure pointer steal.
 template <class Fn>
 inline System::Filename ByHiddenSlot(Fn call) {
@@ -110,7 +106,7 @@ inline System::Filename ByHiddenSlot(Fn call) {
 }  // namespace
 
 // ============================================================================
-// Object::External — the one member whose body reaches the registry
+// Object::External — SaveText, whose body is in src/engine/io/external_savetext.cpp
 // ============================================================================
 
 // ?SaveText@External@Object@@QEAA_NAEBVFilename@System@@0@Z  retail 0x1800bb9d0
@@ -132,20 +128,17 @@ bool External::SaveText(const System::Filename& path, const System::Filename& na
 // at +0x10, an int32 at +0x18, a qword at +0x20, an int32 at +0x28, qwords at
 // +0x30 and +0x38, an int16 at +0x40 and a byte at +0x42.
 //
-// It also publishes `_singleton`, which this constructor does NOT: the door
-// below reads the existing cell, and moving a second data cell off the mint is
-// step 7's (B33_RULES §9 step 3 moved exactly one, and only because its writer
-// runs at CRT-init).
+// It also publishes `_singleton`, which this constructor does NOT:
+// Ctor_ExternalFactory (src/engine/engine/singleton_ctors.cpp) does.
 ExternalFactory::ExternalFactory()
     : _cleanBitIndex(0), _cleanBitMask(0), _generation(0), _pad0c(0),
       _resources(), _references(), _pathStack(),
       _referenceModeEnabled(false), _loadEnabled(false), _simpleLoadEnabled(false) {}
 
 // ?_singleton@ExternalFactory@Object@@0PEAV12@EA — retail 0x1801fc6c8. The
-// class static (ENDGAME B.3.9 OBJ, B39_RULES D7); the minted row is redirected
-// onto it in RtObjectPortInit, so the name and address doors answer these
-// bytes. The mint never zeroes or re-seeds it; the language zero-initialises
-// it and the ctor door publishes into it.
+// class static (ENDGAME B.3.9 OBJ, B39_RULES D7); the language zero-initialises
+// it and Ctor_ExternalFactory (src/engine/engine/singleton_ctors.cpp) publishes
+// into it.
 ExternalFactory* ExternalFactory::_singleton = nullptr;
 
 // ?Get@ExternalFactory@Object@@SAPEAV12@XZ — `MOV RAX,[_singleton]; RET`.
@@ -164,7 +157,7 @@ const External* ExternalFactory::FindNext(uint32_t typeId, const External* prev)
 // *** RETAIL DEREFERENCES THE FOUND NODE WITHOUT A NULL CHECK *** and the
 // ported body keeps it that way. An External the factory never Add()ed faults
 // reading +0x14; a guard here would not restore the behaviour, it would skip it
-// (CLAUDE.md's hard rule, and external.cpp:372-381 has the disassembly).
+// (CLAUDE.md's hard rule, and external.cpp's GetReferenceId banner has the disassembly).
 uint32_t ExternalFactory::GetReferenceId(const External* external) const {
     return RtObject::RtObject_ExternalFactory_GetReferenceId(this, external);
 }
@@ -246,13 +239,6 @@ void ExternalFactory::ForceUnload(const System::Filename& path) {
 //     no reordering, no null check, and no silent removal of whatever makes the
 //     race reproduce. **This commit changes ZERO lines of external_reftable.cpp.**
 //
-// THE BRIDGE CAST is the class->POD direction, exactly like `this`:
-// `IO::Stream` and `rt::io::Stream` are cross-asserted field for field and
-// `sizeof`-for-`sizeof` in src/engine/io/Stream.h, so it is exact by
-// construction. It goes when the entry point itself takes `IO::Stream*`, which
-// is after the IO caller batches — the two PODs stay alive, trivially
-// destructible, until their last user converts (B33 §7).
-//
 // NO QUALIFIED CALL IS NEEDED ANYWHERE HERE. `Object::ExternalFactory` has NO
 // VTABLE (`??0ExternalFactory@Object@@` writes no vptr and the class has no
 // exported `??_7`), so the recursion hazard B34_BRIEFS §A.1 describes for the
@@ -280,10 +266,9 @@ System::Filename ExternalFactory::GetCompiledPath(const System::Filename& path) 
 // Object::ExternalList — the registry-free half
 // ============================================================================
 
-// (The constructor and slot 0, the vector deleting destructor, are inline in
-// External.h since ENDGAME B.3.9 OBJ, so `make unit` can build and destroy a
-// real ExternalList. The class's KEY FUNCTION is therefore `TypeName` below,
-// and GCC emits the vtable here, beside the registry doors, as before.)
+// (The constructor is inline in External.h. The class's KEY FUNCTION is its
+// destructor below, the first virtual declared out of line, so GCC emits the
+// vtable here.)
 
 // ??1ExternalList@Object@@UEAA@XZ   retail 0x1800076c0
 //

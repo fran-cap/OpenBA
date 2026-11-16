@@ -14,14 +14,11 @@
 //   - GameUpdateLoop::Shutdown          (0x1400977C0) -- teardown all subsystems
 //   - GameUpdateLoop::OnScenarioComplete(0x140096830) -- scenario win/lose notification
 //
-// HEAVILY INSTRUMENTED with printf() for tracing a hang during first Update tick
-// after loading a tutorial scenario.
 
 // ENDGAME B.3.5 Video/Graphics caller batch: Graphics::Scene and Video::Context
-// are real classes. FIRST in the block on purpose — "resolve.h" (and several of
-// the standalone headers below) pull <windows.h>, whose <wingdi.h> declares a
-// global `Rectangle` FUNCTION that hides `Volume::Rectangle`'s class name inside
-// Volume.h's own static_asserts (Scene.h -> Geometry.h -> Volume.h).
+// are real classes. FIRST in the block on purpose — <windows.h>'s <wingdi.h>
+// declares a global `Rectangle` FUNCTION that hides `Volume::Rectangle`'s class
+// name inside Volume.h's own static_asserts (Scene.h -> Geometry.h -> Volume.h).
 #include "graphics/Scene.h"
 #include "Component/still_terrain.h"   // STILLTERRAIN: StillTerrain::Bump (the terrain epoch)
 #include "graphics/Camera.h"          // ENDGAME B.3.5 batch K1 — Graphics::{Camera,Renderer}
@@ -61,7 +58,7 @@
 #include "system/String.h"
 #include "system/Filename.h"
 #include "showroom.h"         // BANISHED_SHOWROOM shot sequence (src/diag/)
-#include "stress_harness.h"   // BANISHED_STRESS Update/Draw brackets (standalone/)
+#include "stress_harness.h"   // BANISHED_STRESS Update/Draw brackets (src/diag/)
 #include "frame_limiter.h"    // NOT RETAIL: the in-game frame cap (src/app/)
 #include "ext/render_culling/render_culling.h" // EXT SEAM (NOT RETAIL, docs/extensions/handins/PERFXEXT.md): ext.render_culling / ext.anim_batch (PerfX)
 #include "ext/walk_batch/walk_batch.h" // EXT SEAM (NOT RETAIL, docs/extensions/handins/WALKBATCH.md, WALKGRID.md): ext.walk_batch (A) / ext.walk_batch_grid (B)
@@ -116,27 +113,26 @@
 #include "io/FileSystem.h"               // ENDGAME B.3.9 SS2: IO::FileSystem::_singleton
 #include "Component/AttendanceComponent.h"   // B4 S4 RT2: InternalPtr<AttendanceComponent>::Get() needs the class complete
 
-// (EventNotifyDialog_Ctor_Standalone / AutoSaveDialog_Ctor_Standalone: Dialog/exe_bodies.h.)
 extern "C" void BuildingGoal_Probe(const char* templateName);  // src/game/Goal/buildinggoal.cpp
 // NOTE: the tree's second port of FUN_14008c100 (EventLog_CheckResourceShortages)
 // is gone (B4 GAME-a: it had no caller) — see the retirement note at its former
 // call site below. The scan runs once per tick from CitizenBehavior::CheckThresholds.
 
-// Minimap terrain painter (src/game/Game/minimap_paint.cpp) — standalone fallback for
-// the exe FUN_1400a5140 (ImageCapture::DrawCheck), wired into fn_ImageCapture_DrawCheck.
+// Minimap terrain painter (src/game/Game/minimap_paint.cpp) — Minimap::PaintTerrain, the port of
+// the exe FUN_1400a5140 (ImageCapture::DrawCheck), called from Draw step 3.
 // In-app RenderDoc capture driver — ticked once per in-game rendered frame so a
 // delayed capture armed by OptionsDialog::ApplyVideoSettings (after an MSAA/res
 // apply) actually fires. No-op unless the exe was launched via RenderDoc's UI.
 #include "renderdoc_integration.h"
 #include "scene_watch.h"
 #include "citizen_vitals.h"
-#include "mouse_inject.h"                 // BANISHED_MOUSE_INJECT hover/drag route (standalone/)
-#include "object/External.h"   // ENDGAME B.3.3 step 6A — must precede the
+#include "mouse_inject.h"                 // BANISHED_MOUSE_INJECT hover/drag route (src/diag/)
+#include "object/External.h"   // ENDGAME B.3.3 step 6A
 #include "Game/exe_bodies.h"
 #include "Game/exe_constants.h"          // kRdata_* (B3R)
-#include "Action/exe_bodies.h"           // Pf_RegionPairCacheTick_5d10
-#include "Component/exe_bodies.h"        // CitizenComp_AssignHousing
-#include "Dialog/exe_bodies.h"           // ApplyKeyMapToUI_Impl, Toolbar_ShowGroup_Impl
+#include "Action/exe_bodies.h"
+#include "Component/exe_bodies.h"
+#include "Dialog/exe_bodies.h"
 #include "Dialog/ToolbarDialog.h"        // ToolbarDialog
 #include "Dialog/AutoSaveDialog.h"       // AutoSaveDialog (a UI::DialogInstance)
 #include "platform/common/platform_app.h"   // Platform::App::TakeSaveRequest (P7, Android lifecycle)
@@ -145,9 +141,6 @@ extern "C" void BuildingGoal_Probe(const char* templateName);  // src/game/Goal/
 #include "graphics/Animation.h"          // RtGraphics_AnimationManager_Dtor
 #include "picking/Scene.h"
 #include "Game/MusicPlayer.h"   // MusicPlayer::Update (0x1400a40e0)
-                                // `namespace Object { ... }` forward decl below
-                                // (NAMESPACE HAZARD: spell ::Object::X everywhere
-                                // in this file, even at global scope)
 #include "ext/registry.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/EXTSCAFFOLD.md): Ext::UnlockForGame
 #include "ext/outline_with_panel/outline_with_panel.h"   // FIX SEAM (NOT RETAIL, docs/retail_bugs.md section 16): after step 10
 #include "ext/background_save/background_save.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/HITCH_SAVESNAP.md): ext.background_save, the frozen Update / Draw alpha
@@ -165,7 +158,7 @@ extern "C" void BuildingGoal_Probe(const char* templateName);  // src/game/Goal/
 
 
 // ============================================================
-// Exe globals (resolved at init time from .rdata/.data addresses)
+// Exe globals
 // ============================================================
 
 // Graphics::MeshInstance::_rootOnlyUpdates (retail: import slot 0x140151f30) and
@@ -173,21 +166,21 @@ extern "C" void BuildingGoal_Probe(const char* templateName);  // src/game/Goal/
 // their class statics (ENDGAME B.3.9 SS2).
 
 // ============================================================
-// Exe function pointers (not yet in engine_funcs.h)
+// Exe functions
 // ============================================================
 
 // RegionPairCache::Tick (0x1400a5d10) - per-sim-tick staleness sweep of the
 // pathfinder REGION-PAIR DISTANCE CACHE at Game+0x78. Named "UpdateTimedEvents"
-// here historically; there is no timed-event queue. Ported + registered
-// 2026-08-30 (reg_pf_region.cpp) - see src/game/Action/region_paircache.cpp.
+// here historically; there is no timed-event queue. Ported as
+// RegionPairCache::Expire in src/game/Action/region_paircache.cpp.
 // RCX=regionPairCache (game+0x78), RDX=time
 
 // Graphics::AnimationManager::Update(this, Time const&, bool rootOnly)
 // Runtime DLL export
 // ENDGAME B.3.5 batch K1: the `fn_AnimationManager_Update` cache (read out of exe
 // dispatch slot 0x140152050) went with its one caller, which calls
-// `Graphics::AnimationManager::Update` directly. The member is DEFINED — the door in
-// src/engine/graphics/wave23_lane_gfxbody.cpp:521 delegates to it.
+// `Graphics::AnimationManager::Update` directly. The member is defined in
+// src/engine/graphics/wave23_lane_gfxbody.cpp.
 
 // EntityList::Update (FUN_1400c4090) — tick all entity components
 // RCX=entityList, RDX=time
@@ -198,7 +191,7 @@ extern "C" void BuildingGoal_Probe(const char* templateName);  // src/game/Goal/
 // EntityList::PostUpdate (FUN_1400c43d0) — post-update cleanup pass
 // RCX=entityList
 
-// AmbientSound::Update (FUN_1400a40e0) — ambient sound state update
+// MusicPlayer::Update (FUN_1400a40e0) — the music track picker
 // RCX=ambientSoundData
 
 // EntityUI::Update / PlayerToolUpdate (FUN_1401026a0)
@@ -208,23 +201,15 @@ extern "C" void BuildingGoal_Probe(const char* templateName);  // src/game/Goal/
 // PlayerController::CalcTransform (FUN_1400983f0)
 // RCX=playerController, RDX=outTransform -> returns Transform*
 
-// Graphics::Scene::Clean(this) — moved to engine_funcs.{h,cpp}; reuse the
-// project-wide extern so MenuDLT can also call it.
+// Graphics::Scene::Clean(this) — a member of Graphics::Scene (graphics/Scene.h).
 
 // ENDGAME B.3.5: the `?RemoveGlobalObject@Scene@Graphics@@QEAAXPEAVGeometry@2@@Z`
 // cache (typedef + static + its resolver) is GONE — all five callers in this file
 // now call `Graphics::Scene::RemoveGlobalObject` directly.
 
 // Graphics::Renderer::Draw(this, Context*, float alpha, Scene*, Camera*)
-// (NB: a global with the same name is declared extern in engine_funcs.h. The two
-// resolve to the same Runtime export when both succeed; we keep the local static
-// here for backward-compat with the existing in-flight reimpl. Local static name
-// renamed to avoid the extern/static clash.)
-// ENDGAME B.3.5 batch K1: the `fn_Graphics_Renderer_Draw_local` alias (binding spelling
-// 5 — a plain `s_fn_X = fn_Y` with a corrected-mangled-name fallback) went with its one
-// caller, which calls `Graphics::Renderer::Draw` directly. The member is DEFINED — the
-// door in src/engine/graphics/wave27_lane_gfxbig.cpp:567 delegates to it. The [FIX-M5]
-// history the fallback recorded is kept at the resolver site.
+// ENDGAME B.3.5 batch K1: its one caller calls `Graphics::Renderer::Draw` directly; the member is
+// defined in src/engine/graphics/wave27_lane_gfxbig.cpp.
 
 // Graphics::Renderer::~Renderer(this)
 
@@ -243,31 +228,25 @@ extern "C" void BuildingGoal_Probe(const char* templateName);  // src/game/Goal/
 // the callee WRITES 8+ bytes through it — a one-arg call leaves RDX stale and the store
 // lands wherever the last call left it. It was resolved and CHECK_FN'd but never called
 // from this file, so it corrupted nothing; it was a loaded gun for the next caller.
-// See reference_byvalue_return_hidden_rdx — this same export already caused one
+// This same export already caused one
 // deterministic crash (the ±0.7071 garbage signature).
 //
-// Deleted rather than corrected: the three real callers (action_base_move.cpp:58,
-// moveto.cpp:101, and the action_child_ctors/animalcomponent/weather_particles group)
-// each declare their own correct 2-arg `(void* self, void* retbuf)` static. An unused,
+// Deleted rather than corrected: callers such as action_base_move.cpp and moveto.cpp call
+// the member Math::Vector3::Normalize, which returns the Vector3 by value. An unused,
 // wrongly-typed resolver is pure liability.
-//
-// NOTE the mirror-image trap: `AEAV` is a REFERENCE return, NOT by-value.
-// `?Normalize@Vector2@Math@@QEAAAEAV12@XZ` returns Vector2& in RAX and a one-arg typedef
-// is CORRECT for it (worldgen_f390_coastline.cpp:94 looks wrong and is right). Same
-// method name, different ABI between Vector2 and Vector3.
 
-// Engine::MainLoop::SetNextLoop — declared in engine_funcs.h, resolved by EngineFuncsInit()
+// Engine::MainLoop::SetNextLoop — a member of Engine::MainLoop (engine/MainLoop.h)
 
-// fn_ImageBuffer_CopyToTexture — available from engine_funcs.h
+// Video::ImageBuffer::CopyToTexture — video/ImageBuffer.h
 
-// FUN_140095da0 — QuickSave handler (complex, just call via pointer)
+// FUN_140095da0 — GameUpdateLoop::TakeScreenshot (w2_takescreenshot.cpp)
 
 // Startup sub-functions
 // FUN_140099260 — SetupUIReferences(keyMapManager, UI)
 
 // FUN_1400a90a0 — ProfessionList::Startup(professionList)
 
-// fn_ToolbarDialog_Ctor — available from engine_funcs.h (last param is void* toolbarData)
+// ToolbarDialog::ToolbarDialog — Dialog/ToolbarDialog.h (last param is const Toolbar* group)
 
 // FUN_140068ab0 — EventNotifyDialog::Ctor(mem)
 
@@ -278,7 +257,7 @@ extern "C" void BuildingGoal_Probe(const char* templateName);  // src/game/Goal/
 // Shutdown sub-functions
 // FUN_140102b60 — EntityUI::SetTool(entityUI, tool)
 
-// CitizenComponent::AssignHousing — now shared from engine_funcs.h
+// CitizenComponent::SetWorkplace (0x140111ee0) — Component/CitizenComponent.h
 
 // EntityList::Shutdown (FUN_1400c3d30)
 
@@ -302,7 +281,7 @@ extern "C" void BuildingGoal_Probe(const char* templateName);  // src/game/Goal/
 
 // ImageCapture::Dtor (FUN_1400a4fc0)
 
-// Runtime destructors (resolved by mangled name or ordinal)
+// Runtime destructors
 
 
 
@@ -322,9 +301,9 @@ extern "C" void BuildingGoal_Probe(const char* templateName);  // src/game/Goal/
 
 // FUN_140095750 — EventNotifier::FireNotificationWithName(notifier, type, priority, entityPtr, nameStr)
 
-// fn_UIString_Ctor — available from engine_funcs.h (retval, stringTable, stringName)
+// UI::String::String (stringTable, stringName) — ui/String.h
 
-// fn_UIString_ToSystemString — available from engine_funcs.h (self, retval)
+// UI::String::operator System::String — ui/String.h
 
 // FUN_1401027c0 — CalcWindFactor (for audio scene update)
 // FUN_1401027c0 — despite the name, a pure DISTANCE: |cameraPos - playerCtrl anchor|.
@@ -350,10 +329,6 @@ static float CalcWindFactor(const System::Time* time);   // defined below
 
 // System::Filename::Filename(this, const char*) (Runtime)
 
-// fn_Filename_Dtor — available from engine_funcs.h
-
-// fn_InternalBasePtr_Ctor — available from engine_funcs.h
-
 // ENDGAME B.3.9 CB: the toolbar lookup's type id is UI::Dialog's. Retail reads it
 // through the import slot ?_typeInfo@Dialog@UI (0x140151728) at 0x140097c83 /
 // 0x140097cae (FUN_140097c00). The tree used to resolve exe cell 0x1401c4138 instead --
@@ -372,7 +347,7 @@ static float CalcWindFactor(const System::Time* time);   // defined below
 
 
 // ============================================================
-// Initialization — must be called from EngineFuncsInit or similar
+// Frame counter and the platform save request
 // ============================================================
 static int s_frameNum = 0;
 
@@ -478,7 +453,7 @@ extern "C" void DisasterHarness_Tick(int frameNum);       // src/diag/disaster_h
 extern "C" void PastureFillHarness_Tick(int frameNum);    // src/diag/pasture_harness.cpp
 extern "C" void MarketOverstock_Tick(int frameNum);   // src/diag/market_overstock_harness.cpp
 extern "C" void PanelStaffingDriver_Tick(PlayerToolManager* entityUI, int frameNum);
-extern "C" void PanelHoldHarness_Tick(PlayerToolManager* entityUI, int frameNum);  // src/diag/panel_staffing_driver.cpp
+extern "C" void PanelHoldHarness_Tick(PlayerToolManager* entityUI, int frameNum);  // src/diag/panel_hold_harness.cpp
 extern "C" void TemplateDump_Tick(int frameNum);   // src/diag/template_dump.cpp
 extern "C" void BuilderSeat_Tick(int frameNum);        // src/diag/builder_seat_harness.cpp
 extern "C" void ClearOverlap_Tick(PlayerToolManager* ui, int frameNum);   // src/diag/clear_overlap_harness.cpp
@@ -494,11 +469,9 @@ extern "C" void OrchardWorkersHarness_Tick(int frameNum);  // src/diag/orchard_w
 extern "C" void FoodWorkers_Tick(int frameNum);            // src/diag/food_workers_harness.cpp
 extern "C" void OrchardGrowthHarness_Tick(int frameNum);   // src/diag/orchard_growth_harness.cpp
 extern "C" void OrchardCutHarness_Tick(int frameNum);      // src/diag/orchard_cut_harness.cpp
-// TownHallUI gate diagnostic (src/game/Dialog/townhallui.cpp) — one-shot report
-// of the fn-pointer / type-id / town-data gates behind the town-hall panel.
+// TownHallUI gate diagnostic entry point (src/game/Dialog/townhallui.cpp); its body only
+// latches a one-shot flag at frame 120.
 extern "C" void TownHallSA_Diag(int frameNum);
-
-// fn_MemFreeStatic is already available from engine_funcs.h
 
 // ============================================================
 // GameUpdateLoop::Update (0x140096380) — Main simulation tick
@@ -642,15 +615,9 @@ bool GameUpdateLoop::Update(const System::Time& timeRef) {
     // Retail's slot takes the Time by const&; the tick bodies below take it as a
     // const Time* (CitizenBehavior::Update still as a mutable int64_t*, below).
     const System::Time* time = &timeRef;
-    // Stage C entry guard (TEMPORARY): GameUpdateLoop::Load (0x140096b00, the
-    // in-game world build) is not yet implemented, so on the new-game path
-    // m_game (+0xF8) is still null when the loader chain transitions in. Every
-    // step below dereferences the unbuilt world, AND EnsureInit() below resolves
-    // dispatch slots (e.g. 0x140152058 = AchievementInstance::Update) that are
-    // unregistered in standalone and null-deref. So this guard MUST run before
-    // EnsureInit. Hold with a no-op tick until Load runs — remove once Load
-    // constructs the world (project_newgame_path_roadmap Stage C). The STAGE C
-    // marker has already fired by this point.
+    // Entry guard: m_game (+0xF8) is null until GameUpdateLoop::Load (0x140096b00,
+    // the in-game world build) has run, and every step below dereferences the
+    // world. Hold with a no-op tick until then.
     if (m_game == nullptr) {
         static bool logged = false;
         if (!logged) {
@@ -719,10 +686,10 @@ bool GameUpdateLoop::Update(const System::Time& timeRef) {
 
     // [EVENTS] RETIRED: the BANISHED_LIVE_EVENTS resource-shortage scanner used to
     // run here (a second port of FUN_14008c100 via EventLog_CheckResourceShortages).
-    // It is superseded by the registered tick path: CitizenBehavior::CheckThresholds
+    // It is superseded by the tick path: CitizenBehavior::CheckThresholds
     // (citizenbehavior.cpp) scans the SAME townMgr+0x170/+0x180 shortage tables every
-    // tick and, now that 0x140095580 (EventLog_AddEvent) is registered as
-    // fn_NotificationEvent, fires the same 0x11-0x18 sev-3 events. Keeping this block
+    // tick and fires the same 0x11-0x18 sev-3 events through EventLog::AddEvent
+    // (0x140095580). Keeping this block
     // would double-decrement those shared cooldown timers and double-log each
     // shortage, so it is removed — following the "retire stale duplicate" precedent.
     // (B4 GAME-a: the uncalled duplicate port is deleted.)
@@ -876,11 +843,8 @@ bool GameUpdateLoop::Update(const System::Time& timeRef) {
     // (src/diag/orchard_cut_harness.cpp). Destructive to the orchard it fires on.
     OrchardCutHarness_Tick(s_frameNum);
 
-    // One-shot at frame 120. Despite the name this is NOT purely a diagnostic: it
-    // also publishes nine shared element type-id globals that other dialogs read
-    // (toolbardialog / optionsdialog / saveloaddialog / spritecaptureui), so it must
-    // stay ungated — see the note above TownHallSA_Diag in townhallui.cpp. The
-    // reporting half is gated on BANISHED_TOWNHALL_DIAG.
+    // One-shot at frame 120; its body only latches its flag (see the note above
+    // TownHallSA_Diag in townhallui.cpp).
     TownHallSA_Diag(s_frameNum);
 
 
@@ -958,8 +922,7 @@ bool GameUpdateLoop::Update(const System::Time& timeRef) {
                 TRACE("[GameUpdateLoop::Update] AnimationManager::Update done\n");
 
                 // 3c. EntityList::Update (component ticks)
-                // Uses custom reimpl — original fn_EntityList_Update (0x1400c4090)
-                // hangs due to a spinlock issue in the hooked environment.
+                // EntityList::Update (0x1400c4090), the port in entitylist.cpp.
                 TRACE("[GameUpdateLoop::Update] calling EntityList::Update (entityList=%p)...\n", m_entityList);
                 { PhaseTimer pt(kPhEntityList);
                 // EXT SEAM (NOT RETAIL, docs/extensions/handins/WALKBATCH.md, WALKGRID.md): ext.walk_batch (class A) /
@@ -984,7 +947,7 @@ bool GameUpdateLoop::Update(const System::Time& timeRef) {
                     }
                 }
 
-                // 3e. Weather::ResetTime
+                // 3e. WeatherSimulation::Update
                 TRACE("[GameUpdateLoop::Update] calling Weather_ResetTime...\n");
                 { PhaseTimer pt(kPhWeather);
                 m_weather->Update(time);   // 0x1400944e0
@@ -1066,10 +1029,10 @@ bool GameUpdateLoop::Update(const System::Time& timeRef) {
                 // AchievementManager::Update's first act (Runtime 0x18009e6c6) is
                 //     if (*(int*)(IO::FileSystem::_singleton + 0x38) > 0) return;
                 // i.e. AreUserPackFilesEnabled(). Retail disables achievements outright
-                // whenever any .pkm is mounted, silently. That gate lives inside the
-                // Runtime DLL, so it cannot be flagged off at its source -- instead we
-                // zero the mod count for the duration of THIS ONE CALL and put it back
-                // immediately, so no other reader ever observes the lie.
+                // whenever any .pkm is mounted, silently. That gate is retail's own
+                // (src/engine/achievement/achievement_update.cpp), so it is not flagged off at its
+                // source -- instead we zero the mod count for the duration of THIS ONE CALL and put
+                // it back immediately, so no other reader ever observes the lie.
                 //
                 // What this buys: the goal wiring can be exercised in a modded session
                 // (e.g. with DebugMenu.pkm mounted). What it does NOT buy: evidence that
@@ -1152,7 +1115,7 @@ bool GameUpdateLoop::Update(const System::Time& timeRef) {
         TRACE("[GameUpdateLoop::Update] updating camera transform...\n");
         {
             // Math::Transform3 is 0x30 = 48 bytes (static_assert in
-            // src/engine/math/Math.h:118), and retail's AsTransform3
+            // src/engine/math/Math.h:361), and retail's AsTransform3
             // (0x18001fcd0) writes twelve MOVSS stores covering ret+0x00..0x2f.
             // This buffer was declared [44] until Wave 9, so every frame wrote
             // FOUR BYTES PAST THE END of a stack buffer. Line 2281 of this same
@@ -1183,10 +1146,9 @@ post_simulation:
     // (ambient/terrain/UI/tools/camera/audio) — NOT multiplied by game speed.
     { PhaseTimer ptPost(kPhPostSim);
 
-    // Step 7: MusicPlayer::Update - exe 0x1400a40e0, not yet ported. [GUARD-M5]
-    // NOT an ambient-sound update despite the fn_ name: it picks the next music
-    // track by month + town mood, so while this stays null background music
-    // never plays. See engine/types/GameUpdateLoop.h +0x80.
+    // Step 7: MusicPlayer::Update - exe 0x1400a40e0 (unreg_lane5_musicplayer.cpp).
+    // NOT an ambient-sound update: it picks the next music track by month + town
+    // mood. See Game/GameUpdateLoop.h +0x80.
     TRACE("[GameUpdateLoop::Update] calling MusicPlayer::Update...\n");
     m_musicPlayer->Update();   // 0x1400a40e0
     TRACE("[GameUpdateLoop::Update] MusicPlayer::Update done\n");
@@ -1202,12 +1164,11 @@ post_simulation:
     TRACE("[GameUpdateLoop::Update] WorldGeometry::Update done\n");
 
     // Step 9: UI::UserInterface::Update
-    // fn_UI_Update returns the cursor id; engine_funcs.h now declares that directly
-    // (the export is ...QEAAH...). The local cast below is now redundant.
+    // UI::UserInterface::Update returns the cursor id (the export is ...QEAAH...).
     TRACE("[GameUpdateLoop::Update] calling UI::UserInterface::Update...\n");
     // Wave 10D lane MOUSE: the ONLY seam at which a synthetic cursor can be
     // placed -- after this frame's input poll, before the UI decodes it. Both
-    // calls are a cached-getenv no-op unless BANISHED_MOUSE_INJECT is set.
+    // calls are a no-op unless BANISHED_MOUSE_INJECT is set.
     MouseInject::PreUpdate(m_userInterface);
     int uiCursor = m_userInterface->Update(*time);
     MouseInject::PostUpdate(m_userInterface);
@@ -1271,8 +1232,8 @@ post_simulation:
             float windFactor = CalcWindFactor(&scaledTime);   // 0x1401027c0
             // Sanity-check the camera-position sub-offset (playerCtrl+0x34+0x88) once:
             // it was derived from stack arithmetic in the retail disasm, not from a
-            // struct definition. CLAUDE.md documents the default camera dist as 40, so
-            // a plausible reading is tens of units — not 0, not 1e38.
+            // struct definition. Load's step 6 builds the PlayerController with distance 25,
+            // so a plausible reading is tens of units — not 0, not 1e38.
             {
                 static int s_once = 0;
                 if (s_once < 3) {
@@ -1456,10 +1417,9 @@ void GameUpdateLoop::Draw(float alpha) {
     static const GameUpdateLoop* s_stampedDraw = nullptr;
     const bool stampDraw = (s_stampedDraw != this);
     if (stampDraw) { s_stampedDraw = this; LoadTime::Stamp("game.draw.first"); }
-    // Stage C entry guard (TEMPORARY): see GameUpdateLoop_Update — must run
-    // before EnsureInit (which null-derefs an unregistered dispatch slot in
-    // standalone). m_game is null until GameUpdateLoop::Load builds the world;
-    // the draw path dereferences the unbuilt world (UI, renderer, scenes).
+    // Stage C entry guard: see GameUpdateLoop::Update. m_game is null until
+    // GameUpdateLoop::Load builds the world; the draw path dereferences the
+    // unbuilt world (UI, renderer, scenes).
     if (m_game == nullptr) {
         static bool logged = false;
         if (!logged) {
@@ -1594,21 +1554,21 @@ void GameUpdateLoop::Draw(float alpha) {
     }
     TRACE("[GameUpdateLoop::Draw] Weather::DrawUpdate done\n");
 
-    // Step 6: Copy renderer shadow mode from engine.
-    // renderer+0x3c is the shadow mode: Renderer::AddScene (Runtime 0x180105700) stores it
-    // as the main draw group's +0xe8, and Renderer::Draw (0x180104bb0) reads it back into
-    // renderer+0x3c before dispatching each global object's vtable+0x48 (DrawShadowMap) /
-    // vtable+0x50 (Draw). SunLight::DrawShadowMap (0x180106bc0) is gated by
-    // `if (renderer+0x3c != 0)`; SunLight::Draw (0x1801067b0, main pass) is NOT — it always
+    // Step 6: Copy the video configuration's shader detail into the renderer.
+    // renderer+0x3c is the shader-detail level (Renderer::SetShaderDetail 0x180018050):
+    // Renderer::AddScene (Runtime 0x180105700) stores it as the main draw group's +0xe8, and
+    // Renderer::Draw (0x180104bb0) reads it back into renderer+0x3c before dispatching each global
+    // object's vtable+0x48 (DrawShadowMap) / vtable+0x50 (Draw). SunLight::DrawShadowMap (0x180106bc0)
+    // is gated by `if (renderer+0x3c != 0)`; SunLight::Draw (0x1801067b0, main pass) is NOT — it always
     // runs Context::SetLight + Renderer::DrawItemList to light and render the terrain.
     {
         uint32_t shadowMode = 0;
-        // The shadow-mode source field. The ORIGINAL GameUpdateLoop::Draw (exe 0x140096010)
-        // sets renderer+0x3c from *(*g_pVideoConfigSingleton + 0x30) — the shadow-QUALITY
-        // setting (index, 0=off, >0=on), NOT engine+0x30 (g_pMainLoopSingleton ==
-        // MainLoop, so engine+0x30 is garbage). Shadows are DEFAULT-ON: mirror the
-        // original and read VideoConfig+0x30 so SunLight::DrawShadowMap engages (verified
-        // crash-free; terrain + buildings cast/receive). The day cycle is driven by
+        // The source field. The ORIGINAL GameUpdateLoop::Draw (exe 0x140096010) sets
+        // renderer+0x3c from *(*g_pVideoConfigSingleton + 0x30) — Configuration::shaderDetail
+        // (Configuration::GetShaderDetail 0x18000d6a0 reads +0x30; 0 skips SunLight::DrawShadowMap),
+        // NOT engine+0x30 (g_pMainLoopSingleton == MainLoop, so engine+0x30 is garbage). Mirror
+        // the original and read VideoConfig+0x30 so SunLight::DrawShadowMap engages at a non-zero
+        // shader detail; terrain + buildings cast/receive. The day cycle is driven by
         // WeatherSimulation::DrawUpdate above.
         if (::Video::Configuration::_singleton) {
             shadowMode = ::Video::Configuration::_singleton->shaderDetail;   // +0x30
@@ -1735,7 +1695,7 @@ void GameUpdateLoop::Draw(float alpha) {
         uint64_t drawFlag = (hasInput || pauseCheck) ? 1 : 0;
         if (tool) {
             // Caller batch CB6: slot 8 (vtable +0x40) `Tool::Draw(context, active)`.
-            // The receiver is PROVED by its only writer, Toolbar_ShowGroup_Impl
+            // The receiver is PROVED by retail's only writer, PlayerToolManager::SelectTool
             // (toolbardialog.cpp): it stores the Factory::CreateObject result only
             // after IsDerivedFrom(DWORD_1401c6eb8), and that cell is TypeId(Tool).
             // The old typedef passed the flag as a qword; the slot reads its low byte.
@@ -1793,11 +1753,9 @@ void GameUpdateLoop::Startup() {
         }
     }
 
-    // Stage C entry guard (TEMPORARY): see GameUpdateLoop_Update — must run
-    // before EnsureInit (which null-derefs an unregistered dispatch slot in
-    // standalone). On the new-game path m_game (+0xF8) is null until
-    // GameUpdateLoop::Load builds the world; Startup dereferences m_userInterface
-    // (+0x98, also null) below. Skip cleanly until Load is implemented.
+    // Stage C entry guard: see GameUpdateLoop::Update. On the new-game path
+    // m_game (+0xF8) is null until GameUpdateLoop::Load builds the world; Startup
+    // dereferences m_userInterface (+0x98, also null) below.
     if (m_game == nullptr) {
         static bool logged = false;
         if (!logged) {
@@ -1845,23 +1803,17 @@ void GameUpdateLoop::Startup() {
     m_userInterface->EnableCursor(true);
 
     // ProfessionList startup — builds the sorted profession ARRAY at profList+0x20/+0x28
-    // (FUN_1400a90a0) for the profession UI panel. m_professionList (gw+0xb0) is normally
-    // DEFERRED (null) in the standalone slice; it goes live under BANISHED_LIVE_PROFESSIONLIST.
-    // ProfessionList_Startup_Impl is the port of 0x1400a90a0 (B3R: called by name; its
-    // readiness guard went with the door).
+    // (FUN_1400a90a0) for the profession UI panel. m_professionList (gw+0xb0) is loaded
+    // by Load's step 2 (LoadProfessionList_Step2).
+    // ProfessionList::Startup is the port of 0x1400a90a0 (professionlist.cpp).
     TRACE("[GameUpdateLoop::Startup] calling ProfessionList::Startup...\n");
     if (m_professionList)
         m_professionList->Startup();   // 0x1400a90a0
     TRACE("[GameUpdateLoop::Startup] ProfessionList::Startup done\n");
 
-    // Game HUD dialogs (Toolbar/EventNotify/AutoSave) are DEFERRED in the M5 first
-    // slice: they require the loop's resource list (m_resourceList, +0x08 — the
-    // standalone loader does not populate it yet, so ExternalList::Find faults) AND
-    // their exe dialog ctors (not reimplemented). Disable the whole section until
-    // both are wired. [GUARD-M5]
     // [HUD-DIAG] One-shot probe: did the preload populate the loop's resource
     // list (+0x08)? And does ExternalList::Find resolve the toolbar Dialog
-    // resource out of it? This is the gate for enabling HUD creation below.
+    // resource out of it?
     {
         static bool s_diag = false;
         if (!s_diag) {
@@ -1886,24 +1838,16 @@ void GameUpdateLoop::Startup() {
         }
     }
 
-    // HUD bring-up — the in-game Toolbar (Keystone F). Gated behind the env var
-    // BANISHED_LIVE_TOOLBAR (default OFF → the default build stays byte-identical).
-    // The resource is resolved via ExternalFactory::FindOrLoad (m_resourceList is
-    // empty in standalone — the preload that populates it is off by default).
-    // The Toolbar ctor (0x1400b9910 -> ToolbarDialog_Ctor_Impl) is already registered.
-    //
-    // NOTE: the toolbar dialog constructs + ticks crash-free with BANISHED_LIVE_TOOLBAR
-    // alone, but its BUTTONS come from the "Toolbar" item externals, which are loaded by
-    // the resource preload. So a fully POPULATED, visibly-rendered toolbar (10 buttons)
-    // needs BANISHED_LIVE_TOOLBAR=1 *and* BANISHED_GAME_PRELOAD=1 — verified rendering
-    // the real bottom-right toolbar bar on screen, crash-free. With LIVE_TOOLBAR alone
-    // the dialog is present but empty (itemCount=0).
+    // HUD bring-up — the in-game Toolbar (Keystone F). The Dialog resource is looked up
+    // in _resourceList first, then through ExternalFactory::FindOrLoad.
+    // The Toolbar ctor is 0x1400b9910 (ToolbarDialog::ToolbarDialog). Its BUTTONS come
+    // from the "Toolbar" item externals, which the resource preload loads.
     const bool kCreateToolbar = true;
 
     // Captured toolbar dialog — the EventNotify ribbon parents to it (positions the
     // ribbon just below the toolbar; see EventNotifyDialog_Update). Null if the
-    // toolbar was not created (LIVE_TOOLBAR off), in which case the ribbon Update
-    // early-returns on the null parent, so we skip creating the ribbon too.
+    // toolbar was not constructed, in which case the ribbon Update early-returns on
+    // the null parent, so we skip creating the ribbon too.
     ToolbarDialog* g_ribbonParentToolbar = nullptr;
 
     // Create and add Toolbar dialog
@@ -1913,10 +1857,9 @@ void GameUpdateLoop::Startup() {
         // toolbar reads Toolbar / ToolbarDescription / UI element TypeId() directly.)
         System::Filename filename("Dialog/Toolbar.rsc");
 
-        // Find the Dialog resource. First try the loop's resource list (populated
-        // when preload is on); if that is empty or misses, fall back to
-        // ExternalFactory::FindOrLoad (the path OpenToolDialog/ToggleAll use — loads
-        // the .rsc directly, robust in standalone where m_resourceList is empty).
+        // Find the Dialog resource. First try the loop's resource list; if that
+        // misses, fall back to ExternalFactory::FindOrLoad (the path
+        // OpenToolDialog/ToggleAll use — loads the .rsc directly).
         ::Object::External* foundBase = nullptr;
         uint32_t typeInfo = UI::Dialog::TypeId();   // retail: [?_typeInfo@Dialog@UI] (0x140097c83)
         if (_resourceList)
@@ -1968,9 +1911,9 @@ void GameUpdateLoop::Startup() {
     }
     TRACE("[GameUpdateLoop::Startup] Toolbar dialog added\n");
 
-    // Create and add EventNotify ribbon (BANISHED_LIVE_EVENTS). Shows recent game
-    // events as a strip below the toolbar. Uses the FindOrLoad fallback (empty
-    // m_resourceList in standalone) like the toolbar, and parents to the toolbar
+    // Create and add EventNotify ribbon. Shows recent game
+    // events as a strip below the toolbar. Uses the FindOrLoad fallback like the
+    // toolbar, and parents to the toolbar
     // dialog so Update can position the ribbon. Skipped if the toolbar is absent
     // (the ribbon Update early-returns on a null parent anyway).
     TRACE("[GameUpdateLoop::Startup] creating EventNotify dialog...\n");
@@ -2021,8 +1964,8 @@ void GameUpdateLoop::Startup() {
     // only clock, and its timer-event handler (Slot8 -> Dialog_AutoSaveHandler) is the
     // only caller of SaveLoad::SetOperation(SAVE). While this block was hardcoded off
     // the game never autosaved at all - the Options 'Autosave' setting was inert.
-    // Uses the ExternalFactory::FindOrLoad fallback like the toolbar/EventNotify,
-    // since m_resourceList is empty in standalone. Parented to nothing (retail
+    // Uses the ExternalFactory::FindOrLoad fallback like the toolbar/EventNotify.
+    // Parented to nothing (retail
     // passes a null parent IBP here too).
     {
         System::Filename filename("Dialog/AutoSave.rsc");
@@ -2096,11 +2039,11 @@ void GameUpdateLoop::Shutdown() {
 
     TRACE("[GameUpdateLoop::Shutdown] ENTER (self=%p)\n", (void*)this);
 
-    // Stage C entry guard (TEMPORARY): on the new-game path the world was never
-    // built (GameUpdateLoop::Load is a stub), so m_game (+0xF8) is null and the
-    // teardown below dereferences unbuilt subsystems (m_toolManager, m_userInterface,
-    // m_audioScene, m_citizenList). Nothing was constructed, so there is nothing
-    // to tear down — return. (Destroy still runs afterward to free the loop.)
+    // Stage C entry guard: when the world was never built (GameUpdateLoop::Load did
+    // not run), m_game (+0xF8) is null and the teardown below dereferences unbuilt
+    // subsystems (m_toolManager, m_userInterface, m_audioScene, m_citizenList).
+    // Nothing was constructed, so there is nothing to tear down — return. (Destroy
+    // still runs afterward to free the loop.)
     if (m_game == nullptr) {
         fprintf(stderr, "[GameUpdateLoop::Shutdown] world not built (m_game==null) "
                 "— Stage C cliff, nothing to tear down\n");
@@ -2134,7 +2077,7 @@ void GameUpdateLoop::Shutdown() {
     TRACE("[GameUpdateLoop::Shutdown] stopping all audio...\n");
     m_audioScene->StopAll();
 
-    // Citizen housing reassignment loop
+    // Citizen profession / workplace reset loop
     TRACE("[GameUpdateLoop::Shutdown] reassigning citizen housing...\n");
     {
         CitizenBehavior* citizenList = m_citizenList;
@@ -2170,15 +2113,6 @@ void GameUpdateLoop::Shutdown() {
     }
     TRACE("[GameUpdateLoop::Shutdown] citizen housing done\n");
 
-    // [OBJAUDIT] Wave 9 lane N, Finding 3. The periodic scan above only runs from
-    // Update, so the handle table has NEVER been checked during teardown — which is
-    // the only place the intermittent allocator fault fires. Mode (A) in
-    // Object/internal_factory_audit.h ("register without unregister": the next
-    // ~Internal swap-removes a freed object and writes `*(int*)(freedPtr+0x08) = idx`,
-    // a 4-byte store into a reused block) has exactly the signature of that fault —
-    // a small integer landing on half of something live. Bracketing EntityList's
-    // shutdown separates "the table was already corrupt when teardown started" from
-    // "teardown corrupted it", which no run so far can tell apart.
     // EntityList shutdown
     TRACE("[GameUpdateLoop::Shutdown] calling EntityList::Shutdown...\n");
     m_entityList->Shutdown();   // 0x1400c3d30
@@ -2369,7 +2303,7 @@ void GameUpdateLoop::Shutdown() {
 // ============================================================
 // CalcWindFactor (0x1401027c0) — really "camera distance to focus"
 // ============================================================
-// Feeds Audio::Scene::Update's last parameter. Named fn_CalcWindFactor here, but
+// Feeds Audio::Scene::Update's last parameter. Named CalcWindFactor here, but
 // the disassembly is a plain distance:
 //
 //   RBX  = [g_pGameWorldSingleton + 0xE0]        playerController
@@ -2383,9 +2317,7 @@ void GameUpdateLoop::Shutdown() {
 //
 // DEVIATION: retail copy-constructs the whole Camera onto the stack and reads the
 // copy's +0x88. We read playerCtrl+0x34+0x88 directly. The position is a copied
-// field, not one the copy ctor could synthesise, so the values are identical — and
-// this avoids taking a dependency on dispatch slot 0x140152940, which nothing else
-// in the tree registers.
+// field, not one the copy ctor could synthesise, so the values are identical.
 static float CalcWindFactor(const System::Time* /*time — dead in retail*/) {
     GameUpdateLoop* gw = GameUpdateLoop::_singleton;
     if (!gw) return 0.0f;
@@ -2508,9 +2440,9 @@ GameUpdateLoop* GameUpdateLoop::_singleton = nullptr;
 // GameUpdateLoop::GameUpdateLoop (0x140098060)
 // ============================================================
 // Retail's ctor: `??0UpdateLoop@Engine@@` (the init list), the 0x14015e2f0
-// stamp (the compiler's), then every field below — the same stores the three
-// door-then-stamp construction sites outside this block write by hand
-// (newgamedialog.cpp, saveloaddialog.cpp, tutorial_next_scenario.cpp).
+// stamp (the compiler's), then every field below. Its builders placement-new it
+// (newgamedialog.cpp, saveloaddialog.cpp, tutorial_next_scenario.cpp,
+// worldsetup_reload.cpp).
 GameUpdateLoop::GameUpdateLoop(Save::SavedState* savedState,
                                const Object::InternalPtr<Achievement::AchievementInstance>& scenarioIbp,
                                int32_t scenarioIndex,

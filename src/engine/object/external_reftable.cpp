@@ -8,7 +8,7 @@
 // base 0x180000000, read 2026-09-10 with `disassemble_function(address=)`).
 // The AVL family the READ path needs is reference_set.{h,cpp}; the tree
 // teardown the body OPENS with is `RtObjFactoryDtor::ReferenceSubtreeFree`,
-// which has been ported and registered since Wave 11 lane OBJLIFE.
+// ported in factory_dtors.cpp by Wave 11 lane OBJLIFE.
 //
 // ---------------------------------------------------------------------------
 // WHAT THE FUNCTION IS
@@ -33,8 +33,8 @@
 // Stream fields. The `Serializer` is a LOCAL, built at `[RBP-0x18]` /
 // `[RBP-0x10]` — exactly the 16-byte `{Stream*, ReaderWriter*}` of
 // src/engine/io/Serializer.h. Passing a Serializer straight through would
-// read 16 bytes past the end of a 16-byte object; the lane-S adapter below
-// exists for that reason and not as a workaround for anything.
+// read 16 bytes past the end of a 16-byte object; the local IO::Serializer
+// below exists for that reason and not as a workaround for anything.
 //
 // ---------------------------------------------------------------------------
 // THE FIRST THING IT DOES IS A MUTATION, AND NO EMISSION PRECEDES IT
@@ -54,12 +54,10 @@
 //     `ResourceEntry::referenceId = id`, which a replay rewrites with the
 //     IDENTICAL value into the identical node (the ids are 1..N over a tree
 //     neither call modifies), and the teardown's second run reads
-//     `[this+0x20] == 0` and returns immediately. **No double free.** So the
-//     FULL write-path compare is safe and that is what this file runs.
+//     `[this+0x20] == 0` and returns immediately. **No double free.**
 //   * The teardown is INVISIBLE to an emission compare — it emits nothing — so
 //     a port that forgot it, or freed it wrongly, would pass a clean emission
-//     trace. The probe therefore asserts the post-condition explicitly, which
-//     is the check that measurement asked whoever ported it to add.
+//     trace.
 //
 // ---------------------------------------------------------------------------
 // THE FOUR ENCODING/READERWRITER SLOTS IT DRIVES
@@ -71,8 +69,7 @@
 // plus `String::Serialize` (0x1800c9930) per entry, which is itself +0x98 for
 // the length and +0x18 for the char array.
 //
-// These are RETAIL offsets. The profile build's differ
-// (reference_encoding_vtable_offsets_differ_between_builds.md); the constants
+// These are RETAIL offsets. The profile build's differ; the constants
 // come from `rt::io::rw_vtbl`, which is pinned against retail.
 //
 // ---------------------------------------------------------------------------
@@ -94,7 +91,7 @@
 // ENDGAME B.3.1 step 2: `String::Serialize` (0x1800c9930, which takes the
 // Serializer and not the Stream) and `Filename::AdjustDelimiters` (0x1800c6970)
 // used to be forward-declared here as C entry points. They are members now —
-// the first called as `s.Serialize(&ser)`, the second folded into the two
+// the first called as `s.Serialize(ser)`, the second folded into the two
 // Filename constructors that already end in it — so both declarations are gone.
 
 namespace RtObject {
@@ -375,8 +372,7 @@ void RtObject_ExternalFactory_SerializeReferenceTable(ExternalFactory* self,
     // and the run that exercises it usually has to be killed rather than quit:
     // `BANISHED_AUTOQUIT` OVERRIDES `BANISHED_AUTOLOAD`'s path, so the one run
     // that reaches a clean exit is the one that never loaded, and an exit-only
-    // instrument prints a plausible ZERO on it
-    // (reference_autoquit_overrides_autostart_newgame.md). This line is what a
+    // instrument prints a plausible ZERO on it. This line is what a
     // killed run can still be read from.
     RtObjectExternalRefTableSummary();
 }
@@ -389,8 +385,7 @@ void RtObjectExternalRefTableSummary() {
         std::fprintf(stderr,
             "[RefTable] calls=0 -- the body never ran. That is EXPECTED on a run "
             "that neither saved nor loaded; it is NOT evidence the port is "
-            "correct and it is NOT evidence it is dead "
-            "(reference_uncalled_port_is_not_verified.md).\n");
+            "correct and it is NOT evidence it is dead.\n");
         return;
     }
     std::fprintf(stderr,

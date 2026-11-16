@@ -4,8 +4,9 @@
 // Moved out of src/app/main.cpp in Phase D.4 THREADS E.8 (D4_RULES C10): the
 // second-chance filter (standalone_crash.log + exit 3), the pure-virtual and
 // std::terminate handlers (exits 4 and 5), the first-chance fail-fast / hardware
-// watchpoint VEH, the crash log itself, and StandaloneWalkStack -- the exe's one
-// stack walker, which the hang dump in boot_state_watchdog.cpp also calls. The
+// watchpoint VEH, the crash log itself, and StandaloneWalkStack -- the crash handler's
+// walker of the faulting thread's own CONTEXT (the hang dump in boot_state_watchdog.cpp
+// goes through ThreadStack::DumpOtherThreads, thread_stack.h). The
 // bodies are unchanged; main.cpp's Init() / WinMain call the three entry points
 // in src/diag/crash_handler.h at the points where the installs stood.
 // ============================================================================
@@ -369,11 +370,15 @@ static void TerminateHandler() {
     ExitProcess(5);
 }
 
-// First-chance vectored handler that logs ONLY the fatal fail-fast /stack-cookie
-// code (0xC0000409, STATUS_STACK_BUFFER_OVERRUN) — a __security_check_cookie /
-// __fastfail failure bypasses SetUnhandledExceptionFilter entirely, so nothing
-// reaches standalone_crash.log. Everything else (the game's normal first-chance
-// SEH-absorbed AVs) passes straight through untouched.
+// HwWatch_LogStack: the stack dump HwWatch_OnSingleStep calls on a data-breakpoint hit,
+// to the crash log, then the same frames to stderr.
+//
+// FirstChanceFailFast (below): the first-chance vectored handler. It hands an armed
+// hw_watch's single steps to HwWatch_OnSingleStep and logs ONLY the fatal fail-fast /
+// stack-cookie codes (0xC0000409 STATUS_STACK_BUFFER_OVERRUN, 0xC0000602
+// STATUS_FAIL_FAST_EXCEPTION) — a __security_check_cookie / __fastfail failure bypasses
+// SetUnhandledExceptionFilter entirely, so nothing reaches standalone_crash.log. Everything
+// else (the game's normal first-chance SEH-absorbed AVs) passes straight through untouched.
 static void HwWatch_LogStack(void* ctx) {
     if (g_crashLog == INVALID_HANDLE_VALUE) OpenCrashLog();
     CrashLogRaw("\n=== HWWATCH HIT (data breakpoint) ===\n");

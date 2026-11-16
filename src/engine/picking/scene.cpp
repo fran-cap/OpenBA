@@ -20,57 +20,18 @@
 //   | ?SetTransform@Scene@Picking@@...| 0x1800721b0 | 3993 | FULL (replay)   |
 //   | ?Vertices@PickingMesh@Picking...| 0x180071e10 | 4536 | FULL            |
 //
-// EVERY ONE IS REGISTERED TWICE — under its mangled name AND under its retail
-// address. The two registries are separate, and this namespace's call sites use
-// both forms: pickingcomponent.cpp:171 resolves AddMesh by NAME while
-// floorcomponent.cpp:303 and citizenai_executor.cpp:406 resolve the SAME
-// function by ADDRESS, and both RemoveMesh call sites are address-only. A
-// name-only registration would have sent some of one live Scene's mesh
-// registrations to this port and the rest to the DLL — two implementations
-// taking turns on one free list.
-//
 // All nine names were checked against the shipped export directory of
 // C:\GOG Games\Banished\Runtime-x64.dll with pefile BEFORE any body was
-// written (reference_resolveexport_phantom_names.md: a name the DLL does not
-// contain resolves to NULL in silence and the census still counts the port).
+// written (a name the DLL does not contain resolves to NULL in silence and the
+// census still counts the port).
 // The addresses and ordinals above are that query's output.
 //
-// WHAT STAYS IN THE DLL, AND WHY
-// ------------------------------
-// `Picking::Scene` is a spatial hash. Eight of its internals are `FUN_`-named,
-// shared with other classes, and allocate or free through
-// `System::MemoryAllocator` under that allocator's own critical section --
-// which is Win32 and therefore cannot appear in this file (PLAN §4.1 decision 1
-// keeps src/engine/ platform-neutral outside a `_win` twin). This lane ports
-// the nine EXPORTED bodies faithfully and calls those internals at their retail
-// addresses, exactly as retail's own code does. They are named `Rt*` below and
-// each one says what it is. This is the same shape Wave 4 lane C used for
-// `Map_Find` / `Map_Insert`.
-//
-// *** UPDATE, WAVE 9 LANE PICK (2026-09-08): FIVE OF THEM NO LONGER DO. ***
-// The paragraph above is the reason the Wave 5 lane stopped where it did, and
-// it was right at the time. It has been overtaken twice over:
-//
-//   1. The platform boundary is now a function call. Wave 9 lane Q's
-//      `rtcoll::MemAlloc` / `rtcoll::MemFree` ARE the Enter/Allocate/Leave and
-//      Enter/Free/Leave triples retail inlines, reached through the port-aware
-//      address door, so an allocating body can live under runtime/src after all.
-//   2. The ADDRESS-door census (ce1d8e9 / 4ef55b6) showed what leaving them
-//      cost: five `ResolveAddr(Module::Runtime, 0x…)` sites in THIS FILE that
-//      resolve to NULL with the DLL absent, invisible to every name-based
-//      instrument because the call sites never mention a name.
-//
-// `RtGridAdd`, `RtGridReindex`, `RtGridUnthread`, `RtGridFreeEntry` and
-// `RtCellIterAdvance` below are therefore no longer DLL calls. Their five
-// addresses — and the fourteen more internals they reach — are ported and
-// registered in src/engine/picking/scene_grid.cpp, and `ResolveAddr` consults
-// the port registry FIRST, so these forwarders reach that port with NO EDIT.
-// The forwarders are deliberately left exactly as they are: their analysis is
-// what the new lane was built from, and rewriting them would lose it.
-//
-// The five `RtFreeArray*` / `RtCellHeadsInit` / `RtTransformArraySetSize`
-// forwarders further down are lane Q's and lane D2's, and were already ported.
-// Nothing in this file still reaches Runtime-x64.dll by address.
+// THE GRID INTERNALS
+// ------------------
+// `Picking::Scene` is a spatial hash. The five grid internals its bodies call
+// (`GridAdd`, `GridReindex`, `GridUnthread`, `GridFreeEntry`, `CellIterAdvance`),
+// and the fourteen bodies they reach, are ported in
+// src/engine/picking/scene_grid.cpp and called by name through `rtpickgrid::`.
 //
 // IS THE CLASS SPLIT?  No -- every Scene method this process ever invokes is
 // now ours. `Picking::Scene` exports 21 symbols; our tree calls nine of them
@@ -88,24 +49,16 @@
 // ENDGAME B.3 step 7, block B6 — WHAT CHANGED IN THIS FILE
 // --------------------------------------------------------
 // `Picking::Scene` is a real class now (src/engine/picking/Scene.h). The
-// bodies below are its MEMBERS, and each registered door at the bottom is a
-// one-line QUALIFIED delegation that keeps its name and address rows:
-//   * the ctor door runs `Scene()`, which delegates to `Scene(16.0f)` (closure_batch2b.cpp), as
-//     retail's 0x1801258e0 does — the inlined second copy of that ctor's
-//     fourteen stores that used to live here is gone (B7-6);
-//   * the dtor door runs the IMPLICIT destructor, which is retail's four
+// bodies below are its MEMBERS, and the one door at the bottom,
+// `RtPicking_Scene_Ctor`, is a one-line QUALIFIED delegation:
+//   * it runs `Scene()`, which delegates to `Scene(16.0f)` (closure_batch2b.cpp), as
+//     retail's 0x1801258e0 does;
+//   * the destructor is the IMPLICIT one, which is retail's four
 //     `~Array` calls in retail's order (Scene.h banner);
-//   * the five grid forwarders (`RtGridAdd`, `RtGridReindex`, `RtGridUnthread`,
-//     `RtGridFreeEntry`, `RtCellIterAdvance`) that reached scene_grid.cpp
-//     through `ResolveAddr(Module::Runtime, 0x…)` behind function-local static
-//     initialisers are DIRECT calls into `rtpickgrid::` now (the B7-11 sweep:
-//     five by-address sites converted; RULE B6-5: five static initialisers
-//     gone). The five addresses stay registered for any other caller;
-//   * `CellIter` is scene_grid.h's one definition; this file's copy is gone;
-//   * the diff-oracle scaffolding (the mangled-name constants and the three
-//     post-check helpers) had no caller left and is deleted.
-// `Vertices` is a PickingMesh member (PickingMesh.h); its door stays here with
-// the other eight rows so the registration table is unchanged.
+//   * the five grid internals (`GridAdd`, `GridReindex`, `GridUnthread`,
+//     `GridFreeEntry`, `CellIterAdvance`) are DIRECT calls into `rtpickgrid::`;
+//   * `CellIter` is scene_grid.h's one definition.
+// `Vertices` is a PickingMesh member (PickingMesh.h).
 // ============================================================================
 
 #include <cstdint>
@@ -192,7 +145,8 @@ void TransformInverse(const ::Transform* self, ::Transform* ret) {
 // __builtin_sqrtf so no libm call appears on the pick path.
 inline float RtSqrtf(float v) { return __builtin_sqrtf(v); }
 
-// Scene+0x48 accessors, spelled once so a wrong stride cannot be written twice.
+// Scene+0x48 (_entries) and +0x30 (_links) accessors, spelled once so a wrong stride cannot be
+// written twice.
 inline Entry* EntryAt(const Picking::Scene* s, int32_t idx) { return &s->_entries._data[idx]; }
 inline int32_t LinkEntry(const Picking::Scene* s, int32_t link) { return s->_links[link]._entry; }
 inline int32_t LinkNext(const Picking::Scene* s, int32_t link)  { return s->_links[link]._next; }
@@ -210,8 +164,7 @@ namespace Picking {
 //
 // Four stores. NOTE the argument count: five after `this`, so the callback is
 // the SIXTH register argument and lands on the stack. A signature that dropped
-// it would leave entry+0x40 holding whatever the caller happened to have there
-// (reference_hidden_retval_and_int_pointer_args.md).
+// it would leave entry+0x40 holding whatever the caller happened to have there.
 // ============================================================================
 void Scene::SetMeshUserData(uint32_t id, void* userData, int32_t userValue,
                             int32_t userValue2, HitCallback callback) {
@@ -349,7 +302,7 @@ void Scene::RemoveMesh(uint32_t id) {
 // *** IT IS DECLARED const AND IT MUTATES THE SCENE. *** `INC dword ptr
 // [RCX+0x5c]` at 0x1801247bf allocates a fresh query stamp, and each visited
 // entry's +0x00 is set to it so an entry spanning several cells is tested
-// once. That is why the body casts: the constness is retail's, and it is a lie.
+// once. `_queryStamp` is `mutable` for that (Scene.h): the constness is retail's, and it is a lie.
 //
 // Bit equality with retail is the contract: this is a faithful transliteration
 // of retail's own float expressions, in retail's association order.
@@ -574,9 +527,8 @@ int32_t Scene::Intersect(const Vector3& startRef, const Vector3& dirRef,
 }  // namespace Picking
 
 // ============================================================================
-// THE DOORS — one line each, QUALIFIED. Retail's signatures exactly (the exe
-// reaches every one of them through its import slots, and pickingcomponent.cpp
-// / floorcomponent.cpp / citizenai_executor.cpp by name or by address).
+// THE DOOR — the default constructor and `RtPicking_Scene_Ctor`, which
+// GameUpdateLoop::Load calls on its raw storage.
 // ============================================================================
 
 // ??0Scene@Picking@@QEAA@XZ  0x1801258e0 — retail's whole body is
@@ -587,9 +539,8 @@ namespace Picking {
 Scene::Scene() : Scene(kCellSize) {}
 }  // namespace Picking
 
-// The in-place door the exe's two raw-storage holders still call (the Game
-// object's +0x08, GameUpdateLoop::Load's MemAlloc(0x60,8)): it runs the
-// default constructor above.
+// The in-place door GameUpdateLoop::Load calls on its 0x60-byte raw storage
+// (gameupdateloop_load.cpp): it runs the default constructor above.
 extern "C" Picking::Scene* RtPicking_Scene_Ctor(void* selfv) {
     return ::new (selfv) Picking::Scene();
 }

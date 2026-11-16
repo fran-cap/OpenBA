@@ -2,7 +2,7 @@
 
 #include "render_impl.h"   // BANISHED_RENDER_IMPL_BEGIN / _END (several backends in one exe)
 // ============================================================================
-// src/render/common/better_trees/billboard_shadow_backend.h -- ext.billboard_shadow's render side,
+// src/render/common/better_trees/billboard_shadow_backend.h -- ext.better_trees' shading render side,
 // as the extension sees it (docs/extensions/TREE_SHADOW.md, handins/TS-CORE.md)
 // ============================================================================
 // NOT RETAIL. No D3D types: src/ext/better_trees/better_trees.cpp includes it (the
@@ -14,7 +14,7 @@
 namespace BbsBackend {
 BANISHED_RENDER_IMPL_BEGIN
 
-// The extension's one call (Ext::BillboardShadow::Sync, main thread). Idempotent.
+// The extension's one call (Ext::BetterTrees::Sync, main thread). Idempotent.
 //   on   points the seam (VideoDX11::g_extBillboardShadow) at the stage now; the rewritten vertex
 //        shaders are made per program at load (PlatformCreate) or lazily at the first bind.
 //   off  the binding thread's next vertex-program bind releases every rewritten shader and nulls

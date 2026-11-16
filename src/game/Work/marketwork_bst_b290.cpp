@@ -3,9 +3,8 @@
 //
 // These two are the SAVE/LOAD half of the MarketWork AVL/BST family (the insert half
 // lives in marketwork_bst_a9f0.cpp, the cleanup half in work_leaf_market.cpp).
-// MarketWork::Serialize (marketwork.cpp:MarketWork_Serialize_Impl) already dispatches
-// to 0x14002b290 through an UNGUARDED function pointer, so until this file is
-// registered that call is an EXEC-of-0 the first time a market save/load is reached.
+// MarketWork::Persist (marketwork.cpp) calls 0x14002b290 (MarketBst_b290) by name when
+// the stream's version is not 0.
 //
 // VERSION: MarketWork::Serialize constructs its IO::Serializer with version=1 and then
 // branches on IO::Serializer::GetVersion:
@@ -42,7 +41,7 @@
 #include "Component/ComponentDescription.h"   // B8 RT2: ::Object::SerializeExternal<ComponentDescription> (the downcast needs it complete)
 
 // ============================================================
-// External closure — every one of these is already ported + registered
+// External closure — every one of these is ported and called by name
 // ============================================================
 
 // 0x14000d9d0 ActRm_VectorClone_d9d0 (deep copy dst <- src) and 0x14000da70
@@ -57,15 +56,14 @@
 //   serializes one ExternalPtr through the save-file string table.
 
 // ============================================================
-// Dispatch slots (.rdata) — resolved once
+// Dispatch slots (.rdata) in retail
 // ============================================================
 // 0x140152ac8  IO::Serializer::Serialize(int*)  -- (serializer, int*, const char* name)
 //              retail always passes R8D=0 for the name.
 // 0x140152aa0  Object::InternalBasePtr::Serialize(this, serializer)
 // 0x1401c7158  DWORD type id tested by IsDerivedFrom on the key. Ghidra labels this
-//              g_BaseTypeInfo_CitizenComponent; other ports in this tree call the same
-//              global "work entity type" (completetask.cpp) — the label is not
-//              load-bearing here, only the DWORD value is.
+//              g_BaseTypeInfo_CitizenComponent; the port reads it as
+//              CitizenComponent::TypeId(), as completetask.cpp does.
 // MemAlloc/MemFree are dispatch slots 0x140152b60/0x140152b68 in retail; we call
 // System::MemoryAllocator::MemAlloc / MemFree by name (B3R).
 

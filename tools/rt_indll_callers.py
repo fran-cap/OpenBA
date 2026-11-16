@@ -27,8 +27,7 @@ WHAT IT EXAMINES
 CONTROL
     Pass a target with known in-DLL callers as the first argument.  A scanner
     that returns 0 for everything is indistinguishable from a true 0 unless it
-    is handed a positive shape first
-    (reference_absence_screen_must_be_handed_a_shape.md).
+    is handed a positive shape first.
     `?StrAppend@String@System@@SAPEADPEADHPEBD@Z=0x1800c9020` is a good one: it
     has exactly one in-DLL caller, inside `?SetText@Error@`.
 

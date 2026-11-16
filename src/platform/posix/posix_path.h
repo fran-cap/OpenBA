@@ -2,7 +2,8 @@
 // ============================================================================
 // src/platform/posix/posix_path.h -- the PathChar <-> syscall spelling (Phase D.4 POSIX)
 // ============================================================================
-// Only src/platform/posix/*.cpp include this. The engine hands the file primitives
+// Only the posix, darwin and android platform files (and tests/unit/platform_mac_data_test.cpp)
+// include this. The engine hands the file primitives
 // `Platform::PathChar` strings (UTF-16, char16_t: System::WideString's unit) spelled
 // the engine's way: System::Filename::AdjustDelimiters (0x1800c6970) has turned every
 // '/' into '\'. A POSIX syscall wants UTF-8 with '/'. These helpers are the one place

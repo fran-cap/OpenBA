@@ -2,7 +2,7 @@
 // ============================================================================
 // src/engine/collection/introsort_msvc.h — BATCH 8b
 //
-// THE SHIPPED MSVC SORT SKELETON, transcribed once and instantiated twice.
+// THE SHIPPED MSVC SORT SKELETON, transcribed once and instantiated per element type.
 //
 // Runtime-x64.dll contains several copies of one and the same sort template,
 // one per element type, each with its comparator and its element swap inlined.
@@ -17,7 +17,7 @@
 // 0x1800264a0 was transcribed by hand in introsort.cpp (Wave 9 lane COLL) with
 // its small-range pass inlined exactly as retail inlined it; it is left alone.
 // The other two DO call a separate small-range function, and that function is
-// itself a row of the closure, so each gets a named, registered body of its own
+// itself a row of the closure, so each gets a named body of its own
 // and is passed in here rather than being re-inlined.
 //
 // WHAT THE SKELETON IS. It is NOT libstdc++'s introsort and it is NOT
@@ -126,8 +126,8 @@ void SelectionSortMaxToHigh(T* lo, T* hi, Less less, Swap swp) {
 //                 dropping it would be the one place this transcription
 //                 silently edits the body.
 //
-// `smallSort` is the separately-registered callee, passed in rather than
-// re-inlined so that the registered body is the one that actually runs.
+// `smallSort` is the separate small-range callee, passed in rather than
+// re-inlined so that its own body is the one that actually runs.
 // ---------------------------------------------------------------------------
 template <class T, class Less, class Swap, class SmallSort>
 void Introsort(T* first, int32_t count, Less less, Swap swp, SmallSort smallSort) {

@@ -2,12 +2,10 @@
 // src/game/Player/exe_bodies.h -- declarations of the exe bodies DEFINED in
 // src/game/Player/ (ENDGAME B.3R, block W0-P0c, B3R_RULES R5).
 //
-// Every body the registry reaches by retail address, declared once, copied
-// from its DEFINITION (linkage included), grouped by defining file; the
-// retail address(es) it is registered under are the trailing comment. The
-// defining .cpp includes this header so the compiler checks each pair.
-// Readers call these by name (W1); nothing here changes what runs. Making
-// them members is B.4's work.
+// Every body declared once, copied from its DEFINITION (linkage included),
+// grouped by defining file; its retail address(es) are the trailing comment.
+// The defining .cpp includes this header so the compiler checks each pair.
+// Readers call these by name.
 
 #include <cstdint>
 #include "collection/Collection.h"   // Collection::Array<T> (the overlay record arrays)

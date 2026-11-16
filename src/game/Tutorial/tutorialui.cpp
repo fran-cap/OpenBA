@@ -34,7 +34,7 @@ TutorialUI::TutorialUI()
     : unusedElement(0), preText(nullptr), postText(nullptr), imageTable(nullptr),
       nextButton(nullptr), quitButton(nullptr) {}
 
-// Helper: FindElemByName with IsDerivedFrom check, stores InternalBasePtr
+// Helper: FindElement by name, null check only, stores the raw Element pointer
 static void FindAndStore(UI::Element* container, const char* name, UI::Element** field) {
     System::String nameBuf(name);
 
@@ -119,7 +119,7 @@ void TutorialUI::QuitTutorial() {
     }
 
     // --- Step 4: Set cursor, fullscreen fade to black, and queue next loop ---
-    // FUN_140097fb0: SetCursor(null), SetFullscreenFade(black), store next loop at eng+0xC8.
+    // FUN_140097fb0: SetCursor(hourglass), SetFullscreenFade(black), store next loop at eng+0xC8.
     {
         UI::UserInterface* ui = eng->m_userInterface;
         ui->SetCursor(g_gameContainer->cursorHourglass);

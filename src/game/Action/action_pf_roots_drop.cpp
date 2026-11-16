@@ -8,10 +8,8 @@
 // corruption.
 #include "Action/exe_bodies.h"
 //
-// Registration: RegisterPfRootsDropBatch() in standalone/reg_pf_roots_drop.cpp.
-//
 // Sub-callees (called by name, B3R — bodies NOT duplicated):
-//   0x14009bd40 CreateRawMaterial_FindPlacementCell — ported by another agent THIS wave
+//   0x14009bd40 Map::FindPlacementCell (action_pf_roots_misc.cpp)
 //   0x1400c3720 ComponentEntity_CtorFromDescription (CopyCtor)
 //   0x1400223c0 FindComponent (rawmat batch)
 //   0x140129760 PositionEntity / helper_9760 (rawmat batch)
@@ -21,9 +19,9 @@
 //   0x14012d150 StorageComponent::SubtractItem (rawmat)
 //   0x1401167c0 storage count-delta (action_pf_ctors)
 //   0x140116760 storage drop-off (action_pf_ctors)
-//   0x14012cd80 StorageComponent::CanAdd (Pf_StorageCanAccept_cd80)
+//   0x14012cd80 StorageComponent::CanAdd
 //   0x14012d000 StorageComponent::AddItem (rawmat)
-//   0x14008d590 FindStorageForResource (Pf_PickBestDropTarget_8d590)
+//   0x14008d590 CitizenBehavior::PickBestDropTarget
 //   0x1400c9170 MoveTo_Action_Ctor (action_pf_ctors)
 //   0x1400c9720 PerformWork_Action_Ctor7 (action_pf_ctors)
 //   0x1400c5da0 CompleteTask_Action_CopyCtor (action_pf_ctors)
@@ -31,7 +29,7 @@
 //   0x1400cb1d0 SendComponentMessage_Action_CopyCtor (action_pf_ctors)
 //   0x1400c54e0 action-stack push (action_pf_ctors) — bbea0/c7620 inline this; call helper
 //   0x1400c5400 TaskListCleanup (work_base)
-//   0x140107260 set-flag/refresh/Update == RemoveAnimal_helper_7260 (action_pf_ctors)
+//   0x140107260 set-flag/refresh/Update == Component::FlagForRemoval (action_pf_ctors)
 // Engine members: Object::InternalBasePtr, System::MemoryAllocator::MemAlloc,
 //   RtSystem_Time_Ctor, System::Random::RandTol.
 //
@@ -39,7 +37,7 @@
 
 #include "Action/RemoveAnimal.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
-#include "Work/exe_bodies.h"              // WorkBase_FindComponent_6270, WorkBase_TaskListCleanup_c5400
+#include "Work/exe_bodies.h"
 #include "Entity/ComponentEntity.h"   // ComponentEntity(ComponentDescription*) (0x1400c3720)
 #include "Entity/EntityList.h"        // EntityList::RegisterEntity (0x1400c48a0)
 #include "Game/exe_constants.h"           // kRdata_*
@@ -360,8 +358,3 @@ void RemoveAnimalActions(CitizenComponent* const* citizenIBP, uint32_t task, flo
     // pasture would re-select it every tick: a silent livelock instead of a crash.
     (*animal)->FlagForRemoval();   // 0x140107260
 }
-
-// ===========================================================================
-// B4 FORWARD: the C spellings other blocks' files still call, one line each.
-// ===========================================================================
-

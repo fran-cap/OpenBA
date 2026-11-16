@@ -14,13 +14,9 @@
 // before anything was written (not taken from a worklist):
 //     0x1800a0f60  ord 3602  ?Run@Stream@Audio@@UEAAXXZ
 //
-// HOW IT IS DISPATCHED. `System::Thread`'s vtable slot for `Run` is reached
-// from the thread trampoline inside `??0Thread@System@@QEAA@I@Z`
-// (src/platform/win/thread_win.cpp), so registering BOTH doors matters: the
-// EXPORT door serves a `ResolveExport` caller and the ADDRESS door serves the
-// vtable slot, which is a raw address until the mint owns
-// `??_7Stream@Audio@@6B@` (0x180154950 — audio_stream.cpp's standing
-// HANDOVER, unchanged by this file).
+// HOW IT IS DISPATCHED. `System::Thread::ThreadFunc` (src/engine/system/thread.cpp)
+// calls the virtual `Run` (slot 0); a live Stream wears the compiler's vtable, whose
+// slot 0 is `Audio::Stream::Run` below.
 //
 // It was its own `_win.cpp` for the reason both sibling files gave (PLAN.md
 // §4.1 decision 1): it called SetFilePointer, WaitForMultipleObjects and the
@@ -33,8 +29,7 @@
 // WHAT THE BODY ACTUALLY IS — and every offset in it has a named writer
 // ---------------------------------------------------------------------------
 // Read from Ghidra's `disassemble_function` over 0x1800a0f60..0x1800a1667
-// (Ghidra's C output drops arguments on indirect calls —
-// reference_ghidra_c_output_vs_disassembly.md — and this body is almost
+// (Ghidra's C output drops arguments on indirect calls, and this body is almost
 // entirely indirect calls).
 //
 //   dev       = *(Device**)0x1801fe760            ?_singleton@Device@Audio@@
@@ -52,7 +47,7 @@
 //   xWMA seek table and its BYTE length (hence `>> 2` for its entry count).
 //
 // THE STREAM BUFFER TABLE. `Stream::Play` grows `self+0x30` to FOUR elements of
-// 0x8ba0 bytes (0x18000c300, audio_stream_play.cpp's `GrowStreamBuffers`).
+// 0x8ba0 bytes (0x18000c300, `rtcoll::RtColl_ArraySetSize_18000c300`).
 // This body is what gives those numbers meaning, and the arithmetic closes
 // exactly:
 //     16 packets * 0x8b6 bytes  = 0x8b60   the audio window
@@ -112,14 +107,13 @@
 //     0 selects 0x40.
 //
 // ---------------------------------------------------------------------------
-// EVERY CALLEE, AND ITS DOOR. All six are ALREADY OURS; this port opens no new
-// address door at all.
+// EVERY CALLEE. All eight are ALREADY OURS.
 // ---------------------------------------------------------------------------
 //   0x1800aaa10  ??0FileStream@IO@@QEAA@XZ              file_stream.cpp
 //   0x1800aac70  ?Open@FileStream@IO@@                  file_stream.cpp
 //   0x180007bd0  ?GetDataDirectory@FileSystem@IO@@      filesystem.cpp
 //   0x1800c9440  ??HSystem@@ (String operator+)         string.cpp
-//   0x1800c6970  ?AdjustDelimiters@Filename@System@@    (registered)
+//   0x1800c6970  ?AdjustDelimiters@Filename@System@@    filename.cpp
 //   0x1800ace00  ?ReadFile@FileSystem@IO@@              filesystem_openfile.cpp
 //   0x1800accc0  ?CloseFile@FileSystem@IO@@             filesystem_createfile.cpp
 //   0x1800aaad0  ??1FileStream@IO@@UEAA@XZ              file_stream.cpp
@@ -147,7 +141,7 @@
 // Serialize (write-path replay), and a two-sided A/B would submit every packet
 // to the voice twice and consume the file handle twice. Attendance only —
 // counters below, and no RT_DIFF site that could only ever print
-// `divergences=0` (reference_shadow_marker_is_not_an_oracle.md).
+// `divergences=0`.
 // ============================================================================
 
 #include <cstdint>
@@ -171,8 +165,7 @@ namespace {
 // ENDGAME B.3.7 block B4: the `kStream*`, `kChannel*`, `kVoiceCallback*` and
 // `kSb*` byte offsets that lived here MOVED into src/engine/audio/Stream.h,
 // Device.h and SoundBuffer.h (B6-8). `Run` is `Audio::Stream::Run`, the slot-0
-// override; the registered door delegates with a QUALIFIED call (a live Stream
-// wears the minted table, whose slot 0 resolves back to that door).
+// override.
 
 // ---- the streaming geometry, all from this body ---------------------------
 constexpr int32_t kPacketBytes   = 0x8b6;   // 0x1800a1172 IMUL EDX,EDX,0x8b6

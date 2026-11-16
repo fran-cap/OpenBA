@@ -5,8 +5,8 @@
 // The class three caller batches reported as "NO SUCH CLASS EXISTS IN
 // src/engine/graphics at all". It exists in retail; it had never been
 // authored. `src/engine/graphics/InterpolatedState.h` now declares it and
-// `src/engine/graphics/animationstate_transforms.cpp` defines the one member
-// with a caller. This test is the ABI proof that licenses both.
+// defines, inline, the one member with a caller (`Lerp` for `Math::Transform`).
+// This test is the ABI proof that licenses both.
 //
 // WHAT IS BEING PROVED, and why each part is a test and not a comment:
 //
@@ -22,8 +22,8 @@
 //   the run. It is still measured here at RUNTIME, on a real object, because a
 //   static_assert proves what the compiler computed and a runtime read proves
 //   what the compiler EMITTED -- and because the 0x38 stride is what
-//   `Array<Graphics::InterpolatedState<Math::Transform>>` (registered at
-//   src/engine/collection/array_graphics_anim.cpp:263 with exactly 0x38) walks.
+//   `Array<Graphics::InterpolatedState<Math::Transform>>` (kSpec_InterpTransform in
+//   src/engine/collection/array_graphics_anim.cpp, with exactly 0x38) walks.
 //   If those two ever disagree the animation pool walks off its own elements.
 //
 // PART B — THE DIRECTION OF THE LERP. This is the part that cannot be a
@@ -44,8 +44,8 @@
 //   value must lerp to that value at EVERY t, because both halves hold it.
 //
 // PART D — TRIVIALITY. Retail copies these with seven-dword field moves and
-//   `Array<InterpolatedState<Transform>>`'s registered element spec has no
-//   element ctor/dtor at all. A non-trivial member would make GCC emit a second
+//   `Array<InterpolatedState<Transform>>`'s element spec has no element destroy
+//   (its init stores two identity transforms). A non-trivial member would make GCC emit a second
 //   element lifecycle beside the ported one.
 //
 // NOTE ON SCOPE: only the `Math::Transform` instantiation's `Lerp` is defined
@@ -95,13 +95,13 @@ Math::Transform MakeTransform(float qx, float tx) {
 UNIT_TEST(graphics_interpolatedstate_transform_layout) {
     using IS = Graphics::InterpolatedState<Math::Transform>;
 
-    // The size retail's default ctor implies (last store MOV qword [RCX+0x30]).
+    // InterpolatedState adds no alignment of its own.
     CHECK_EQ(alignof(IS), alignof(Math::Transform));
 
-    // 0x38 is also the element stride the registered
+    // 0x38 is also the element stride the
     // `Array<Graphics::InterpolatedState<Math::Transform>>` spec walks
-    // (src/engine/collection/array_graphics_anim.cpp). Pin them together: if
-    // this class ever changes size, that array silently reads off its elements.
+    // (src/engine/collection/array_graphics_anim.cpp); InterpolatedState.h's static_assert
+    // pins the size: if it ever changed, that array would read off its elements.
 
     // Not polymorphic -- no ctor in retail stamps a vtable, and a vptr would
     // move every field by 8.
@@ -158,9 +158,9 @@ UNIT_TEST(graphics_interpolatedstate_lerp_runs_previous_to_current) {
 }
 
 UNIT_TEST(graphics_interpolatedstate_lerp_does_not_mutate) {
-    // `Lerp` is `QEBA` -- const. It must not write either half; the two callers
-    // (geometry_draw.cpp, statusicon_geometry.cpp) call it inside a per-frame
-    // Draw and would accumulate drift if it did.
+    // `Lerp` is `QEBA` -- const. It must not write either half; the callers
+    // (geometry_draw.cpp, statusicon_geometry.cpp, src/ext/draw_batch/draw_batch.cpp)
+    // call it inside a per-frame Draw and would accumulate drift if it did.
     Graphics::InterpolatedState<Math::Transform> s;
     s._current  = MakeTransform(0.6f, 10.0f);
     s._previous = MakeTransform(0.0f,  2.0f);
@@ -196,8 +196,8 @@ UNIT_TEST(graphics_interpolatedstate_stays_trivially_copyable) {
     CHECK(std::is_trivially_copyable<IS>::value);
     CHECK(std::is_trivially_destructible<IS>::value);
     CHECK(std::is_trivially_copy_assignable<IS>::value);
-    // The registered Array<> element spec for this type has no element
-    // ctor/dtor; a non-trivial member here would make GCC emit a second element
+    // The Array<> element spec for this type has no element destroy (its init
+    // stores two identity transforms); a non-trivial member here would make GCC emit a second element
     // lifecycle beside the ported one.
     CHECK(std::is_trivially_copy_constructible<IS>::value);
 }

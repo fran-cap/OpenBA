@@ -23,7 +23,7 @@
 //   [13] 0x140118ac0 `XOR EAX,EAX; RET`
 //
 // LAYOUT: Object::Internal (0x10) + three fields = 0x28. The old POD
-// (engine/types/Component.h, now a forwarder to this file) called +0x08 `next`
+// (engine/types/Component.h) called +0x08 `next`
 // and +0x10 `owner`: +0x08 is Object::Internal's `_factoryIndex/_generation`
 // pair, and +0x10 is the owning ComponentEntity.
 //

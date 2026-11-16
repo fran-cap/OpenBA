@@ -37,7 +37,7 @@ namespace MsvcLibm {
 
 // ---------------------------------------------------------------------------
 // Optional branch-entry counters, compiled out entirely unless
-// MSVC_LIBM_COVERAGE is defined (only tools/libm_probe/sweep.cpp does). They
+// MSVC_LIBM_COVERAGE is defined (nothing in the tree defines it). They
 // let the bit-exactness sweep report an EFFECTIVENESS CONTROL: how many cases
 // actually entered each branch. A sweep that never reaches argument reduction
 // reports "0 divergences" just as loudly as one that does.

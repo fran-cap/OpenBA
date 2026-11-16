@@ -15,11 +15,11 @@
 //   Highwaymen wants 2,000 stone-paved road tiles, which is the same problem two
 //   orders of magnitude larger.
 //
-// The mechanism is the one src/game/Game/starttown.cpp already uses for every
-// structure it places (its "instant-path FALLBACK"): a StateMachineComponent carries
-// its CURRENT state at +0x50 and its PENDING state at +0x52 (0xff = nothing pending),
-// and stamping pending = 2 makes the next tick enter the built state through the
-// component's own state machine. Nothing here writes a mesh, a stock level or a
+// The mechanism is the structure's own state machine: a StateMachineComponent carries
+// its CURRENT state at +0x50 and its PENDING state at +0x52 (0xff = nothing pending).
+// A structure in state 8 (Construct) gets its BuildComponent progress (+0x48) saturated,
+// so State8Update's own completion test requests 8->2 (Built); any other unbuilt
+// structure gets pending = 8. Nothing here writes a mesh, a stock level or a stat
 // counter -- the state machine does the finishing, and every stat that then moves is
 // computed by ported retail code from a genuinely-built structure.
 //

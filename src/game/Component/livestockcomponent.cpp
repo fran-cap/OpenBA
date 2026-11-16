@@ -1,10 +1,10 @@
 // src/game/Component/livestockcomponent.cpp
 // Clean reimplementation of LivestockComponent::Update from Application-x64.exe.
 //
-// LivestockComponent (0x38 bytes) is a simple reproduction timer. Accumulates
+// LivestockComponent (0x38 bytes) is a simple production timer. Accumulates
 // elapsed time into +0x30. When the accumulator exceeds a threshold
-// (configComponent+0x2C * 300.0f), increments the birth counter at
-// herdComponent(+0x28)+0x44 and wraps.
+// (configComponent+0x2C * 300.0f), increments the production counter at
+// pasture(+0x28)+0x44 and wraps.
 //
 // Original: 0x140123b50
 // Decompiled from Application-x64.exe using Ghidra.
@@ -26,7 +26,7 @@
 // ============================================================
 // LivestockComponent::Update (vtable slot [9], 0x140123b50)
 // ============================================================
-// Reproduction timer: accumulates delta time, fires birth event
+// Production timer: accumulates delta time, credits the pasture's production
 // when threshold exceeded (configInterval * 300.0f seconds -> ticks).
 // The multiplier is the .rdata constant 300.0f at 0x140172234 (kRdata_140172234).
 
@@ -87,7 +87,7 @@ void LivestockComponent::OnRemove() {
 }
 
 // [9] 0x140123b50. RDX is a pointer to the elapsed System::Time (EntityList
-// bucket tick 0x1400c42af); the ported body takes the Time by value.
+// bucket tick 0x1400c42af); the ported body takes the same pointer.
 void LivestockComponent::Update(const System::Time* time) {
     const int64_t deltaTime = time ? time->_ticks : 0;
 

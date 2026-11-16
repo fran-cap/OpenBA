@@ -178,7 +178,7 @@ void WgCells_BlendRockGrass(const float* scratch, int dim, const RtUtility::Perl
 void WgCells_BlendOcclusion(const float* scratch, int dim, uint8_t* out) {
     // [WGPAR] rows split. EXACT: each texel's AO reads only the scratch array (written
     // by the pass above, which ParallelFor joined before returning) and accumulates its
-    // OWN 21x21 sums in the unchanged dz/dx order; it writes only its own byte 2.
+    // OWN kernel sums (dz -10..9, dx -10..10) in the unchanged dz/dx order; it writes only its own byte 2.
     System::ParallelFor(0, dim, 8, [&](int rowBegin, int rowEnd) {
         for (int row = rowBegin; row < rowEnd; ++row) {
             for (int col = 0; col < dim; ++col) {

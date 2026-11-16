@@ -24,7 +24,7 @@
 // types header before opening the PE.
 //
 // All six mangled names were checked against the shipped export table before a
-// line was written (reference_resolveexport_phantom_names). Two of them are
+// line was written. Two of them are
 // spelled `UEBAI` — const, returning UNSIGNED int — which is why the two
 // getters below return uint32_t and not int32_t.
 // ============================================================================
@@ -44,9 +44,9 @@
 // real constructor (Stream.h) stores it, so the six slot doors that used to sit
 // here -- one qualified call each into the members below, registered by name
 // and by address so the minted table could name them -- have no reader and are
-// gone, with their registration. Slot 0 (0x1800242a0) is the inline
-// `MemoryStream::DeletingDtor` in Stream.h. The by-name ??0/??1/Open/Create
-// doors stay in compressedstream.cpp for their callers outside the class.
+// gone, with their registration. Slot 0 (0x1800242a0) is the deleting dtor
+// the compiler emits for the virtual `~MemoryStream` in Stream.h. Open and
+// Create are members defined in compressedstream.cpp.
 namespace IO {
 
 // ============================================================================

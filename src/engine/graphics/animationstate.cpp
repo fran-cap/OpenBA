@@ -4,9 +4,8 @@
 // half of the skeleton-animation cluster (cutover closure batch 3, 2026-09-12).
 // ============================================================================
 //
-// WHAT IS IN HERE, with retail addresses. Four are exported; the rest are
-// template instantiations and per-record helpers with no name in either build,
-// registered by address.
+// WHAT IS IN HERE, with retail addresses. Five are exported; the rest are
+// template instantiations and per-record helpers with no name in either build.
 //
 //   0x1800127f0  ??0Node@GraphicsMesh@Graphics@@QEAA@AEBU012@@Z   copy ctor
 //   0x18005b660  (unexported)  Graphics::AnimationState copy ctor
@@ -45,11 +44,10 @@
 // `Math::Quaternion::Lerp` (0x18001d500) returns a Quaternion BY VALUE, so
 // MSVC passes the destination buffer in RDX and shifts the real arguments
 // right: RCX = the FROM quaternion, RDX = the return buffer, R8 = the TO
-// quaternion, R9 = &t. The typedef below carries that slot. Getting it wrong
-// is a wild write into whatever the caller had in RDX
-// (reference_hidden_retslot_wild_write.md); it is spelled the same way
-// src/engine/graphics/mesh.cpp:1801 and scene.cpp:366 already spell it, so
-// there is one shape to get right and not three.
+// quaternion, R9 = &t. `GetPoseAtTime` below calls it as the member, so the
+// compiler supplies that slot. Getting it wrong is a wild write into whatever
+// the caller had in RDX; mesh.cpp's
+// `RtLerpTransformPair` calls the member the same way.
 //
 // PORTABILITY: no <windows.h>, per PLAN §4.1 decision 1.
 // ============================================================================
@@ -57,7 +55,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <new>                 // placement new, for the Node copy-ctor door
+#include <new>                 // placement new, for the Node copy-ctor element op
 
 #include "system/String.h"
 #include "collection/Collection.h"
@@ -66,7 +64,7 @@
 // ENDGAME B.3.5 block H1: the real `Graphics::Animation` / `AnimationState` /
 // `AnimationManager` classes, and `System::Time` for the two tick parameters
 // `Animation::GetPoseAtTime` takes by reference. Value.h is what drags the ONE
-// global `struct Time` (engine/types/common.h) into this translation unit; no
+// global `struct Time` (src/engine/global_types.h) into this translation unit; no
 // other header here declares one, so there is nothing for it to collide with.
 #include "graphics/Animation.h"
 #include "graphics/AnimationState.h"
@@ -94,8 +92,8 @@ namespace {
 // Rt_ArrayAssign_* (array_graphics_anim.cpp, declared in AnimationState.h),
 // rtcoll::RtColl_ArraySetSize_180059140 (Array<Math::Transform>::SetSize),
 // rtpickgrid::TransformArrayAssign (0x18001b360, Array<Math::Transform>::
-// operator=). ExternalPtr<AnimationGroup>::Serialize is
-// RtObject_ExternalPtrSerialize_AnimationGroup (0x18005b840) and
+// operator=). ExternalPtr<AnimationGroup>::Serialize (0x18005b840) is
+// Object::SerializeExternal<Graphics::AnimationGroup> and
 // Math::Quaternion::Lerp (0x18001d500) is the member.
 // ---------------------------------------------------------------------------
 using rtpickgrid::TransformArrayAssign;
@@ -116,9 +114,8 @@ bool IsReading(const IO::Serializer& ser) {
     return ser._stream->_direction == IO::kReading;
 }
 
-// ExternalPtr<AnimationGroup>::Serialize (0x18005b840). LEFT: the object
-// block's entry point still takes the `RtObject::External**` / `rt::io::
-// Serializer*` PODs (src/engine/object/External.h:1046).
+// ExternalPtr<AnimationGroup>::Serialize (0x18005b840), through the object
+// block's `Object::SerializeExternal<T>` (src/engine/object/External.h).
 void SerializeGroupPtr(Graphics::AnimationGroup*& group, IO::Serializer& ser) {
     Object::SerializeExternal<Graphics::AnimationGroup>(ser, group);
 }
@@ -227,9 +224,10 @@ extern "C" void* RtGraphics_AnimInstance_CopyCtor(void* dstv, const void* srcv) 
 // the sixth (0x180059820) takes `(Array*, Serializer*)` and does the count and
 // the resize itself. The asymmetry is retail's and is reproduced.
 //
-// Every one of them reads the DESTINATION sizes back out of the array header
-// AFTER the resize, never from the local it just deserialized — which is why
-// `count` is passed on rather than re-read.
+// Each resize-then-loop reads the array's `_data` back out of the header AFTER
+// the resize, but takes the count from the local it just deserialized, never from
+// the header (0x1800fe297 `MOV R8,[RSI+0x8]`, 0x1800fe29b `MOV EDX,[RSP+0x30]`) —
+// which is why `count` is passed on rather than re-read.
 //
 // B.4: each takes the element type retail's instantiation names, and reaches
 // the ReaderWriter's SerializeInt (+0xA0), SerializeFloat (+0x80),
@@ -360,43 +358,22 @@ void RtGraphics_SerializeAnimInstances(IO::Serializer& ser, int count,
     }
 }
 
-// ============================================================================
-// ?Serialize@AnimationState@Graphics@@QEAAXAEAVSerializer@IO@@@Z  (0x1800fe250)
-// ============================================================================
-
-// ============================================================================
-// ?ResetAnimationState@AnimationState@Graphics@@QEAAXXZ  (0x1800fd930)
-// ============================================================================
-
-// ============================================================================
-// ?GetPose@AnimationManager@Graphics@@QEBAXHPEAVTransform@Math@@H@Z (0x1800fb8e0)
-// ============================================================================
-
-// ============================================================================
-// ?GetPoseAtTime@Animation@Graphics@@QEBAXAEBVTime@System@@0PEAVTransform@Math@@H@Z
-// (0x1800faca0)
-// ============================================================================
-
 // ############################################################################
 // ENDGAME B.3.5 step 5, block H1 — the member bodies.
 //
 // Their own `namespace Graphics { }` block, after this file's anonymous
 // namespace has closed, because a member definition has to appear in a namespace
 // ENCLOSING the class and `Graphics` / `RtGraphics` are siblings (B34_BRIEFS
-// section A.2). The anonymous namespace's helpers (`RwInt`, `IsReading`,
-// `SetSize*`, `RtAddr`, `AnimationManagerSingleton`, `SecondsPerTick`,
-// `QuaternionLerp`) are reachable unqualified: they are members of the global
-// namespace's unnamed namespace, in this same translation unit.
+// section A.2). The anonymous namespace's helpers (`IsReading`,
+// `SecondsPerTick`, `SerializeGroupPtr`) are reachable unqualified: they are
+// members of the global namespace's unnamed namespace, in this same translation
+// unit.
 //
-// FOUR BODIES MOVED HERE, and the doors above keep their mangled names, their
-// retail addresses and their registrations. None of these three classes is
-// polymorphic, so the `Class::` on each delegation is uniformity rather than
-// recursion-avoidance (B34_BRIEFS A.1) — it is spelled anyway.
+// FOUR MEMBER BODIES HERE: `AnimationState::Serialize` and `ResetAnimationState`,
+// `AnimationManager::GetPose` and `Animation::GetPoseAtTime`.
 //
 // GREP HAZARD: a bare `AnimationState` / `AnimationManager` / `Animation` in
-// here binds the CLASS. The PODs this file also uses — `AnimStateRec`,
-// `AnimInstanceRec`, `AnimationManagerView` — are spelled `RtGraphics::` inside
-// this block.
+// here binds the CLASS.
 // ############################################################################
 
 namespace Graphics {
@@ -515,9 +492,8 @@ void AnimationManager::GetPose(int handle, Math::Transform* out, int count) cons
 }
 
 // ?GetPoseAtTime@Animation@Graphics@@QEBAXAEBVTime@System@@0PEAVTransform@Math@@H@Z
-// retail 0x1800faca0. The banner above the door carries the porting argument;
-// every field is a named member of `Graphics::Animation`, whose layout is pinned
-// in src/engine/graphics/Animation.h against the same instructions.
+// retail 0x1800faca0. Every field is a named member of `Graphics::Animation`, whose
+// layout is pinned in src/engine/graphics/Animation.h against the same instructions.
 void Animation::GetPoseAtTime(const System::Time& timeRef, const System::Time& deltaRef,
                               Math::Transform* out, int /*unused*/) const {
     const int64_t* const time  = &timeRef._ticks;
@@ -618,8 +594,8 @@ void Animation::GetPoseAtTime(const System::Time& timeRef, const System::Time& d
 // The name slot is stored ZERO FIRST and only then given the source's pointer:
 // that is what makes this safe to run into raw `MemAlloc` memory, and it is why
 // retail's `Array<Node>::operator=` calls it directly on a buffer it has just
-// allocated. A member-initialiser list would do the same thing, but the two
-// stores are written out in retail's order so the sequence stays visible.
+// allocated. The `_name(src._name)` initialiser below is that pair: `String`'s
+// copy constructor.
 //
 // THE THREE ASSIGNMENTS ARE RETAIL'S FIFTEEN-DWORD FLAT COPY, exactly:
 // `_parent` (4) + `_local` (0x1c) + `_bind` (0x1c) = 0x3c bytes spanning

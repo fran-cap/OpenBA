@@ -15,14 +15,13 @@
 //   | AddLine                         | 0x18011cbe0 | yes    | replay (early)  |
 //   | AddSpriteDraw   (internal)      | 0x18011c890 | yes    | replay (cull)   |
 //   | FlushDeferred   (internal)      | 0x18011c6a0 | yes    | replay (no-op)  |
-//   | Flush           (internal)      | 0x18011ba40 | **NO** | —               |
-//   | Begin           (internal)      | 0x18011d2b0 | **NO** | —               |
+//   | Flush           (internal)      | 0x18011ba40 | yes    | —               |
+//   | Begin           (internal)      | 0x18011d2b0 | yes    | —               |
 //
 // The two `Array<UI::SpriteDraw>` instantiations these bodies call —
-// 0x180078520 (append) and 0x1800783d0 (clear) — are ported and registered by
-// this lane too, but they live in src/engine/collection/array.cpp with the
-// rest of that family rather than here. See the `J3_ENTRY3(180078520, …)` and
-// `RtColl_ArraySetSize_1800783d0` blocks there for why.
+// 0x180078520 (append) and 0x1800783d0 (clear) — are the `kSpec_SpriteDraw` row,
+// which lives in src/engine/collection/array.cpp with the rest of that family
+// rather than here.
 //
 // ---------------------------------------------------------------------------
 // THE HIDDEN RETURN SLOT — the one defect this file was most likely to have
@@ -49,61 +48,6 @@
 // argument slot. Four register arguments precede it: this, slot, x, y. If the
 // slot were not an argument, `w` would sit at +0x20, not +0x28.
 //
-// Both typedefs below therefore carry the slot explicitly, and the oracle in
-// each body drives the DLL through that typedef — so if the arity were wrong
-// the replay would corrupt its own scratch and report a divergence rather than
-// passing quietly. `tools/abi_retslot_audit.py` covers engine_funcs only, so
-// this file's proof has to be the oracle.
-//
-// ---------------------------------------------------------------------------
-// WHY THE ORACLE ONLY COVERS THE EARLY BRANCHES, AND WHAT THAT COSTS
-// ---------------------------------------------------------------------------
-// None of these five bodies is replayable in full. `SetScissor` flushes the
-// batch into the GPU vertex buffer and pushes a scissor record onto the
-// capture; `AddLine` and `AddSpriteDraw` APPEND to the batch, so a second call
-// queues the sprite twice; `FlushDeferred` drains and clears. Running the
-// shipped body a second time on the live object would draw the frame twice —
-// which is exactly the argument Wave 7 lane F made for the whole class, and it
-// remains true for the MUTATING PATH.
-//
-// It is NOT true for the early-out paths, and each of those is a real branch
-// taken by a large fraction of real calls:
-//
-//   * `SetScissor` with an unchanged rect calls NOTHING and touches NOTHING —
-//     it writes four ints into the return slot and returns (0x18011d0d8).
-//   * `AddLine` with a null sheet or a negative sprite index returns before
-//     its first store (0x18011cc0c, 0x18011cc12).
-//   * `AddSpriteDraw` that culls the record appends nothing; when the capture
-//     is also null it is a complete no-op.
-//   * `FlushDeferred` with `_deferring` clear returns immediately (0x18011c6ad).
-//
-// On those branches the shipped body is side-effect free.
-//
-// ONE CASE IS BETTER THAN THAT, and it is the case that matters most:
-// `AddSpriteDraw`'s cull replay is safe even when the two implementations
-// DISAGREE. If ours culls and the shipped body appends, the live batch ends up
-// with the record retail would have queued — i.e. correct — rather than
-// corrupted. So this oracle can be left on through a full gameplay run without
-// a "if it fires we have already broken the frame" caveat, and it is the one
-// that covers the float scissor arithmetic.
-//
-// ---------------------------------------------------------------------------
-// FLUSH IS AN ADDRESS DOOR AND THIS FILE OPENS IT DELIBERATELY
-// ---------------------------------------------------------------------------
-// `Flush` (0x18011ba40) is reached through `ResolveAddr(Module::Runtime, …)`,
-// which consults the PORT REGISTRY FIRST
-// (reference_resolveaddr_consults_port_registry_first.md) — so this is not
-// "call the DLL", it is "call whatever is registered at that address", and the
-// day someone ports Flush these five bodies pick it up with no edit here. It
-// is NOT a raw door and `tools/rawdoor_audit.py` is not the instrument for it;
-// `tools/addr_door_audit.py` is, and the lane doc shows the before/after
-// set-diff including this row.
-//
-// Until then it resolves to the shipped body, and at cutover it resolves to
-// null. That is a REAL COST and the lane doc states it as one rather than
-// burying it: this file closes three export doors and opens one address door
-// that nothing else in the tree opens
-// (reference_porting_can_grow_the_cutover_surface.md).
 // ============================================================================
 
 #include <cstddef>
@@ -118,12 +62,6 @@
 #include "video/Context.h"
 #include "../collection/array_internal.h" // ENDGAME B.3.2 step 2 — kSpec_SpriteIndexZ etc.
 
-// ----------------------------------------------------------------------------
-// Module / ResolveAddr, forward-declared rather than pulled in from
-// standalone/resolve.h, which drags in <windows.h> (PLAN §4.1 keeps it out of
-// src/engine/). These must stay byte-identical to resolve.h's; the linker
-// checks them. Same reasoning and same spelling as src/engine/ui/sprite.cpp.
-// ----------------------------------------------------------------------------
 namespace {
 
 using UI::SpriteContext;
@@ -156,10 +94,8 @@ inline int ScaleUp(int v, float scale) {
 // The ports — UI::SpriteContext's members (ENDGAME B.3.6 block D)
 // ============================================================================
 // Every body is byte-faithful to the retail DISASSEMBLY, not to Ghidra's
-// decompiled C (reference_ghidra_c_output_vs_disassembly.md). No null guard
-// retail does not have. The registered doors follow, each a one-line
-// delegation (SpriteContext is NOT polymorphic, so the `UI::SpriteContext::`
-// qualification is uniformity, not load-bearing).
+// decompiled C. No null guard
+// retail does not have.
 namespace UI {
 
 // ?Begin@SpriteContext@UI@@QEAAXMPEAVSpriteCapture@2@PEAVViewport@Video@@@Z
@@ -199,7 +135,7 @@ void SpriteContext::Begin(float scale, SpriteCapture* capture, Video::Viewport* 
     // Math::Matrix's default ctor (retail 0x18001d770) zeroes all sixteen cells.
     Matrix identity;
     identity.m[0] = 1.0f; identity.m[5] = 1.0f; identity.m[10] = 1.0f; identity.m[15] = 1.0f;
-    // THE DOOR DECIDES THE OVERLOAD: `?SetTransform@…QEAAXHAEBVMatrix@Math@@@Z`
+    // THE OVERLOAD IS `?SetTransform@…QEAAXHAEBVMatrix@Math@@@Z`
     // (0x18001a6b0) — the (slot, Matrix&) pair, not `SetTransformScale`.
     ctx->SetTransform(0, identity);
 

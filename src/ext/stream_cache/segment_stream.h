@@ -10,7 +10,7 @@
 //
 // A read outside the recorded segments (a record made by a build that read less) FALLS BACK: the
 // opener hands over retail's CompressedStream on the same entry, it is positioned at the current
-// decompressed position (SetCurrentPos decodes the block, as any Read there would) and the load
+// decompressed position (its next Read decodes the block there, as any Read would) and the load
 // goes on through it; every call is forwarded from then on. The bytes already consumed from the
 // record are the ones that stream would have given (the record is those bytes), so the load is the
 // same load. The fallback is counted (Extended) and the owner widens the record with what the rest

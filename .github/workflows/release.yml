@@ -1,5 +1,5 @@
 name: Release
-# Builds the release flavour on the three platforms, runs the unit tests on that flavour, packages
+# Builds the release flavour on the three platforms, runs the unit tests on it (Windows, Linux), packages
 # each platform (tools/release/package.sh; tools/macos/make_app.sh + make_release_zip.sh), builds
 # and signs the Android apk (tools/android.sh build release + sign, the release key from the
 # repository's secrets) and, on a `v*` tag, publishes the GitHub release with the CHANGELOG.md

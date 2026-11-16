@@ -3,8 +3,8 @@
 //
 // ConsumeProduceComponent extends ResourceProduceComponent (0x70 bytes).
 // Two non-trivial vtable overrides:
-//   Shutdown  (0x140118e00) — parent Shutdown + versioned serialization of consume fields
-//   Serialize (0x140118ef0) — init consume data from building template
+//   Persist (0x140118e00) — parent Persist + versioned serialization of consume fields
+//   Startup (0x140118ef0) — init consume data from building template
 //
 // Decompiled from Application-x64.exe using Ghidra.
 
@@ -35,9 +35,9 @@
 // The IsDerivedFrom import slot 0x140152a98 is Object::Base::IsDerivedFrom.
 
 // ============================================================
-// ConsumeProduceComponent::Shutdown (vtable slot [3], 0x140118e00)
+// ConsumeProduceComponent::Persist (vtable slot [3], 0x140118e00)
 // ============================================================
-// Calls parent ResourceProduceComponent_Shutdown, then serializes:
+// Calls parent ResourceProduceComponent::Persist, then serializes:
 //   - consumeResourceId (+0x50)
 //   - consumeRates._size (+0x60) via local copy, with array resize on load
 //   - float array at consumeRates (+0x58)
@@ -45,17 +45,17 @@
 //   - Version-0 migration: if consumeResourceId < 0 on load, reset to 0
 
 // ============================================================
-// ConsumeProduceComponent::Serialize (vtable slot [4], 0x140118ef0)
+// ConsumeProduceComponent::Startup (vtable slot [4], 0x140118ef0)
 // ============================================================
-// Looks up entity's component list via owner (+0x10), iterates components
-// to find one matching ConsumeProduceDescription type ID (0x1401c7388),
+// Looks up the entity's description (+0x28) via owner (+0x10), iterates its child
+// list to find one matching ConsumeProduceDescription type ID (0x1401c7388),
 // then copies consume slot info (count at +0x30, resourceId at +0x4c),
 // and initializes the consumeRates float array to 1.0f per slot.
 //
 // Original decompilation:
 //   CheckPtr(self+0x10)
 //   entity = *(self+0x10)
-//   compList = entity->+0x28 (component list: +0x28=array, +0x30=count)
+//   compList = entity->+0x28 (the description's child list: +0x28=array, +0x30=count)
 //   for i in range(compList.count):
 //     comp = compList[i]
 //     typeId = comp->vtable[+0x10]()  // GetTypeId virtual
@@ -116,7 +116,7 @@ ConsumeProduceComponent::~ConsumeProduceComponent() {
 // [3] 0x140118e00 (serialize) and [4] 0x140118ef0 (Startup: init the consume config
 // from the building's ConsumeProduceDescription).
 void       ConsumeProduceComponent::Persist(IO::Stream& stream) {
-    // Base ResourceProduceComponent::Shutdown (0x14012b4a0), a direct call in retail.
+    // Base ResourceProduceComponent::Persist (0x14012b4a0), a direct call in retail.
     ResourceProduceComponent::Persist(stream);
 
     // Create versioned serializer (version 1)
@@ -135,7 +135,7 @@ void       ConsumeProduceComponent::Persist(IO::Stream& stream) {
     // On load (the stream's direction word, IO::Serializer::GetDirection == 0): resize.
     if (static_cast<int>(ser.GetDirection()) == 0) {
         // exe 0x140023a00 IS Collection::Array<float>::SetSize(n)
-        // (bare float — see the derived-row note above the typedefs).
+        // (bare float — see the derived-row note under "Resolved helpers" above).
         consumeRates.SetSize(localCount);
     }
 

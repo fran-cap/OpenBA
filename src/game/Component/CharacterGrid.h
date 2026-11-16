@@ -78,7 +78,7 @@ public:
     // +0x04..+0x5F (the five Arrays' ctors), the scalars, then the level table and the
     // two 0x5555-cell arrays (gameupdateloop_load.cpp).
     explicit CharacterGrid(float worldSize);
-    // The port-only seed (charmanager_seed.cpp, gated): every field zero, as its memset was.
+    // The port-only seed (charmanager_seed.cpp): every field zero, as its memset was.
     CharacterGrid() : worldSize(0.0f), centerX(0.0f), centerY(0.0f), levels(0) {}
     // 0x140018220: the five ~Array, +0x50 down to +0x10 (reverse declaration order; trivial
     // elements: MemFree, data = 0, the size + capacity qword = 0). No body.

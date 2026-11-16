@@ -40,8 +40,8 @@ bool Supported() {
 }
 
 void RequestReadableDepth(bool on) {
-    // The AO pass's own request (draw.h THE READABLE DEPTH: ext.better_water's scene depth copy is the
-    // other reader); logged when it changes.
+    // The AO pass's own request (draw.h THE READABLE DEPTH: each other reader sets its own DepthReader
+    // bit); logged when it changes.
     // THE SHARED DEPTH COPY (depth_copy/depth_copy.h): the pass reads it with a multisampled depth.
     VideoVulkan::DepthCopy::Request(VideoVulkan::kDepthReaderAo, on);
     if (VideoVulkan::DrawRequestReadableDepth(VideoVulkan::kDepthReaderAo, on)) {

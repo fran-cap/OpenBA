@@ -17,7 +17,7 @@
 // `ConstructBody`, the eight slot doors, slot 0's by-address body
 // `RtUiStringTable_ScalarDelete` (0x180002740) and the `??1` door
 // (stringtable_lifecycle.cpp). Their attendance counters go with them. The
-// factory pair is the class's own statics, registered by retail name and VA.
+// factory pair is the class's own statics.
 //
 // THE BODIES, READ OFF THE DISASSEMBLY (kept from the Wave 26 transcription):
 //
@@ -36,7 +36,7 @@
 // src/engine/ui/dialog_factory.cpp already transcribes as a call to the
 // out-of-line locked wrapper `?MemAlloc@System@@YAPEAX_KH@Z` (0x1800c7a50).
 // The two prologues were compared side by side rather than assumed to match
-// from resemblance (reference_a_written_recipe_can_be_wrong.md): the ONLY
+// from resemblance: the ONLY
 // differing bytes are the size immediate (0x30 vs 0x88) and the LEA
 // displacement that computes align 8 from it (-0x28 vs -0x80). The `LEA
 // R8D,[RDX-0x28]` is a code-size trick for `MOV R8D,8`; it is written below as
@@ -72,7 +72,7 @@
 //     slot = (stream->direction == 0) ? +0x18 : +0x20      18011d96f/97a/97f
 //     ser.impl = enc->vtbl[slot](enc, &ser, 0)
 //     count = self->size                        18011d987  [RBX+0x28]
-//     ser.impl->vtbl[0xa0](impl, &count, 0)     18011d99e  the uint32 overload
+//     ser.impl->vtbl[0xa0](impl, &count, 0)     18011d99e  the int32 overload
 //     if (stream->direction == 0)               18011d9a9
 //         Array<TextEntry>::SetSize(&self->data, count)    18011d9b7 -> 0x180078c90
 //     e = self->data                            18011d9bc
@@ -167,8 +167,7 @@ bool StringTable::Serialize(IO::Stream& streamV) {
     }
 
     TextEntry* e = _entries._data;                           // 18011d9bc
-    // System::String::Serialize (0x1800c9930), by name. The two Strings are
-    // spelt `char*` in TextEntry (H5), so each is viewed as the String it is.
+    // System::String::Serialize (0x1800c9930), by name, on each entry's two Strings.
     for (int32_t i = 0; i < count; ++i, ++e) {               // bound is the LOCAL
         e->name.Serialize(ser);                                       // 18011d9d8
         e->text.Serialize(ser);                                       // 18011d9e6
@@ -179,8 +178,6 @@ bool StringTable::Serialize(IO::Stream& streamV) {
     return true;                                             // 18011da08
 }
 
-// ~StringTable: EMPTY; `RtUiStringTable_Dtor`
-// (stringtable_lifecycle.cpp) is the registered door that does retail's work.
 // ??1StringTable@UI@@UEAA@XZ   0x18011d8f0 — retail's body, moved here from
 // the retired `RtUiStringTable_Dtor` door (stringtable_lifecycle.cpp):
 //     18011d906  re-stamp OUR vptr                 (the compiler's now)

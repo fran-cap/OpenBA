@@ -4,11 +4,11 @@
 // PathTool (0x60 bytes) extends Tool (0x28 bytes) directly (NOT DragTool).
 // Handles path placement: multi-point entity selection with highlighting.
 //
-// Vtable at 0x140160680 (13 slots). Four are reimplemented here:
-//   Slot0  Dtor      (0x140026b70) — scalar deleting destructor
-//   Slot6  OnKey     (0x1400de6b0) — path creation input handler
-//   Slot8  Draw      (0x1400dd3b0) — render path preview
-//   Slot10 Serialize (0x1400de8d0) — save/load entity comparison
+// Vtable at 0x140160680 (14 slots). Four are reimplemented here:
+//   Slot6  OnKey       (0x1400de6b0) — path creation input handler
+//   Slot8  Draw        (0x1400dd3b0) — render path preview
+//   Slot10 IsSelected  (0x1400de8d0) — selected-entity comparison
+//   Slot13 GetSelected (0x140026b60) — the selected-entity handle
 //
 // Decompiled from Application-x64.exe.
 
@@ -31,11 +31,11 @@
 #include "Game/inputbindings.h"   // GameKey (the KeyMap binding ids)
 
 // ============================================================
-// PathTool helpers, called by name (Player/exe_bodies.h):
+// PathTool helpers, called by name:
 //   0x1401005a0 PlayerRay_GetMouseRay_1005a0 -- ray from the mouse position
 //               (this call site passes (keyMap, dir, origin))
-//   0x1400aa530 PlayerRay_TerrainMarch_aa530 -- intersect the ray with the terrain
-//   0x1400a0280 PlayerEdit_EntityAtCell_a0280 -- entity at a map cell
+//   0x1400aa530 WorldGeometry::TerrainMarch -- intersect the ray with the terrain
+//   0x1400a0280 Map::EntityAtCell -- entity at a map cell
 //   0x1400dd710 PathTool::SetSelected -- SetSelectedEntity (+ highlighting)
 //   0x1401008c0 PlayerTileRender_DrawOverlay_08c0 -- the tile overlay submit
 // NOTE: the former s_fn_SubmitDebugDraw helper was removed — it resolved a
@@ -132,7 +132,7 @@ char PathTool::OnKey(char key) {
     Picking::Scene* pickingScene = GameUpdateLoop::_singleton->m_pickingScene;
     if (pickingScene) {
         // Picking::Scene::Intersect / GetUserData (import slots 0x140152428 /
-        // 0x140152890), arguments in the door's positional order.
+        // 0x140152890).
         uint32_t hitIdx = static_cast<uint32_t>(pickingScene->Intersect(
             Math::Vector3(rayDir[0], rayDir[1], rayDir[2]),
             Math::Vector3(rayOrigin[0], rayOrigin[1], rayOrigin[2]),
@@ -229,14 +229,13 @@ void PathTool::Draw(Video::Context* context, char) {
 }
 
 // ============================================================
-// PathTool::Serialize (vtable +0x50, Slot10) — Entity comparison
+// PathTool::IsSelected (vtable +0x50, Slot10) — Entity comparison
 // ============================================================
 // Calls CheckPtr on self->selectedEntity (+0x28), then compares *param2
 // to the selected entity value. Returns true if they match.
 //
 // Original: 0x1400de8d0
 bool PathTool::IsSelected(ComponentEntity* const* param2) {
-    // Call CheckPtr on self->selectedEntity to resolve any lazy pointer
 
     // Compare the stream value to the selected entity
     return *param2 == selectedEntity;

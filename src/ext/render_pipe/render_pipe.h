@@ -1,5 +1,5 @@
 // ============================================================================
-// src/ext/render_pipe/render_pipe.h -- ext.render_pipe (class A, default OFF)
+// src/ext/render_pipe/render_pipe.h -- ext.render_pipe (class A, default ON)
 // ============================================================================
 // NOT RETAIL. docs/extensions/handins/RENDERPIPE0.md; THREADRESEARCH.md section 1.5.
 //
@@ -24,7 +24,7 @@ namespace Ext {
 namespace RenderPipe {
 
 // Install the seam when ext.render_pipe is on (the switch-off is the hook's own,
-// at the next Frame tail). Called by Ext::InitFromSettings and Ext::SetAndRecord.
+// at the next Frame tail). Called by Ext::InitFromSettings, Ext::SetAndRecord and ext.town_screenshot.
 void Sync();
 bool Installed();
 

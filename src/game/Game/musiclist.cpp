@@ -53,8 +53,7 @@
 #include "audio/SoundEffect.h"   // B8 RT2: ::Object::SerializeExternal<Audio::SoundEffect> (the downcast needs it complete)
 
 // Exe-internal array resize helper for the 0x18-byte track entries
-// (0x14001c3c0). The exe-internal addr is not registered, so the faithful local
-// resize below, with the same default-init, is what runs.
+// (0x14001c3c0): the faithful local resize below, with the same default-init.
 namespace { std::atomic<bool> s_resizeWarned{false}; }
 
 // ============================================================
@@ -143,7 +142,7 @@ bool MusicList::Serialize(IO::Stream& stream) {
     // GetDirection, retail 0x180006210, reads the stream's +8). (The old test of
     // the serializer's stream pointer for null is gone: it holds the stream
     // reference above.)
-    // FUN_14001c3c0 is unregistered; the resize is the local mirror above.
+    // The resize (FUN_14001c3c0) is the local mirror above.
     if (static_cast<int>(ser.GetDirection()) == 0) {
         MusicList_ResizeEntries_Fallback(_entries, count);
     }
@@ -164,8 +163,8 @@ bool MusicList::Serialize(IO::Stream& stream) {
             // NOT a String. The original element serializer (exe FUN_1400019a0) is
             // the templated ExternalPtr::Serialize (encoding/ref-mode aware: reads a
             // uint refId in reference mode, else a bool + path String) — NOT
-            // System::String::Serialize. Reimpl_ExternalPtr_Serialize_StringTable(0x14000bf40) is
-            // the byte-identical instantiation (same one UIDescription's element
+            // System::String::Serialize. ::Object::SerializeExternal<Audio::SoundEffect> below
+            // (retail 0x14000bf40) is the byte-identical instantiation (same one UIDescription's element
             // ptrs use). Reading +0x00 as a bare String consumed the wrong byte
             // count and drifted the whole element loop past EOF.
             ::Object::SerializeExternal<Audio::SoundEffect>(ser, elem[i].sound);

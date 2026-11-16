@@ -7,7 +7,7 @@
 //
 // UNITS. Retail's `UserInterface::_uiScale` is LAYOUT UNITS PER DEVICE PIXEL:
 // the layout space is (int)(backBuffer * _uiScale) (userinterface_draw.cpp,
-// element_common.h:169) and UserInterface::Draw's orthographic camera maps it
+// element_common.h:162) and UserInterface::Draw's orthographic camera maps it
 // onto the whole back buffer. So the device-pixel RATIO (device pixels per
 // layout unit) is 1 / _uiScale: the Options slider's 75% (_uiScale 0.75) is
 // ratio 1.333 (a bigger UI), 150% is ratio 0.667 (a smaller UI). _uiScale is
@@ -38,7 +38,7 @@ namespace Ext {
 namespace SharpUI {
 
 // The layout extent retail derives from a back-buffer extent and _uiScale:
-// (int)((float)extent * scale), exactly element_common.h:169's arithmetic.
+// (int)((float)extent * scale), exactly element_common.h:162's arithmetic.
 int32_t LayoutExtent(int32_t backBufferExtent, float uiScale);
 
 // What a frame drawn at `uiScale` gets.

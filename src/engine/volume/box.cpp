@@ -10,8 +10,8 @@
 //
 // Volume::Box has no dedicated original source file recovered from the
 // profile build's debug strings (only Frustum.cpp/.h are listed — see
-// src/engine/volume/README.md); its methods are ported here alongside
-// Rectangle's, mirroring the class grouping in this header's own file.
+// src/engine/volume/README.md); its methods are ported here, and Rectangle's
+// in src/engine/volume/rectangle.cpp.
 // ============================================================================
 
 #include "volume/Volume.h"
@@ -27,7 +27,7 @@ Box* RtVolume_Box_Ctor(Box* self) {
 
 // ??4Box@Volume@@QEAAAEAV01@AEBV01@@Z   retail 0x180011e70  (operator=)
 Box* RtVolume_Box_Assign(Box* self, const Box* other) {
-    Box before = *self;   // pristine copy for the shadow run below
+    Box before = *self;   // a copy nothing reads
     *self = *other;
     return self;
 }

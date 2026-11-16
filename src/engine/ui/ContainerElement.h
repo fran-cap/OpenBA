@@ -7,14 +7,14 @@
 // PARENT `UI::Element` — READ, not inferred:
 //     ?_ParentTypeName@ContainerElement@UI@@CAPEBDXZ @0x180039c90 -> "Element"
 //
-// RULE B5-15 / B6-7 — THE TWO NAME LITERALS, RECORDED, NOT USED (slots 1/2 keep
-// reading the minted `?_typeInfo@ContainerElement@UI@@…`, 0x1801f9dd8):
+// RULE B5-15 / B6-7 — THE TWO NAME LITERALS, which the class's DEFINE_TYPE
+// (containerelement.cpp) carries (retail's `?_typeInfo@ContainerElement@UI@@…`, 0x1801f9dd8):
 //     ?_TypeName@ContainerElement@UI@@CAPEBDXZ       @0x180039c80 -> "ContainerElement"
 //     ?_ParentTypeName@ContainerElement@UI@@CAPEBDXZ @0x180039c90 -> "Element"
 //
 // `??_7ContainerElement@UI@@6B@` @ 0x1801564b0, TWELVE slots (B36_SLOTS.md
 // section 1; sizeof from `MOV EDX,0xd8` in slot 0 0x18003a050):
-//   [0] 0x18003a050  vector deleting dtor (deleting_dtor.cpp row)
+//   [0] 0x18003a050  vector deleting dtor (the class's own)
 //   [1] 0x180039cc0  TypeName      [2] 0x180039ca0  Type
 //   [3] 0x180116870  Element::Persist        INHERITED
 //   [4] 0x1800cc850  ComputeSize   [5] 0x1800cc620  ComputeLayout
@@ -26,7 +26,7 @@
 // own statics: every live ContainerElement -- built by the factory or by
 // `ContainerDescription::CreateInstance` -- wears the COMPILER's table. The
 // minted `??_7ContainerElement@UI@@6B@`, its RT_DELDTOR row 0x18003a050, the
-// ??0 / copy / ??1 doors and the slot doors are retired (ui-b.txt).
+// ??0 / copy / ??1 doors and the slot doors are retired.
 //
 // LAYOUT (RULE B6-8) — MOVED here from containerelement.cpp's file-local
 // constants. Evidence: `??0ContainerElement@UI@@QEAA@XZ` (0x1800ccb40), read as
@@ -87,15 +87,14 @@ public:
     // ---- non-virtual members -----------------------------------------------
     int32_t GetWidth() const  { return _requestedWidth; }         // 0x180039ee0 MOV EAX,[RCX+0xc0]
     int32_t GetHeight() const { return _requestedHeight; }        // 0x180039ef0 MOV EAX,[RCX+0xc4]
-    // Defined in ANOTHER BLOCK'S FILE (element.cpp, fragment pass F2); the
-    // door `RtUi_ContainerElement_SetOffsets` there delegates to it.
+    // Defined in ANOTHER BLOCK'S FILE (element.cpp, fragment pass F2).
     void SetOffsets(int32_t x, int32_t y);                        // 0x1800cc1e0
     // Exported, not ported (inlined by ComboDialog's ctor): declared, undefined.
     void SetSize(int32_t w, int32_t h);                           // 0x180039eb0
 
     ContainerElement(const ContainerElement& src);                // 0x180039f00  not ported (no caller)
     ContainerElement& operator=(const ContainerElement& src);     // 0x180039f90  not ported
-    // 0x180039cb0 -- over the minted `?_typeInfo@` record until the W3 fold.
+    // 0x180039cb0 -- TypeId (DECLARE_TYPE).
     // Retail's factory pair (B39_RULES D2), containerelement.cpp.
 
 private:

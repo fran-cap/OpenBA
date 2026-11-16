@@ -37,7 +37,7 @@
 //                        `CALL RAX` through a callback pointer stored in the
 //                        channel record. No Runtime callee at all.
 //   FreeChannelPlatform -> EnterCriticalSection / LeaveCriticalSection
-//                        (KERNEL32 imports of the DLL, linked directly here),
+//                        (KERNEL32 imports of the DLL; Platform::MutexLock / MutexUnlock here),
 //                        plus one virtual call through slot +0x90 of the
 //                        platform voice object. No Runtime callee at all.
 //
@@ -46,33 +46,12 @@
 // verdict is preserved below, in full, and this file adds no oracle it cannot
 // justify.
 //
-// ---------------------------------------------------------------------------
-// ORACLE — NONE, and the reason is the same stored callback
-// ---------------------------------------------------------------------------
-// `Update` reaps every finished channel and FIRES ITS STORED COMPLETION
-// CALLBACK. Running the DLL's copy afterwards would find nothing left to reap
-// (our body already cleared the flags) and, on the first pass, would have
-// fired every callback a second time. `FreeChannelPlatform` releases a COM
-// voice through a vtable slot; calling it twice releases a released object.
-// A replay here is a SECOND SIDE EFFECT, not a comparison, and this file does
-// not manufacture one.
-//
-// What it does instead is `the diff oracle` on both sites, because `calls=`
-// counts calls ENTERED and both of these are entered constantly while doing
-// nothing:
-//   * `Update` runs every frame and reaps zero channels in almost all of them.
-//     Its work verdict is "at least one channel had the reap bit set".
-//   * `FreeChannelPlatform` returns at its first instruction whenever the
-//     platform is not up (`Device+0xA88 == 0`), which is the whole of a
-//     no-audio-device run. Its work verdict is "the platform was up".
-// A run whose work column is zero has NOT verified these bodies, and the
-// counter is what makes that visible instead of leaving `calls=` to imply it.
 //
 // ---------------------------------------------------------------------------
 // LAYOUT — every offset below is CROSS-CONFIRMED by a THIRD function
 // ---------------------------------------------------------------------------
 // The channel stride and base are not inferred from `Update`'s loop alone.
-// `Audio::Device::Stop` (0x1800DE200, ord 4105 — already reached by name from
+// `Audio::Device::Stop` (0x1800DE200, ord 4105 — called from
 // audio.cpp's ReleasePlatformChannels) takes an `AudioChannel*` and converts
 // it to an index with `SUB RDX,RCX` followed by the signed-division idiom
 // `MOV RAX,0x6666666666666667 ; IMUL RDX ; SAR RDX,4` — division by 0x28.
@@ -97,8 +76,7 @@
 // the +0xa40 HANDLE, `_stopping` the +0xa80 byte and `_runFlags` the +0xa08
 // gate), `_xaudio2` (+0xa88) and `Audio::Device::PlatformChannel` (+0xa98,
 // stride 0x20: `voice` = the +0xaa0 slot, `channel` = the +0xaa8
-// back-pointer). The four bodies below are the members; the registered doors
-// are one-line qualified delegations.
+// back-pointer). The five bodies below are the members.
 
 #include <cstddef>
 #include <cstdint>
@@ -124,9 +102,8 @@ namespace Audio {
 
 // ---------------------------------------------------------------------------
 // Audio::Device::FreeChannelPlatform(int) — retail 0x1800DE6F0, ord 2380.
-// PRIVATE (`AEAA`), which is why nothing on our side calls it by name today
-// except engine_funcs.cpp's own resolve (engine_funcs.cpp:1562) — and that
-// resolve is precisely the cutover row this closes.
+// PRIVATE (`AEAA`). Called by Update and Stop (this file), OnSoundBufferDeleted
+// (audio_device_buffer_deleted.cpp) and src/engine/engine/mainloop_frame.cpp.
 //
 // Retail:
 //   1800de6f6  CMP qword ptr [RCX+0xa88],0 ; JZ -> return
@@ -145,9 +122,8 @@ namespace Audio {
 // call that changed either of those changes whether the lock is released.
 // That is an unbalanced-lock hazard in the shipped DLL, not a transcription
 // error here, and it is reproduced exactly. (Ghidra's decompiled C for this
-// function folds the two reads into one — the standing warning in
-// reference_ghidra_c_output_vs_disassembly.md; the disassembly above is what
-// this body was written from.)
+// function folds the two reads into one, and its C is not authoritative; the disassembly above is
+// what this body was written from.)
 // ---------------------------------------------------------------------------
 // Not analysed (clang -Wthread-safety): retail takes and releases the Stream lock on two separate
 // reads of the same test, which the analysis cannot pair.
@@ -217,18 +193,10 @@ void Device::Update(const System::Time& /*time — never read*/) {
 // ---------------------------------------------------------------------------
 // Audio::Device::StopPlatform(int) - retail 0x1800DEA20.
 //
-// WAVE 23 LANE TAIL. This body is NOT one of the lane's 18 rows. It is here
-// because of the census trap named in
-// reference_porting_can_grow_the_cutover_surface.md: `Device::Stop` (the row
-// that IS on the board) calls this function, and reaching it with
-// `RT_EXPORT_ONCE("?StopPlatform@Device@Audio@@AEAAXH@Z")` would have ADDED a
-// new called-but-unported row in the same namespace as the one it closed -
-// Audio's gap would have read the same before and after. Porting the callee
-// too is what makes closing `Stop` an actual closure.
+// Called by `Device::Stop` (below), just before `FreeChannelPlatform`.
 //
 // It IS exported, under a PRIVATE (`AEAA`) mangling - this DLL exports its
-// private members, so "private" is not "unexported"
-// (reference_aeaa_is_private_not_unexported.md). Verified with pefile against
+// private members, so "private" is not "unexported". Verified with pefile against
 // the shipped export directory, not inferred: 0x1800DEA20 maps to
 // `?StopPlatform@Device@Audio@@AEAAXH@Z`.
 //
@@ -310,9 +278,7 @@ void Device::SetVolumePlatform(int32_t index, float volume) {
 // Audio::Device::Stop(AudioChannel*) - retail 0x1800DE200, ord 4105.
 // WAVE 23 LANE TAIL - one of the lane's rows.
 //
-// Already reached BY NAME from src/engine/audio/audio.cpp:901
-// (`ReleasePlatformChannels`), which is why it sat in the census's `called`
-// column unported. Registering it flips that call site onto this body.
+// Called from src/engine/audio/audio.cpp's `ReleasePlatformChannels`.
 //
 // Retail:
 //   1800de20a  index = ((char*)channel - (char*)this) / 0x28   ; signed, via
@@ -343,13 +309,8 @@ void Device::SetVolumePlatform(int32_t index, float volume) {
 // C++ integer division does, so `/ kChannelStride` is the faithful spelling
 // and not merely an approximation of it.
 //
-// NO ORACLE, for the reason this file's banner already gives for its two
-// siblings and which applies here verbatim: the body ends in a STORED
-// COMPLETION CALLBACK and a COM voice stop/release. Replaying the DLL's copy
-// afterwards would fire the callback a second time and release a released
-// object - a second side effect, not a comparison. `the diff oracle` carries the
-// distinction `calls=` cannot: there is no early-out here, so the work verdict
-// is `true` and the number to read is whether the callback fired.
+// NO EARLY-OUT in this body: it always calls StopPlatform and FreeChannelPlatform
+// and runs the reap epilogue, which ends in the STORED COMPLETION CALLBACK.
 // ---------------------------------------------------------------------------
 void Device::Stop(AudioChannel* channelPtr) {
     // no early-out; see the banner
@@ -372,9 +333,8 @@ void Device::Stop(AudioChannel* channelPtr) {
 }  // namespace Audio
 
 // ============================================================================
-// THE DOORS — one-line qualified delegations.
+// THE CLASS STATIC.
 // ============================================================================
 
-// ?_singleton@Device@Audio@@0PEAV12@EA (0x1801fe760) -- the class static (ENDGAME B.3.9 ENG, B39_RULES D7);
-// RtAudioPortInit redirects the minted storage row onto it.
+// ?_singleton@Device@Audio@@0PEAV12@EA (0x1801fe760) -- the class static (ENDGAME B.3.9 ENG, B39_RULES D7).
 ::Audio::Device* ::Audio::Device::_singleton = nullptr;

@@ -31,7 +31,7 @@ the build when such a type moves a PINNED offset; this script covers what they c
      directory) count exceeds the baseline. A count below the baseline is reported so the next
      commit can ratchet it down.
 (iii) --layout. Compiles one TU per header that pins a layout with `g++ -fsyntax-only -fdump-lang-class`
-     (the Makefile's include path; no build, no object written) and lists every class of the tree whose
+     (the INCLUDES path below; no build, no object written) and lists every class of the tree whose
      size exceeds its data size (`base size`, the Itanium dsize) AND that is a base of another class:
      where Itanium may reuse the tail padding and MSVC never does. On MinGW and Linux the rule is the
      same, so this matters for a future MSVC / clang-cl build; the documented ones carry explicit pads.

@@ -1,7 +1,7 @@
 // ============================================================================
 // src/platform/win/gfx_win.cpp — the graphics-library seam, Win32 (Phase D.4 RENDER §C.1)
 // ============================================================================
-// src/platform/common/platform_gfx.h declares the two functions; this file is
+// src/platform/common/platform_gfx.h declares the three functions; this file is
 // their Windows body. ResolveGfxImport below is devicedata.cpp's helper of the
 // same name, MOVED UNCHANGED (body, arguments and the stderr line), with its
 // history:

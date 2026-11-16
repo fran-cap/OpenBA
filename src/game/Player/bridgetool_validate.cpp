@@ -7,8 +7,8 @@
 // bridge drag, and CalcPath's own validity gate could never open. Both are pure
 // map-grid math with no engine calls, so they port directly.
 //
-//   BridgeTool_SnapEndCell   0x1400fb710 (sub_b710)
-//   BridgeTool_ValidatePath  0x1400fb2d0 (sub_b2d0)
+//   BridgeTool::SnapEndCell   0x1400fb710 (sub_b710)
+//   BridgeTool::ValidatePath  0x1400fb2d0 (sub_b2d0)
 //
 // Map-grid layout (mapGrid = gameWorld+0xf8) — identical to the layout the road port
 // documents in roadtool_calcpath.cpp:
@@ -21,7 +21,7 @@
 // scaling). The pending-cell BST nodes use left=+0x10 / right=+0x18, which is a DIFFERENT
 // node layout from the tool-mode tree's +0x20/+0x28 — two BST shapes exist in this binary.
 //
-// CreateBridgeDescription masks (self->bridgeDesc, see engine/types/BridgeTool.h):
+// CreateBridgeDescription masks (self->bridgeDesc, see Player/BridgeTool.h):
 //   +0x20 maskBody     — terrain the bridge body may span (the water)
 //   +0x24 maskApproach — terrain the bridge ends must land on (the banks)
 //   +0x2c maskRequired — at least one body cell must carry one of these bits

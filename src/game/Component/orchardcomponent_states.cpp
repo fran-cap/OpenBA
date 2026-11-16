@@ -18,7 +18,7 @@
 //   AddTransition(int targetId)              -> appends {targetId, 0} to the last
 //                                               state's transition list (+0x28)
 //   AddEvent(int eventId, void* handler)     -> appends to the last state's EVENT
-//                                               list (+0xb0) — see the gap note below
+//                                               list (+0xb0) — see the event-list note below
 //
 // ⚠ TRAP: AddState's argument order is NOT its field order. The `update` argument
 // lands at entry+0x20 and `trans38` at entry+0x18, and trans30 (+0x10) is never set
@@ -42,24 +42,11 @@
 // [7]=Trans38(per-frame) [9]=NULL. Trusting the Ghidra names would have wired
 // Serialize into the per-tick slot: a node that links and ticks and does nothing.
 //
-// ── GAP (deliberate, increment 1) ─────────────────────────────────────────────────
-// Every handler below is registered as nullptr. ControllerLive::Dispatcher treats a
-// null handler as a graceful no-op, so the node still runs the REAL table-driven
-// structure — Step returns real indices and transitions are validated against the
-// real graph — it just performs no per-state work yet. That makes this increment
-// verifiable on its own (linked=NO -> linked=YES) without any behaviour risk, and
-// the per-state bodies drop in one at a time afterwards.
-//
-// The 18 handler addresses are recorded per state below so that filling them in is a
-// lookup, not another decomp pass. All 18 are UNPORTED as of this increment.
-//
-// ── SECOND GAP: the event list ────────────────────────────────────────────────────
-// controller_state_table.h's StateEntry models id/enter/trans30/trans38/update and
-// the transition list, but NOT the event list retail keeps at entry+0xb0 (filled by
-// AddEvent 0x140009c70). The orchard needs it: the panel's Command (idx14) posts node
-// events 3/4/5, and event 3 on state 2 is the "start planting" kick. Until StateEntry
-// carries events, the command path cannot drive the machine. Noted here rather than
-// silently omitted — it is required work, not an optional extra.
+// ── The event list ────────────────────────────────────────────────────────────────
+// controller_state_table.h's StateEntry carries the event list retail keeps at
+// entry+0xb0, filled by TableAddEvent (retail AddEvent 0x140009c70). The panel's
+// Command (idx14) posts node events 3/4/5; OrchardCtrl_PopulateTable registers each
+// state's handlers and events.
 
 #include "Component/controller_state_table.h"
 #include "Component/ClearAreaDescription.h"
@@ -98,21 +85,19 @@
 using OrchardDispatch = ::ControllerLive::Dispatcher<OrchardCtrlTag>;
 
 
-// Declared by their headers: MapGrid_StampCellRefs_9f770 (0x14009f770,
-// pasturecomponent_states.cpp) in Component/exe_bodies.h; the PlantOrchard / TendArea /
+// Declared by their headers: Map::StampCellRefs (0x14009f770,
+// pasturecomponent_states.cpp) in Game/Map.h; the PlantOrchard / TendArea /
 // HarvestOrchard constructors in their Work/ headers.
 //
 // Finders: 0x140002e10 FindComponent<WorkPlaceComponent>, 0x140003050
 // FindComponent<WorkComponent>, 0x140004680 FindComponent<MapComponent>, 0x14000a170
 // FindComponent<ClearAreaComponent>. Leaves, called by name (B3R):
-//   0x14012ec60 CitizenAI_WorkScheduler_Post   0x14012fc00 WorkPlaceComponent_SetAccepting
-//   0x14012eb50 WorkComponent_RegisterWorkSlot 0x1400a9660 StateMachine::Tick
-//   0x14012ead0 WorkComponent_CheckWorkSlot
+//   0x14012ec60 WorkComponent::PostWork        0x14012fc00 WorkPlaceComponent::SetAccepting
+//   0x14012eb50 WorkComponent::CancelWork      0x1400a9660 StateMachine::Tick
+//   0x14012ead0 WorkComponent::IsWorkPosted
 //     (FUN_14012ead0 — "does the work component currently hold a work slot?"; the companion
 //     of 0x14012eb50 (release). State 10 gates both its update and its seasonal re-post on it.)
 //   import slot 0x140152b00 ??0Time@System@@QEAA@M@Z = RtSystem_Time_Ctor
-// LEFT (B.4 P2 COMP-6): the handlers receive the StateMachine as void* (controller_state_table.h,
-// COMP-2+3); the leaves above take their components as uintptr_t / int64_t (wave X).
 // ============================================================
 namespace {
 
@@ -126,8 +111,8 @@ uint32_t OrchardDescTypeId() { return OrchardDescription::TypeId(); }   // ti ce
 //     idx = (*(void**)sm)->vtable[+0x08]((void*)*sm, (int)(int8_t)sm[9], &want);
 //     if (idx >= 0) { sm[0xb] = idx; sm[0xa] = want; }
 // `want` is an in/out — node vtable idx1 writes -1 into it on a miss, so it must be a
-// real local, never a constant. sm+0x09 is the CURRENT state id (signed; < 0 means the
-// machine has not started, hence the priming Tick).
+// real local, never a constant. sm+0x09 is the CURRENT state's table index (signed; < 0
+// means the machine has not started, hence the priming Tick).
 // `sm` is the StateMachine (StateMachineComponent+0x48) the handler received.
 void OrchardRequestState(StateMachine* machine, int wantId) {
     if (!machine) return;
@@ -164,8 +149,8 @@ char OrchardComponent::EnterIdle() {
 // ============================================================
 // state 2 TRANS38 (per-frame) — retail 0x1400514c0
 // THE TRIGGER FOR THE WHOLE FEATURE: an orchard whose `enabled` switch is 0 never
-// leaves state 2. The ctor clears it, and the only two ways to set it are the
-// panel's Command(2) toggle and Command(0)'s node event 3 — both ANDed with
+// leaves state 2 by itself. The ctor clears it and the panel's Command(2) toggle sets
+// it; Command(0)'s node event 3 requests state 9 without it — both ANDed with
 // hasType (treeType != 0) by CanCommand. So an untyped orchard is correctly and
 // permanently idle, which is exactly what the runtime diagnostic shows.
 // ============================================================
@@ -181,7 +166,7 @@ char OrchardComponent::TickIdle(StateMachine* sm) {
 // which is exactly what the runtime diagnostic reported.
 //
 // Steps, in retail's order:
-//   1. push the master switch to the workplace: SetWorkplaceActive(wp, enabled)
+//   1. push the master switch to the workplace: wp->SetAccepting(enabled)
 //      — note it forwards the switch, NOT a literal 0 as state 2's enter does
 //   2. footprint rect from the MapComponent: x,y,w,h as int16 at +0x28/+0x2a/+0x2c/+0x2e
 //   3. spacing from the OrchardDescription
@@ -255,8 +240,8 @@ char OrchardComponent::EnterPlanting() {
 
 // ============================================================
 // state 9 TRANS38 (per-frame) — retail 0x140050f90
-// When every slot has reached state 1 (Planted), deactivate the workplace and move to
-// state 10.
+// When every slot has reached state 1 (Planted), release the work slot (CancelWork) and
+// move to state 10.
 //
 // ⚠ FAITHFUL LANDMINE, deliberately preserved: the test is `planted == slotCount`,
 // evaluated before any planting has happened. A footprint yielding cols*rows == 0 gives
@@ -682,9 +667,9 @@ char OrchardComponent::TickHarvesting(StateMachine* sm) {
 // sat there doing nothing — which from the panel is indistinguishable from a dead button.
 // That is the user-reported "cut is clickable but does nothing".
 //
-// The two real leaves are already ported in clearareacomponent_states.cpp (retail's state
-// 20 calls the same two functions the ClearAreaComponent controller does), so they are
-// used through the exports rather than forked.
+// The two real leaves are already ported (the ClearArea ctor in Work/cleararea.cpp and
+// ClearAreaComponent::IsDone in clearareacomponent_states.cpp; retail's state 20 calls the
+// same two functions the ClearAreaComponent controller does), so they are called, not forked.
 // ============================================================
 
 namespace {
@@ -780,10 +765,8 @@ char OrchardComponent::UpdateClearing() {
 char OrchardComponent::TickClearing(StateMachine* sm) {
     ClearAreaComponent* ca = _entity->FindComponent<ClearAreaComponent>();   // 0x14000a170
 
-    // SA: retail derefs the finder result unguarded (caComp+0x18 is the description). A
-    // null here is NOT benign — ClearAreaCtrl_IsDone answers `true` for a null component,
-    // which would bounce the orchard straight back to state 9 and read exactly like the
-    // "cut does nothing" symptom it is meant to fix. Report and stay put instead.
+    // SA: retail derefs the finder result unguarded (caComp+0x18 is the description), and
+    // ClearAreaComponent::IsDone reads _description with no test. Report and stay put instead.
     if (!ca) {
         static int s_n = 0;
         if (s_n++ < 4) {
@@ -866,7 +849,7 @@ static void OrchardCtrl_PopulateTable() {
 
     // ── state 10 — TEND / IDLE-GROWN ──────────────────────────────────────────────
     // enter    0x140050e30  hole -> state 12, else post a TendArea work
-    // update   0x140050ba0  deactivate the workplace if active
+    // update   0x140050ba0  release the work slot if one is held
     // trans38  0x140050c00  TryHarvest; hole -> 12; seasonal TendArea re-post
     // event 5  0x1400513e0 -> state 20 ; event 4  0x140050900 -> state 11
     TableRegisterState(t, BuildingState::Tend, &OrchEnterTending, nullptr,
@@ -908,7 +891,7 @@ static void OrchardCtrl_PopulateTable() {
 
     // ── state 20 (0x14) — CLEAR ───────────────────────────────────────────────────
     // enter    0x1400504e0  ClearArea_impl_04e0: post a ClearArea work at prio 0x401
-    // update   0x1400503e0  deactivate the workplace
+    // update   0x1400503e0  release the work slot
     // trans38  0x140050430  when the footprint tests clear -> request state 9
     TableRegisterState(t, BuildingState::OrchardClear, &OrchEnterClearing, nullptr,
                        &OrchTickClearing,

@@ -32,9 +32,7 @@
 #include "Dialog/introsort24.h"   // FUN_14001e7c0's introsort core
 
 // FUN_140018020(ExternalPtr<Profession>*, Serializer*) -- typed ExternalPtr
-// serialize. The address is registered to this body (address_registry.cpp); it
-// is called directly (the old lazily-resolved pointer, a non-atomic first-call
-// cache on the loader thread, B6-5, resolved to it).
+// serialize: the ::Object::SerializeExternal<Profession> calls in Serialize below.
 
 // ============================================================
 // ProfessionList::ProfessionList
@@ -109,11 +107,10 @@ bool ProfessionList::Serialize(IO::Stream& stream) {
 // Iterates every Profession external in the ExternalFactory (TypeInfo_Profession
 // @ 0x1401c5a98), pushes each with the player-selectable flag (+0x4e) set into
 // the dynamic array at +0x20/+0x28/+0x2c (grow ×3), then sorts ascending by the
-// profession's sort priority (+0x48) — FUN_14001e7c0 is an introsort on that key;
-// an insertion sort gives the same ordering (N ≈ a dozen professions).
+// profession's sort priority (+0x48) — FUN_14001e7c0, an introsort on that key
+// (IntroSort24::Sort, Dialog/introsort24.h).
 //
-// Called from GameUpdateLoop::Startup (gameupdateloop.cpp resolves exe 0x1400a90a0
-// via fn_ProfessionList_Startup — registered for standalone below). Without it the
+// Called from GameUpdateLoop::Startup (gameupdateloop.cpp, by name). Without it the
 // array stays empty (count 0) and every profession-array consumer (TownHallUI
 // General/Professions tabs, ProfessionUI) sees zero professions and shows blank.
 //

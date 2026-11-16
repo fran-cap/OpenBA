@@ -22,8 +22,8 @@
 //
 // The unit build links src/engine/system/allocator.cpp (tests/unit/sources.cmake)
 // so the real statics run; with a hook in the seat they never touch
-// `_singleton` (null here), which is the seat's contract. Each test clears the
-// seat before it ends. No other test arms it.
+// `_singleton` (null here), which is the seat's contract. Each test restores the
+// seat it found before it ends.
 // ============================================================================
 
 #include "unit.h"

@@ -33,7 +33,7 @@
 #include "object/TypeInfo.h"
 #include "Game/GameUpdateLoop.h"
 #include "Player/EditTool.h"
-#include "Player/exe_bodies.h"   // HighlightClear_Impl, HighlightSelect_Impl
+#include "Player/exe_bodies.h"
 #include "Entity/ComponentEntity.h"
 #include "Component/ComponentDescription.h"
 #include "Component/UIComponent.h"
@@ -52,7 +52,7 @@
 // 0x1400fcc90 (deselect: clear the previous entity's outline + close the open
 // panel) and 0x1400fc9e0 (mark the entity's UIComponents dirty and repaint the
 // selection overlay) are ported in src/game/Player/tool_base_render.cpp as
-// HighlightClear_Impl (0x1400fcb40, cc90's outline half) and HighlightSelect_Impl.
+// EditTool::HighlightClear (0x1400fcb40, cc90's outline half) and EditTool::HighlightSelect.
 
 // [diag] ring of the last 4 entities SelectEntity committed — read back by
 // tool_base_render.cpp's ReportBadSelectionRef when cb40 finds a non-canonical

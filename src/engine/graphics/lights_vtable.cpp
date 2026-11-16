@@ -18,8 +18,8 @@
 //                 slot10 Draw          0x1801067b0
 //                 (ctor/dtor/Set already ported in sunlight.cpp)
 //
-//   slot 0 of AmbientLight and SpotLight are ROWS in
-//   src/engine/object/deleting_dtor.cpp, not bodies here.
+//   slot 0 of AmbientLight and SpotLight is the compiler's deleting destructor
+//   of `~AmbientLight()` / `~SpotLight()`, defined below.
 //
 // ---------------------------------------------------------------------------
 // FOUR THINGS THAT WOULD BE WRONG IF READ FROM THE DECOMPILER
@@ -43,7 +43,7 @@
 //    [1][1] term wrong flips every shadow vertically.
 // 4. `Video::ImageBuffer::Width()` / `Height()` ARE INLINED at six sites, as a
 //    three-way branch on the image's flags word that reads the Video::Device
-//    singleton. `ImageDim` below is that inlining, spelled once.
+//    singleton. Each site below calls the ported members by name.
 // ============================================================================
 
 #include <cstdint>
@@ -80,7 +80,7 @@ namespace {
 //   `_colour` (+0x138), `_shadowMap` / `_shadowDepth` (+0x148 / +0x150,
 //   Video::ImageBuffer*, owned), `_shadowTarget` (+0x158, Video::RenderBuffer*,
 //   owned), `_boundImage` (+0x160, bound into Context image slot 4).
-// Graphics::SunLight     -- `_dirX..` (+0xc0), `_sunR..` (+0xcc), `_ambientR..`
+// Graphics::SunLight     -- `_direction` (+0xc0), `_sun` (+0xcc), `_ambient`
 //   (+0xdc), `_depthTarget` (+0xf8), `_renderBuffer` (+0x100).
 // Video::Context         -- `_dirty` (+0x10), `_imageBufferDirty` (+0x18),
 //   `_renderBuffer` (+0x28), `_imageBuffers[4]` / `[5]` (+0x50 / +0x58),
@@ -187,8 +187,8 @@ void BiasMatrixB(Math::Matrix& b) {
 //
 // into Context+0x1e78, then raise the 0x2000 dirty bit.
 //
-// LEFT: +0x1e78 is `_lightStaging + 0xa0`; Context.h (video's header) keeps
-// the 0x1a0-byte staging block undivided, so the Matrix there is viewed once.
+// +0x1e78 is `_lightStaging + 0xa0`, the `LightStaging::shadowMatrix` field
+// (Context.h).
 // ---------------------------------------------------------------------------
 constexpr size_t kLightStagingShadowMatrix = 0x1e78 - 0x1dd8;   // Context+0x1e78
 static_assert(offsetof(Video::Context::LightStaging, shadowMatrix) == kLightStagingShadowMatrix,
@@ -236,7 +236,7 @@ void WriteShadowMatrix(Video::Context& context, const Math::Matrix& projection,
 // ############################################################################
 
 // slot 1 — `RET`. Empty in the shipped build; an ambient light has nothing to
-// tick (reference_retail_ships_empty_bodies.md).
+// tick.
 // slot 2 — `RET`. The per-item Draw arm; an ambient light emits no draw items,
 // only the light state its slot-10 Draw sets.
 // slot 9 — `RET`. An ambient light casts no shadow.
@@ -317,7 +317,7 @@ void AmbientLight::AddDrawItems(const Scene& scene, Renderer& renderer) const {
 // ============================================================================
 // Set the ambient light state on the Context, then tail-jump DrawItemList.
 //
-// SIX of `SetLight`'s seven parameters are CONSTANTS here — two zero Vector3s,
+// FIVE of `SetLight`'s seven parameters are CONSTANTS here — two zero Vector3s,
 // a zero Vector4, 0.0f, and the int 1 — and only two come from the object: the
 // colour at +0xc0 and the scalar at +0xd0.
 //
@@ -570,9 +570,7 @@ void SunLight::DrawLight(Video::Context& context, Renderer& renderer,
                          int a4, int a5, int a6, int a7) const {
     const Camera& cullCamera = renderer._drawGroups._data[a5]._cullCamera;
 
-    // Read BEFORE anything else in the body (0x1801067e9..0x18010680d). LEFT:
-    // `Device::deviceData` is a `void*` in Device.h (video's header), so the
-    // one view of it as its `Video::DeviceData` is here.
+    // Read BEFORE anything else in the body (0x1801067e9..0x18010680d).
     const bool modern =
         ::Video::Device::_singleton->deviceData->Slot7();
 

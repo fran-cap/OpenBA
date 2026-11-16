@@ -2,7 +2,7 @@
 // Clean reimplementation of QuarryComponent lifecycle methods from Application-x64.exe.
 //
 // QuarryComponent (0x28 bytes) — minimal component, same as MineComponent.
-// Vtable at 0x14015a490. Only Shutdown has real logic.
+// Vtable at 0x14015a490. The real logic is OnEvent / OnMessage (quarrycomponent_deform.cpp).
 //
 
 #include "Component/QuarryComponent.h"

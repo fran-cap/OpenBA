@@ -20,9 +20,8 @@
 // the `RtInput::` spellings for the callers outside this block
 // (src/diag/mouse_inject.cpp, singleton_ctors.cpp) as aliases of THIS class.
 //
-// `?_singleton@Device@Input@@0PEAV12@EA` (0x1801fe770) STAYS a data slot read
-// through RT_DATA_SLOT until the end of B.3 (carry-over 5); it is not declared
-// as a class static here, exactly as Application.h does for its singleton.
+// `?_singleton@Device@Input@@0PEAV12@EA` (0x1801fe770) is the class static
+// `Device::_singleton` (below), defined in input.cpp.
 //
 // PORTABILITY: no <windows.h> (PLAN.md sec. 4.1 decision 1). HWND / WPARAM /
 // LPARAM are spelled `void*` / `uint64_t` / `int64_t`, the COM pointers `void*`;
@@ -108,9 +107,7 @@ public:
     static constexpr int kMouseInputCount    = 0x0D;   // 13
 
     // ---- the 31 exports (B37_SLOTS.md sec. 6) -------------------------------
-    // Access control is not ABI (reference_aeaa_is_private_not_unexported.md):
-    // retail's `AEAA`/`CA` (private) members are PUBLIC here because each
-    // registered door is a free function that has to call its member.
+    // Access control is not ABI: retail's `AEAA`/`CA` (private) members are PUBLIC here.
 
     // 0x1800e1660 input.cpp. Joystick index is the first int (retail
     // `MOVSXD`s EDX and multiplies by 0x1b0 on the device-0 branch only).
@@ -145,10 +142,8 @@ public:
     // ---- declared, NOT PORTED: nothing in the tree calls these (no name, no
     // address, no exe-slot binding). Left undefined on purpose. -------------
     static Device* Get();                                   // 0x180022c40  not ported
-    // ?_singleton@Device@Input@@0PEAV12@EA (0x1801fe770) — the class static (ENDGAME B.3.9 ENG, B39_RULES D7).
-    // The namespace's *PortInit redirects the minted storage row onto it, so
-    // the name door, the address door and this member are the same bytes.
-    // PUBLIC while foreign readers still reach the row through the doors.
+    // ?_singleton@Device@Input@@0PEAV12@EA (0x1801fe770) — the class static (ENDGAME B.3.9 ENG, B39_RULES D7),
+    // defined in input.cpp and set by Ctor_InputDevice (singleton_ctors.cpp).
     static Device* _singleton;
     // EXT SEAM (NOT RETAIL, DESIGN.md hook rule 5; docs/android/P11_TOUCH_POINTER.md): called at the
     // end of Update, after every UpdateState, when set (ext.touch_pointer's pointer writer). Null by
@@ -195,8 +190,7 @@ public:
     // calls its CreateDevice (COM +0x18) twice to fill the next two slots.
     // `PlatformShutdown` Releases it WITHOUT an Unacquire: a factory is never
     // acquired. Phase D.4 SDL I1: the three are OPAQUE platform input handles
-    // (src/platform/common/platform_input.h); the Win32 backend's are the
-    // IDirectInput8W / IDirectInputDevice8W retail stored here.
+    // (src/platform/common/platform_input.h); the SDL backend leaves them null.
     void*    _directInput;                                    // +0x11D8
     void*    _keyboardDevice;                                 // +0x11E0  (1800e1d15)
     void*    _mouseDevice;                                    // +0x11E8  (1800e1f81)

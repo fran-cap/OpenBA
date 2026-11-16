@@ -90,7 +90,7 @@ public:
                       Graphics::Renderer& renderer) const override;   // [3] 0x1400ae490
 
     // 0x1400aad50: the dirty-chunk rebuild slot 1 JMPs to (a non-virtual member;
-    // also reached by address through the Reimpl_GeometryChunkUpdate door).
+    // body in serialize_heightmap_mesh.cpp).
     void RebuildDirtyChunks();
     void RemoveDecal(int decalId);                                   // 0x1400b0d00 (defined in Component/decalcomponent.cpp)
     // B.4 ACT-a (bodies in Action/action_pf_road.cpp)
@@ -169,7 +169,7 @@ public:
     int32_t  _chunkSize;          // +0xC8  cells per chunk edge
     int32_t  _chunkVertsPerSide;            // +0xCC
     int32_t  _heightRowStride;            // +0xD0
-    int32_t  _chunkIndexStride;   // +0xD4  index count per chunk (the ctor leaves it)
+    int32_t  _chunkIndexStride;   // +0xD4  vertices per chunk (vertsPerSide^2; the ctor leaves it)
     WorldGeometryArray<int16_t> _heights;   // +0xD8  the int16 heightmap (0x14009e0e0 stores one word; B.4 ACT-a H4)
     DirtyChunkSet _dirtyChunks;   // +0xE8  set of dirty chunks (nodes: children +0x10/+0x18; count +0xF0)
     Graphics::MaterialInstance* _terrainMaterial; // +0xF8  MaterialInstance* for the chunks
@@ -206,7 +206,7 @@ public:
     // the trait row of int32_t).
     Collection::Array<int32_t>            _batchCounters;     // +0x220 per-batch fill counters
     void BuildRoadQuad(int x, int y, GeometryBatchVertex* quad, int dirIdx, uint8_t blend);   // 0x1400acc10 (Action/action_pf_road.cpp)
-    int CellQuadRay(int x, int y, const float* dir, const float* origin, const float* maxT, float* outHit, float* outT, float* outNormal);   // 0x1400aaa20 (body: RayTestCell) (Action/action_pf_road.cpp)
+    int CellQuadRay(int x, int y, const float* dir, const float* origin, const float* maxT, float* outHit, float* outT, float* outNormal);   // 0x1400aaa20 (body: RayTestCell) (Game/worldgeometry_ray.cpp)
     float HeightUnderPoint(const float* point, float* outNormal);   // 0x1400b0f90 (body: TerrainHeightUnder; height-only: TerrainHeightOnly) (Game/worldgeometry_ray.cpp)
     float HeightUnderPointReference(const float* point, float* outNormal);   // NOT RETAIL: TerrainHeightUnder alone, the reference terrain_ray_test.cpp pins TerrainHeightOnly to
     int AddDecal(int param_2, int param_3, int param_4, int param_5, uint8_t param_6, uint32_t param_7, Graphics::MaterialInstance* material, bool param_9, float param_10, float param_11, float param_12, float param_13, float param_14, char param_15, int param_16, int param_17, bool param_19);   // 0x1400b0d80 (Player/tool_base_highlight.cpp)

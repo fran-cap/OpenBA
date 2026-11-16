@@ -53,10 +53,10 @@ bool RectTouchesAnyDisplay(const Rect& rect, const Rect* displays, int count);
 // ---------------------------------------------------------------------------
 // Points <-> pixels (macOS Retina). SDL positions and sizes windows, and reports the
 // cursor, in POINTS; the engine (back buffer, GetClientRect, the UI, the cursor) works in
-// PIXELS. `density` is SDL_GetWindowPixelDensity (1.0 without SDL_WINDOW_HIGH_PIXEL_DENSITY,
-// 2.0 on a Retina display with it; the SDL backend passes 1.0 on every non-Apple host, so
-// these are the identity there). Positions are converted too, so the engine sees one unit
-// (pixels of the window's display) for every screen coordinate.
+// PIXELS. `density` is the SDL backend's PixelDensity: SDL_GetWindowPixelDensity (1.0 without
+// SDL_WINDOW_HIGH_PIXEL_DENSITY, 2.0 on a Retina display with it) times the render scale (1.0
+// but on Android), so these are the identity on Windows and Linux. Positions are converted too,
+// so the engine sees one unit (pixels of the window's display) for every screen coordinate.
 // ---------------------------------------------------------------------------
 int32_t PointsToPixels(float points, float density);   // round to nearest
 int32_t PixelsToPointsFloor(int32_t pixels, float density);

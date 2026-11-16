@@ -18,8 +18,8 @@
 //   [11] 0x140029860 GetPriority (`+0x50 > 0`, shared by 13 tables)
 //   [12] = Work (0x140006b10)
 //   CropFieldComponent's state machine (cropfieldcomponent_states.cpp, block MI-B)
-//   builds a PlantArea BY HAND and stamps 0x140161890; that registration serves
-//   PlantArea::Vtable() (B38 D5).
+//   builds a PlantArea with placement new on its MemAlloc(0x70, 8) block
+//   (CF_MakePlantArea: the default ctor, then Work::InitFromEntity).
 // ============================================================================
 
 #include <cstdint>

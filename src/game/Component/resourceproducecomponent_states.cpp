@@ -6,7 +6,7 @@
 // (0x1401643a0) and therefore shares ONE state table (retail DAT_1401db920,
 // count DAT_1401dc8a0). So this single file drives the Fishing Dock, the Hunting
 // Cabin and the Gatherer's Hut (HerbalistComponent), plus the other RPC subclasses
-// (Forester, Market, ConsumeProduce) once those are promoted off inert.
+// (Forester, Market, ConsumeProduce).
 //
 // Populated in retail by ResourceProduceDescription_helper_b230 (0x14012b230),
 // reached from ResourceProduceDescription_Setup (0x14014f970). The table has
@@ -43,9 +43,7 @@
 #include <cstdlib>
 #include <cstring>
 #include "Object/exe_type.h"   // DEFINE_EXE_ABSTRACT_TYPE
-#include "Component/exe_bodies.h"   // AttendanceComponent_GetJobHostComponent, CitizenAI_WorkScheduler_Post,
-                                    // WorkPlaceComponent_SetAccepting, WorkComponent_CheckWorkSlot,
-                                    // WorkComponent_RegisterWorkSlot
+#include "Component/exe_bodies.h"
 #include "Component/StateMachineComponent.h"
 #include "Component/WorkComponent.h"
 #include "Component/WorkPlaceComponent.h"
@@ -70,7 +68,7 @@ using RPDispatch = ::ControllerLive::Dispatcher<RPCtrlTag>;
 // 0x140002e10 FindComponent<WorkPlaceComponent>.
 // 0x14012ec60 CitizenAI_WorkScheduler_Post(workComp, code, flag, workIBP) — post to the ledger.
 // 0x14012fc00 WorkPlaceComponent_SetAccepting(wpc, accepting) — drives WPC+0x50.
-// 0x14012ead0 WorkComponent_CheckWorkSlot / 0x14012eb50 WorkComponent_RegisterWorkSlot —
+// 0x14012ead0 WorkComponent::IsWorkPosted / 0x14012eb50 WorkComponent::CancelWork —
 //             work-slot occupied test / release (citizen work scheduler).
 // 0x140003ea0 FindComponent<StateMachineComponent>.
 
@@ -95,15 +93,7 @@ static char RP_State2Enter(ResourceProduceComponent* self, StateMachine* sm) {
 static char RP_State13Enter(ResourceProduceComponent* self, StateMachine* sm) {
     ResourceProduceComponent* rp = self;
 
-    // Entry trace as well as the outcome trace below: without it a crash anywhere in
-    // this body is indistinguishable from the state never being entered at all.
-
-    // The pause flag is the LOW BYTE of the qword at +0x48 (retail: `(char)param_1[9]`),
-    // and nothing in our port ever writes it non-zero. So either something retail-side
-    // sets it, or it was never initialised and we are reading whatever the allocator
-    // left. Print the WHOLE qword: a clean 1 means a deliberate pause, anything
-    // pointer-shaped means uninitialised memory. Log both arms, so "entered producing"
-    // and "bounced to paused" are distinguishable.
+    // The pause flag is the LOW BYTE of the qword at +0x48 (retail: `(char)param_1[9]`).
 
     if (rp->produceFlag) {
         ::ControllerLive::RequestStateTransition(sm, BuildingState::Paused);
@@ -113,8 +103,7 @@ static char RP_State13Enter(ResourceProduceComponent* self, StateMachine* sm) {
     ComponentEntity* owner = rp->_entity.Get();
 
     // CreateWork (slot 18) — allocates the class's Work object and hands back an
-    // InternalBasePtr. Abstract in the base, so a null here means the subclass did
-    // not override it: report rather than crash on a _purecall.
+    // InternalBasePtr. Pure virtual in the base, so every concrete subclass overrides it.
     ::Object::InternalPtr<Work> workIbp;
     rp->CreateWork(&workIbp);
 
@@ -233,8 +222,7 @@ static void RP_Trans13to3(ResourceProduceComponent* self) {
 static char RP_Event3Pause(ResourceProduceComponent* /*self*/, StateMachine* sm) {
     // Event 0 TOGGLES (13 -> pause, 14 -> resume), so a single stray post closes a
     // producing workplace: state 14 calls SetAccepting(false), which raises the
-    // "work is disabled at this location" sign AND evicts the roster. Trace the
-    // poster — an unasked-for pause is the whole bug.
+    // "work is disabled at this location" sign AND evicts the roster.
     ::ControllerLive::RequestStateTransition(sm, BuildingState::Paused);
     return 1;
 }
@@ -346,7 +334,7 @@ static void RPCtrl_PopulateTable() {
     TableAddTransition(t, BuildingState::Paused, nullptr);
     TableAddTransition(t, BuildingState::Demolish, &RP_Trans13to3);
     // Event id 0, NOT 3 — retail's registrar 0x140037f90 hardcodes 0 and discards the id
-    // argument (see the byte listing on ResourceProduceComponent_Command above). Slot 14
+    // argument (see the byte listing on ResourceProduceComponent::Command above). Slot 14
     // posts 0, so registering 3 here meant PostEvent's linear scan never matched and the
     // work pause button did nothing.
     TableAddEvent(t, BuildingEvent::TogglePause, &RP_Event3Pause);

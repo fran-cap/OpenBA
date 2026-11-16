@@ -15,10 +15,10 @@
 //
 // ENDGAME B.3.6 block C3: the five slot bodies are `UI::TextElement` members
 // (src/engine/ui/TextElement.h carries the layout, pinned from the ctor
-// 0x18011eb80). The registered doors delegate with a QUALIFIED call. Calls onto
+// 0x18011eb80). Calls onto
 // `UI::Font` and `UI::SpriteContext` are direct member calls now (block D made
 // both real classes); the border and slot-4 dispatches are C++ virtual calls
-// (they read the object's MINTED table, exactly as retail's `CALL [RAX+..]`).
+// (they read the object's vtable, exactly as retail's `CALL [RAX+..]`).
 //
 // ENDGAME B.3.9 block UI-A (B39_RULES D1/D2): the class is CONCRETE; the real
 // ctor `??0TextElement@UI@@QEAA@XZ` (0x18011eb80) is in the header, and the
@@ -28,19 +28,19 @@
 //
 // NOT HERE, and deliberately:
 //   * `?CacheText@` / `?SetParameterCount@` — textelement_cachetext.cpp.
-//   * `?SetParameter@` / `?SetText@` — widgets_layout.cpp's doors (fragment pass).
+//   * `?SetParameter@` / `?SetText@` — widgets_layout.cpp (fragment pass).
 //
 // ~TextElement releases the cached string at +0xF8 and then destroys the
 // parameter array at +0xC8 through 0x180010ab0 — the `~Array` variant that
 // destroys ELEMENTS first (it calls 0x180011010 over {data,size} before
 // freeing the buffer), which is right because the elements are System::Strings.
-// That address is already registered by src/engine/collection/array_destroy.cpp.
+// That address is ported in src/engine/collection/array_destroy.cpp; here it is `_params`' own ~Array.
 // ============================================================================
 
 #include <cstddef>
 #include <cstdint>
 
-#include "element_common.h"   // rtuielem::AtomicExport / ComputeColor, ResolveAddr
+#include "element_common.h"   // rtuielem::ComputeColor
 #include "ui/TextElement.h"
 #include "ui/Font.h"
 #include "ui/SpriteContext.h"
@@ -54,8 +54,7 @@ namespace UI {
 // cached text at +0xf8 is released through System::String's own Release
 // (retail's asymmetric idiom: `data - 8` freed on the last reference, the field
 // NULLED otherwise); the parameter Strings through 0x180010ab0, the
-// element-destroying ~Array (`_params` is a plain three-field header, so no
-// member ~Array follows); then the compiler chains ~Element (0x1801161a0).
+// element-destroying ~Array; then the compiler chains ~Element (0x1801161a0).
 TextElement::~TextElement() {
     // B4 X7-RT: empty. The release of +0xf8 (0x18011edc0..0x18011edeb) and
     // ~Array<String> on +0xc8 (0x18011edfd CALL 0x180010ab0) are the two typed

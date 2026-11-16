@@ -3,7 +3,7 @@
 // (Phase D.4, plans/ABI.md step C.2). Included by global_types.h.
 //
 // The tree is built by GCC, which lays classes out by the Itanium C++ ABI on every target
-// (MinGW-w64 today, Linux x86-64 next). The ~6,900 sizeof / offsetof asserts prove that this
+// (MinGW-w64 and Linux x86-64 among them). The ~6,900 sizeof / offsetof asserts prove that this
 // layout reproduces retail's MSVC offsets; they hold on any target where the facts below hold.
 // A pinned layout holds only fixed-width integers, pointers, float / double, bool, enums and
 // other pinned classes: never `long` (4 bytes on Win64, 8 on Linux), `wchar_t` (2 / 4), `size_t`,

@@ -12,7 +12,7 @@
 #include "Dialog/ui_panels.h"
 // ENDGAME B.3.5 batch K1: the runtime type headers come FIRST — they reach
 // src/engine/volume/Volume.h, whose global-scope `struct Rectangle` is hidden by
-// <wingdi.h>'s `Rectangle()` once <windows.h> has been seen through resolve.h.
+// <wingdi.h>'s `Rectangle()` once <windows.h> has been seen.
 #include "video/ImageBuffer.h"
 #include "graphics/Material.h"
 #include "ui/UserInterface.h"
@@ -32,7 +32,7 @@
 #include "ui/ImageElement.h"  // ENDGAME B.3.6 UI callers round 2 (K3)
 #include "utility/PerlinNoise.h"   // B3R: RtUtility_PerlinNoise_Ctor / _Generate
 #include "Game/exe_constants.h"   // B3R: kRdata_*
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
 
 
 // Helper: the named element under the panel's root, if it is an EditElement.
@@ -109,7 +109,6 @@ void NoiseUI::SetupImage(Video::ImageBuffer* image, UI::SpriteSheet** sheetOut,
     UI::SpriteSheet* ss = *sheetOut;
     System::String emptyStr1;
     System::String emptyStr2;
-    // LEFT: SpriteSheet holds them as char* (H5, R-UI's header).
     ss->m_groupName = emptyStr1;
     ss->m_textureName = emptyStr2;
     ss->m_imageWidth = imgW;

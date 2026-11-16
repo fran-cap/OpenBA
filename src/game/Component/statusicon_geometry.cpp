@@ -17,7 +17,7 @@
 
 // video/Context.h FIRST: it pulls src/engine/volume/Volume.h, whose
 // global-scope `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()` once
-// <windows.h> has been seen through resolve.h.  ENDGAME B.3.5 caller batch I2.
+// <windows.h> has been seen.  ENDGAME B.3.5 caller batch I2.
 // NOTE: the Geometry SUBCLASS in this file is an EXE-PHASE class, a real
 // subclass of the Runtime's Graphics::Geometry since ENDGAME B.3.8 VIS.
 #include "video/Context.h"
@@ -39,7 +39,7 @@
 #include "Component/StatusIconComponent.h"
 #include "object/Internal.h"   // Object::detail::InternalMemFree
 
-// ---- .rdata float constants (NULL via ResolveAddr in standalone → use literals) ----
+// ---- .rdata float constants (literals) ----
 //   g_fUVScale       0x14017214c = 1.0f
 //   _DAT_1401720c4   0x1401720c4 = 0.01f
 //   DAT_140172114    0x140172114 = 0.5f
@@ -47,7 +47,7 @@ static const float kUVScale   = 1.0f;
 static const float kScale01   = 0.01f;
 static const float kHalf      = 0.5f;
 
-// ---- Resolved Runtime engine functions ----
+// ---- Runtime engine functions ----
 // cc!=0 camera-constant-screen-size projection uses the Math:: classes directly
 // (Transform3::Inverse / AsMatrix, Matrix::operator*(Matrix|Vector4)).
 
@@ -103,7 +103,7 @@ void StatusIconGeometry::Draw(Video::Context& context, const Graphics::Camera& c
     }
 
     // 2) Color = (1,1,1, lerp(geom+0x80, geom+0x7c, t)). geom+0x7c/+0x80 hold the
-    //    settings-derived scale written by OnRemove (used here as the alpha).
+    //    settings-derived opacity written by StatusIconComponent::Tick (used here as the alpha).
     float alpha = (kUVScale - t) * _opacityPrev
                 + t           * _opacity;
     const Math::Vector4 color4(1.0f, 1.0f, 1.0f, alpha);

@@ -214,19 +214,17 @@ Object::External* BuildingGoal::Construct() {
 DEFINE_EXE_TYPE(BuildingGoal, "Achievement::Goal")
 
 // ============================================================
-// BuildingGoal_Probe — diagnostic, env-gated (BANISHED_GOAL_PROBE)
+// BuildingGoal_Probe — diagnostic; no caller in the tree (gameupdateloop.cpp only declares it)
 // ============================================================
 // The base game ships NO scenarios: `Dialog\Goal.rsc` is the only goal resource
 // in data0/data1.pkg, and BuildingGoal only ever gets built by the tutorial or by
 // a mod. So nothing in a sandbox autostart run evaluates a BuildingGoal, and any
-// claim that this path "works" from a normal run would be a null test
-// (reference_null_test_measures_a_world_without_the_feature).
+// claim that this path "works" from a normal run would be a null test.
 //
 // This probe builds a real one-entry BuildingGoal on the stack against a live
 // world, runs the actual Slot8 evaluator, and reports every stage: the world
-// building BST contents, the resolved description pointer, and the verdict. Set
-// BANISHED_GOAL_PROBE to a template name (default "Template\StorageBarn.rsc" —
-// the starting town builds one).
+// building BST contents, the resolved description pointer, and the verdict for
+// `templateName` (e.g. "Template\StorageBarn.rsc" — the starting town builds one).
 extern "C" void BuildingGoal_Probe(const char* templateName) {
     if (GameUpdateLoop::_singleton == nullptr) return;
     CitizenBehavior* worldData = GameUpdateLoop::_singleton->m_citizenList;

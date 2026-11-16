@@ -39,7 +39,7 @@ public:
 
     // ---- fields (PUBLIC: the components read them at raw offsets today) ----
     ComponentDescription* _naturalResource;               // +0x20 ExternalPtr (tree/sapling material: ForesterWork scans its sub-descriptions, 0x14000c3c0)
-    uint32_t _type;                             // +0x28 enum (serialized through the uint door)
+    uint32_t _type;                             // +0x28 enum (serialized as a uint)
     uint8_t _pad2c[4];                          // +0x2c never written by the ctor
 };
 

@@ -2,10 +2,10 @@
 // Clean reimplementation of ForesterComponent lifecycle methods from Application-x64.exe.
 //
 // ForesterComponent (0x58 bytes) extends ResourceProduceComponent with:
-//   +0x50: uint16 foresterFlags (two packed bytes, each serialized as bool)
+//   +0x50: bool plantTrees, +0x51: bool cutTrees (each serialized as bool)
 //
-// Vtable at 0x140163460. One non-trivial hookable override:
-//   Shutdown (0x14011f960) — ResourceProduceComponent::Shutdown + own serializer
+// Vtable at 0x140163460. Overrides: Persist [3] (0x14011f960) — ResourceProduceComponent::Persist
+//   + own serializer — CommandMask/Command [13]/[14] and CreateWork [18].
 //
 // Decompiled from Application-x64.exe using Ghidra.
 
@@ -22,8 +22,8 @@
 // ============================================================
 // ResourceProduceComponent::Shutdown(self, stream)
 // Serializer s(stream, 0)
-// s.Serialize(&self[0x50], null)  // bool at +0x50 (foresterFlags low byte)
-// s.Serialize(&self[0x51], null)  // bool at +0x51 (foresterFlags high byte)
+// s.Serialize(&self[0x50], null)  // bool at +0x50 (plantTrees)
+// s.Serialize(&self[0x51], null)  // bool at +0x51 (cutTrees)
 // ~Serializer()
 
 // ============================================================

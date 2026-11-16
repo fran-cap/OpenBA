@@ -1,17 +1,8 @@
 // src/game/Dialog/tradeui_leaves.cpp
-// Wave A leaves — the small exe helpers src/game/Dialog/tradeui.cpp calls that were
-// never ported, and which keep the TradeUI promotion gated (DepsReady() in
-// ui_dialog_stub_factories.cpp refuses to wire the real slots while any is null).
-//
-// Leaves land here as they are ported; the ones still outstanding are listed in the
-// status block at the BOTTOM of this file, which is the single place to update. (This
-// header deliberately does not name a count — a comment that states today's tally
-// becomes a lie the moment someone adds a function, which is the same trap that hid
-// the missing river-polyline copy in worldgen.cpp for a month.)
-//
-// The gate needs ALL ten leaves, so landing a subset changes nothing observable yet:
-// the panel stays stubbed and the gate keeps printing what is still missing. That is
-// intended — partial progress must not read as success.
+// The small exe helpers src/game/Dialog/tradeui.cpp calls: TradeComponent::GetOrderName
+// (0x140015fd0), TradeComponent::AddPurchaseOrder (0x140059490) and the storage AVL insert
+// (0x14000e2c0 / 0x14000e1c0). The other TradeUI leaves and the files that hold them are
+// listed in the block at the BOTTOM of this file.
 //
 // ── The three clears ─────────────────────────────────────────────────────────
 //   0x140016050  fn_DynArray_Clear_0x20      (sell entries, stride 0x20)
@@ -43,7 +34,7 @@
 //
 // ⚠ If a future change makes any caller pass a non-zero newCount, these are NOT the
 // right functions to extend — the real generic resize (with the live grow/copy path)
-// already exists in the tree as Reimpl_Array_Resize_* in serialize_resize_helpers.cpp.
+// already exists in the tree as Reimpl_Array_Resize_* in serialize_arrays.cpp.
 // These three are the clear-only specialisations retail emitted separately.
 #include "Component/exe_bodies.h"   // B3R: CitizenAI_Reg_helper_e360
 #include "system/String.h"
@@ -52,7 +43,7 @@
 #include <new>
 #include "Dialog/exe_bodies.h"
 #include "Dialog/TradeUI.h"   // TradeStockEntry, TradeUI_StorageTree_Insert_e1c0
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
 
 // ── B.4 DLG-e: the three clears are Collection::Array<T>::Clear() ──────────
 // `Clear()` is `SetSize(0)`, and rtcoll::SetSizeCore at newSize == 0 does
@@ -76,10 +67,7 @@
 //
 // A System::String is 8 bytes here, which is why the empty case is a single zeroed
 // qword and why the copy is a real copy-ctor (it refcounts / duplicates the buffer)
-// rather than a memcpy. fn_String_Ctor_Copy resolves
-// "??0String@System@@QEAA@AEBV01@@Z" — ordinal 412, verified against
-// `objdump -p Runtime-x64.dll` rather than assumed, because a mistyped mangling
-// silently falls back to a wrong ordinal (see the CitizenList 2.9ms regression).
+// rather than a memcpy.
 //
 // Returning `out` matters: callers use the return value, not their own buffer
 // pointer, so dropping the return would leave them reading an uninitialised local.
@@ -131,7 +119,7 @@ void* TradeComponent::GetOrderName(System::String* out) {
 // that shifted into the hole).
 //
 // Growth on append is the engine's standard amortized rule, matching GrowTo in
-// src/game/Player/tool_base_render.cpp: capacity = newCount, then newCount*3 when
+// src/engine/video/device_enum_types.cpp: capacity = newCount, then newCount*3 when
 // the array was non-empty. The allocator call is the STATIC two-arg form —
 // disassembly at 0x140059533 is `MOVSXD RCX,cap ; MOV EDX,8 ; SHL RCX,3 ; CALL
 // [0x140152b60]`, i.e. MemAlloc(cap * 8, 8) with NO hidden header byte. That was
@@ -322,30 +310,11 @@ extern "C" TradeResourceNode** TradeUI_StorageTree_Insert_e1c0(AvlTreeHead<Trade
     return out;
 }
 
-// ── REMAINING WAVE A LEAVES (not ported here) ────────────────────────────
-// The TradeUI gate stays closed until this resolves too. Sized from its decompile;
-// the note says what closure it needs, because that is the part that makes a
-// "small" leaf not small.
-//
-//   0x140059670  fn_Building_GetBuyEntries     249 decompiled lines — the largest of
-//                the original set, and the one that must be read from the
-//                DISASSEMBLY: Ghidra renders a joined_r0x000140059767 back-edge that
-//                looks like an infinite loop and is not one. Needs 4 type-id globals
-//                (TypeInfo_ValueDescription, DWORD_1401c7cb8, DWORD_1401c7318,
-//                DWORD_1401c48a8), sub-callees FUN_140001bb0 + FUN_14000ee40,
-//                fn_Sprite_IsValid and a _singleton_exref global. It feeds the buy
-//                table, so a wrong port yields a POPULATED-but-wrong panel rather
-//                than an empty or crashing one.
-//
-// Landed elsewhere in this wave, recorded here so the gate list and the tree agree:
+// ── The other TradeUI leaves, each in its own file ───────────────────────
+//   0x140059670                → src/game/Dialog/tradeui_buyentries.cpp
 //   0x14005a520 + 0x14000ea80  → src/game/Dialog/tradeui_price.cpp
 //   0x1400162d0 0x1400165d0 0x140015ad0 0x140016920 0x1400845d0 0x140084430
 //                              → src/game/Dialog/tradeui_sort.cpp
-// The sort cluster is the cautionary tale of this wave: the gate named two
-// addresses, and porting them turned out to mean porting six, because neither
-// driver's comparator nor its small-range sort existed either. What the gate can
-// see is not the same as what has to exist.
 //
-// NOT a gate dependency, deliberately: 0x140081420 fn_TradeUI_OnTradeButton is the
-// Wave D checkout, reachable only from the slot-9 buttonTrade branch, which
-// null-guards it at the call site in tradeui.cpp.
+// 0x140081420 TradeUI::OnTradeButton, the checkout, is in tradeui_checkout.cpp; the
+// buttonTrade click (element id 0x4e20) in tradeui.cpp calls it.

@@ -4,8 +4,7 @@
 //
 // The eleven `?_typeInfo@…@Graphics@@` records were MINTED until this block;
 // the classes' own records, built at CRT init and head-inserted into
-// `Object::BaseTypeInfo::_firstTypeInfo`, are the only ones now
-// (tools/rt_mint_retired/ti-rest.txt).
+// `Object::BaseTypeInfo::_firstTypeInfo`, are the only ones now.
 //
 // THE LITERALS ARE THE PERSISTED ABI (ids are `~CRC32(name)`; saves and .rsc
 // files carry them), copied from the minted rows and retail's
@@ -28,11 +27,11 @@
 //
 // ext nullptr for all eleven (the records' +0x18 in retail's .data). Factory
 // pairs: each class's own statics (AnimationEvent's and Particle's the
-// ABSTRACT classes' `XOR EAX,EAX` pairs), registered by name + VA in the
-// classes' TUs.
+// ABSTRACT classes' `XOR EAX,EAX` pairs), defined in the classes' TUs and
+// handed to the record by DEFINE_TYPE.
 //
 // Its own translation unit so the unit harness links it without the classes'
-// registry-bound bodies (tests/unit/b39_ti_rest_test.cpp).
+// bodies (tests/unit/b39_ti_rest_test.cpp).
 // ============================================================================
 #include "graphics/Animation.h"
 #include "graphics/AnimationGroup.h"

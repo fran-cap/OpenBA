@@ -10,15 +10,14 @@
 // (splash_loop_stubs.cpp gates it on EngineLoader::IsBusy).
 //
 // Solution: split LoadScene_PhaseA into three pieces (LoadSceneA1 + chunked
-// PhaseB + LoadSceneA3) and drive PhaseB incrementally from MenuDLT::
-// Stub_Update — each tick processes ~500 elements (~17ms of work).
+// PhaseB + LoadSceneA3) and drive PhaseB incrementally from the splash's
+// GameLoadDialogLoopT::Update — each tick processes ~500 elements (~17ms of work).
 //
-// Usage from menudialogloopt_stubs.cpp:
-//   ChunkedSceneLoader::Init(menuDltSelf);   // from Stub_Startup (main thread)
-//   while (...) {
-//     ChunkedSceneLoader::Tick(500);          // from Stub_Update (per-tick)
-//     if (!ChunkedSceneLoader::IsBusy()) break;
-//   }
+// Usage (game_main.cpp arms it, splash_loop_stubs.cpp drives it):
+//   ChunkedSceneLoader::Arm(menuLoop);       // RunGameMain, at boot
+//   ChunkedSceneLoader::RunArmedInit();      // GameLoadDialogLoopT::Update, once revealed
+//   if (ChunkedSceneLoader::IsBusy())
+//     ChunkedSceneLoader::Tick(500);         // GameLoadDialogLoopT::Update, per frame
 //
 // Single-job model — only one chunked load in flight at a time.
 //
@@ -33,8 +32,8 @@ namespace ChunkedSceneLoader {
 
 // Run LoadSceneA1 (small allocs + MenuScene.rsc load + 3 AddGlobalObject
 // calls — measured ~590ms, not the ~10ms originally assumed) and capture the
-// chunked PhaseB state. After this returns, IsBusy() is true; Tick() drives
-// the rest. Safe to call multiple times — early-exits if already initialized
+// chunked PhaseB state. If PhaseB has work, IsBusy() is true after this returns;
+// Tick() drives the rest. Safe to call multiple times — early-exits if already initialized
 // for the same loop.
 void Init(MenuDialogLoopT* menuDltSelf);
 

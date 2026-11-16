@@ -31,7 +31,7 @@
 //      whole render target, and free the four buffers the SpriteContext owns.
 //
 // ---------------------------------------------------------------------------
-// FACTS GHIDRA'S DECOMPILED C DROPS (reference_ghidra_c_output_vs_disassembly)
+// FACTS GHIDRA'S DECOMPILED C DROPS
 // ---------------------------------------------------------------------------
 //
 //  * **A DROPPED DEREFERENCE THAT CHANGES THE VALUE.** The layer pre-pass at
@@ -39,7 +39,7 @@
 //        MOV ECX,[RDX+0x20] ; SHR ECX,4 ; TEST CL,1 ; CMOVNZ ...
 //        MOV RCX,[RDX+0x18] ; TEST RCX,RCX ; JZ +5 ; MOV ECX,[RCX+0x34]
 //        CMP ECX,R8D
-//    When `dialog->_desc` (+0x18) is NULL the `MOV ECX,[RCX+0x34]` is SKIPPED
+//    When `dialog->_dialog` (+0x18) is NULL the `MOV ECX,[RCX+0x34]` is SKIPPED
 //    and ECX still holds `flags >> 4` — so the layer compared is the SHIFTED
 //    FLAGS WORD, not zero and not a layer. The very next block re-loads +0x18
 //    and, on the same null, assigns `XOR R8D,R8D` = 0 instead. Two different
@@ -79,50 +79,21 @@
 //    0x180122183, and the element root `[[dialog+0x50]]` at 0x180121f52.
 //
 // ---------------------------------------------------------------------------
-// THE ORACLE, AND — SAID FIRST — WHAT IT DOES NOT COVER
+// THE STATE DRAW WRITES ITSELF, BESIDE THE GEOMETRY IT SUBMITS
 // ---------------------------------------------------------------------------
-// `Draw`'s PRODUCT is submitted geometry. A predictive oracle that suppresses
-// `AddSpriteDraw` / `Flush` / the element vtable Draw verifies NONE of it. What
-// it does verify is the function's entire PERSISTENT SCALAR write set, which is
-// exactly ten locations:
+// `Draw`'s product is submitted geometry. Three pieces of scalar state that its
+// own instructions write outside its frame:
 //
-//   PREDICTED AND COMPARED
-//     this+0x0fc..+0x10c  `_clipRegion` — determined by Video::Device + _uiScale
-//                          and written BEFORE the first call, so no suppressed
-//                          callee can move it.
-//     ctx +0x408..+0x417  `_color` = opaque white — also written before the
-//                          first call. `Flush` writes `_scissor`, never
-//                          `_color` (checked in spritecontext_flush.cpp).
-//
-//   PREDICTED BUT DECLARED UNVERIFIABLE (`Exclude`, so it counts as such)
-//     ctx +0x010          `_dirty`. We predict our own `|= 0x1000`, but
-//                          `SetCamera` ORs kDirtyGlobalConstants (0x800) and
-//                          `Flush` ORs kDirtyScissor (0x400) into the SAME word
-//                          while suppressed, so the final value is not ours.
-//
-//   ABSTAINED FROM ENTIRELY IN PREDICT MODE
-//     ctx +0x1e0..+0x1ef  `_scissor`. The tail's reset is GATED on the current
-//                          scissor, and `SpriteContext::Flush` overwrites it
-//                          (spritecontext_flush.cpp:502-508) on every batch.
-//                          With Flush suppressed the branch condition is
-//                          UNKNOWABLE, so the body abstains rather than guessing
-//                          — the same rule lane UI1 applied to `Update`'s
-//                          drag-drop block. A predictor that guesses turns a
-//                          coverage hole into a false red.
-//
-// EFFECTIVENESS IS THE HONEST WEAKNESS HERE AND IT IS STATED, NOT BURIED.
-// Both compared regions are IDEMPOTENT in a steady frame: once `_clipRegion`
-// matches the resolution and `_color` is white, every later frame predicts a
-// value that is already in memory and `changed=` stops moving. `wrong=0` over
-// a thousand such rounds is a weak statement. The lane doc reports `changed=`
-// beside `rounds=` for exactly that reason, and the negative control is scored
-// against the rounds that HAD an armable subject, never against the total
-// (reference_probe_needs_an_effectiveness_control.md).
-//
-// The complement for the geometry is a live in-game run with the DETOUR ON —
-// if the layer walk, the letterbox arithmetic or the batch drain were wrong the
-// UI would be visibly wrong or absent. That is a functional check, not an
-// oracle, and the lane doc says so in those words.
+//     this+0x0fc..+0x10b  `_clipRegion` = {0, 0, w-1, h-1}, from Video::Device
+//                          and _uiScale (0x1801219c0..0x1801219ce), written
+//                          BEFORE the function's first call.
+//     ctx +0x408..+0x417  `_color` = opaque white, only when it is not already,
+//                          with `_dirty` (+0x010) |= 0x1000
+//                          (0x18012198b..0x1801219af), also before the first call.
+//     ctx +0x1e0..+0x1ef  `_scissor` = {0, 0, backBufferWidth, backBufferHeight}
+//                          with `_dirty` |= 0x400 (0x180122219..0x180122231).
+//                          The reset is GATED on the scissor as the frame's
+//                          callees left it (0x1801221f7..0x180122217).
 //
 // ============================================================================
 
@@ -144,9 +115,6 @@
 #include "ui/SharpDraw.h"   // NOT RETAIL: ext.sharp_ui's snap origin (SpriteContext::_extSharp)
 #include "ui/SpriteRecord.h"   // NOT RETAIL: ext.render_pipe's replayed frames (SpriteContext::_extRecord)
 #include "video/CompanionData.h"   // NOT RETAIL: ext.touch_mode resets ImageBufferData::_extPointSampling
-// ENDGAME B.3.6 block E: element_common.h carries the same file-scope
-// `Module` / `ResolveAddr` declaration every other runtime/src file uses (the
-// address door lives in standalone/), and the RULE B6-5 atomic door caches.
 #include "element_common.h"
 #include "video/Device.h"   // ENDGAME B.3.9 SS1: Video::Device::_singleton
 #include "input/Device.h"   // ENDGAME B.3.9 SS1: Input::Device::_singleton
@@ -165,7 +133,7 @@ using UI::SpriteDraw;
 // SEVEN OF THE EIGHT ARE EXPORTED, verified against the shipped export
 // directory with pefile rather than assumed — `AEAA` means PRIVATE, not
 // unexported, and both `Flush` and `AddSpriteDraw` are `AEAA` names that the DLL
-// exports all the same (reference_aeaa_is_private_not_unexported.md).
+// exports all the same.
 // B3R RT-UI: all called by name -- the Camera ctor body
 // (`??0Camera@Graphics@@QEAA@AEBVFrustum@Volume@@AEBVTransform3@Math@@_N@Z`,
 // 0x1800fe960, the Graphics::Camera ctor, constructed directly), the SpriteContext /
@@ -383,8 +351,6 @@ void UI::UserInterface::Draw(Video::Context& context) {
                         // both re-load the sheet. Kept as two reads because
                         // that is two loads of `[d+0x58]` in retail. The sheet's
                         // sprite table is `SpriteSheet::m_sprites` (+0x20).
-                        // B.4 LEFT: `DialogInstance::_spriteSheet` is `void*`
-                        // (R-UI-a).
                         int32_t sw = 0, sh = 0;
                         {
                             const int64_t idx = d->_spriteIndex;

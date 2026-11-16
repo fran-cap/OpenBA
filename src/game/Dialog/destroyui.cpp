@@ -117,7 +117,7 @@ static bool DestroyComponent_CanRebuild_Impl(DestroyComponent* destroyComp)
 // ============================================================
 // DestroyComponent action helpers (common pattern)
 // ============================================================
-// fn_FindComponent_BuildState is FUN_140003ea0, the STATEMACHINECOMPONENT finder.
+// DestroyUI_FindStateMachine is FUN_140003ea0, the STATEMACHINECOMPONENT finder.
 //
 // Reclaim/Rebuild/Destroy all POST AN EVENT on the state machine at SMC+0x48:
 //   the current node's Controller::PostEvent (slot 2) (&SMC[0x48], current_sub_state, eventId)
@@ -125,7 +125,7 @@ static bool DestroyComponent_CanRebuild_Impl(DestroyComponent* destroyComp)
 // +0x00 is the CURRENT node (StateMachine_Tick re-points it to the deepest active
 // node each pass) and +0x51 is its sub-state index — so for a collapsed building
 // this lands on the DestroyComponent's node in state 7. The handlers for events 0
-// and 1 there are Destroy_State7Event0_Rebuild_d2a0 / Destroy_State7Event1_Remove_d1a0
+// and 1 there are DestroyComponent::State7Rebuild / State7Remove (0x14011d2a0 / 0x14011d1a0)
 // in destroycomponent_states.cpp.
 //
 // Reclaim (14011e400): also calls the component's slot 4 (Startup)
@@ -169,13 +169,13 @@ static void DestroyComponent_Destroy_Impl(DestroyComponent* destroyComp)
 // ============================================================
 // 0x14011dfa0 state-machine driver — moved (2026-07-20)
 // ============================================================
-// The authoritative, disasm-verified port is RemovalCalc_StateMachine_dfa0 in
-// src/game/Player/keystone_a_removalcalcpath.cpp, registered for 0x14011dfa0;
-// UpgradeUI_OnRemove calls it by name.
+// The authoritative, disasm-verified port is DestroyComponent::RunStateMachine in
+// src/game/Player/keystone_a_removalcalcpath.cpp (0x14011dfa0);
+// UpgradeUI::OnElementEvent calls it by name.
 //
 // StateMachine state bytes (StateMachineComponent +0x50..+0x53):
-//   +0x50 previousState, +0x51 currentSubState,
-//   +0x52 targetState (-1 = needs processing), +0x53 transitionTarget
+//   +0x50 currentInput, +0x51 activeState,
+//   +0x52 pendingState (-1 = nothing pending), +0x53 transitionState
 
 // Helper: Find element by name in the dialog's container
 static UI::Element* FindElemByName(UI::Element* dialogElem, const char* name) {
@@ -327,8 +327,7 @@ void DestroyUI::OnUpdateLayout() {
 
         // --- Update destruction progress bar ---
         int destroyDone = destroyComp->progress;   // COMP-c named +0x54 (merge fix)
-        // LEFT: DestroyComponent +0x58 is declared void* in COMP-c's header; the
-        // demolition target is its low dword.
+        // DestroyComponent +0x58 (progressTarget): the demolition target.
         int destroyTotal = destroyComp->progressTarget;   // COMP-c named +0x58 (merge fix)
 
         float destroyRatio;

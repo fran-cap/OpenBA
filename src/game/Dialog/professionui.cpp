@@ -7,7 +7,7 @@
 // Struct layout:
 //   +0x00: DialogController base (0x30)
 //   +0x30: int* countsArray          // per-profession citizen count
-//   +0x38: (unused/zeroed)
+//   +0x38: uint32_t count, +0x3C: uint32_t capacity (of countsArray)
 //   +0x40: void** spinnerElements    // InternalBasePtr[] for spinner elements
 //   +0x48: uint32_t spinnerCount
 //   +0x4C: uint32_t spinnerCapacity
@@ -27,7 +27,7 @@
 //   +0x10: void* parent
 //   +0x18: void* left
 //   +0x20: void* right
-//   +0x28: int color (red-black flag)
+//   +0x28: int16 balance, +0x2A: int16 height (AVL)
 //   +0x2C: (padding)
 //
 // Decompiled from Application-x64.exe.
@@ -62,8 +62,8 @@
 #include "Component/WorkDescription.h"   // X::TypeId() (B.3.9 CG2)
 #include "Component/WorkPlaceComponent.h"   // X::TypeId() (B.3.9 CG2)
 #include "Component/WorkComponent.h"   // X::TypeId() (B.3.9 CG2)
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
-#include "Component/exe_bodies.h"   // B3R: CitizenEmploy_Strat_*
+#include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
+#include "Component/exe_bodies.h"
 
 #include "Dialog/ProfessionUI.h"
 #include "Game/Profession.h"
@@ -74,11 +74,6 @@
 #include "Component/CitizenComponent.h"
 #include "Component/CitizenDescription.h"
 #include "Component/MapComponent.h"
-
-// LEFT in this file (B4 P2 DLG-2): the town's worker functions
-// (CitizenEmploy_Strat_*, FindAvailableBuilding) take the
-// citizen list and the profession as integers and are called from other blocks'
-// files: one cast per argument, `// LEFT: SIG` (wave X).
 
 // ============================================================
 // File-local helpers: AVL BST rotations + rebalance
@@ -206,26 +201,17 @@ static void BSTRebalance_Impl(ProfNode** treeRootPtr, ProfNode** startNodePtr) {
     }
 }
 
-// ---- ProfessionUI: PROMOTED to the real reimpl (profession-assignment bring-up) -
+// ---- ProfessionUI ---------------------------------------------------------------
 // The toolbar "professions" overlay (Template\UtilityProfessions.rsc). Its controller
-// lists every profession with a worker-count spinner + a "goto" button. The real
-// reimpl lives in src/game/Dialog/professionui.cpp; the generic stub left every slot
-// a no-op so the overlay opened empty. Wire the three real slots:
+// lists every profession with a worker-count spinner + a "goto" button:
 //   Slot5 (+0x28, setup)  — builds the profession table, spinner/number element
 //                           caches, and the profession→index BST; self-calls Slot8.
 //   Slot8 (+0x40, update) — recounts citizens per profession each frame and refreshes
-//                           the spinner values + worker-slot numbers. DialogInstance::
-//                           OnUpdate dispatches this every frame once the controller is
-//                           attached — INCLUDING before Slot5 has populated the caches,
-//                           at which point the reimpl would deref the null spinner array
-//                           (+0x40). Guard: skip until setup has run (the counts
-//                           array + the spinner array both non-null).
+//                           the spinner values + worker-slot numbers. No set-up test:
+//                           OnOpened runs before the dialog is queued for updates.
 //   Slot9 (+0x48, event)  — spinner change reassigns citizens between professions
-//                           (uses the CitizenList Find/Request/Remove worker fns already
-//                           registered for the Town Hall profession tab); button click
-//                           centers the camera on a citizen of that profession.
-// Construction stays the stub alloc+zero+vtable; the framework fills the base
-// dialog/datasource fields afterward — same shape as the MapUI/ImmigrationUI promotions.
+//                           (the CitizenBehavior worker finders and RemoveWorker); button
+//                           click centers the camera on a citizen of that profession.
 namespace professionui_sa {
     // ENDGAME B.3.9 CG2: EnsureTypeIds retired — it healed TypeId_NumberEditElement
     // (a per-file lazy-fill of the exe-side global) which the conversion below to
@@ -658,7 +644,7 @@ void ProfessionUI::OnUpdate(const System::Time& /*time*/) {
 // Handles spinner value change for profession assignment.
 // When user adjusts the spinner for a profession:
 //   - If new value > current count: add citizens to that profession
-//     (tries idle -> working -> student -> any fallback)
+//     (tries relocate -> nearest housed laborer -> fullest house -> idle laborer)
 //   - If new value < current count: remove citizens from that profession
 // Then refreshes the display via Slot8 (vtable +0x40).
 //
@@ -668,13 +654,12 @@ void ProfessionUI::HandleSpinner(int profIndex) {
     // NO g_wpcRosterOnly guard (removed 2026-08-17). It used to be held here because the
     // Attach/Detach visual block "faults on inert standalone objects (READ of 0x10 in
     // Detach's e710 getter when the player lowered a builder count)". That exact fault is
-    // now guarded at the source — workplacecomponent.cpp:276 returns early on a null
-    // accessor — so the premise expired and the guard outlived it. Holding it here was not
-    // free: the same flag gates Attach's clear of the "no workers" status bit, so every
-    // seat made through this spinner left the ? icon up over a fully-staffed building.
-    // g_wpcRosterOnly is a world-BUILD shim (see its definition); a spinner click is
-    // gameplay time, which is exactly when the visual is meant to run. See the block above
-    // WorkPlaceUI idx9 in workplaceui.cpp for the full measurement.
+    // now guarded at the source — WorkPlaceComponent::Detach (workplacecomponent.cpp) returns
+    // early on a null DestroyComponent — so the premise expired and the guard outlived it.
+    // Holding it here was not free: the same flag gates Attach's clear of the "no workers"
+    // status bit, so every seat made through this spinner left the ? icon up over a
+    // fully-staffed building. g_wpcRosterOnly is a world-BUILD shim (see its definition); a
+    // spinner click is gameplay time, which is exactly when the visual is meant to run.
     int64_t idx = (int64_t)profIndex;
 
     // Get spinner element at this index and read desired value
@@ -686,8 +671,6 @@ void ProfessionUI::HandleSpinner(int profIndex) {
 
 
     // Add citizens if desired > current
-    // (LEFT: FindAvailableBuilding takes the citizen list and the profession as
-    // integers — Game/exe_bodies.h, a wave-X family of another agent: one cast each below)
     if (current < desired) {
         uint64_t toAdd = (uint64_t)(uint32_t)(desired - current);
         do {
@@ -696,10 +679,10 @@ void ProfessionUI::HandleSpinner(int profIndex) {
 
             // Request a worker slot
             ComponentEntity* retBuf[2] = {nullptr, nullptr};
-            citizenList->FindAvailableBuilding(retBuf, profId);   // 0x14008d100 (door misnamed fn_CitizenList_RequestWorker)
+            citizenList->FindAvailableBuilding(retBuf, profId);   // 0x14008d100
             ComponentEntity* slot = retBuf[0];
 
-            // Try to find a citizen: idle -> working -> student -> any
+            // Try to find a citizen: relocate -> nearest housed laborer -> fullest house -> idle laborer
             ComponentEntity* slotCopy = slot;
             CitizenComponent* findBuf[1] = {nullptr};
             CitizenComponent** result = citizenList->FindWorkerToRelocate(findBuf, &slotCopy, profId);   // 0x14008cbf0
@@ -816,7 +799,7 @@ void ProfessionUI::HandleButton(int profIndex) {
                 // Found matching citizen -- check if same profession still (re-read after CheckPtr)
                 citizen = citizenArray[*rotIdx].Get();
                 if (citizen->profession != profId) {
-                    // Profession changed between checks -- still go to this citizen
+                    // Profession changed between checks -- return without centering
                     return;
                 }
 
@@ -855,7 +838,7 @@ void ProfessionUI::HandleButton(int profIndex) {
 // ============================================================
 // ProfessionUI::Slot9 (vtable +0x48) -- Event handler
 // ============================================================
-// Handles spinner changes (msg 0x12) and button clicks (msg 0x15).
+// Handles spinner changes (msg 0x15) and button clicks (msg 0x12 or 0x15).
 // Spinner: reassigns citizens between professions.
 // Button: finds a citizen of that profession and centers camera on them.
 //

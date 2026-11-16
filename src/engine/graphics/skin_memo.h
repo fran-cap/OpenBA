@@ -78,7 +78,7 @@ inline uint64_t HashKey(const Key& k) {
 // live only when its epoch is the current one, so a scope change empties the
 // table with no clear. A different key hashing to a live slot EVICTS it (the
 // next request for the evicted key recomputes; counted). Bounded: kSlots x
-// (kMaxBones x 64 + 72) bytes, allocated on first use; only `count` matrices
+// (kMaxBones x 64 + 64) bytes, allocated on first use; only `count` matrices
 // of a slot are ever written.
 inline constexpr int32_t kSlots    = 4096;   // power of two
 inline constexpr int32_t kMaxBones = 48;     // the larger caller buffer (Draw / EdgeMeshInstance::Draw)

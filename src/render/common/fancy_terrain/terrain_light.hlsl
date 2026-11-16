@@ -22,7 +22,7 @@
 // A point well above the ground (a roof, a tree top) gets less of it (`look.w`); everything fades into the
 // fog as the AO pass does. The sky (depth 1) is left alone.
 //
-// The full-screen vertex program is AO's (src/render/common/ao/ao_depth_resolve.hlsl VSFullscreen). Compiled
+// The full-screen vertex program is AO's (src/render/dx11/ao/ao_depth_resolve.hlsl VSFullscreen). Compiled
 // offline by tools/water_shaders.py (fxc, ps_4_0) into terrain_light_ps.h.
 // ============================================================================
 

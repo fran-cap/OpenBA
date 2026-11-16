@@ -1,12 +1,6 @@
 #pragma once
 // UI::TextElement -- offsets used by Wave 7 lane E.
 //
-// *** This DISAGREES with the TextElement-base comment block that has lived
-// in LabelElement.h since an earlier era (that file's "TextElement base
-// (0xC0..0xFF)" table). That table was never cross-checked against a call
-// site; this header's offsets are, and the fix is applied at LabelElement.h's
-// source per PLAN.md sec6 step 8 (see the note left there). ***
-//
 // Evidence (Runtime-x64.dll addresses):
 //   SetParameter(i,s)  0x18011e9b0  guards -1<i<*(int*)(this+0xd0); writes
 //                                    System::String::operator=(
@@ -24,14 +18,14 @@
 //   CacheText (private, but exported: ?CacheText@TextElement@UI@@AEAAXXZ,
 //              0x18011ec10) reads/writes this+0xd0 (param count), converts
 //              the UI::String at this+0xd8 to a System::String, and manages a
-//              cached-formatted-text pointer at this+0xf8. NOT reimplemented
-//              here -- called via RT_ORIGINAL_ONCE, see widgets_layout.cpp.
-//   SetParameterCount (private, exported: 0x18011e8e0) likewise called
-//              through, not reimplemented.
+//              cached-formatted-text pointer at this+0xf8. Ported as
+//              TextElement::CacheText (textelement_cachetext.cpp).
+//   SetParameterCount (private, exported: 0x18011e8e0) likewise ported
+//              there.
 //
-// this+0xc0..0xc8 (8 bytes) is read by neither of this lane's two functions
-// and is NOT claimed here (LabelElement.h's old table guessed "font ptr" for
-// it; that guess is unverified by this lane and left alone).
+// this+0xc0..0xc8 (8 bytes) is read by neither SetParameter nor SetText
+// (LabelElement.h's old table guessed "font ptr" for it; the note below
+// confirms it).
 //
 // *** +0xC0 IS THE FONT, AND THE OLD GUESS WAS RIGHT. 2026-09-12, elem_B. ***
 // `?ComputeSize@TextElement@UI@@UEAAXXZ` (0x18011F060) loads +0xC0 into RCX and
@@ -73,8 +67,8 @@ namespace UI { namespace TextElementOffsets {
 // call sites (0x18011e9b0) and are LEFT AS THEY ARE -- a NumberElement is not
 // necessarily laid out like the TextElement this table was read from, and
 // nothing here has been re-derived. NumberElement.h carries the same note and
-// the evidence is in docs/history/runtime_port/WAVE9_LANE_M.md Finding 1. Resolve this
-// before any lane mints or constructs either class at cutover.
+// the evidence is in docs/history/runtime_port/WAVE9_LANE_M.md Finding 1. The banner
+// above records why both readings are right.
 constexpr int kParamArrayData = 0xC8;  // Collection::Array<System::String>.data -- TextElement's own field
 constexpr int kParamCount     = 0xD0;  // Collection::Array<System::String>.size (int32_t) -- TextElement's own field
 constexpr int kParamCapacity  = 0xD4;  // Collection::Array<System::String>.capacity (int32_t) -- inferred from the Array<T> shape, not read by either ported function
@@ -95,7 +89,7 @@ constexpr uint32_t kDirtyBit  = UI::kElementFlagNeedsSizeCalc;
 //     ?_ParentTypeName@TextElement@UI@@CAPEBDXZ @0x180041ec0 -> "Element"
 //
 // `??_7TextElement@UI@@6B@` @ 0x180156b80, TWELVE slots:
-//   [0] 0x1800422f0 vector deleting dtor (deleting_dtor.cpp row)
+//   [0] 0x1800422f0 vector deleting dtor
 //   [1] 0x180041ef0 TypeName · [2] 0x180041ed0 Type · [3] Element::Persist
 //   [4] 0x18011f060 ComputeSize · [5] 0x18011f120 ComputeLayout
 //   [6] 0x18011f280 Draw · [7..11] Element's, inherited
@@ -169,8 +163,9 @@ public:
     void Draw(SpriteContext& context, uint8_t alpha) const override; // [6] 0x18011f280
 
     // ---- ported non-virtual members (textelement_cachetext.cpp) -------------
-    // Both are `AEAA` (PRIVATE) in retail; PUBLIC here because their registered
-    // doors delegate to them (access is not part of the GCC ABI).
+    // Both are `AEAA` (PRIVATE) in retail; PUBLIC here because CacheText is called
+    // from outside the class (comboelement.cpp, widgets_input.cpp,
+    // element_bodies_b5.cpp); access is not part of the GCC ABI.
     void CacheText();                                            // 0x18011ec10
     void SetParameterCount();                                    // 0x18011e8e0
 
@@ -193,7 +188,7 @@ public:
     TextElement& operator=(const TextElement& src);              // 0x1800421c0  not ported
     static void* operator new(std::size_t bytes);                // 0x180041f00  not ported
     static void* operator new(std::size_t bytes, void* place);   // 0x180041f70  not ported
-    static void  operator delete(void* p) { ::Object::detail::InternalMemFree(p); }                       // 0x180041f80  not ported
+    static void  operator delete(void* p) { ::Object::detail::InternalMemFree(p); }                       // 0x180041f80
 
 private:
 

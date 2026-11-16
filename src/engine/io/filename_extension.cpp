@@ -94,7 +94,7 @@ System::Filename* RtSystem_Filename_GetPathExtension(const System::Filename* sel
     }
 
     // 0x1800c6595: SubString(self, &tmp, start, end) — inclusive at both ends,
-    // which is what src/engine/system/string.cpp:500 implements.
+    // which is what src/engine/system/string.cpp:423 implements.
     System::String tmp = s.AsString().SubString(start, end);
 
     // 0x1800c65a3 null-init, 0x1800c65a6 adopt, 0x1800c65b4 normalise: that

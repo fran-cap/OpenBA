@@ -18,7 +18,7 @@
 //
 // SIZE 0x88 (`MOV EDX,0x88` at 0x18004a77f). The ctor is INLINED into
 // Construct and Reconstruct (no ??0 export is called by either; the exported
-// `??0NumberDescription@UI@@QEAA@XZ` 0x180118b60 is ui_factory_wave28.cpp's):
+// `??0NumberDescription@UI@@QEAA@XZ` 0x180118b60 is the real ctor below):
 //     +0x68 qword 0   _font  ExternalPtr<UI::Font> (0x18003f1e0) -> NumberElement::_font
 //     +0x70 qword 0   _numberType kScalarUInt  -> NumberElement::_mode      } one
 //                     _ivalue     kScalarInt   -> NumberElement::_intValue  } store
@@ -93,7 +93,7 @@ public:
     NumberDescription& operator=(const NumberDescription& src);  // 0x18004a690  not ported
     static void* operator new(std::size_t bytes);                // 0x18004a250  not ported
     static void* operator new(std::size_t bytes, void* place);   // 0x18004a2c0  not ported
-    static void  operator delete(void* p) { ::Object::detail::InternalMemFree(p); }                       // 0x18004a2d0  not ported
+    static void  operator delete(void* p) { ::Object::detail::InternalMemFree(p); }                       // 0x18004a2d0
 
 private:
 

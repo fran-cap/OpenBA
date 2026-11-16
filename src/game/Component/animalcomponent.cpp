@@ -3,7 +3,7 @@
 // the deer/livestock wander + aging + death pathway.
 //
 // AnimalComponent is the per-creature component. Its retail vtable (0x140162110)
-// overrides six slots; the five this file implements are:
+// overrides six slots; the four this file implements are:
 //
 //   [4]  Startup      0x140106d50  seed the death age from the description
 //   [6]  OnAdded      0x140106c20  latch the spawn cell, size the wander box,
@@ -13,15 +13,15 @@
 //
 // plus the three private helpers Update leans on:
 //
-//   AnimalComponent_FindHabitat     0x140106020  expanding ring scan for a free
+//   AnimalComponent::FindHabitat    0x140106020  expanding ring scan for a free
 //                                                terrain-type-2 (grass) cell
-//   AnimalComponent_SetWanderTimer  0x140106250  play an idle animation, arm the
+//   AnimalComponent::SetWanderTimer 0x140106250  play an idle animation, arm the
 //                                                move timer, pick a facing
-//   AnimalComponent_UpdateBehavior  0x140107320  age -> mesh visual scale
+//   AnimalComponent::UpdateBehavior 0x140107320  age -> mesh visual scale
 //
 // AnimalComponent_SetBounds (0x140105e20) is NOT re-ported here: it already has a
-// faithful port as PastureComponent_AnimalSetBounds (pasturecomponent.cpp) and is
-// registered by reg_component_gap_D.cpp:71; we call that body directly.
+// faithful port as AnimalComponent::GetWanderBox (pasturecomponent.cpp); we call
+// that body directly.
 //
 // ---- Struct fields (size 0x58, ctor 0x140106fc0) --------------------------
 //   +0x10 Entity IBP (owner)          +0x18 AnimalDescription (Object::Base)
@@ -114,7 +114,7 @@ inline float MoveSpeed()  { return kRdata_140172280; }
 //   0x140003f60 ActCNR_FindComponent_3f60      (ModelComponent)
 //   0x1400c2ea0 ActHunt_MarkEntityRemoval_c2ea0
 //   0x140118950 GrowthComponent_ModifyFlags
-//   0x140105e20 PastureComponent_AnimalSetBounds
+//   0x140105e20 AnimalComponent::GetWanderBox
 //   0x1401250f0 ActMvDep_AnimHelper_50f0       (set animation)
 //   0x1400c5400 WorkBase_TaskListCleanup_c5400 (action stack clear)
 //   0x1400c54e0 Pf_ActStackPush_54e0
@@ -122,7 +122,7 @@ inline float MoveSpeed()  { return kRdata_140172280; }
 // 0x140003110 was Collection::Array<void*>::SetSize(n, fill) monomorphised into
 // the exe (ENDGAME B.3.2 step 2); ActHunt_DynArraySetCount_3110 confirmed the
 // 3-arg fill form matches SetSizeCore exactly, so the call site below is the
-// typed array's own SetSizeFill(n, &entity).
+// typed array's own 3-arg SetSize(n, entity).
 
 } // namespace
 
@@ -176,7 +176,7 @@ inline int ClampCell(int v, int dim) {
 //   deathAge = desc->lifespanBase + RandFloatTol() * desc->lifespanVariance
 // RandFloatTol is symmetric in [-1,1), so the lifespan straddles the base.
 //
-// This is load-bearing for Update: the inert factory zeroes the body, so an
+// This is load-bearing for Update: the ctor zeroes deathAge, so an
 // animal that never runs Startup has deathAge == 0 and dies on its first tick.
 // ============================================================
 
@@ -356,7 +356,7 @@ void AnimalComponent::SetWanderTimer(uint32_t animId, float seconds) {
 //  4. Bail if the character already has a queued action, or if the move timer at
 //     +0x30 has not run out yet.
 //  5. Pick a destination. Penned animals (bit 20) never path. Otherwise: if bit
-//     22 is set, revalidate the habitat cell (must be terrain 2 with no building)
+//     22 is set, revalidate the habitat cell (must be terrain 2 with no occupant other than a trading post)
 //     and re-size the wander box. Then, if the animal has left its box OR a 1-in-4
 //     roll comes up, search for a new destination — up to 100 tries of a random
 //     tile inside the box, terrain-resolved and jittered by +/-0.4, re-running
@@ -549,10 +549,7 @@ void AnimalComponent::Update(const System::Time* time) {
                 // "building". Verified at instruction level, and retail's own animal
                 // update (0x140106420) calls exactly this function at 0x140106650.
                 // So the real rule is: a TRADING POST on the tile does not disqualify
-                // it; every other occupant does. That also bounds the blast radius of
-                // BANISHED_LIVE_TRADE_TIDS on animal pathing — the only tiles whose
-                // verdict changes when 0x1401c4b80 is registered are trading-post
-                // tiles. See reference_misnamed_component_finders.
+                // it; every other occupant does.
                 blocked = (buildingIBP == nullptr);
             }
 
@@ -593,7 +590,7 @@ void AnimalComponent::Update(const System::Time* time) {
 
         // DEVIATION (bring-up guard, not retail): Random::Rand(0) divides by the
         // range, so a wander box that was never sized — OnAdded skipped because
-        // flag bit 22 is clear, or SetBounds unresolved — would fault inside the
+        // flag bit 22 is clear — would fault inside the
         // search loop. Retail always has a sized box here.
         if (repath && (boxW <= 0 || boxH <= 0)) {
             repath = false;

@@ -3,47 +3,15 @@
 // ?Update@UserInterface@UI@@QEAAHAEBVTime@System@@@Z   retail 0x1801213c0
 // ============================================================================
 //
-// WHY THIS FILE EXISTS AND WHY IT IS NOT `userinterface.cpp`
-//
-// `userinterface.cpp` is Wave 7 lane C's file and every body in it is a LEAF
-// verified by the REPLAY oracle (snapshot 0x128 bytes, run ours live, run
-// theirs on the copy, memcmp). Lane C explicitly refused `Update` on that
-// instrument, and was right to:
-//
-//     "`Update` drains `_addDialogs` into the list (allocating a node each),
-//      frees the array, advances the fade, calls `DialogInstance::Update` on
-//      every dialog, consumes input from `Input::Device::_singleton`, and ends
-//      drag-drop; it is not replayable and not even idempotent."
-//
-// Every clause of that is true and none of it has expired. A replay of `Update`
-// would drain the SAME `_addDialogs._data` pointer twice, MemFree it twice, and
-// pump a second round of `DialogInstance::Update` into live dialogs.
-//
-// WHAT DID EXPIRE — the three blockers this lane re-tested from scratch:
-//
-//  1. "SPLIT BRAIN, needs a detour."  EXPIRED. `standalone/runtime_detour.{h,cpp}`
-//     is a mature relocating installer with live `[port]` detours, and
-//     `standalone/ui_detour.cpp` is already a UI subject on it
-//     (`TabElement::UpdateContainers`, 0x1800d9710). Building the mechanism is
-//     not this lane's work; using it is. See `RtUiUserInterfaceUpdateInstallDetour`.
-//
-//  2. "`EnterCriticalSection` cannot appear in a non-`_win` file, and the
-//     allocator is Wave 2's NO-GO."  EXPIRED, and it was a CONFLATION.
-//     Retail's inline `EnterCriticalSection(alloc+0x640); Allocate(...);
-//     LeaveCriticalSection(...)` sequence at 0x180121429..0x18012144b is
-//     BYTE-FOR-BYTE the body of the exported static
-//     `?MemAlloc@MemoryAllocator@System@@SAPEAX_KH@Z` (0x1800c7a50) — decompiled
-//     and compared, not assumed. Calling that export reproduces the lock
-//     discipline exactly with no `windows.h` in this file. The Wave 2 NO-GO is a
-//     verdict on REPLACING the allocator arena (`standalone/rt_alloc_swap.cpp`),
-//     not on a ported body calling it; ~30 ported files already call `MemAlloc`.
-//
-//  3. "No oracle."  The body writes the named fields directly (B.4 retired
-//     the `rt_sink.h` pass-through it was written against).
+// Retail's inline `EnterCriticalSection(alloc+0x640); Allocate(...);
+// LeaveCriticalSection(...)` sequence at 0x180121429..0x18012144b is
+// BYTE-FOR-BYTE the body of the static
+// `?MemAlloc@MemoryAllocator@System@@SAPEAX_KH@Z` (0x1800c7a50) — decompiled
+// and compared, not assumed. Calling it reproduces the lock discipline
+// exactly with no `windows.h` in this file.
 //
 // ---------------------------------------------------------------------------
-// FACTS THE DECOMPILED C DROPPED (read off the disassembly, per
-// reference_ghidra_c_output_vs_disassembly.md)
+// FACTS THE DECOMPILED C DROPPED (read off the disassembly)
 // ---------------------------------------------------------------------------
 //
 //  * **`Update` RETURNS THE MOUSE CURSOR INDEX.** Ghidra prints the prototype as
@@ -86,52 +54,6 @@
 //    shipped `.rdata`: `00 00 80 40`. The fade step is
 //    `amount += (float)(ticks * _secondsPerTick) * velocity * 4.0f`.
 //
-// ---------------------------------------------------------------------------
-// THE ORACLE'S COVERAGE BOUNDARY — stated before the code, not after
-// ---------------------------------------------------------------------------
-// In predict mode our body makes NO call (every one goes through
-// `RtSink::Call`, which returns false). So anything a suppressed callee writes
-// is not ours to predict, and anything whose VALUE depends on a suppressed
-// callee is not ours to predict either. Both are `Exclude()`d:
-//
-//   PREDICTED and COMPARED (the whole point):
-//     +0x028/+0x030  `_addDialogs` cleared after the drain      (changes on any
-//                    frame a dialog was added — a real `changed=` contributor)
-//     +0x0fc..+0x10c `_clipRegion`  (fully determined by Video::Device + scale)
-//     +0x0f0/+0x0f4  the fade advance (fully determined by time + pre-state —
-//                    the strongest `changed=` contributor: it moves EVERY frame
-//                    of every fade)
-//     +0x058/+0x05c  `_mouseDown{X,Y}` (fully determined by Input::Device)
-//     +0x0d9         the entry `_mouseCaptured = 0` store (an INTERMEDIATE; the
-//                    exit store is excluded, and the instrument counts this as
-//                    `superseded`, never as a claim about the post-state)
-//
-//   EXCLUDED, with the specific reason each:
-//     +0x000..+0x018 `_dialogs`      — `CleanRemovedDialogs` (x3) unlinks here,
-//                                      and the drain's node POINTERS are
-//                                      addresses `MemAlloc` chose, which no
-//                                      predictor can name.
-//     +0x018..+0x028 `_removedDialogs` — cleared by `CleanRemovedDialogs`.
-//     +0x038/+0x040  the tooltip pair  — written by the suppressed `CloseDialog`
-//                                      arm.
-//     +0x048..+0x058 `_events`         — `UpdateEvents`, `CleanRemovedDialogs`
-//                                      and the two suppressed array-grow pushes.
-//     +0x060..+0x089 the drag-drop block — the branch that clears it is gated on
-//                                      a byte `DialogInstance::Update` writes
-//                                      into our stack-local `UpdateState`. With
-//                                      that call suppressed the branch condition
-//                                      is UNKNOWABLE, so the body ABSTAINS
-//                                      rather than guessing — excluded only when
-//                                      the dialog list is non-empty, and fully
-//                                      predicted when it is empty and the
-//                                      condition is therefore determined.
-//     +0x0d9         the EXIT store    — same cause: it is `UpdateState+0x20`.
-//
-// The return value is NOT compared in predict mode and must not be: our body
-// runs on the PRE-drain list and retail's runs on the POST-drain list, so a
-// difference would be correct rather than a defect. The detour returns RETAIL's
-// value in predict mode, which is also what keeps the frame correct.
-//
 // ============================================================================
 
 #include <cstdint>
@@ -145,10 +67,6 @@
 #include "ui/Element.h"
 #include "ui/ToolTipDialog.h"
 #include "system/Value.h"
-// ENDGAME B.3.6 block E: element_common.h carries the same file-scope
-// `Module` / `ResolveAddr` declaration userinterface.cpp and dialog.cpp use
-// (the address door lives in standalone/), and the RULE B6-5 atomic door
-// caches.
 #include "element_common.h"
 #include "video/Device.h"    // ENDGAME B.3.9 SS1: Video::Device::_singleton
 #include "input/Device.h"    // ENDGAME B.3.9 SS1: Input::Device::_singleton

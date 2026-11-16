@@ -7,9 +7,9 @@
 // lived as raw offsets in src/engine/ui/ribbondescription.cpp, MOVED here.
 // Evidence, all in that file (read from the retail bytes when it was ported):
 //   * the inlined ctor 0x18004448a..0x180044501 (`??0RibbonDescription@UI@@
-//     QEAA@XZ` 0x1800d5bf0 is the same stores — ui_factory_wave28.cpp's
-//     Ctor_RibbonDescription): ONE 16-bit store at +0x68 (both bools), a dword
-//     at +0x6c, two qwords at +0x70/+0x78 — so +0x6a..+0x6b is never written;
+//     QEAA@XZ` 0x1800d5bf0 is the same stores): ONE 16-bit store at +0x68
+//     (both bools), a dword at +0x6c, two qwords at +0x70/+0x78 — so
+//     +0x6a..+0x6b is never written;
 //   * `?Serialize@` 0x1800d5f00 — kScalarBool +0x68, kScalarBool +0x69,
 //     kScalarInt +0x6c, then the Array<ExternalPtr<ElementDescription>> at
 //     +0x70 (SetSize 0x1800492d0, elements 0x1800493d0);
@@ -20,12 +20,13 @@
 //   * sizeof 0x80 — `MOV EDX,0x80` in the slot-0 vector deleting dtor
 //     0x180044620 (B36_SLOTS.md section 1).
 //
-// PARENT, read (B36_SLOTS.md section 3), recorded not used (RULE B6-7):
+// PARENT, read (B36_SLOTS.md section 3); DEFINE_TYPE in ribbondescription.cpp builds
+// `_typeInfo` from both (RULE B6-7):
 //     ?_TypeName@RibbonDescription@UI@@CAPEBDXZ       @0x1800440f0 -> "RibbonDescription"
 //     ?_ParentTypeName@RibbonDescription@UI@@CAPEBDXZ @0x180044100 -> "ElementDescription"
 //
 // `??_7RibbonDescription@UI@@6B@` @ 0x180156ed0, TEN slots:
-//   [0] 0x180044620 deleting dtor (RT_DELDTOR row)  [1] 0x180044130 TypeName
+//   [0] 0x180044620 deleting dtor                   [1] 0x180044130 TypeName
 //   [2] 0x180044110 Type            [3] 0x1800d5ef0 GetFileVersion (0x204)
 //   [4] External::Compile (inherited, NOT declared — B6-1.5)
 //   [5] 0x1800d5f00 Serialize       [6] 0x1800443c0 Reconstruct
@@ -37,8 +38,7 @@
 // own slot 0 (the vector deleting dtor), a virtual ~RibbonDescription holding
 // the retired ??1 door's body, and the factory pair as the class's own statics;
 // every live one wears the COMPILER's table. The minted `??_7RibbonDescription@UI@@6B@`,
-// its RT_DELDTOR row 0x180044620 and the ctor / dtor / slot doors are retired
-// (tools/rt_mint_retired/ui-b.txt).
+// its RT_DELDTOR row 0x180044620 and the ctor / dtor / slot doors are retired.
 // ABSTRACT (slot 0 `= 0`), NO real ctor. The destructor is declared only:
 // `??1` (0x1800d5c90) is the registered door.
 // ============================================================================

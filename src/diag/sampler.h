@@ -17,7 +17,7 @@
 // SamplerTag below names them.
 //
 // Why: the per-component profile (COMPPROF) only sees the vtable calls the entity
-// list makes; time inside Runtime-x64.dll (allocator, containers, math) and inside
+// list makes; time inside the ported engine (allocator, containers, math) and inside
 // our own helpers is invisible to it. Sampling sees everything.
 #pragma once
 

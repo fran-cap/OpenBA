@@ -40,7 +40,8 @@ struct SnapshotResult {
     uint64_t    bytes      = 0;         // arena bytes written
     const char* refused    = nullptr;   // !ok: why (a type name, or the reason)
     // Issue #253: the draw items pass A walked, how many found their geometry already copied
-    // (no second copy, no type test) and how many kept the live object (WorldGeometry modes).
+    // (no second copy, no type test) and how many kept the live object (WorldGeometry modes,
+    // ext.better_trees' falling leaves).
     uint32_t    items      = 0;
     uint32_t    reused     = 0;
     uint32_t    kept       = 0;

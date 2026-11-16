@@ -97,7 +97,7 @@ struct State {
 };
 
 State g;
-// Every entry point holds it for its whole body: the copy, the bind and the release never overlap.
+// The copy, the release and the device objects' setup and teardown hold it: they never overlap.
 std::mutex g_mutex;
 
 std::atomic<uint32_t> g_readers{0};   // draw.h DepthReader bits

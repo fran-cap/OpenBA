@@ -4,21 +4,21 @@
 // FencedTool (0x70 bytes) extends DragTool (0x38 bytes).
 // Handles fenced area placement (pasture, crop fields).
 //
-// Vtable at 0x1401605d0 (15 slots). Four are reimplemented here:
-//   Slot0  Dtor      (0x140026930) — scalar deleting destructor
-//   Slot5  Shutdown2  (0x1400dccc0) — cleanup scene object and mesh
-//   Slot6  OnKey      (0x1400dcbe0) — wraps DragTool::OnKey + rotation handling
-//   Slot9  Shutdown   (0x1400dcd10) — remove scene object + call base shutdown
-//
-// Remaining slots (Startup, Serialize, Draw, CalcPath, CalcCost) are too complex
-// (many unresolved helpers: MeshInstance, Transform, entity creation, fence segment
-// calculation) and are not reimplemented here.
+// Vtable at 0x1401605d0 (15 slots). Defined here:
+//   Slot4  Startup   (0x1400dcd50) — resolve the 3 descriptions + RotationSetting
+//   Slot5  Shutdown  (0x1400dccc0) — cleanup scene object and mesh
+//   Slot6  OnKey     (0x1400dcbe0) — wraps DragTool::OnKey + rotation handling
+//   Slot7  Update    (0x1400dcad0) — fence preview mesh management
+//   Slot8  Draw      (0x1400dc440)
+//   Slot9  OnCancel  (0x1400dcd10) — remove scene object + call DragTool::OnCancel
+//   Slot11 GetSettingType (0x140026920), Slot14 CalcCost (0x1400db490)
+// Slot13 CalcPath (0x1400dae00) is in fencedtool_calcpath.cpp.
 //
 // Decompiled from Application-x64.exe.
 
 // The runtime type headers come FIRST: they pull src/engine/volume/Volume.h,
 // whose global-scope `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()`
-// once <windows.h> has been seen through resolve.h.  ENDGAME B.3.5 batch I2.
+// once <windows.h> has been seen.  ENDGAME B.3.5 batch I2.
 #include "graphics/Scene.h"
 #include "graphics/Mesh.h"
 #include "Player/FencedTool.h"
@@ -50,7 +50,7 @@
 
 
 // ============================================================
-// FencedTool::Shutdown2 (vtable +0x28, Slot5)
+// FencedTool::Shutdown (vtable +0x28, Slot5)
 // ============================================================
 // Removes the fence preview from the scene and destroys the mesh instance.
 // Original: 0x1400dccc0
@@ -168,7 +168,7 @@ void FencedTool::Update(const System::Time* /*param2*/, char param3) {
         uint32_t outParam5 = 0;
         uint32_t outYaw = 0;   // the yaw's bits (degrees) 0x1400dbf90 stores for rotations 0..3
 
-        // 0x1400dbf90 returns uint64_t; the door read AL as the bool.
+        // 0x1400dbf90 returns uint64_t; only AL is read as the bool.
         bool valid = static_cast<uint8_t>(CalcAnchor(
             &outParam2, &outParam3, &outParam4, &outParam5,
             offset, &outYaw)) != 0;
@@ -227,8 +227,8 @@ void FencedTool::Update(const System::Time* /*param2*/, char param3) {
 
 // ============================================================
 // CalcCost helpers, called by name:
-//   0x14009f3e0 Reimpl_MapGetTerrainPos (Game/exe_bodies.h) -- terrain height query
-//   0x1400dbf90 PlayerEdit_FencedAnchorCalc_dbf90 (Player/exe_bodies.h) --
+//   0x14009f3e0 Map::GetTerrainPos (Game/Map.h) -- terrain height query
+//   0x1400dbf90 FencedTool::CalcAnchor (Player/FencedTool.h) --
 //               anchor/rotation adjustment
 // ============================================================
 
@@ -387,7 +387,7 @@ using TileArray = Collection::Array<ToolTileRecord>;
 
 // ============================================================
 // Draw helpers: 0x140101270 PlayerRay_ScreenToCell_101270 (the cell under the
-// cursor), 0x14009f3e0 Reimpl_MapGetTerrainPos (terrain height query),
+// cursor), 0x14009f3e0 Map::GetTerrainPos (terrain height query),
 // 0x1401008c0 PlayerTileRender_DrawOverlay_08c0 (the tile overlay submit).
 // ============================================================
 
@@ -400,7 +400,7 @@ using TileArray = Collection::Array<ToolTileRecord>;
 //   Phase 2 (preview): While dragging, renders the rectangular preview area with
 //     per-tile terrain/height validation (green=valid, red=invalid).
 //
-// Both phases build arrays of 0x14-byte TileRecords and call fn_TileRender.
+// Both phases build arrays of 0x14-byte ToolTileRecord entries and call PlayerTileRender_DrawOverlay_08c0.
 // Original: 0x1400dc440
 void FencedTool::Draw(Video::Context* context, char param3) {
     const PlayerToolManager* dialog = dialogPtr;
@@ -437,7 +437,7 @@ void FencedTool::Draw(Video::Context* context, char param3) {
         // editTiles / lineArray are released by ~Array at scope exit.
     }
 
-    // ---- Phase 2: Preview (only when not param3 and actively dragging) ----
+    // ---- Phase 2: Preview (only when not param3: the drag rect, or the cursor cell when idle) ----
     if (param3 != '\0') return;
 
     int startCell, endCell;
@@ -566,10 +566,6 @@ after_check:
     // previewTiles / lineArray are released by ~Array at scope exit.
 }
 
-// ============================================================
-// Local function pointers for Startup
-// ============================================================
-
 
 // ============================================================
 // Helper: search a description's sub-descriptions for T
@@ -692,23 +688,6 @@ void FencedTool::Startup() {
 // FencedTool::CalcPath (vtable +0x68, Slot13)
 // ============================================================
 // Creates fence entities along the drag rectangle perimeter.
-//
-// This function is extremely complex (~150 lines decompiled) and depends on
-// ~15 unresolved helper functions:
-//   - FUN_1400dbf90: anchor/rotation calculation (already resolved as s_fn_FencedTool_AnchorCalc)
-//   - ComponentEntity_CopyCtor: entity deep-copy
-//   - FUN_140004680: entity component accessor
-//   - FUN_140004740: entity component accessor (different type)
-//   - FUN_1401018d0: set cell range on entity
-//   - Entity_ClearPathQueue: clear entity path queue
-//   - Math::Transform::FromYawPitchOffset: build rotation transform
-//   - Math::Transform::operator=: copy transform
-//   - Graphics::Geometry::SetTransform: apply transform to geometry
-//   - FencedTool_helper_90d0: link fence entity to main entity
-//   - FUN_140003110: append entity to internal list
-//   - FUN_1400c48a0: register entity with world entity list
-//   - FencedTool_Slot13_sub_bc80: place corner fence posts (4 calls)
-//   - FencedTool_Slot13_sub_b8c0: place side fence segments (4 calls)
 //
 // PORTED 2026-07-30: full reimplementation in fencedtool_calcpath.cpp (master
 // entity + shelter + corner/edge/gate fence pieces via MultiObject). The old

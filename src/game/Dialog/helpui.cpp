@@ -1,4 +1,4 @@
-// engine/src/ui/helpui.cpp
+// src/game/Dialog/helpui.cpp
 // Clean reimplementation of HelpUI game logic.
 //
 // HelpUI (0x78 bytes) — help page navigation panel.
@@ -26,7 +26,7 @@
 #include "ui/ScrollElement.h"   // X::TypeId() (ENDGAME B.3.9)
 #include "ui/ButtonElement.h"   // X::TypeId() (ENDGAME B.3.9)
 #include "collection/Collection.h"
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"   // System::MemoryAllocator::_singleton
 
 // ============================================================
 // File-local helpers
@@ -179,7 +179,7 @@ namespace helpui_sa {
     bool Ready() {
         return System::MemoryAllocator::_singleton != nullptr;
     }
-    // Report the OUTCOME of the readiness test, once, naming what is missing.
+    // Report the OUTCOME of the readiness test, once.
     bool CheckOnce() {
         static int s_ok = -1;
         if (s_ok >= 0) return s_ok != 0;

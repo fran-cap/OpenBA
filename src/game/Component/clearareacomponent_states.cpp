@@ -315,13 +315,11 @@ char ClearAreaComponent::State0Enter(StateMachine* sm) {
 //   When the footprint is finally clear, request the 0 -> 1 transition.
 // ============================================================
 //   Faithful to 78f0: the ONLY done-test is the grid-emptiness IsDone (0x140118440), as
-//   in State0Enter. A CountRemaining==0 short-circuit must NOT appear in either.
-//   CountRemaining only counts natural-resource occupants, so it drops to 0 the moment
-//   the tree is felled — finishing the job (and stopping the citizen's work slot) before
-//   ClearArea::Execute Phase 3 can gather the harvest pile the felling just spawned. That
-//   is what stranded piles on the ground. The pile registers itself into its cell+0x08
-//   (see the grid claim in action_base_cnr.cpp), so Map::IsAreaEmpty stays false while it
-//   lies there, holding the job open until a citizen hauls it away — exactly as retail.
+//   in State0Enter. A CountRemaining==0 short-circuit must NOT appear in either: State0Enter
+//   only stores CountRemaining into +0x48. The harvest pile the felling spawns registers
+//   itself into its cell+0x08 (see the grid claim in action_base_cnr.cpp), so
+//   Map::IsAreaEmpty stays false while it lies there, holding the job open until a
+//   citizen hauls it away — exactly as retail.
 //
 //   RETURNS 0, on both exits (0x140117952: `xor al,al`, reached from the not-done branch and after the request).
 //   StateMachine::Tick walks to the parent node whenever a node's per-frame handler returns 0, so a controller
@@ -355,7 +353,7 @@ char ClearAreaComponent::State0Update() {
 // clear-job's StatusIcon/Model/etc. components to finalize (remove the removal icon,
 // hide the felled model) when the area is cleared. The null entity / null slot tests
 // are the tree's (retail's 0x1400c2b70 has neither); kept (B9). The same body is
-// ModelComponentNotify_Reimpl in modelcomponent.cpp (not this block).
+// ComponentEntity::SendEvent in modelcomponent.cpp (not this block).
 // ============================================================
 static void ClearArea_BroadcastEvent(ComponentEntity* ownerEntity, int ev) {
     if (!ownerEntity) return;
@@ -374,7 +372,7 @@ static void ClearArea_BroadcastEvent(ComponentEntity* ownerEntity, int ev) {
 // the footprint then broadcasts event 5 to the owner's components. When clear (the
 // common case) it is a no-op.
 // ============================================================
-// CitizenAI_impl_e0e0 (0x14009e0e0) = Pf_RefreshRegionHeight_9e0e0, called directly.
+// CitizenAI_impl_e0e0 (0x14009e0e0) = Map::ResetTerrainHeights, called directly.
 void ClearAreaComponent::FinishClear() {
     ClearAreaDescription* desc = AsType<ClearAreaDescription>(_description);
     if (!desc) return;
@@ -475,7 +473,7 @@ extern "C" void ClearAreaCtrl_PopulateTable() {
 // Retail's orchard state 20 calls the very same two leaves this file already ports:
 //   * enter    0x1400504e0 builds a ClearArea work with ClearArea_Ctor (0x1400e6960)
 //   * trans38  0x140050430 gates its return-to-planting on FUN_140118440
-// Re-porting either one into orchardcomponent_states.cpp would fork two copies of the
-// grid-scan semantics, so they are exported here instead of duplicated.
+// Orchard state 20 (OrchardComponent::EnterClearing / TickClearing in
+// orchardcomponent_states.cpp) calls the ClearArea ctor and ClearAreaComponent::IsDone directly.
 // ============================================================
 

@@ -5,7 +5,7 @@
 // Vtable batch 2. Derives straight from UI::ElementDescription.
 //
 // ??_7SpinnerDescription@UI@@6B@ (retail 0x1801576c0), ten slots:
-//   0  deleting dtor      0x18004b050  deleting_dtor.cpp row (sizeof 0x88)
+//   0  deleting dtor      0x18004b050  the compiler's (sizeof 0x88)
 //   1  TypeName           0x18004ad60  here
 //   2  Type               0x18004ad40  here
 //   3  GetFileVersion     0x1800d8940  here  (returns 0x204)
@@ -24,7 +24,7 @@
 //     +0x68  ExternalPtr<UI::ElementDescription>   0x180038f90
 //     +0x70  ExternalPtr<UI::ElementDescription>   0x180038f90
 //     +0x78  ExternalPtr<UI::ElementDescription>   0x180038f90
-//     +0x80  int32  _i80   ctor 1, kScalarInt, copied to the element's +0xc0
+//     +0x80  int32  _increment  ctor 1, kScalarInt, copied to the element's +0xc0
 //     +0x84..+0x87 never written
 //
 // The three children are NOT an Array — they are three separate fields, each

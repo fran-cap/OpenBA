@@ -1,10 +1,10 @@
 // src/game/Component/marketlocationcomponent.cpp
 // Clean reimplementation of MarketLocationComponent lifecycle methods from Application-x64.exe.
 //
-// MarketLocationComponent is a ControllerComponent subclass (0x48 bytes) with no
-// additional fields. Two non-trivial vtable overrides:
-//   Shutdown (0x14004efa0) — Component_Serialize + two empty Serializer blocks
-//   OnCreate (0x14004ef60) — slot 7, the REMOVAL hook: erase-by-value of the owner
+// MarketLocationComponent is a ControllerComponent subclass (0x48 bytes) whose one
+// field is the embedded controller at +0x28. Two non-trivial vtable overrides:
+//   Persist  (0x14004efa0) — Component_Serialize + two empty Serializer blocks
+//   OnRemove (0x14004ef60) — slot 7, the REMOVAL hook: erase-by-value of the owner
 //                             entity from the town's market-location list
 //
 // Decompiled from Application-x64.exe using Ghidra.
@@ -23,8 +23,8 @@
 // scan of an 8-byte-stride DynArray (+0x00 data, +0x08 count, +0x0C capacity), shift-down
 // removing EVERY slot equal to *value. It is the UNREGISTER primitive, not the append one
 // (append counterpart: DynArray8_ResizeFill 0x140003110). Naming it "RegisterEntity" is the
-// exact trap that cost a day on the residence registry — see
-// reference_ghidra_oncreate_onremove_mislabel.
+// exact trap that cost a day on the residence registry, where Ghidra's labels sat one vtable
+// slot off and named the OnRemove body OnCreate.
 
 
 // ============================================================================
@@ -143,8 +143,6 @@ void MarketLocationComponent::Persist(IO::Stream& stream) {
 // component whose capability flags (+0x20) carry bit 1 — MarketLocationComponent's
 // 0x82 qualifies. The body is a single DynArray8_EraseByValue, i.e. it UNREGISTERS
 // the owning entity from the town's market-location list at (gameState+0xf0)+0x10.
-// The function name is kept because it is the name in marketlocationcomponent_funcs.h
-// (out of this wave's file scope); the behaviour is the erase.
 //
 // Original disassembly:
 //   MOV RAX,[RCX+0x10]          ; entity ptr from owner

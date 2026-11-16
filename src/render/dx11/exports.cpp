@@ -84,8 +84,7 @@ const char* Dx11_GetDeviceName() {
 
 }  // namespace VideoDX11
 
-// Neither export is registered with the seam. Runtime reaches both through
-// Video::Device+0xd8 / +0xd0, and src/app/video_interface.cpp writes our
-// function pointers straight into those fields before Runtime would otherwise
-// LoadLibrary the shipped DLL. They used to be installed as inline detours over
-// the DLL's own entry points; that was the AB-mode arrangement and went with it.
+// Runtime reaches both through Video::Device+0xd8 / +0xd0, which
+// src/app/video_interface.cpp fills (through Render::DeviceName /
+// Render::CreateDeviceData, render_backend_dx11.cpp) from inside the ported
+// InitializeInterfaces; no DLL is loaded.

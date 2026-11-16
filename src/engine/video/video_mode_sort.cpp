@@ -12,11 +12,8 @@
 //   | introsort<RefreshRate>  (stride 0x08)   | 0x180057630 | no        |
 //   |   its small-range pass                  | 0x180057fa0 | no        |
 //
-// None of the five is exported in either build, so all five are registered by
-// ADDRESS only — the posture lane Q and lane COLL already take toward
-// Collection internals. `EnumerateVideoModes` reaches the two introsorts BY
-// ADDRESS, so leaving them unported would be a null the moment the DLL is gone
-// (reference_by_address_door_dies_at_cutover.md).
+// None of the five is exported in either build. `EnumerateVideoModes` calls the
+// two introsorts by name (enumerate_video_modes.cpp).
 //
 // THIS IS THE SAME ENGINE INTROSORT LANE COLL ALREADY TRANSCRIBED
 // ---------------------------------------------------------------
@@ -83,12 +80,11 @@
 // median-of-3 sites) and INLINED at 0x180057a98 and 0x18005818e (the partition
 // and the small-range pass). All three are the same operation, and the inlined
 // copies are `Array<RefreshRate>::operator=` open-coded — the same body lane
-// VID2 ported at 0x18000fbf0 and registered at device_startup.cpp:877,
+// VID2 ported at 0x18000fbf0 (`RtVideo_ArrayRefreshAssign`, device_enum_types.cpp),
 // self-assignment guard and per-element address null test included. This file
 // therefore has ONE swap helper and calls the ported assignment rather than
 // re-deriving 150 instructions of inlined allocator code. That is a deliberate
-// substitution of an already-verified equal body, not a simplification, and the
-// probe compares the resulting arrays' CONTENTS as well as the permutation.
+// substitution of an already-verified equal body, not a simplification.
 // ============================================================================
 
 #include <cstddef>
@@ -101,7 +97,7 @@
 using DisplayMode = Video::Device::DisplayMode;
 using RefreshRate = Video::Device::RefreshRate;
 
-// Lane VID2's Array<RefreshRate> ports (device_startup.cpp) are declared in
+// Lane VID2's Array<RefreshRate> ports (device_enum_types.cpp) are declared in
 // Device.h and take the DisplayMode's three named fields.
 
 namespace rtvidsort {
@@ -112,8 +108,7 @@ namespace rtvidsort {
 // Lane COLL's reasoning applies unchanged and is the reason these exist: "it
 // came out sorted" is true of a bubble sort, a std::sort and a broken
 // transcription alike, and on a one- or two-element list it is true of doing
-// NOTHING AT ALL. The probe FAILS LOUDLY if any of these is zero across its
-// whole corpus, because that means the corpus was the problem, not the code.
+// NOTHING AT ALL. Nothing in the tree reads them.
 // ---------------------------------------------------------------------------
 struct SortCounters {
     uint64_t calls, smallCalls, smallSwaps, medianSwaps;
@@ -414,7 +409,7 @@ void IntroSort(T* first, int32_t count, SortCounters* sc) {
 }  // namespace
 
 // ============================================================================
-// The two entry points EnumerateVideoModes calls by address.
+// The two entry points EnumerateVideoModes calls.
 // ============================================================================
 // Retail's third argument (`LEA R8,[RSP+0x88]`) is DEAD — the callee never
 // reads R8. Two parameters, which is what the call site needs and what lane

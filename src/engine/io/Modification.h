@@ -278,31 +278,25 @@ static_assert(offsetof(ReloadEntry, _pad04) == 0x4, "ReloadEntry::_pad04");
 //
 // *** IT HAS NO VTABLE, AND IT IS A SINGLETON. ***
 // ------------------------------------------------
-// There is no `??_7Modification@IO@@6B@`: not in the retail export table, not
-// in `standalone/rt_data_mint_tables.inc` (the only Modification row there is
-// the SINGLETON POINTER `?_singleton@Modification@IO@@2PEAV12@EA` at
-// 0x1801fc6b0), and `deleting_dtor.cpp` carries no row for it. B34_RULES §4.2's
-// own table names this as the one exception in the sweep: "Modification's dtor
-// 0x1800b0470 is a singleton destructor, not a vtable row". Every exported
+// There is no `??_7Modification@IO@@6B@` in the retail export table. B34_RULES
+// §4.2's own table names this as the one exception in the sweep: "Modification's
+// dtor 0x1800b0470 is a singleton destructor, not a vtable row". Every exported
 // member is `QEAA`/`QEBA`.
 //
-// *** THE CONSTRUCTOR AND DESTRUCTOR DO NOT CONVERT IN THIS STEP. ***
+// *** THE CONSTRUCTOR AND DESTRUCTOR ARE NOT CLASS MEMBERS. ***
 // -------------------------------------------------------------------
-// Not because of a vtable — there is none — but because neither door is in
-// PACKAGE+FS's file set: `??0Modification@IO@@QEAA@XZ` is registered by
-// `src/engine/engine/singleton_ctors.cpp:909` and `??1Modification@IO@@QEAA@XZ`
-// by `src/engine/io/iobase_vtables.cpp:579`, both of which stay with the core
-// owner. The destructor's ORDER is retail's and is reproduced, not tidied
-// (B34_BRIEFS §E.4): it clears the exported singleton — tagged
-// `UNPROMOTABLE(HARMFUL)` in `reg_mint_promoted.cpp` — then destroys
-// `_savedMods`, then `_mods`. Nothing here changes any of that.
+// `??0Modification@IO@@QEAA@XZ` is `Ctor_Modification` in
+// `src/engine/engine/singleton_ctors.cpp` and `??1Modification@IO@@QEAA@XZ` is
+// `RtIo_Modification_Dtor` in `src/engine/io/iobase_vtables.cpp`. The
+// destructor's ORDER is retail's and is reproduced, not tidied (B34_BRIEFS
+// §E.4): it clears the singleton, then destroys `_savedMods`, then `_mods`.
 //
 // *** `Mod` IS A REAL CLASS (B.4 acceptance MOD). ***
 // ---------------------------------------------------
 // `IO::Modification::Mod` is retail's nested struct — `?GetModification@` spells
 // it `UMod@12@`, `U` for struct, `12` for `Modification::IO`. It is NOT nested
-// here (it stays `RtIO::Mod`, the spelling its readers in runtime/engine,
-// runtime/save and src/game/Dialog use), but it is the real class: String /
+// here (it stays `RtIO::Mod`, the spelling its readers in src/engine/engine,
+// src/engine/save and src/game/Dialog use), but it is the real class: String /
 // Filename / Array / Set members with retail's copy ctor, operator= and
 // destructor (see its banner above). `ModSetNode` stays the erased node of
 // the width-8 AVL core; `ModArrayOf<T>` stays the header of
@@ -376,10 +370,8 @@ public:
 
     // ?_singleton@Modification@IO@@2PEAV12@EA (0x1801fc6b0) -- the class
     // static (ENDGAME B.3.9 IO, B39_RULES D7; retail's `2` = public). Defined
-    // in modification.cpp; RtIoPortInit redirects the minted row onto it, so
-    // the name door, the address door, the manifest publish and this member
-    // are the same eight bytes. Written by the ??0Modification door
-    // (engine/singleton_ctors.cpp) and ??1Modification (iobase_vtables.cpp).
+    // in modification.cpp. Written by `Ctor_Modification`
+    // (engine/singleton_ctors.cpp) and `RtIo_Modification_Dtor` (iobase_vtables.cpp).
     static Modification* _singleton;
 
     // ---- ext.menu_entry (NOT RETAIL, docs/extensions/handins/MENUENTRY.md) -------------------
@@ -415,8 +407,8 @@ static_assert(offsetof(Modification, _dirty) == 0x0, "Modification::_dirty");
 static_assert(offsetof(Modification, _savingSettings) == 0x1, "Modification::_savingSettings");
 static_assert(offsetof(Modification, _pad02) == 0x2, "Modification::_pad02");
 // The guard, as an assertion so a future `virtual` fails the build rather than
-// the boot: a vptr would push every field eight bytes down under doors that are
-// registered BY ADDRESS and under a live singleton five other files read.
+// the boot: a vptr would push every field eight bytes down under a live
+// singleton five other files read.
 static_assert(!std::is_polymorphic<Modification>::value,
               "IO::Modification must never acquire a vtable: retail has none for it");
 static_assert(std::is_standard_layout<Modification>::value,
@@ -424,11 +416,9 @@ static_assert(std::is_standard_layout<Modification>::value,
 
 }  // namespace IO
 
-// ==== B3R W0-P0c: Runtime bodies reached by retail address ====
-// ENDGAME B.3R (B3R_RULES R5): each body below is registered at the retail
-// address in its trailing comment and read through the registry today. It is
-// declared here, copied from its definition (linkage, namespace, types), so the
-// reader can call it by name. Nothing calls it through this declaration yet.
+// ==== B3R W0-P0c: Runtime bodies called across files ====
+// Each body below is declared here, copied from its definition (linkage,
+// namespace, types), so callers outside its file call it by name.
 
 namespace RtIo {
 // ---- io/iobase_vtables.cpp

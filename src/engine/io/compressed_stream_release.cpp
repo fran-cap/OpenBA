@@ -7,10 +7,8 @@
 //
 // THESE TWO ARE LANE W'S ROWS, CLOSED BY THIS LANE, and they are billed that
 // way: lane W is closed and this lane is the one with the file in working
-// memory, so re-deriving them elsewhere would be waste. `~CompressedStream` is
-// a LIVE cutover blocker today, not merely at cutover — lane W's *ported*
-// `~CompressedMemoryStream` (0x1800a9560) tail-jumps straight into it, so a
-// ported body already depends on a name with nothing behind it.
+// memory, so re-deriving them elsewhere would be waste. `~CompressedMemoryStream`
+// (0x1800a9560) ends in `~CompressedStream`, defined at the bottom of this file.
 //
 // WHAT RELEASE CONFIRMS. Its field accesses are an independent check on the
 // CompressedStream layout in src/engine/io/Stream.h — it walks +0x50/+0x58

@@ -5,7 +5,7 @@
 #include "redzone_canary.h"            // RedzoneCanary::PadBytes / FormatHead
 #include "options.h"
 #include "thread_stack.h"           // ThreadStack::Capture: the other threads' stacks
-#include "system/MemoryAllocator.h"   // -Iruntime/types: the instrument seat
+#include "system/MemoryAllocator.h"   // -Isrc/engine: the instrument seat
 #include "platform_sync.h"           // Platform::MutexLock / MutexUnlock on the allocator lock
 
 #include <cstdarg>
@@ -65,8 +65,8 @@ uint32_t           g_seq       = 0;
 
 // Periodic auto-scan: validate every live canary once every g_scanEvery
 // alloc/free operations, so an overflow is caught within g_scanEvery ops of the
-// bad write (not only at the hand-placed RZ_CHECK checkpoints). 0 = disabled
-// (checkpoints only). Set via BANISHED_REDZONE_SCAN=<N>. Heavy (O(live) per
+// bad write. 0 = disabled (a canary is then checked only when its block is
+// freed). Set via BANISHED_REDZONE_SCAN=<N>. Heavy (O(live) per
 // scan) but fine for diagnosing a one-shot menu-load corruption.
 uint32_t g_scanEvery = 0;
 uint32_t g_opCounter = 0;
@@ -76,7 +76,7 @@ uint32_t g_opCounter = 0;
 // alloc/free calls) is caught within ~g_watchIntervalMs of the bad write —
 // before the fatal Allocate reuses the clobbered free block. Safe because the
 // walk takes the allocator's own critical section. Enabled by
-// BANISHED_REDZONE_WATCH=<intervalMs> (0 = tight spin with Sleep(0)).
+// BANISHED_REDZONE_WATCH=<intervalMs> (0 = a 2 ms interval).
 int  g_watchIntervalMs = -1;   // -1 = disabled
 
 // Module base for printing exe-relative backtrace addresses (so they map
@@ -152,7 +152,7 @@ void PrintEntry(const char* why, void* userPtr, const Entry& e) {
     RZBoth("%s\n", bt);
 }
 
-// Caller MUST hold g_mutex. Scans every live block's tail canary; logs each
+// ValidateAllLocked, below: the caller MUST hold g_mutex. Scans every live block's tail canary; logs each
 // corrupted one and (unless BANISHED_REDZONE_ABORT=0) ExitProcess()es cleanly
 // at the first corruption — before the bad block is ever freed, which is what
 // otherwise deadlocks the allocator critical section into a hang.
@@ -337,7 +337,7 @@ void RedzoneAlloc_Install() {
     if (Opt().redzoneScan > 0) g_scanEvery = (uint32_t)Opt().redzoneScan;
     g_pad = RedzoneCanary::PadBytes(Opt().redzonePad);  // 8-byte multiple, 0 = off
     if (Opt().redzoneWatchMs != -1) {
-        g_watchIntervalMs = Opt().redzoneWatchMs;  // 0 = tight spin
+        g_watchIntervalMs = Opt().redzoneWatchMs;  // 0 = a 2 ms interval
     }
     g_zeroOnAlloc = Opt().redzoneZero;
     // The allocator's instrument seat (B3R W0-A0, STANDALONE DEVIATION in
@@ -513,19 +513,17 @@ void PrintModOff(const char* label, uint64_t addr) {
 }
 }
 
-// Core walker. Caller MUST hold g_mutex (it reads g_live). Takes the
+// Core walker (HeapCheckLocked, below). Caller MUST hold g_mutex (it reads g_live). Takes the
 // allocator's own critical section internally. When report==false it only
-// detects + records the first bad block in g_lastBadBlock (no print, no abort)
-// — used by the watchdog to confirm a corruption persists across two walks
-// before trusting it (Allocate runs WITHOUT the allocator lock, so a single
-// walk can momentarily observe a mid-flight tag = false positive).
+// detects + records the first bad block in g_lastBadBlock (no print, no abort);
+// every caller in this file passes the default report=true.
 static uint8_t* g_lastBadBlock = nullptr;
-extern "C" int AllocStats_Lookup(void*, uint64_t*, void**, void**);   // allocator_lock.cpp
+extern "C" int AllocStats_Lookup(void*, uint64_t*, void**, void**);   // alloc_stats.cpp
 static bool   g_reportedOnce = false;
 extern "C" void StressHarness_Context(char* buf, int n);
 
-// Print the MAIN thread's stack (from another thread: suspend, read context,
-// unwind) so a watchdog detection names what the sim was executing when the
+// Print one thread's stack (from another thread: suspend, read context,
+// unwind) so a watchdog detection names what that thread was executing when the
 // corrupt tag was first seen. ThreadStack::Capture walks it without taking a lock and
 // resumes it before the module lookups and the printf: the printf can wait on a CRT
 // lock the suspended thread holds. The module lookups (ThreadStack::ModuleAt) take no
@@ -772,7 +770,7 @@ static int HeapCheckLocked(const char* tag, bool report) {
 }
 
 // BANISHED_TEARDOWN_HEAPCHECK=1 (with BANISHED_REDZONE=watch): once GameUpdateLoop_Shutdown
-// begins, walk the whole heap on EVERY Allocate/Free (allocator_lock.cpp calls in). The
+// begins, walk the whole heap on EVERY Allocate/Free (alloc_cutover_arm.cpp calls in). The
 // 800x10 teardown corruption never shows up during the run (watchdog silent for 9000
 // frames) but the process dies in EntityList_Shutdown, so the bad write happens between
 // two teardown heap ops — this names the op right after it, with a backtrace.
@@ -801,7 +799,7 @@ int RedzoneAlloc_HeapCheck(const char* tag) {
     return HeapCheckLocked(tag);
 }
 
-// Shim-INDEPENDENT heap dump for the crash handler. Walks the engine
+// RedzoneAlloc_HeapDump (below): the shim-INDEPENDENT heap dump for the crash handler. Walks the engine
 // allocator's boundary tags WITHOUT requiring the redzone shim to be installed
 // (so it works on a fully-native run — no layout perturbation, natural crash
 // rate). On the SIGSEGV from free-list poisoning, this finds the first corrupt

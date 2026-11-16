@@ -7,21 +7,10 @@
 // Phase A scope: render the menu scene mesh with sun lighting + fog as the
 // background to the main menu UI. Skips:
 //   - TradeWork DLC ship (gameSettings[0x16] branch)
-//   - Exe-side vtable overrides (PTR_FUN_14015e290, _vslot10_14015e240)
-//
-// Skipping the vtable overrides means we use the default Runtime MeshInstance
-// + SunLight vtables. This may render slightly differently from the original
-// but is correct for an MVP scene background.
 //
 // B.4 GAME-b: these are the phase pieces of retail's Load / Update / Draw /
 // Startup / Shutdown (B5: split bodies stay split). They read the loop, the
-// MenuScene and the runtime classes by name. LEFT (each marked at its site):
-// the entry points the STANDALONE block's callers hand a `void*` loop / time /
-// context (chunked_scene_loader.cpp, menudialogloopt_stubs.cpp); the loop's
-// three {data, count|cap} arrays and its Audio::Scene, raw storage whose ctor /
-// dtor live in menudialogloopt_stubs.cpp (H5); PlayerController's camera (H5);
-// the Renderer / Scene ctor doors (R-GFX); Video::Context +0x288 (inside its
-// `_pixelConstantStaging` bytes, R-VIDEO's header).
+// MenuScene and the runtime classes by name.
 
 #include "Game/menudialogloopt_funcs.h"
 #include "video/Device.h"   // ENDGAME B.3.9 SS2: Video::Configuration::_singleton
@@ -29,10 +18,7 @@
 #include "engine/Engine.h"
 // ENDGAME B.3.5 Video/Graphics caller batch: Graphics::{Camera,Scene,Geometry,
 // MeshInstance,GraphicsMesh,SunLight,ParticleSystemInstance} and Video::Context
-// are real classes. These go AHEAD of "resolve.h" — resolve.h pulls
-// <windows.h>, whose <wingdi.h> declares a global `Rectangle` FUNCTION that
-// hides `Volume::Rectangle`'s class name inside Volume.h's own static_asserts
-// (Camera.h and Geometry.h include Volume.h).
+// are real classes.
 #include "graphics/Camera.h"
 #include "graphics/Scene.h"
 #include "graphics/Mesh.h"                // MeshInstance
@@ -206,8 +192,8 @@ static int32_t MenuDialogLoopT_PhaseB_ProcessElement(
 }
 
 // Initialize a chunked-loop state for PhaseB. Captures the inputs and
-// validates fn pointers + array bounds. Sets state->totalCount=0 (so
-// PhaseB_TickChunk early-exits) on any failure.
+// validates the allocator singleton + the array data. Sets totalCount=0 (so
+// TickChunk early-exits) on any failure.
 void MenuDialogLoopT_PhaseBState::InitState(MenuDialogLoopT* self, MenuScene* menuScene, Graphics::Scene* scene) {
     this->self           = self;
     this->menuScene      = menuScene;
@@ -295,9 +281,8 @@ int32_t MenuDialogLoopT_PhaseBState::TickChunk(int32_t maxElements) {
     return processed;
 }
 
-// Synchronous wrapper — preserves the original DLL-mode signature. Loops
-// PhaseB_TickChunk until done. Standalone uses the chunked state directly
-// from ChunkedSceneLoader to avoid the freeze.
+// Synchronous wrapper — one TickChunk call over every element. Standalone
+// uses the chunked state directly from ChunkedSceneLoader to avoid the freeze.
 void MenuDialogLoopT::LoadStaticMeshes_PhaseB(MenuScene* menuScene, Graphics::Scene* scene) {
     MenuDialogLoopT_PhaseBState state;
     state.InitState(this, menuScene, scene);
@@ -322,7 +307,7 @@ void MenuDialogLoopT::LoadStaticMeshes_PhaseB(MenuScene* menuScene, Graphics::Sc
 void MenuDialogLoopT::LoadParticles_PhaseC(MenuScene* menuScene, Graphics::Scene* scene) {
     if (!menuScene || !scene) return;
     // B.3.5: Scene::AddObject and Geometry::SetTransform are members now; the
-    // Time ctor door stays. ENDGAME B.3.9 GFX (B9-13): the
+    // Time ctor is called by name. ENDGAME B.3.9 GFX (B9-13): the
     // ParticleSystemInstance CTOR door is gone -- the class's real ctor below.
     if (!System::MemoryAllocator::_singleton) {
         printf("[MenuDLT::PhaseC] missing required fn ptrs — skipping\n");
@@ -424,9 +409,9 @@ void MenuDialogLoopT::TickParticles(const System::Time* time) {
 // the deserialized camera controller into the live one.
 //
 // Cheap (~10ms): doesn't touch the 12K-15K element static-mesh array.
-// Standalone calls this from the Loading splash's Stub_Startup so the
-// MenuScene External + scene-graph fields are populated before the heavy
-// PhaseB chunked iteration starts.
+// Standalone calls this from ChunkedSceneLoader::Init (run from the Loading
+// splash's GameLoadDialogLoopT::Update) so the MenuScene External + scene-graph
+// fields are populated before the heavy PhaseB chunked iteration starts.
 bool MenuDialogLoopT::LoadSceneA1() {
     // Required Runtime functions
     // B.3.5: SetMesh and Scene::AddGlobalObject are members now; B3R: the
@@ -590,8 +575,8 @@ bool MenuDialogLoopT::LoadSceneA1() {
 // Phase A3: post-PhaseB particle iteration (small, single-call)
 // ============================================================
 // Thin wrapper around PhaseC for symmetry with A1. Standalone calls this
-// from ChunkedSceneLoader after the chunked PhaseB completes; DLL-mode
-// calls it from MenuDialogLoopT_LoadScene_PhaseA below.
+// from ChunkedSceneLoader after the chunked PhaseB completes; the synchronous
+// LoadScene_PhaseA below calls it too.
 void MenuDialogLoopT::LoadSceneA3() {
     MenuScene* menuScene = _menuScene;
     Graphics::Scene* gScene = _scene;
@@ -604,11 +589,11 @@ void MenuDialogLoopT::LoadSceneA3() {
 }
 
 // ============================================================
-// Phase A: full synchronous Load — A1 + PhaseB + A3 (DLL-mode signature)
+// Phase A: full synchronous Load — A1 + PhaseB + A3
 // ============================================================
 // Preserves the original public function so any synchronous caller (e.g.
 // menudialogloopt_stubs.cpp's fallback path) keeps working unchanged.
-// Standalone splits the work via LoadSceneA1 + PhaseB_TickChunk + LoadSceneA3
+// Standalone splits the work via LoadSceneA1 + TickChunk + LoadSceneA3
 // driven from the Loading splash so the 542ms PhaseB freeze becomes invisible.
 bool MenuDialogLoopT::LoadScene_PhaseA() {
     if (!LoadSceneA1()) return false;
@@ -813,7 +798,7 @@ void MenuDialogLoopT_TickAudio(const System::Time* time) {
 }
 
 // ============================================================
-// MenuDialogLoopT_LoadMusic — load Audio/Music/Menu.rsc into self+0xb88
+// MenuDialogLoopT::LoadMusic — load Audio/Music/Menu.rsc into self+0xb88
 // ============================================================
 // Mirror of the first block of MenuDLT::Load (exe 0x14009a930), which runs
 // right after Engine::DialogLoopT::Load:
@@ -842,7 +827,7 @@ bool MenuDialogLoopT::LoadMusic() {
 }
 
 // ============================================================
-// MenuDialogLoopT_StartMusic — register audio scene + play menu music
+// MenuDialogLoopT::StartMusic — register audio scene + play menu music
 // ============================================================
 // Mirror of the audio portion of MenuDLT::Startup (exe 0x14009b930), run AFTER
 // Engine::DialogLoopT::Startup:
@@ -873,7 +858,7 @@ void MenuDialogLoopT::StartMusic() {
 }
 
 // ============================================================
-// MenuDialogLoopT_StopMusic — the audio tail of MenuDLT::Shutdown
+// MenuDialogLoopT::StopMusic — the audio tail of MenuDLT::Shutdown
 // ============================================================
 // Mirror of the audio statement at the tail of MenuDLT::Shutdown (exe
 // 0x14009b280):
@@ -901,7 +886,7 @@ void MenuDialogLoopT::StopMusic() {
 }
 
 // ============================================================
-// MenuDialogLoopT_TickAudioScene — per-frame Audio::Scene::Update
+// MenuDialogLoopT::TickAudioScene — per-frame Audio::Scene::Update
 // ============================================================
 // Mirror of the Audio::Scene::Update call in MenuDLT::Update (exe 0x14009b6e0):
 //   if (!Application::IsPaused()) {

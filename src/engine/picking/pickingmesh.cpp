@@ -4,7 +4,7 @@
 //
 // Vtable batch 8. ??_7PickingMesh@Picking@@6B@ (retail), nine slots:
 //
-//   0  deleting dtor        0x180072050  deleting_dtor.cpp row (registers ~PickingMesh here)
+//   0  deleting dtor        0x180072050  the compiler's, from ~PickingMesh here
 //   1  TypeName             0x180071ab0  here
 //   2  Type                 0x180071a90  here
 //   3  GetFileVersion       0x180122940  here  (returns 9)
@@ -14,29 +14,28 @@
 //   7  Destruct             0x180071db0  here
 //   8  Construct            0x180071d40  here
 //
-// plus ~PickingMesh (0x1801228a0), registered here and appended to
-// src/engine/object/deleting_dtor.cpp's kSpecs.
+// plus ~PickingMesh (0x1801228a0), defined here.
 //
 // PickingMesh itself (sizeof 0x48; Reconstruct/Construct zero +0x20/+0x28 as
 // qwords, +0x30 as one byte, +0x38/+0x40 as qwords):
 //   +0x00  Object::External           (0x20)
-//   +0x20  System::String   _name1
-//   +0x28  System::String   _name2
-//   +0x30  bool             _flag        Serialize: kScalarBool
-//   +0x38  SubMesh*         _nodes       (src/engine/picking/Scene.h)
-//   +0x40  int32_t          _nodeCount
+//   +0x20  System::String   _meshName
+//   +0x28  System::String   _subObject
+//   +0x30  bool             _allowChildren  Serialize: kScalarBool
+//   +0x38  Array<SubMesh>   _nodes       (src/engine/picking/PickingMesh.h)
+//   +0x40  int32_t          _nodes._size
 // _nodes/_nodeCount were already pinned by Wave 5 lane D (scene.cpp); this
 // port adds Serialize, which walks the SubMesh array and — in doing so —
 // pins the LAST two fields Scene.h left opaque (_name at SubMesh+0x00,
 // _uvs Array<UV16> at SubMesh+0x70). See the edit at the top of Scene.h.
 //
-// Serialize order (0x122960): _name1, _name2, _flag (kScalarBool), then the
+// Serialize order (0x122960): _meshName, _subObject, _allowChildren (kScalarBool), then the
 // SubMesh array (count @ +0x40, resize FUN_18007aa40, stride 0x80).
 //
 // Per-SubMesh loop (FUN_18007ac20, disassembled -- Ghidra's decompile drops
 // several call arguments here, same pitfall as CollisionMesh's Face loop):
 //   _name (String::Serialize), _parent (kScalarInt),
-//   _local.quaternion (kArrayFloat n=4), _local.translation (kArrayFloat n=3),
+//   _local.rotation (kArrayFloat n=4), _local.translation (kArrayFloat n=3),
 //   _aabb.min (kArrayFloat n=3), _aabb.max (kArrayFloat n=3),
 //   _vertices (count, resize FUN_18007a4d0 stride 0xc align4, kArrayFloat n=3 per elem),
 //   _normals   (same shape, same resize function, reused),
@@ -49,15 +48,12 @@
 // anonymous-namespace `PickingMesh` this file used to declare (full Array
 // header, capacity at +0x44) and src/engine/picking/Scene.h's POD (bare
 // `SubMesh* _nodes; int32 _nodeCount`) FOLD into that one class (RULE B7-6).
-// The slot bodies are its members; every registered door below is a one-line
-// QUALIFIED delegation. The fields were named by offset (now _meshName, _subObject,
-// _allowChildren): no getter names them (B6-8).
+// The slot bodies are its members. The fields are _meshName, _subObject and
+// _allowChildren: no getter names them (B6-8).
 //
-// RULE B6-5: the four Array SetSize bodies and ~Array<SubMesh> are reached by
-// ADDRESS (registry-first) through namespace-scope atomic slots — this class
-// is deserialized on the LOADER thread, so the function-local first-call
-// caches these used to keep are gone. The two unused by-address
-// `MemAlloc`/`MemFree` helpers are deleted.
+// RULE B6-5: the four Array SetSize bodies and ~Array<SubMesh> are plain calls
+// into their rtcoll:: ports (the forwarders below); this class is deserialized
+// on the LOADER thread.
 // ============================================================================
 #include <cstddef>
 #include <cstdint>
@@ -87,7 +83,7 @@ using UV16     = Picking::PickingMesh::UV16;
 // gone. The stores are the real constructor now (PickingMesh.h), the stamps
 // the compiler's, and slot 0 is a virtual call on the class.
 
-// ---- the Collection::Array<T> instantiations, by ADDRESS -------------------
+// ---- the Collection::Array<T> instantiations --------------------------------
 //
 // CUTOVER CLOSURE BATCH D2 "helpers-high" (2026-09-12). This file used to carry
 // a private `GenericArraySetSize` template plus a hand-written
@@ -295,8 +291,8 @@ bool PickingMesh::Serialize(IO::Stream& stream) {
 // SubMesh -- four inner buffers DESCENDING from +0x70, then the String at
 // +0x00 -- followed by the plain `~Array`, which frees and ZEROES the header.
 // The compiler-emitted `_nodes.~Array()` that runs after this body therefore
-// sees an empty header: no element destroy (`_size` 0) and MemFree(null),
-// which retail's allocator tests inside (array.cpp ArrayDtorImpl) -- a no-op.
+// sees an empty header: no element destroy (`_size` 0) and no MemFree
+// (Collection.h's ArrayDtorImpl tests `_data` first) -- a no-op.
 // B4 X-RH: the releases of +0x28 then +0x20 (0x1801228ca / 0x1801228f4) are
 // the System::String members' destructors, which the compiler runs after that
 // no-op, in reverse declaration order, before ~External.
@@ -305,10 +301,3 @@ PickingMesh::~PickingMesh() {
 }
 
 }  // namespace Picking
-
-// ---- CUTOVER CLOSURE BATCH D2: the two registered Serialize halves --------
-
-// B3R (registry teardown, W1 RT-Core): every row this function registered had
-// no reader by name or by address, so they went. It registers nothing and
-// stays defined only because standalone/resolve_standalone.cpp's
-// RuntimePortInit() still calls it (the coordinator removes the call).

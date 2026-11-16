@@ -15,10 +15,10 @@ namespace Platform {
 namespace Window {
 
 // The window's pixel density: back-buffer pixels per SDL point (display_sdl.cpp). The ONE
-// place src/platform/sdl asks for it. 1.0 on every host today: no window is created with
-// SDL_WINDOW_HIGH_PIXEL_DENSITY, so SDL points are pixels. A Darwin build that opts a
-// window into high density fills the body in; every coordinate crossing the seam is then
-// scaled by it.
+// place src/platform/sdl asks for it. 1.0 for a window created without
+// SDL_WINDOW_HIGH_PIXEL_DENSITY (Windows, Linux, Android), so SDL points are pixels there; the
+// Darwin build creates its window with it (window_darwin.cpp), and every coordinate crossing
+// the seam is then scaled by it.
 // P7: times the render scale (platform_window_hooks.h RenderScale), 1.0 but on Android.
 float PixelDensity(SDL_Window* window);
 

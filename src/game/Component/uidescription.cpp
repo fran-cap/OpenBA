@@ -10,7 +10,7 @@
 // Field layout (from Factory inline ctor + Serialize FUN_14012de80 + dtor
 // FUN_140039700 / element-array cleanup FUN_1400397d0):
 //   +0x20: int32  _settingsBufferSize (serialized LAST)             (default 0)
-//   +0x28: void*  _descRef        ExternalPtr (Description)         (default 0)
+//   +0x28: UI::Dialog* _dialog    ExternalPtr (UI::Dialog)          (default 0)
 //   +0x30: void*  _entries[]      element-array buffer (stride 0x28)(default 0)
 //   +0x38: int32  _entryCount                                       (default 0)
 //   +0x3c: int32  _entryCap                                         (default 0)
@@ -113,8 +113,7 @@ UIDescription::~UIDescription() {
 bool UIDescription::Serialize(IO::Stream& stream) {
     IO::Serializer ser(stream, 0);
 
-    // 1. _descRef ExternalPtr (+0x28). FUN_140028650 — identical stream layout
-    //    to the registered Serialize2 (typeId trusted in standalone).
+    // 1. _dialog ExternalPtr<UI::Dialog> (+0x28). FUN_140028650.
     ::Object::SerializeExternal<UI::Dialog>(ser, _dialog);
     // 2. int (+0x40)
     ser.Serialize(_displayPage, nullptr);

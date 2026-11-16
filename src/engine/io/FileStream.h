@@ -31,17 +31,15 @@
 //     ??1TextFileStream / ??1VisitorStream                    all UEAA, all exported
 //
 // (Run against the export table, not grepped. `AEAA`/`IEAA` mean PRIVATE and
-// PROTECTED, not unexported — this DLL exports both, and
-// reference_aeaa_is_private_not_unexported.md is the lane that learned it.)
+// PROTECTED, not unexported — this DLL exports both.)
 //
-// So a caller can construct any of these by calling retail's own ctor on a
-// stack buffer. What it CANNOT do without this header is size that buffer or
+// What a caller CANNOT do without this header is size a stack buffer or
 // reach the fields the caller itself reads — and all three callers read fields
 // directly, because MSVC inlined each destructor into the caller's epilogue.
 //
 // The technique is not new here either: src/engine/save/saveload_meta.cpp
-// already stack-constructs an IO::CompressedMemoryStream this way, piecemeal
-// through exported ctors with the vtable stamped by RT_VTABLE_ONCE.
+// builds the real IO::CompressedMemoryStream on raw stack storage with
+// placement new.
 //
 // ---------------------------------------------------------------------------
 // EVERY SIZE BELOW IS MEASURED, NOT INFERRED
@@ -96,7 +94,7 @@ namespace RtIo {
 //
 //  3. ?Create@FileStream@IO@@IEAA_NAEBVFilename@System@@@Z (0x1800aa8f0)
 //     assigns the CreateFileW result into `this+0x20` through FUN_18000c200,
-//     which filesystem_openfile_probe.cpp has already identified as
+//     which filesystem_openfile.cpp has already identified as
 //     `FileInfo::operator=`, and then returns `*(int*)(this+0x20) != -1` —
 //     FileInfo::handle's documented "nothing opened" sentinel.
 //
@@ -106,8 +104,7 @@ namespace RtIo {
 // THE CONSTRUCTOR LEAVES ONE FIELD UNWRITTEN. ??0FileStream (0x1800aaa10)
 // writes +0x18 q, +0x20 d, +0x28 q, +0x30 d, +0x38 q(-1), +0x40 q, +0x48 q.
 // That never touches +0x24 — which is FileInfo::copiedUnwrittenWord, the field
-// FileSystem.h ALREADY records as "never initialised by OpenFile" and which
-// filesystem_openfile.cpp's oracle already excludes. Two unrelated
+// FileSystem.h ALREADY records as "never initialised by OpenFile". Two unrelated
 // functions leave the same field alone; that agreement is the point.
 //
 // Recorded rather than zeroed: a `= {}` in a port would be a behavioural
@@ -185,7 +182,7 @@ static_assert(sizeof(FileStream) == 0x50,
 //
 // It ends at +0x38 because 0x1801554d0+0x40 == 0x180155510 ==
 // ??_7CompressedCopyFileStream@IO@@6B@ (ordinal 1407) — the same adjacency
-// argument compressedstream.cpp:725 uses to bound the table above it.
+// argument compressedstream.cpp:373 uses to bound the table above it.
 //
 // DECLARED AS A DISTINCT TYPE ANYWAY, not a typedef, because the vtable it
 // carries is a different pointer and a caller that stamps the wrong one gets a
@@ -460,10 +457,6 @@ namespace IO {
 // ---------------------------------------------------------------------------
 // IO::FileStream — vtable 0x180154960, 8 slots, 0x50 bytes.
 // ---------------------------------------------------------------------------
-// ABSTRACT: slot 0 (0x18000c090) is left PURE because its body is the
-// by-address registration at file_stream.cpp, filling slot 0 of the live minted
-// table (rt_data_mint_tables.inc:2423), and nothing holds a `FileStream` by
-// value. `IO::BinaryFileStream` is the one that must be concrete.
 class FileStream : public Stream {
 public:
     // ENDGAME B.3.9 IO -- ??0FileStream@IO@@QEAA@XZ 0x1800aaa10, eleven
@@ -601,16 +594,11 @@ static_assert(offsetof(FileStream, _file) ==
 // `OpenWithFormat` is what makes slot 8 unmistakable at a glance.
 //
 // Slot 1 is FileStream's `GetSource` (0x1800aab50), also inherited and NOT
-// overridden, so this class overrides seven of the ten and adds two.
+// overridden, so this class overrides six of the ten and adds two.
 //
-// ⚠ ITS CONSTRUCTION SITE IS NOT IN THIS BLOCK'S FILE SET. `External::SaveText`
-// stack-builds one — `RtIo::TextFileStream ts;` at
-// src/engine/io/external_savetext.cpp:286, with a real ctor door at
-// :299 and an independent re-stamp at :362. That file is not block 4's, which
-// is exactly why section 4.3's "no real constructors" is non-negotiable here:
-// a C++ constructor would swap the table under an object built elsewhere.
-// ABSTRACT (slot 0 pure, body registered by RT_DELDTOR row 41 in
-// deleting_dtor.cpp) because nothing holds a `TextFileStream` by value.
+// ITS CONSTRUCTION SITE: `External::SaveText` (src/engine/io/external_savetext.cpp)
+// builds one with the constructor below on raw stack storage and ends it with a
+// qualified `~TextFileStream()`.
 //
 // ---------------------------------------------------------------------------
 // +0x78 IS TWO int32s, NOT THE POD'S `void* bufferSizeAndCursor`
@@ -679,7 +667,7 @@ public:
     System::String _objectType;  // +0x60  ?GetObjectType@ LEAs it
     Text::Format _requestedFormat;  // +0x68  ctor: Text::Format::Detect (6)
     Text::Format _activeEncoding;   // +0x6c  ctor: Text::Format::Detect (6) — THE BOM SELECTOR
-    uint8_t* _buffer;          // +0x70  owned, bare MemFree in the dtor door (the transcoded bytes OpenWithFormat installs)
+    uint8_t* _buffer;          // +0x70  owned, bare MemFree in the dtor (the transcoded bytes OpenWithFormat installs)
     int32_t _bufSize;          // +0x78  bytes in _buffer — see the banner
     int32_t _bufCursor;        // +0x7c  position IN _buffer
 };
@@ -725,13 +713,10 @@ static_assert(offsetof(TextFileStream, _bufCursor) == 0x7c,
 // overridden, so this class overrides exactly slots 2..6 and adds nothing.
 // The table is bounded by a STRING: the qword at 0x180155a58 is "External".
 //
-// ⚠ ITS CONSTRUCTION SITE IS ITS OWN PORTED CTOR (0x1800bb090,
-// iobase_vtables.cpp), which does the base->derived vptr restamp by hand
-// against `RT_DATA_SLOT("??_7VisitorStream@IO@@6B@")`. Section 4.3: that ctor
-// does NOT convert, and `??_7VisitorStream@` is additionally stamped from
-// OUTSIDE src/engine/io (external_add.cpp), so its minted row stays.
-// ABSTRACT (slot 0 pure, 0x18002bf80 registered by address at
-// iobase_vtables.cpp) because nothing holds a `VisitorStream` by value.
+// ITS CONSTRUCTION SITE: `?Add@ExternalFactory@Object@@`
+// (src/engine/object/external_add.cpp) builds one with the constructor below on
+// raw stack storage and ends it with a qualified `~VisitorStream()`. The five
+// stream slot bodies are in iobase_vtables.cpp.
 //
 // DO NOT CONFUSE THIS WITH `IO::Visitor` (??_7Visitor@IO@@6B@, 0x1801558b0),
 // which is a 26-slot `ReaderWriter` subclass. VisitorStream is the Stream;

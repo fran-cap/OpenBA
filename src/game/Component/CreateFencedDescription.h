@@ -36,7 +36,7 @@ public:
     virtual Object::External* Construct();                                 // [9] 0x140004920
 
     // ---- fields (PUBLIC: the components read them at raw offsets today) ----
-    uint32_t _placeBits;                              // +0x20 enum (serialized through the uint door)
+    uint32_t _placeBits;                              // +0x20 enum (serialized as an unsigned int)
     uint8_t _pad24[4];                          // +0x24 never written by the ctor
     class ComponentDescription* _sections[6];       // +0x28 ExternalPtr[6], inline (B4 PLAYER H4: the section templates FencedTool::CalcPath clones, [0] the shelter)
     int32_t _maxWidth;                               // +0x58

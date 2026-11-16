@@ -82,7 +82,7 @@ public:
     float _workTime;                                 // +0x44
     int32_t _maximumProduction;                               // +0x48
     int32_t _defaultRecipe;                     // +0x4c the recipe Startup 0x140118ef0 selects
-    uint32_t _toolType;                              // +0x50 enum (serialized through the uint door)
+    uint32_t _toolType;                              // +0x50 enum (serialized as an unsigned int)
     uint8_t _pad54[4];                          // +0x54 never written by the ctor
 };
 

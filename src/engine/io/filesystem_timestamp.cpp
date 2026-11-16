@@ -18,7 +18,7 @@
 // `this`, RDX is the slot, R8 is `path` (0x1800ae289 `MOV RBX,RDX` /
 // 0x1800ae28c `MOV RDX,R8`). Declaring it without that slot is a WILD WRITE
 // through a stale RDX — Wave 1's defect 1, which scribbled 0x30 bytes on every
-// menu scene load (reference_hidden_retslot_wild_write.md). The function
+// menu scene load. The function
 // returns the slot in RAX (0x1800ae334), and the port does too.
 //
 // `this` IS READ BY NOTHING. RCX is overwritten at 0x1800ae28f and never
@@ -65,16 +65,10 @@
 // FILETIME conversion.
 //
 // ---------------------------------------------------------------------------
-// ORACLE — a full one is possible and is NOT added, on purpose
+// CHECK
 // ---------------------------------------------------------------------------
-// The function is a PURE READ of the filesystem, so an ours-then-theirs replay
-// would be safe. It is declined for one reason: the replay opens the file a
-// SECOND time, and the population is "every .sav in the save directory on every
-// refresh", so a diff run would double the file-open traffic of the save
-// browser for a comparison of one qword that the save list's own contents
-// already expose. DIRECTION.md §2 — use the oracle, do not build more of it.
-// The end-to-end check a boot gives is stronger anyway: a wrong timestamp here
-// reorders the save list visibly.
+// A boot is the end-to-end check: the save list is sorted on this value, so a
+// wrong timestamp here reorders the save list visibly.
 // ============================================================================
 
 #include <cstdint>
@@ -98,8 +92,7 @@ namespace RtIO {
 //   (this, hidden return slot, path) — see the banner.
 // ============================================================================
 // The body is the member `IO::FileSystem::GetFileTimeStamp`, below. It returns
-// the qword by value (`System::DateTime` does not exist in this tree —
-// FileSystem.h's declaration comment says why one is not invented).
+// `System::DateTime` by value (Value.h: the raw FILETIME, two dwords).
 
 }  // namespace RtIO
 

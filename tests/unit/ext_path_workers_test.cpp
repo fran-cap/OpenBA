@@ -6,7 +6,7 @@
 // retail's worker reduced to what the protocol touches: a flag byte per cell,
 // the parameter record commands 0 / 1 / 4 write (ApplyCommand 0x1400a6430's
 // cases), and a result table. The search is GridSearch::Searcher -- at scale 1
-// it is retail's search (ext_fast_paths_test proves it), and with the real
+// it is retail's search (grid_search_test.cpp proves it), and with the real
 // scale it reads the present-type mask, so the ext.fast_paths composition
 // (the mask taken at dispatch) is exercised too.
 //
@@ -17,7 +17,7 @@
 //         no job sees the grid change under it (the barrier)
 //   (iii) Stop under load: every submitted job still runs exactly once, every
 //         thread returns; Stop before the threads start; Stop on an idle pool
-//   (iv)  the worker count rule
+//   (the worker count rule, Cpu::PathWorkers, is tested in tests/unit/cpu_roster_test.cpp)
 // ============================================================================
 #include "unit.h"
 #include "ext/path_workers/pool.h"

@@ -4,8 +4,8 @@
 // ============================================================================
 // Retail: ??0Thread@System@@QEAA@I@Z 0x1800ca4e0 / ??1Thread@System@@QEAA@XZ
 // 0x1800ca590. Both are "store the base vptr, then the body"; the class's
-// ctor/dtor leave the store to the compiler and share the body with the two
-// registered doors through `InitFields` / `ReleaseFields` (RULE B8-1).
+// ctor/dtor leave the store to the compiler and run the body through
+// `InitFields` / `ReleaseFields` (RULE B8-1).
 //
 // No OS thread is started here (the existing Thread tests never start one):
 // the host link gets RECORDING `InitFields` / `ReleaseFields` from
@@ -18,7 +18,7 @@
 // There is NO `DeletingDtor` test: retail's `??_7Thread@System@@6B@` has two
 // slots, `Run` (`_purecall`) and `OnCompleted`, and no deleting-dtor slot —
 // nor do its subclasses' tables (Engine::Loader, Audio::Stream: "NO deleting
-// dtor"). Declaring one would add a third slot the minted table does not have.
+// dtor"). Declaring one would add a third slot the retail table does not have.
 // ============================================================================
 
 #include "unit.h"
@@ -39,7 +39,7 @@ void* g_vptrInDerivedCtorBody = nullptr;
 void* g_vptrInDerivedDtorBody = nullptr;
 
 // A leaf built with the REAL base ctor, the way Engine::Loader
-// (`: System::Thread(0x40000)`) and the other subclasses will be in W2.
+// (`: System::Thread(0x40000)`) and the other subclasses are.
 struct RealCtorThread final : System::Thread {
     explicit RealCtorThread(unsigned int stackSize) : System::Thread(stackSize) {
         g_vptrInDerivedCtorBody = VptrOf(this);
@@ -79,7 +79,7 @@ UNIT_TEST(b39_sys_thread_real_ctor_runs_the_shared_body_once_under_the_base_tabl
     {
         RealCtorThread t(0x40000);
 
-        // ONE call of the door's body, on this object, with the argument.
+        // ONE call of InitFields, on this object, with the argument.
         CHECK_EQ(g_systemStub_InitFields.calls, 1);
         CHECK(g_systemStub_InitFields.self == static_cast<const void*>(&t));
         CHECK_EQ(g_systemStub_InitFields.stackSize, 0x40000u);

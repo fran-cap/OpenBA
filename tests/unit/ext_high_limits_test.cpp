@@ -1,7 +1,7 @@
 // ============================================================================
 // tests/unit/ext_high_limits_test.cpp -- ext.high_limits
 // ============================================================================
-// src/ext/high_limits/high_limits.{h,cpp} without the game: the registry row (class B, off by default),
+// src/ext/high_limits/high_limits.{h,cpp} without the game: the registry row (class B, on by default),
 // the retail and high values, and that the values follow the row (the game's locked value). The spinner
 // glue (spinner.cpp) and the seam in ResourceLimitUI::OnCreated are the exe's, looked at in a run.
 // ============================================================================

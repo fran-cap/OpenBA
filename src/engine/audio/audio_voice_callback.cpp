@@ -15,11 +15,9 @@
 // internal, unexported helper class embedded 64 times inside `Audio::Device`,
 // one per audio channel, at `Device+0xa98`, stride 0x20.
 //
-// **The class has NO NAME in the shipped binary**: it is not exported, no
-// `??_7…@Audio@@6B@` points here, and nothing in the retail `.rdata` names it.
-// The name used in this file — `VoiceCallback` — is DESCRIPTIVE, chosen by this
-// lane, exactly as `encoding.cpp` chose `IsBinary`/`IsText`/`GetKind` for the
-// unexported 0x1801554a8 table. Do not read it as attested.
+// The class is not exported and no `??_7…@Audio@@6B@` points here; its name,
+// `Audio::Device::PlatformChannel`, comes from the mangled
+// `?GetPlatformChannel@Device@Audio@@QEAAPEAUPlatformChannel@12@H@Z` (Device.h).
 //
 // What IS attested, each item read out of `C:\GOG Games\Banished\Runtime-x64.dll`
 // on disk with `objdump` (true-VA disassembly) and `pefile` (export directory,
@@ -60,8 +58,7 @@
 //          mov 0x48(%rsi),%rax        ; Audio::Stream's CreateEventW handle
 //          mov %rax,0x18(%r14)        ; r14 = Device+0xa98 + channel*0x20
 //      so `+0x18` is a real event HANDLE with a real writer. That is a
-//      MEASUREMENT of the writer, not N readers agreeing on a shape
-//      (reference_a_writer_beats_readers_agreeing_on_a_sign.md).
+//      MEASUREMENT of the writer, not N readers agreeing on a shape.
 //
 // ---------------------------------------------------------------------------
 // 2. THE RECORD LAYOUT — every field has a writer that was read
@@ -76,7 +73,7 @@
 //                                                         rax = Device+0xaa8+i*0x20)
 //   +0x18  HANDLE              -> Audio::Stream's +0x48 event (Stream::Run)
 //
-// `audio_device.cpp` already models `AudioChannel` (0x28 bytes, `flags` at
+// `Device.h` already models `AudioChannel` (0x28 bytes, `flags` at
 // +0x00). THIS FILE DOES NOT REDEFINE IT — the bit-1 set below is the *writer*
 // of the very bit `Audio::Device::Update` reads as "finished, reap me", and the
 // two readings were derived independently and agree.
@@ -125,34 +122,16 @@
 // ---------------------------------------------------------------------------
 // 4. NO ORACLE, and the reason is structural, not convenience
 // ---------------------------------------------------------------------------
-// These are callbacks XAUDIO2 invokes, on XAudio2's own audio thread. There is
-// no call site in our tree and never will be one: the caller is inside
-// `XAudio2_*.dll`. A differential replay is impossible in both directions —
+// These are callbacks the audio backend invokes on its own thread: the call
+// sites are in src/platform/sdl/audio_sdl.cpp. A differential replay is
+// impossible in both directions —
 // running retail's copy after ours would set the bit twice (harmless but
 // unobserved) and SIGNAL THE EVENT TWICE, which hands the streaming thread a
-// spurious wake-up. `reference_uncalled_port_is_not_verified.md` applies in
-// full, and this file claims nothing about attendance.
+// spurious wake-up. A port with zero calls is unverified, not clean, and
+// this file claims nothing about attendance.
 //
 // UNVERIFIED: none of these seven bodies has been observed executing.
 //
-// ---------------------------------------------------------------------------
-// 5. WHY THIS ROW IS DIFFERENT FROM EVERY OTHER BACKLOG ROW
-// ---------------------------------------------------------------------------
-// For a `??_7`-exported table, closing it to COMPLETE buys nothing until
-// somebody establishes ownership of the stamping function. Here WE ALREADY OWN
-// THE STAMPER: `Ctor_AudioDevice` (src/engine/engine/singleton_ctors.cpp, the
-// port of `??0Device@Audio@@QEAA@XZ`) reads
-// `ResolveAddr(Module::Runtime, 0x180157c60)` and stamps whatever that returns
-// into all 64 records. So every Device our constructor builds carries the
-// minted table, and with these seven registrations the minted table holds our
-// bodies instead of seven `RtMintTrapStub_2_*` aborts.
-//
-// That is NOT a promotion and must not be reported as one. The table is
-// address-keyed and UNEXPORTED, so it can never enter the census's `promoted`
-// bucket, which only a `??_7` symbol can (see `encoding.cpp`'s registration
-// banner, which makes the identical point about 0x1801554a8). What changes is
-// that the row goes 0/7 -> 7/7 COMPLETE and that a dispatch reaching it at
-// cutover runs our code rather than aborting.
 // ============================================================================
 
 // ---------------------------------------------------------------------------
@@ -162,7 +141,7 @@
 // seven slots as virtual members in this order, and `Ctor_AudioDevice`
 // placement-news every record, so each record's vptr is the COMPILER's table
 // -- a COM-compatible IXAudio2VoiceCallback table -- instead of the minted
-// unnamed row 0x180157c60 (tools/rt_mint_retired/eng.txt). The seven
+// unnamed row 0x180157c60. The seven
 // address registrations below it (0x1800501c0..0x180050230) are gone with the
 // row: their only reader was that row's slot fill.
 // ============================================================================
@@ -174,8 +153,7 @@
 // (src/platform/common/platform_audio.h): whichever audio backend runs
 // (SDL3 since SDL-4, src/platform/sdl/audio_sdl.cpp) calls them on its
 // own thread. OnBufferEnd signals through `Platform::EventSet` (SetEvent on
-// Windows), so this file needs no OS header and moved here from
-// src/engine/audio/audio_voice_callback.cpp.
+// Windows), so this file needs no OS header.
 // ============================================================================
 
 #include <cstddef>

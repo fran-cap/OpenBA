@@ -7,10 +7,10 @@
 //
 // Fields:
 //   +0x20: int32_t speed      -- game speed to set (default 1)
-//   +0x24: uint8_t unpause   -- if nonzero, also pause (set controller +0x30 to 0)
+//   +0x24: bool    unpause   -- if nonzero, also unpause (set controller +0x30 to 0)
 //
-// The Apply function (Slot8) writes speed to the game's time/speed controller,
-// and optionally pauses the game.
+// The Begin function (Slot8) writes speed to the game's time/speed controller,
+// and optionally unpauses the game.
 //
 // Decompiled from Application-x64.exe using Ghidra.
 

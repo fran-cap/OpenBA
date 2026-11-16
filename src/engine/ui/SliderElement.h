@@ -16,9 +16,9 @@
 //
 // ENDGAME B.3.6 block C5: `UI::SliderElement` is now the REAL class below.
 // The Wave 7 POD that occupied the name had NO user left (sliderelement.cpp
-// read raw offsets; element_bodies_b5.cpp reads SliderElementOffsets), so it
-// is replaced rather than moved to RtUI (B4b-1 moves a POD only to keep its
-// users compiling). SliderElementOffsets stays for element_bodies_b5.cpp.
+// read raw offsets), so it is replaced rather than moved to RtUI (B4b-1 moves
+// a POD only to keep its users compiling). SliderElementOffsets stays for
+// tests/unit/ui_leaf_c5_abi_test.cpp.
 // ============================================================================
 
 #include <cstdint>
@@ -30,13 +30,13 @@
 // ENDGAME B.3 step 6 (block C5) — `UI::SliderElement`, the REAL C++ class
 // ############################################################################
 //
-// PARENT, read (B36_SLOTS.md section 3), recorded not used (RULE B6-7):
+// PARENT, read (B36_SLOTS.md section 3), used by DEFINE_TYPE in sliderelement.cpp (RULE B6-7):
 //     ?_TypeName@SliderElement@UI@@CAPEBDXZ       @0x180049ce0 -> "SliderElement"
 //     ?_ParentTypeName@SliderElement@UI@@CAPEBDXZ @0x180049cf0 -> "Element"
 //
 // `??_7SliderElement@UI@@6B@` @ 0x180157580, TWELVE slots; sizeof 0x130
 // (`MOV EDX,0x130` in the slot-0 vector deleting dtor 0x18004a180):
-//   [0] 0x18004a180 deleting dtor (RT_DELDTOR row)  [1] 0x180049d20 TypeName
+//   [0] 0x18004a180 deleting dtor                   [1] 0x180049d20 TypeName
 //   [2] 0x180049d00 Type        [3] Element::Persist (inherited)
 //   [4] 0x1800d7380 ComputeSize [5] 0x1800d6fc0 ComputeLayout
 //   [6] 0x1800d6d40 Draw        [7] 0x1800d67e0 Update — OVERRIDDEN
@@ -47,8 +47,7 @@
 // own slot 0 (the vector deleting dtor), a virtual ~SliderElement holding
 // the retired ??1 door's body, and the factory pair as the class's own statics;
 // every live one wears the COMPILER's table. The minted `??_7SliderElement@UI@@6B@`,
-// its RT_DELDTOR row 0x18004a180 and the ctor / dtor / slot doors are retired
-// (tools/rt_mint_retired/ui-b.txt).
+// its RT_DELDTOR row 0x18004a180 and the ctor / dtor / slot doors are retired.
 // ABSTRACT (slot 0 `= 0`), NO real ctor (the `??0SliderElement` door
 // 0x1800d7570 builds every live one; it wears the MINTED table).
 // ############################################################################
@@ -96,7 +95,7 @@ public:
     void  SetMaximumValue(float v) { _maximum = v; }   // 0x180049eb0 MOVSS [RCX+0x11c],XMM1
     void  SetCurrentValue(float v) { _value = v; }     // 0x180049ec0 MOVSS [RCX+0x128],XMM1
     float GetCurrentValue() const  { return _value; }  // 0x180049ed0 MOVSS XMM0,[RCX+0x128]
-    // Body in widgets_input.cpp (door RtUi_SliderElement_SetParameter).
+    // Body in widgets_input.cpp.
     void SetParameter(int32_t index, const System::String& text); // 0x1800d6ca0
 
     SliderElement(const SliderElement& src);                      // 0x180049f00  not ported
@@ -104,9 +103,7 @@ public:
 
 public:
     // `?UpdateNumber@SliderElement@UI@@AEAAXXZ` — `AEAA` private in retail;
-    // PUBLIC here only because its registered door RtUi_SliderElement_
-    // UpdateNumber delegates to it (fragment pass F1; access is not part of
-    // the GCC ABI). Body: element_bodies_b5.cpp.
+    // PUBLIC here (access is not part of the GCC ABI). Body: element_bodies_b5.cpp.
     void UpdateNumber();                                          // 0x1800d6c20
 
 private:
@@ -115,7 +112,7 @@ private:
 
 
 public:
-    // Every field a store in the ctor 0x1800d7570 (sliderelement.cpp's door).
+    // Every field a store in the ctor 0x1800d7570 (SliderElement() above).
     ::Sprite _trackStart;       // +0xC0   the groove, 3-slice
     ::Sprite _trackMiddle;      // +0xD0
     ::Sprite _trackEnd;         // +0xE0
@@ -162,7 +159,7 @@ static_assert(offsetof(SliderElement, _hovered)     == 0x124, "");
 static_assert(offsetof(SliderElement, _value)       == 0x128, "");
 static_assert(offsetof(SliderElement, _dragAnchor)  == 0x12C, "");
 
-// element_bodies_b5.cpp's UpdateNumber reads the value through this constant.
+// tests/unit/ui_leaf_c5_abi_test.cpp checks the value's offset against this constant.
 namespace SliderElementOffsets {
 
 constexpr int kValue = 0x128;  // float — the slider's current position.

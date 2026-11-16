@@ -62,7 +62,7 @@ void SceneWatch_Census(Graphics::Scene* scene);
 // each distinct mesh's distance table once so a corrupt table is visible directly.
 //
 // Pass the same Camera the frame hands to Graphics::Renderer::Draw.
-// variantIdx is the shader-variant index the main pass will use (renderer+0x3c):
+// variantIdx is the main pass's shader-variant index (the scene entry's +0xec; the caller passes 0):
 // Graphics::Renderer::AddDrawItem drops, with no diagnostic, any item whose material
 // has no variant there, which is a model that is simply never drawn.
 void SceneWatch_LodCensus(Graphics::Scene* scene, const Graphics::Camera* camera, int variantIdx);

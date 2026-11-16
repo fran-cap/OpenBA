@@ -7,7 +7,7 @@
 // directly (`?_ParentTypeName@NumberElement@UI@@` returns "Element" and the
 // ctor calls `??0Element`; the old "extends TextElement" here was wrong, block
 // C3), not from EditElement, proven by its own SetValue pair
-// (0x180118d50 int / 0x180118db0 float), which never touch +0xC8/+0xE0/+0xF8
+// (0x180118d50 int / 0x180118db0 float), which never touch +0xE0/+0xF8
 // the way EditElement's family does. It stores a TAGGED UNION of an int and a
 // float value plus a discriminant:
 //
@@ -24,7 +24,7 @@
 // System::String) and +0xCC..+0xD7 are not reversed by this lane.
 //
 // *** +0xD0 IS NOT PADDING. Wave 9 lane M, MEASURED. ***
-// `_pad_cc_d8` covers +0xCC..+0xD7, and the eight bytes at +0xD0 inside it hold
+// Of +0xCC..+0xD7 (`_padCC`, then `_cachedText`), the eight bytes at +0xD0 hold
 // an OWNING, REFCOUNTED System::String data pointer — a live heap address with
 // a {length, refcount} header at [-8]. Measured by probing every divergence of
 // UI::NumberElement::SetValueInt on the tutorial routes: after the call, that
@@ -51,8 +51,8 @@
 // table and this header's owning pointer are statements about TWO DIFFERENT
 // CLASSES that happen to share an offset, and both are right.
 // **TextElement.h is deliberately NOT edited**, for exactly the reason lane M
-// gives above: a written-extent fact belongs to a WRITER, not to an offset
-// (reference_never_written_needs_by_whom.md), and one function's behaviour on a
+// gives above: a written-extent fact belongs to a WRITER, not to an offset, and
+// one function's behaviour on a
 // NumberElement is no authority over TextElement's call sites.
 //
 // The layout below is now complete and static-evidenced. Lane M's warning to
@@ -109,10 +109,6 @@
 #include "../object/Internal.h"   // Object::detail::InternalMemFree
 #include "../system/String.h"     // System::String — the +0xd0 member
 
-// ENDGAME B.3 step 6, block C3: the POD below moved from `UI::` to `RtUI::`
-// (B4b-1) when the real class took the retail name; widgets_input.cpp's two
-// NumberElement setters still reach the object through it.
-
 // The STRUCT now says what the PROSE above already said. Until the elem_B
 // batch ported the class (src/engine/ui/numberelement.cpp, 2026-09-12) it
 // stopped at +0xE0 with two anonymous pads and no size assert, i.e. it was a
@@ -128,7 +124,7 @@
 // ENDGAME B.3 step 6 (block C3) — `UI::NumberElement`, the REAL C++ class
 // ############################################################################
 //
-// PARENT `UI::Element` — READ (B36_SLOTS.md section 3), RECORDED, NOT USED:
+// PARENT `UI::Element` — READ (B36_SLOTS.md section 3), RECORDED; DEFINE_TYPE (numberelement.cpp) returns both:
 //     ?_TypeName@NumberElement@UI@@CAPEBDXZ       @0x18004a7e0 -> "NumberElement"
 //     ?_ParentTypeName@NumberElement@UI@@CAPEBDXZ @0x18004a7f0 -> "Element"
 // (NOT TextElement — the banner above's own first line said otherwise; the
@@ -185,7 +181,7 @@ public:
     void Draw(SpriteContext& context, uint8_t alpha) const override; // [6] 0x1801191e0
 
     // ?CacheText@NumberElement@UI@@AEAAXXZ  0x1801189f0 — `AEAA` PRIVATE in
-    // retail; PUBLIC here because its door calls it (and the ctor does).
+    // retail; PUBLIC here. The ctor and both SetValue overloads (widgets_input.cpp) call it.
     void CacheText();
 
     // The three one-instruction getters, whole bodies (banner above).
@@ -195,7 +191,7 @@ public:
         return static_cast<NumberDescription::NumberType>(_mode);
     }
     // ?SetValue@NumberElement@UI@@QEAAXH@Z / QEAAXM@Z — a non-virtual overload
-    // pair (THE DOOR DECIDES). Both DEFINED in widgets_input.cpp (fragment pass).
+    // pair. Both DEFINED in widgets_input.cpp (fragment pass).
     void SetValue(int32_t value);                                // 0x180118d50
     void SetValue(float value);                                  // 0x180118db0
 
@@ -203,7 +199,7 @@ public:
     NumberElement& operator=(const NumberElement& src);          // 0x18004aa80  not ported
     static void* operator new(std::size_t bytes);                // 0x18004a830  not ported
     static void* operator new(std::size_t bytes, void* place);   // 0x18004a8a0  not ported
-    static void  operator delete(void* p) { ::Object::detail::InternalMemFree(p); }                       // 0x18004a8b0  not ported
+    static void  operator delete(void* p) { ::Object::detail::InternalMemFree(p); }                       // 0x18004a8b0
 
 private:
 

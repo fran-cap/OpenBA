@@ -20,8 +20,8 @@
 //
 // Field layout (0x48 bytes):
 //   +0x00-0x1F: Action base (vtable, Internal base, entity ptr, status byte)
-//   +0x20: InternalBasePtr  targetBuilding  (building with storage to pick from)
-//   +0x28: InternalBasePtr  pickupEntity    (entity doing the pickup, e.g. citizen)
+//   +0x20: InternalBasePtr  citizen         (the carrying citizen)
+//   +0x28: InternalBasePtr  storageEntity   (building with storage to pick from)
 //   +0x30: void*            materialList    (array of {ExternalPtr, int32_t count} pairs, 0x10 each)
 //   +0x38: int32_t          materialCount   (number of entries in material list)
 //   +0x40: bool             partialAllowed  (if true, can pick up less than requested)
@@ -33,8 +33,8 @@
 #include "Component/ComponentDescription.h"
 #include "Component/Description.h"
 #include "Action/exe_bodies.h"   // ActRm_* helpers
-#include "Game/exe_bodies.h"     // Reimpl_ExternalPtr_Serialize_StringTable
-#include "Work/exe_bodies.h"     // WorkBase_FindComponent_6270, WorkLeaf_FreeStorageCapacity_116540
+#include "Game/exe_bodies.h"
+#include "Work/exe_bodies.h"
 #include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch C
 #include <cstdio>
@@ -48,11 +48,11 @@
 
 // ============================================================
 // Helpers, called by name (B3R)
-//   0x14012d150 ActRm_StorageSubtract_d150 -- StorageComponent::SubtractItem(storage, itemType,
-//               count); if the count reaches 0, removes the slot
-//   0x14012d000 ActRm_StorageAdd_d000      -- StorageComponent::AddItem(storage, itemType, count)
+//   0x14012d150 StorageComponent::SubtractItem(itemType, count) -- if the count reaches 0,
+//               removes the slot
+//   0x14012d000 StorageComponent::AddItem(itemType, count)
 //   0x14000da70 ActRm_ArrayResize16_da70   -- array resize for 16-byte elements (material list)
-//   0x140002340 Reimpl_ExternalPtr_Serialize_StringTable -- ExternalPtr serialize
+//   0x140002340 ::Object::SerializeExternal -- ExternalPtr serialize
 // ============================================================
 
 // ============================================================
@@ -108,8 +108,8 @@ void PickupStoredRawMaterial::Persist(IO::Stream& stream) {
 
     // If loading, resize the material array
     if (static_cast<int>(ser.GetDirection()) == 0) {   // IO::Serializer::GetDirection, retail 0x180006210
-        // LEFT: the shared 16-byte Array SetSize 0x14000da70 is ACT-a's file-local body,
-        // reached only through its int64_t* forwarder.
+        // The shared 16-byte Array SetSize 0x14000da70 (ActRm_ArrayResize16_da70,
+        // Action/exe_bodies.h), reached through its typed wrapper MaterialArraySetSize.
         MaterialArraySetSize(&_materials, matCount);   // 0x14000da70
     }
 
@@ -450,7 +450,7 @@ PickupStoredRawMaterial::PickupStoredRawMaterial(CitizenComponent* const* citize
 
     int requested = param_5;
     if (requested <= 0) {
-        // LEFT: 0x140116540 is declared in Work/exe_bodies.h (WORK) taking the citizen as intptr_t.
+        // 0x140116540 is CitizenComponent::FreeStorageCapacity (Component/CitizenComponent.h).
         int total = _citizen.Get()->FreeStorageCapacity();   // 0x140116540
         // B6 (14d G69): param_5 = total / [desc+0x48] through the narrowed (or 0) pointer,
         // no null or zero test (0x1400ca520).

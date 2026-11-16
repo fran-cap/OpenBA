@@ -12,22 +12,8 @@
 // Every one of those four names was read out of Runtime-x64.dll's export
 // directory with pefile BEFORE a line of body was written. `SetLength` is
 // PRIVATE and therefore AEAA, not QEAA — the QEAA spelling is not an export
-// and would resolve NULL forever
-// (reference_phantom_dtor_mangling_qeaa_vs_ueaa.md, and the same trap
-// Filename::AdjustDelimiters fell into in Wave 2).
-//
-// WHY THIS CLASS, AND WHY NOW
-// ---------------------------
-// PLAN §5 recorded WideString as "not called by our tree" and Wave 2 left it
-// unported on that basis. That has been stale since Wave 4 lane D:
-// `src/platform/win/filesystem_win.cpp` (FileSystem::GetSaveDirectory) already
-// calls `Set` and `AsUTF8` through RT_EXPORT_ONCE and has had NO port behind
-// either door since the day it landed — two null calls at cutover on the save
-// path. Wave 9 lane FS needs the same two for `FileSystem::GetRootDirectory`
-// plus the `String` constructor for `FileSystem::SetupDirectories`. Porting
-// them here closes lane D's pre-existing hole as a side effect; nothing in
-// filesystem_win.cpp changes, because it already asks through the port-aware
-// door.
+// and would resolve NULL forever, the same trap Filename::AdjustDelimiters
+// fell into in Wave 2.
 //
 // THE OBJECT
 // ----------
@@ -52,14 +38,9 @@
 // -------------
 // Retail's SetLength and AsUTF8 do NOT call ?MemAlloc@MemoryAllocator@; they
 // inline it — `EnterCriticalSection(_singleton+0x640); Allocate(_singleton,
-// n, 4); LeaveCriticalSection`. `RtMemAlloc`/`RtMemFree` in string.cpp ARE
-// that sequence's exported wrapper (0x1800c7a50 / 0x1800c7ad0) and string.cpp
-// §"The DLL's allocator" already establishes the two are interchangeable and
-// that going through the export keeps standalone/allocator_lock.cpp's detour
-// in the path. Using them here also inherits the cutover fallback string.cpp
-// added in lane IOA: when the raw door yields null (no DLL) they fall through
-// to the registered MemoryAllocator port, so WideString work is sound with
-// Runtime-x64.dll absent. THIS LANE RELIES ON THAT FALLBACK.
+// n, 4); LeaveCriticalSection`. `RtMemAlloc`/`RtMemFree` (string.cpp, String.h) call
+// that sequence's exported wrapper (0x1800c7a50 / 0x1800c7ad0) by name, and string.cpp
+// §"The DLL's allocator" establishes the two are interchangeable.
 //
 // THE ONE PIECE THAT IS *NOT* TRANSCRIBED FROM RETAIL
 // ---------------------------------------------------
@@ -89,8 +70,7 @@
 // This matters less than it reads. On this project's only caller chain the
 // input is the process's own module path and the strings that come out of it,
 // which are ASCII on every machine this has ever run on; every codepoint takes
-// the one-byte UTF-8 branch and the two-byte UTF-16 branch. The oracles below
-// compare against the shipped bodies on exactly the data the boot produces.
+// the one-byte UTF-8 branch and the two-byte UTF-16 branch.
 // ============================================================================
 
 #include <cstdint>
@@ -235,10 +215,6 @@ bool SameText(const char* a, const char* b) {
 }  // namespace
 
 // ============================================================================
-// ?SetLength@WideString@System@@AEAAXH@Z                   retail 0x1800ca9b0
-// ============================================================================
-
-// ============================================================================
 // ?Set@WideString@System@@QEAAXPEB_W@Z                     retail 0x1800caf40
 // ============================================================================
 // Three things in this body are not obvious and all three are retail's:
@@ -270,11 +246,6 @@ bool SameText(const char* a, const char* b) {
 // buffer, and a non-positive encode result. The last one is the one that
 // matters: a lone surrogate encodes to ZERO bytes, so a malformed UTF-16
 // buffer loses that character rather than corrupting the output.
-// ENDGAME B.3.4b SYSTEM (4a): THIS DOOR IS A HIDDEN-RETSLOT DOOR. `ret` is the
-// caller's RAW BYTES — uninitialised String-sized storage — so the
-// member's prvalue is placement-CONSTRUCTED into it and never assigned to; an
-// assignment would Release() whatever garbage pointer the caller's stack
-// happened to hold. Same shape as `string.cpp`'s `RtSystem_String_SubString`.
 // (B.4 Z MIRROR2: the `RtSystem_WideString_AsUTF8` door is gone with its last
 // caller; the body is System::WideString::AsUTF8 below.)
 
@@ -302,10 +273,6 @@ void System::WideString::SetLength(int len) {
 
 void System::WideString::Set(const char16_t* src) {
 
-    // Snapshot BEFORE we touch `this`: the oracle below replays onto a scratch
-    // object, and a replay whose input our own write has already destroyed is
-    // how a correct port reads as a 10% divergence
-    // (reference_oracle_must_snapshot_aliased_inputs.md).
     char16_t* const before = _data;
 
     if (src == nullptr) {
@@ -396,15 +363,11 @@ System::String System::WideString::AsUTF8() const {
     // (0x180006760) and the result is the hidden return slot — raw bytes — so
     // the String was placement-constructed into it before Set (0x1800c95d0)
     // ran. B.3.4b SYSTEM (4a): the hidden slot is the COMPILER's business now,
-    // so the member holds an ordinary local and returns it; the DOOR is what
-    // still placement-constructs into a caller-supplied slot.
+    // so the member holds an ordinary local and returns it.
     System::String ret;
     ret.Set(reinterpret_cast<const char*>(buf));  // CAST-OK: byte_io
     if (buf != nullptr) RtSystem::RtMemFree(buf);
 
-    // `this` is const and nothing in the body touches it, so the shipped body
-    // runs on identical input. Its result is a freshly allocated String, so
-    // ours and theirs never share a pointer — compare by TEXT.
     return ret;
 }
 
@@ -425,7 +388,7 @@ System::WideString::WideString(const System::String& s) {
     // ENDGAME B.3.1 step 2's bridge is gone from this body: `s` IS the class
     // now, because the parameter is the class. `GetLength()` (0x1800063c0) is
     // still the null-guarded stored-length read this line used to spell by
-    // hand; the POD-to-class conversion moved up into the door.
+    // hand.
 
     const uint8_t* p   = reinterpret_cast<const uint8_t*>(s._data);  // CAST-OK: byte_io
     const uint8_t* end = p + static_cast<size_t>(s.GetLength());
@@ -467,16 +430,12 @@ System::WideString::WideString(const System::String& s) {
 }
 
 // ============================================================================
-// The three rows dx11 has been asking for and nobody was answering
+// The WideString members dx11's device enumeration uses
 // ============================================================================
-// `tools/runtime_census.py` names `src/render/dx11/devicedata.cpp` as the CALLER of
-// four WideString exports, and before this lane all four had `ported=0`.
-// AsUTF8 is closed above because GetRootDirectory needed it; these three were
-// found by reading the census AFTER the port rather than before, and they are
-// on the DEVICE-ENUMERATION path — DeviceData::EnumerateInterfaces turns each
-// adapter's UTF-16 Description into a String — which runs at Video startup on
-// every boot. Leaving them would have closed one wall and left three null
-// calls a few frames behind it.
+// `src/render/dx11/devicedata.cpp` calls AsUTF8 (above), the `const char16_t*`
+// constructor, the destructor and StrLength on the DEVICE-ENUMERATION path —
+// DeviceData::EnumerateInterfaces turns each adapter's UTF-16 Description into
+// a String — which runs at Video startup on every boot.
 //
 // All three are small enough to quote in full, and all three were read from
 // the DISASSEMBLY: retail dereferences `this` and `src` unguarded in every one
@@ -583,17 +542,6 @@ int System::WideString::StrLength(const char16_t* s) {
     return n;
 }
 
-// ============================================================================
-// The remaining doors — every name, signature and registration row unchanged.
-// ============================================================================
-// These four could not sit with the others above, because a door that
-// placement-constructs the class has to be written after the class's own
-// constructors are defined for the reader, not for the compiler. Each is a
-// CONSTRUCTOR door: `self` is the caller's RAW BYTES (uninitialised
-// WideString-sized storage), so
-// the class is placement-constructed into it, never assigned — an assignment
-// would first run the destructor over whatever garbage the caller's stack held.
-// The return value is retail's `MOV RAX,RCX`, i.e. `self` itself.
 namespace RtSystem {
 
 // (B.4 wave X-R2: the CtorFromString / CtorFromChars / Dtor doors had no

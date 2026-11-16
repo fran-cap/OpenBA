@@ -50,7 +50,7 @@
 //   +0x78 = Device::_singleton->deviceData ? dd->vtable[0x88](dd, this) : null
 //
 // sizeof is 0x80: the vector deleting destructor at 0x18004b9d0 carries
-// `MOV EDX,0x80`, and rt_factories_video.inc's CreateNewObject step asks the
+// `MOV EDX,0x80`, and renderstate.cpp's `CreateNewObject` asks the
 // allocator for 0x80 with alignment 8.
 //
 // ----------------------------------------------------------------------------
@@ -62,9 +62,7 @@
 // `src/engine/video/renderstate.cpp`, verified by grep over `code/ engine/
 // runtime/ standalone/ src/render/dx11/` — and that file converts in this same commit. So
 // there is no second spelling to keep alive and nothing outside this header to
-// update: the classes below are the ONE definition of these bytes. (Contrast
-// `RtVideo::ImageBuffer` in ImageBuffer.h, whose POD has five unconverted users
-// and therefore stays.)
+// update: the classes below are the ONE definition of these bytes.
 // ============================================================================
 
 #include <cstddef>
@@ -81,16 +79,10 @@
 
 namespace IO { class Serializer; }
 
-// `src/engine/video/renderstate.cpp`'s door helper. `?PlatformConstruct@` /
+// `src/engine/video/renderstate.cpp`'s friend holder. `?PlatformConstruct@` /
 // `?PlatformCreate@` / `?PlatformDestruct@` are PRIVATE in retail (`AEAA`) and
-// `~RenderState` is non-virtual and protected, yet all four are exported by name
-// and keep registered `extern "C"` doors — which cannot name a protected member.
-// B34_BRIEFS A.4's answer is to FRIEND the holder rather than widen the access,
-// so the header keeps saying what retail says. A derived helper class would have
-// worked too and does NOT work here: deriving forces GCC to reference
-// `vtable for Video::RenderState`, whose slot 0 (`DeletingDtor`) is a table row
-// in `src/engine/object/deleting_dtor.cpp` and is defined in no translation
-// unit, so the link fails (seen, not predicted).
+// protected here; B34_BRIEFS A.4's answer is to FRIEND the holder rather than
+// widen the access, so the header keeps saying what retail says.
 struct RenderStateDoorAccess;
 
 namespace Video {
@@ -103,7 +95,7 @@ namespace Video {
 // public constructor (??0RenderState 0x1800f4b60), its own slot 0, and the
 // factory pair as its own statics: every live RenderState wears the COMPILER's
 // table. The minted row, its RT_DELDTOR row 0x18004b9d0, the ??0 / ??1 doors and
-// the seven slot doors are retired (tools/rt_mint_retired/vid.txt).
+// the seven slot doors are retired.
 //
 // THE DESTRUCTOR IS VIRTUAL (B3X W1): retail slot 0 is
 // the deleting destructor. `~RenderState()` is D1 + D0 here.
@@ -303,8 +295,8 @@ public:
     static void          operator delete(void* p) { ::Object::detail::InternalMemFree(p); }              // ??3 — MemFree
 
 protected:
-    // The four registered doors over the protected surface. See the banner on
-    // the forward declaration above this namespace.
+    // The friend holder over the protected surface. See the banner on the
+    // forward declaration above this namespace.
     friend struct ::RenderStateDoorAccess;
 
 

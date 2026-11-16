@@ -43,15 +43,15 @@
 #include "Entity/CitizenBehavior.h"
 
 // ============================================================
-// Sub-functions, called by name (B3R; the module exe_bodies.h headers)
+// Sub-functions, called by name
 // ============================================================
 //   0x14002c8a0  TradeWork::SerializeAssignments (tradework_serialize.cpp)
 //   0x14002c710  TradeWork::InsertAssignment     (tradework_serialize.cpp)
 //   0x14002c690  Avl38SetFindRemove (Work/TradeWork.h; the core in Player/tool_base_trade.cpp)
 //   0x140025740  Avl38SetRemove (Work/TradeWork.h)
-//   0x1400c5400  WorkBase_TaskListCleanup_c5400
+//   0x1400c5400  ActionStack::Clear
 //   0x1400f7100  Work::ValidateTask
-//   0x140014b00  TradeWork_helper_14b00
+//   0x140014b00  Avl38FreeSubtree (Player/exe_bodies.h)
 //
 // The Work BASE vtable is 0x140161a80, byte-verified in retail: TradeWork_Ctor
 // disassembles to `0x1400f6dbd: LEA RAX,[0x140161a80]` followed by MOV [RBX],RAX.
@@ -429,7 +429,7 @@ cleanup:
 // ============================================================
 // TradeWork::OnComplete [6] -- BSTFindRemove + return false (0x1400f5d20)
 // ============================================================
-// Both slots call 0x14002c690 through its B4 FORWARD (see the LEFT on the call).
+// Both slots call 0x14002c690 (Avl38SetFindRemove, Work/TradeWork.h).
 int TradeWork::OnComplete(CitizenComponent** param2, ComponentEntity** /*arg2*/, int /*arg3*/) {
     Avl38SetFindRemove(&assignments, param2);   // 0x14002c690
     return false;

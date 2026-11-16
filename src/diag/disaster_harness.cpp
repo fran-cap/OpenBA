@@ -2,7 +2,7 @@
 // TEST RIG ONLY — no retail function is ported here.
 //
 // Fires each of the four disasters on demand, so the fire / citizen-disease /
-// crop-infestation / tornado lanes can be exercised in a `make sa-run` session.
+// crop-infestation / tornado lanes can be exercised in a `tools/build.sh run` session.
 //
 // WHY THE ORGANIC ARM CANNOT BE TESTED WITHOUT THIS
 // -------------------------------------------------
@@ -42,11 +42,9 @@
 // targets snapshotted before any mutation, and every arm REPORTS ITS OUTCOME — including
 // the negative ones. A silent log means the env var was never set.
 //
-// Each trigger goes through the SAME resolved pointer the debug UI uses, so when the
-// port lanes land their RegisterExeAddr entries this file starts working with no change
-// here. Where a leaf is still null we say so as a distinct outcome rather than failing
-// silently — "Ignite unresolved — port not landed" is a different fact from "no house
-// qualified", and the two must never look alike in the log.
+// Each trigger calls the same member the debug UI calls (FireComponent::Ignite,
+// CitizenComponent::Infect, DiseaseComponent::Infect); the tornado goes through the
+// debug UI's own handler, DebugUI_Slot9.
 //
 // ENV
 // ---
@@ -59,41 +57,8 @@
 //   <EACH>_PERIOD=<f>              re-fire every f frames (default 0 = one shot)
 //   BANISHED_FORCE_SICK_DISEASE=<i> which DiseaseDescription to use (default 0 = first)
 //
-// All opt-in. NOT in the default-on table. Unset ⇒ byte-unchanged run.
+// All opt-in. Unset ⇒ byte-unchanged run.
 //
-// EACH ARM ALSO DEPENDS ON ITS LANE'S LIVE GATE — but NOT all in the same way, and the
-// difference decides which failures a gate can and cannot explain.
-//
-// A COMPONENT_LIVE_* gate does NOT control whether the component EXISTS. The factory
-// calls MakeInertTyped unconditionally and the gate only reaches FinishLiveVtable
-// (firecomponent.cpp:209-215 is the worked example; component_factory_base.h:113 is the
-// generic macro). So a gate can explain "the component did not REACT"; it can never
-// explain "no entity carries the component". Two of the four arms nonetheless cannot
-// find a target with their gate off — because what they read is filled by something the
-// gate DOES control:
-//
-//   Fire     BANISHED_LIVE_FIRE         DOWNSTREAM ONLY. FireComponents exist either way,
-//                                       so this arm always finds its targets and always
-//                                       ignites. Without the gate the ignition has no
-//                                       live slot 9 to burn, spread or extinguish with.
-//                                       It can NOT cause "no structure carries a
-//                                       FireComponent" — that means no such template.
-//   Tornado  BANISHED_LIVE_TORNADO      DOWNSTREAM ONLY. The funnel spawns either way;
-//                                       without the gate it never moves.
-//   Sick     BANISHED_LIVE_DISEASELIST  REQUIRED FOR A TARGET. It gates the Diseases.rsc
-//                                       LOAD into gameWorld+0xA8 (GameUpdateLoop::Load
-//                                       step 1) — the list this arm picks its
-//                                       DiseaseDescription from. Off ⇒ no target at all.
-//   Infest   BANISHED_LIVE_CROPDISEASE  REQUIRED FOR A TARGET. It gates DiseaseComponent's
-//                                       slot 6 OnAdded, the only thing that fills the
-//                                       townMgr+0xF0 registry this arm walks.
-//                                       Off ⇒ empty registry ⇒ no target at all.
-//
-// Every "nothing happened" message below names the gate it ACTUALLY depends on — and the
-// Fire one says outright that setting BANISHED_LIVE_FIRE will not change it. That is the
-// whole point: "the gate is off" and "the feature is broken" produce the same silence,
-// and a message naming a gate that cannot produce the symptom is WORSE than none — it
-// sends the reader to set a flag, re-run, and see the identical line.
 //
 // Grep tags: [Disaster] [Fire] [Tornado] [Sick] [Infest]
 
@@ -103,9 +68,9 @@
 #include "Object/factory_registration.h"
 #include "object/External.h"   // ENDGAME B.3.3 step 6A
 #include "Dialog/ui_panels.h"          // DebugUI, DebugUI_Slot9
-#include "Component/diseasecomponent_funcs.h"  // DiseaseComp_CheckCure (0x1400481b0), DiseaseComp_Infect
-#include "Component/firecomponent_funcs.h"     // FireComponent_Ignite_610 (0x140049610)
-#include "Component/exe_bodies.h"              // CitizenComp_Infect (0x140116b90)
+#include "Component/diseasecomponent_funcs.h"  // DiseaseComponent::CheckCure (0x1400481b0), DiseaseComponent::Infect
+#include "Component/firecomponent_funcs.h"     // FireComponent::Ignite (0x140049610)
+#include "Component/exe_bodies.h"
 #include "Entity/ComponentEntity.h"   // ComponentEntity(ComponentDescription*) (0x1400c3720)
 #include "Entity/EntityList.h"        // EntityList::RegisterEntity (0x1400c48a0)
 #include "object/TypeInfo.h"                   // Object::IsDerivedFromNullSafe
@@ -218,12 +183,8 @@ bool Registry(CitizenIbpList<T> CitizenBehavior::*list,
     return *outArr != nullptr && *outCount > 0;
 }
 
-// Find a component on an entity by REGISTERED NAME rather than by one of the
-// fn_FindComponent_* inlines. Deliberate: several of those are misnamed aliases
-// (engine_funcs.h:819 `fn_FindComponent_Residence` is literally Storage's type id),
-// and a wrong finder here would silently pick the wrong buildings. Walking the
-// entity's own component array and asking each component's vtable +0x10 GetTypeId
-// is the same thing tool_harness.cpp:2000 does, and it cannot be misnamed.
+// Find a component on an entity by REGISTERED NAME: walk the entity's own component
+// array and compare each component's Type() with GetTypeIdByName(name).
 //   entity+0x30 = component IBP array, entity+0x38 = count (retail FUN_140048840).
 // A null return has TWO causes — the entity does not carry that component, and the type
 // name never resolved — and they demand opposite responses. An unresolved name means the
@@ -265,8 +226,8 @@ Component* ComponentByName(ComponentEntity* entity, const char* typeName) {
     return nullptr;
 }
 
-// Tile of an entity, from its MapComponent (+0x28 int16 x, +0x2a int16 y — the
-// offsets StartTown writes at starttown.cpp:1420). Returns false when the entity
+// Tile of an entity, from its MapComponent (+0x28 int16 tileX0, +0x2A int16 tileY0).
+// Returns false when the entity
 // has no MapComponent, which is normal for non-placed entities.
 bool EntityTile(ComponentEntity* entity, int* outX, int* outY) {
     Component* mc = ComponentByName(entity, "MapComponent");
@@ -289,11 +250,10 @@ bool EntityTile(ComponentEntity* entity, int* outX, int* outY) {
 // So: pick HOUSES (entities carrying both a FireComponent and a ResidenceComponent),
 // and among those pick the one nearest the centroid of all of them — the middle of
 // the residential cluster, which is exactly where FireComponent::SpreadToNeighbors
-// (0x140049130) has the most neighbours to reach. Pair with BANISHED_EXTRA_HOUSES to
-// make that cluster big enough to be worth burning.
+// (0x140049130) has the most neighbours to reach.
 //
-// The ignition itself is the retail leaf, through the same pointer the debug button
-// uses: fn_FireComponent_Ignite -> ResolveAddr(Exe, 0x140049610).
+// The ignition itself is the retail leaf the debug button calls: FireComponent::Ignite
+// (0x140049610).
 
 struct Cand { ComponentEntity* entity; FireComponent* fire; int x; int y; int32_t dist2; };
 
@@ -417,8 +377,8 @@ void ForceTornado(int frameNum, int want) {
         return;
     }
 
-    // Approximate entity count (the same field gameupdateloop.cpp:886 reads for its
-    // FPS line). Approximate is enough: we only need a before/after delta.
+    // Approximate entity count (the same field GameUpdateLoop::Update reads for its
+    // [SIMPROF] report). Approximate is enough: we only need a before/after delta.
     // +0x30 is buckets[1].count in EntityList's header (row 124).
     const int before = entityList->buckets[1]._size;
 
@@ -440,28 +400,21 @@ void ForceTornado(int frameNum, int want) {
 // ============================================================
 // This is retail DebugUI_TriggerDisasterOnBuilding (0x14005ff30, button id 327),
 // whose Ghidra name is wrong: the registry it walks is townMgr+0xA0/+0xA8, which
-// death_harness.cpp:99 independently establishes as the CITIZEN list, and the leaf it
-// calls is fn_DisasterComponent_Infect -> 0x140116b90 = CitizenComponent::Infect
+// death_harness.cpp's TownList independently establishes as the CITIZEN list, and the leaf
+// it calls is 0x140116b90 = CitizenComponent::Infect
 // (citizen, Disease*).
 //
 // We do NOT dispatch through id 327: that is the one disaster button that reads
-// `self` (the disease combo at DebugUI+0x30, debugui.cpp:715), so it needs a live
-// DebugUI instance. Resolve the DiseaseDescription here instead, exactly the way
-// DebugUI::Slot4 populates that combo (debugui.cpp:1253-1262) — walk the external
+// `self` (the disease combo at DebugUI+0x30, DebugUI::TriggerDisasterOnBuilding), so it
+// needs a live DebugUI instance. Resolve the DiseaseDescription here instead, exactly the
+// way DebugUI::OnCreated populates that combo — walk the external
 // resource list at gameWorld+0xA8 and keep the entries derived from
 // the type of the DISEASE EXTERNAL.
 //
-// TWO DIFFERENT SYSTEMS SHARE THE WORD "disease", and this arm read the wrong handle.
-// `TypeId_DiseaseDescription` is a misnomer twice over:
-//   * the id it holds is registered under the name "Disease" (the citizen-illness
-//     external authored in Game/Disease/*.rsc), NOT the crop lane DiseaseDescription
-//     (the CropField/Orchard/Pasture component description); and
-//   * it is filled by exactly one thing - debugui_sa::EnsureGlobals(), the DebugUI
-//     lazy heal - because ResolveAddr(Exe, 0x1401c5948) returns 0 in standalone.
-// So in a run that never builds a DebugUI the global is NULL, FindDiseaseDescription
-// returned early with found=0, and the log blamed BANISHED_LIVE_DISEASELIST for a
-// resource list that had in fact loaded fine. Read Disease's own type id here instead:
-// same id the DebugUI heal would install, minus the ordering dependency.
+// TWO DIFFERENT SYSTEMS SHARE THE WORD "disease". This arm wants the citizen-illness
+// external registered under the name "Disease" (authored in Game/Disease/*.rsc), NOT the
+// crop DiseaseDescription (the CropField/Orchard/Pasture component description), so it
+// reads Disease's own type id.
 
 // The "Disease" external type id (the real class's record, ENDGAME B.3.8), so this arm
 // does not depend on a DebugUI ever existing. 0 = never registered, 0xFFFFFFFF = the
@@ -569,7 +522,7 @@ void ForceSick(int frameNum, int want) {
 // ============================================================
 // Retail Game_InfectRandomCitizen (0x14005fe10, button id 330) is likewise misnamed:
 // it walks townMgr+0xF0/+0xF8, a registry of DiseaseComponents (crops / livestock),
-// and calls fn_DiseaseComponent_Infect -> 0x1400483a0, whose `self` IS a
+// and calls 0x1400483a0 = DiseaseComponent::Infect, whose `self` IS a
 // DiseaseComponent. Nothing about it touches a citizen.
 //
 // We do not use id 330 either, because it picks a UNIFORMLY RANDOM registry entry.
@@ -591,12 +544,10 @@ void ForceSick(int frameNum, int want) {
 // BANISHED_FORCE_INFEST_FRAME set late (or _PERIOD set, so the arm re-arms and keeps
 // polling) and let a farmer plant the field first.
 //
-// ⚠ HARD DEPENDENCY ON THE CROP LANE'S GATE. That registry is populated by exactly
-// one thing: DiseaseComponent's OnAdded (vtable slot 6), which is only installed when
-// BANISHED_LIVE_CROPDISEASE is set. With the gate off the registry is EMPTY and this
-// arm has nothing to infest — which is a fact about the gate, not about the
-// infestation logic. Both empty-outcome messages below name the gate for that reason:
-// "registry empty" and "infestation is broken" must never look alike in the log.
+// ⚠ THAT REGISTRY IS POPULATED BY EXACTLY ONE THING: DiseaseComponent's OnAdded (vtable
+// slot 6). An empty registry leaves this arm nothing to infest — which is a fact about the
+// world, not about the infestation logic: "registry empty" and "infestation is broken"
+// must never look alike in the log.
 
 void ForceInfest(int frameNum, int want) {
     Object::InternalPtr<DiseaseComponent>* arr = nullptr; int n = 0;

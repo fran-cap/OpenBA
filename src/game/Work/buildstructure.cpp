@@ -11,8 +11,8 @@
 //   +0x50: void*  _slots      — byte array (one per build position: 0=free, 1=claimed)
 #include "Work/exe_bodies.h"
 //   +0x58: int    _slots._size      — count of build positions
-//   +0x60: void*  _citizens._root      — BST root (tracks which entity claimed which position)
-//   +0x68: int    _citizens._count      — build progress counter
+//   +0x60: void*  _citizens._root      — BST root (the set of assigned citizens)
+//   +0x68: int    _citizens._count      — number of assigned citizens
 //
 // Work base fields used:
 //   +0x10: void*  _entity      — InternalBasePtr to building entity
@@ -66,7 +66,7 @@ BuildStructure::BuildStructure()
 // 1-arg ctor (0x1400e5a90) it (a) routes base init through Work_Ctor25 so _entity
 // (building entity), +0x18 (WorkComponent) and +0x28 (target cell) are populated, and
 // (b) ALLOCATES the build-position byte array _slots/_slots._size sized to the site's
-// PositionComponent footprint (FUN_140123070 position count -> FUN_14000a590 resize),
+// InteractComponent node count (FUN_140123070 position count -> FUN_14000a590 resize),
 // zeroing every position byte. Without this array Execute's unbuilt-position scan finds
 // nothing (_slots._size == 0 -> unbuiltCount 0) and returns 1 (never assigns labor) — the
 // 2c-B blocker. Faithful offset-for-offset port of the Ghidra decompilation.
@@ -76,7 +76,7 @@ BuildStructure::BuildStructure(ComponentEntity* const* entityIBP, bool altAnim)
     // The +0x50 array and the +0x60 set are members: their ctors zero data, count and
     // capacity (retail 0x1400e5a0a / 0x1400e5a0e: two qwords, so the resize below never
     // reads a garbage capacity) and the set's root (qword) and count (dword).
-    // Allocate the build-position byte array from the site's PositionComponent count.
+    // Allocate the build-position byte array from the site's InteractComponent node count.
     if (entityIBP) {
         // The site's InteractComponent (Work(entityIBP) stored *entityIBP in _entity)
         InteractComponent* posComp = _entity->FindComponent<InteractComponent>();
@@ -153,7 +153,7 @@ int BuildStructure::Cleanup() {
 }
 
 // ============================================================
-// GetPriority (0x140029670) — not hookable, available as clean code
+// GetPriority (0x140029670)
 // ============================================================
 int BuildStructure::GetPriority() {
     return _citizens._count > 0;
@@ -169,7 +169,7 @@ void BuildStructure::Persist(IO::Stream& stream) {
     // IO::Serializer block (version 0)
     IO::Serializer ser(stream, 0);
 
-    // Serialize bool at +0x48 (the field is uint8_t storage)
+    // Serialize bool at +0x48
     ser.Serialize(_isDemolition, nullptr);
 
     // Serialize BST at +0x60 (InternalBasePtr tree)
@@ -731,7 +731,7 @@ DEFINE_EXE_TYPE(BuildStructure, "Work")
 // Build a BuildStructure bound to a construction SITE entity using the FAITHFUL full ctor
 // (0x1400e59c0): it routes base init through Work_Ctor25 (_entity=site entity, +0x18
 // WorkComponent, +0x28 target cell) AND allocates the build-position byte array (_slots/
-// _slots._size) from the site's PositionComponent footprint — without which Execute's unbuilt-
+// _slots._size) from the site's InteractComponent node count — without which Execute's unbuilt-
 // position scan finds nothing (_slots._size==0) and returns 1 (never assigns labor). buildEntityIBP
 // is an InternalBasePtr* whose *value is the site entity pointer.
 extern "C" BuildStructure* BuildStructure_ConstructForSite(ComponentEntity** buildEntityIBP) {

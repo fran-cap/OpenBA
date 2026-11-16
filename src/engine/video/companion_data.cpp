@@ -1,9 +1,9 @@
 // ============================================================================
 // src/engine/video/companion_data.cpp — Wave 9 lane B2
 //
-//   the twelve Video::*Data companion base classes (ctor + dtor),
-//   Video::IndexBuffer::Lock/Unlock, Video::VertexBuffer::Lock/Unlock,
-//   Video::ConstantBuffer::Bind, and Video::Device::DisplayMode's ctor/dtor.
+//   the twelve Video::*Data companion base classes (dtors; the ctors are inline
+//   in CompanionData.h), Video::IndexBuffer::Lock/Unlock,
+//   Video::VertexBuffer::Lock/Unlock, and Video::Device::DisplayMode's ctor/dtor.
 //
 // 29 functions, closing 16 classes. Layouts and the evidence for every offset
 // are in src/engine/video/CompanionData.h and src/engine/video/Device.h.
@@ -11,15 +11,16 @@
 // ============================================================================
 //
 // WHY THESE, AND WHY TOGETHER. Every function in this file is reached from
-// `src/render/dx11/`, our VideoDX11 replacement, and from nowhere else in the tree.
+// `src/render/dx11/`, our VideoDX11 replacement; Lock / Unlock and the companion
+// dtors are reached from `src/render/vulkan/` and `src/render/metal/` too.
 // WAVE9.md §4 records that `src/render/dx11/` is part of the cutover surface and was
 // invisible to the census until 2026-09-07; these 29 are the cheapest part of
 // that surface. Sixteen classes go to 100% in one file, which is what PLAN
 // §4.1 decision 5 (class atomicity) asks for: an object built by our ctor
 // carries our vtable and must then find every method ours.
 //
-// EVERY BODY BELOW WAS READ AS DISASSEMBLY, NOT DECOMPILED C
-// (reference_ghidra_c_output_vs_disassembly.md). The twelve ctors and twelve
+// EVERY BODY BELOW WAS READ AS DISASSEMBLY, NOT DECOMPILED C.
+// The twelve ctors and twelve
 // dtors are three and four instructions each, and all 24 were disassembled
 // INDIVIDUALLY rather than one being read and the rest assumed — the point of
 // checking was the vtable operand, which differs per class and is the only
@@ -40,41 +41,14 @@
 //   | ContextData        | 0x1800f8cb0 | 0x1800f8e30 | 0x180158b90              |
 //   | DeviceData         | 0x1800f8cd0 | 0x1800f8cf0 | 0x180158c30              |
 //
-// The two "(ported)" dtors are NOT re-registered here — `??1ImageBufferData`
-// landed in buffers.cpp (Wave 6 lane C) and `??1RenderStateData` in device.cpp
-// (Wave 6 lane B). Registering a name twice is not an error the linker or the
-// registry reports: the later binding silently wins and the earlier line
-// becomes dead code, which is the SHADOWED case `tools/dispatch_slot_map.py
-// --check` reports on the exe side. Those two classes complete here on their
-// ctor alone.
+// The two "(ported)" rows carry no dtor address in the table; both dtors are
+// defined below with the other ten.
 //
 // ALL 24 MANGLED NAMES WERE READ OUT OF THE SHIPPED EXPORT DIRECTORY, not
 // reconstructed by hand (`tools/pe_exports.py` over
-// C:\GOG Games\Banished\Runtime-x64.dll). That matters more than usual here:
-// the dtors are `UEAA` (virtual) and DisplayMode's is `QEAA` (non-virtual),
-// and reference_phantom_dtor_mangling_qeaa_vs_ueaa.md is exactly the bug of
-// guessing the wrong one — a name the DLL does not contain resolves NULL
-// silently, the port registers, the census counts it and the diff reports
-// calls=0.
+// C:\GOG Games\Banished\Runtime-x64.dll). The dtors are `UEAA` (virtual) and
+// DisplayMode's is `QEAA` (non-virtual).
 //
-// ORACLE. Full differential on 25 of the 29, and it is a real one rather than
-// a tautology. Our ctor writes the vtable pointer this file resolves by
-// exported name, where retail writes an absolute LEA; those agree only if the
-// export name is right and resolves, which is the phantom-name failure mode
-// above, caught here rather than at cutover.
-// Retail's ctor is replayed into a PRIVATE 16-byte scratch (never into the
-// live object) and the two are compared byte for byte. This is sound because
-// the ctor is a pure write of two fields: it reads no prior contents of
-// `self`, so ours having already run cannot change what theirs produces, and
-// its only input is the scalar `owner`, which nothing aliases —
-// reference_oracle_must_snapshot_aliased_inputs.md's trap (a call site passing
-// one buffer as both `self` and `ret`) cannot arise. The dtors replay the same
-// way into a bare `void*`, following device.cpp's `??1RenderStateData` port.
-//
-// The remaining four are trampolines (Lock/Unlock/Bind, DisplayMode's dtor)
-// and carry the diff oracle with the reason stated at each one.
-//
-// NEW LANE-D ROW: exactly one, `0x180010760`, named below.
 // ============================================================================
 //
 // ENDGAME B.3.9 block VID (B39_RULES D1, section 5 item 4): the twelve classes
@@ -91,8 +65,6 @@
 
 #include "video/Buffers.h"
 #include "video/CompanionData.h"
-// ENDGAME B.3.5 block D1 — `Video::Context`, for the one line
-// `Video::ConstantBuffer::Bind` takes it by reference in.
 #include "video/Context.h"
 #include "video/Device.h"
 
@@ -161,13 +133,6 @@ RenderStateData::~RenderStateData()       {}
 // the index/vertex pair use identical slots, which is why one comment covers
 // both. This completes the shape Wave 6 lane C started: Create and Set are
 // already ported here through slots +0x08 and +0x10 (buffers.cpp).
-//
-// ORACLE: the diff oracle, not a replay, and the reason is not caution. The far
-// side of the dispatch is dx11's vtable, and dx11 is ALREADY OURS — there is
-// no second implementation to diverge from. A replay would additionally be
-// unsound: Lock/Unlock are a matched pair over a mapped GPU buffer, and
-// calling Lock twice or Unlock on an already-unlocked buffer is exactly the
-// mutate-twice trap WAVE9.md describes for Audio::Scene::Pause.
 // ============================================================================
 
 namespace Video {
@@ -191,7 +156,7 @@ void VertexBuffer::Unlock() {
 }  // namespace Video
 
 // ============================================================================
-// Video::ConstantBuffer::Bind  —  0x1800eef70
+// Video::ConstantBuffer::Bind  —  0x1800eef70 (the body is in constant_buffer.cpp)
 //
 //   1800eef70  MOV RCX,qword ptr [RCX+0x40]  ; this->platformData
 //   1800eef74  MOV R10,qword ptr [RCX]
@@ -200,8 +165,8 @@ void VertexBuffer::Unlock() {
 // Same trampoline shape as the four above, through +0x40 rather than +0x08
 // (the field the ConstantBuffer ctor at 0x1800eedf0 fills from the Device
 // factory — see CompanionData.h). Five arguments, so the fifth arrives on the
-// stack; retail's tail JMP preserves the frame and so does an ordinary call
-// here, since the signature matches exactly.
+// stack; retail's tail JMP preserves the frame and so does the ordinary call
+// in constant_buffer.cpp, since the signature matches exactly.
 // ============================================================================
 
 // ============================================================================
@@ -214,10 +179,7 @@ void VertexBuffer::Unlock() {
 //   18000d31d  MOV qword ptr [RCX+0x10],RAX   ; _size, _capacity (one qword)
 //
 // (The `MOV qword ptr [RSP],-2` at 18000d309 is the SEH unwind cookie, not a
-// field write.) Pure constants and two scalar parameters: a full replay into a
-// private scratch DisplayMode is sound, and unlike the companion ctors this
-// one is worth the whole 0x18 bytes because the two zeroing stores span three
-// named fields.
+// field write.)
 // ============================================================================
 void* Video_DisplayMode_Ctor(DisplayMode* self, int width, int height) {
     self->width           = width;
@@ -238,8 +200,8 @@ void* Video_DisplayMode_Ctor(DisplayMode* self, int width, int height) {
 // instantiation for `Array<RefreshRate>`: free `_data` under the allocator's
 // critical section, then zero the {data,size,capacity} triple.
 //
-// 0x180010760 is `RtVideo_ArrayRefreshDtor` (device_startup.cpp, declared in
-// types/video/Device.h), called by name.
+// 0x180010760 is `RtVideo_ArrayRefreshDtor` (device_enum_types.cpp, declared in
+// src/engine/video/Device.h), called by name.
 // ============================================================================
 void Video_DisplayMode_Dtor(DisplayMode* self) {
     RtVideo_ArrayRefreshDtor(self->refreshData, self->refreshCount, self->refreshCapacity);

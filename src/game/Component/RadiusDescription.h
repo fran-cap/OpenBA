@@ -36,7 +36,7 @@ public:
     void              Destruct() override;                                 // [7] 0x140001640
     Object::Type*     GetComponentType(Object::Type* ret) const override;  // [8] 0x140004950
     virtual Object::External* Construct();                                 // [9] 0x14000ba50
-    int                AddHighlight(int cell) const;                       // 0x140055430 the radius outline round `cell`, -1 without a mesh
+    int                AddHighlight(int cell) const;                       // 0x140055430 the radius outline round `cell`, -1 without a material
 
     // ---- fields (PUBLIC: the components read them at raw offsets today) ----
     Graphics::MaterialInstance* _material;      // +0x20 ExternalPtr<Graphics::MaterialInstance> (0x140007140: type cell 0x140151350)

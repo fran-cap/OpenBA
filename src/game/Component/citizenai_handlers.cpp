@@ -6,15 +6,14 @@
 // (CharacterComponent+0x48) makes its state ENTERABLE: once an action is pushed,
 // CharacterComponent+0x60 (stack top index) becomes >= 0, TransitionState records
 // the state id, and CitizenAIComponent::Update returns early at its tail (the
-// stack-non-empty gate) so no re-entry/unbounded growth occurs while the action
-// executor (move-tick, Brick 4b) is still inert.
+// stack-non-empty gate) so no re-entry/unbounded growth occurs.
 //
 // Functions ported in this file:
 //   0x1400c26c0  PlayAnimation_Action_Ctor5  (the 3-action builder: pushes a
 //                SendComponentMessage[+0x58] + optional PlayAnimation + MoveTo)
 //   0x14010a2b0  CitizenAI_State_Wander
 //
-// All exe sub-callees are already registered (resolved via ResolveAddr):
+// All exe sub-callees are called by name:
 //   0x14009ccf0  WorkGrid_FindCell        0x14009f3e0  MapGetTerrainPos
 //   0x1400c9170  MoveTo_Action_Ctor       0x1400c54e0  ActionStack push
 //   0x1400c5400  ActionStack cleanup      0x1400cb1d0  SendComponentMessage CopyCtor
@@ -45,13 +44,13 @@
 #include "Work/exe_bodies.h"
 #include "Game/exe_bodies.h"
 #include "Game/exe_constants.h"
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc
 #include "Action/SendComponentMessage.h"   // 0x1400cb1d0, by name
 #include "Action/MoveTo.h"                 // 0x1400c9170, by name
 
 namespace {
 
-// --- registered exe sub-callees: called by name (Action/Work/Game exe_bodies.h); the
+// --- exe sub-callees: called by name (Action/Work/Game exe_bodies.h); the
 //     .rdata constants are exe_constants.h ---
 
 } // namespace
@@ -60,10 +59,10 @@ namespace {
 // 0x1400c26c0 — PlayAnimation_Action_Ctor5
 // ------------------------------------------------------------
 // Builds the citizen's wander/animation action triple and installs it:
-//   (1) FUN_1400c5400 clears the action list at CharacterComponent::actions.
+//   (1) FUN_1400c5400 clears the action list at CharacterComponent::actionStack.
 //   (2) Allocates a SendComponentMessage action (0x40 bytes), CopyCtor'd from the
 //       entity IBP + msg-id DWORD_1401c70e8, and stores its IBP at
-//       CharacterComponent::field_0x58 (DeletePtr the old one first).
+//       CharacterComponent::actionStack.completionAction (DeletePtr the old one first).
 //   (3) If animTime > 0: allocates a PlayAnimation action (0x40 bytes), inits its
 //       vtable/entity(+0x20)/index(+0x28=0)/Time(+0x30)/+0x38=0, and PUSHES it.
 //   (4) Allocates a MoveTo action (0x480 bytes), constructs it via MoveTo_Action_Ctor
@@ -80,7 +79,7 @@ static void CitizenAI_PlayAnimationActionCtor5(CitizenComponent* const* param_1,
 
     stack->Clear();
 
-    // (2) SendComponentMessage action -> CharacterComponent::field_0x58
+    // (2) SendComponentMessage action -> CharacterComponent::actionStack.completionAction
     Action* msgAction = nullptr;
     void* mem = System::MemoryAllocator::MemAlloc(0x40, 8);
     if (mem) {
@@ -141,7 +140,7 @@ static void CitizenAI_PlayAnimationActionCtor5(CitizenComponent* const* param_1,
 // Picks a nearby walkable cell and queues a MoveTo (+ animation) toward it.
 //   target      = citizen->_parent                (bail if none)
 //   if (target->spouse != 0 && Rand(1)==0) target = target->spouse
-//   grid        = the world Map (GameUpdateLoop::m_game, untyped: raw)
+//   grid        = the world Map (GameUpdateLoop::m_game)
 //   mapSize     = *grid
 //   For both `target` and the citizen read their ModelComponent world pos
 //   (character -> modelComponent, +0x158 x / +0x15c y: ModelComponent's raw
@@ -155,7 +154,7 @@ static void CitizenAI_PlayAnimationActionCtor5(CitizenComponent* const* param_1,
 //
 // ABI note: WorkGrid_FindCell (0x14009ccf0) is integer-only and does NOT touch XMM0,
 // so the original's `extraout_XMM0_Da` is the stale (float)(mapSize>>1) left in XMM0
-// by the position math — reproduced here as `halfMapF`.
+// by the position math — reproduced here as the `static_cast<float>(half)` in `K`.
 // ============================================================
 bool CitizenAIComponent::State_Wander() {
     CitizenComponent* target = citizen->_parent.Get();

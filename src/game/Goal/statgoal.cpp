@@ -34,9 +34,8 @@
 
 // The two exe helpers the slots call — FUN_1400265b0 (the lazy ExternalPtr
 // resolve) and FUN_1400da4e0 (the stat value switch) — are ported
-// (goal_exe_helpers.cpp, statvaluedispatch.cpp) and registered at those
-// addresses by standalone/reg_goal.cpp. ENDGAME B.3.8 (B6-5): the members call
-// them directly instead of a lazily filled ResolveAddr cache.
+// (goal_exe_helpers.cpp, statvaluedispatch.cpp) and the members call them
+// directly.
 
 // ============================================================
 // Construction / destruction

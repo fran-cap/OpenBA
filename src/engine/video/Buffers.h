@@ -31,12 +31,11 @@
 // in a process-global circular doubly linked list of every live buffer of that
 // type, rooted at `?_firstBuffer@IndexBuffer@Video@@` (0x1801fe788) /
 // `?_firstBuffer@VertexBuffer@Video@@` (0x1801fe798) and guarded by
-// `Video::Device::_singleton`'s critical section at +0x60 (RULE B5-6). Those two
-// heads are `RT_DATA_SLOT` reads, not C++ statics — the `MintStorageCell()`
-// redirect is OWED at the class-static conversion, the end of B.3 (RULE B4b-4 /
-// B35_RULES §9, three by-name doors each) — so no constructor here could publish
-// them. The ctor DOORS stay registered free functions in
-// `src/engine/video/buffers.cpp`.
+// `Video::Device::_singleton`'s critical section at +0x60 (RULE B5-6). The two
+// heads are the class statics `_firstBuffer` (defined in dynamic_resources.cpp),
+// and the ctors stay the free functions `Video_IndexBuffer_Ctor` /
+// `Video_VertexBuffer_Ctor` in `src/engine/video/buffers.cpp`, which publish
+// `this` into the list through PlatformConstruct.
 //
 // Every exported member of both classes is declared below whether or not it is
 // ported; `NOT PORTED` means declared here and defined nowhere, so a caller gets
@@ -131,7 +130,7 @@ public:
     // (ENDGAME B.3.9 VID class static, B39_RULES D7; dynamic_resources.cpp).
     static IndexBuffer* _firstBuffer;
 
-    // ---- the platform half; DOORS in buffers.cpp ---------------------------
+    // ---- the platform half; members in buffers.cpp -------------------------
     // NOTE both are PUBLIC in retail (`QEAA`), unlike ImageBuffer's and
     // RenderBuffer's private (`AEAA`) twins.
     // ?PlatformConstruct@IndexBuffer@Video@@QEAAXXZ 0x1800f3680  buffers.cpp
@@ -249,11 +248,10 @@ using IndexBuffer  = ::Video::IndexBuffer;
 using VertexBuffer = ::Video::VertexBuffer;
 }  // namespace RtVideo
 
-// ==== B3R W0-P0c: Runtime bodies reached by retail address ====
-// ENDGAME B.3R (B3R_RULES R5): each body below is registered at the retail
-// address in its trailing comment and read through the registry today. It is
-// declared here, copied from its definition (linkage, namespace, types), so the
-// reader can call it by name. Nothing calls it through this declaration yet.
+// ==== B3R W0-P0c: Runtime bodies, called by name ====
+// Each body below is declared here, copied from its definition (linkage,
+// namespace, types), so its callers can call it by name. The retail address
+// is in its trailing comment.
 
 // ---- video/buffers.cpp
 void Video_IndexBuffer_Ctor(Video::IndexBuffer* self);  // 0x1800f3490

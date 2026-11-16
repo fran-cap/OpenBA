@@ -107,8 +107,6 @@ public:
     //     next call (DecodePackets(NextPacket(), 0, ...) returns only that).
     // A packet the decoder rejects contributes no samples; Failed() then says
     // so until the next pass, and the pass returns fewer than its table says.
-    // One shipped sound has such packets: Tornado.wav's last six, which XAudio2
-    // turns into a noise burst (third_party/wmadec/EXTRACT.md).
     size_t DecodePackets(uint32_t firstPacket, uint32_t packetCount,
                          int16_t* out, size_t outSamples);
 

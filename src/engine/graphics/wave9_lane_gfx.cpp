@@ -3,32 +3,22 @@
 // ============================================================================
 //
 // Cutover boot attempt 06 left 61 exports resolving to NOTHING. Four of them
-// are closed here, plus one callee each for two of them:
+// are ported, plus one callee each for two of them:
 //
 //   ?Lerp@Transform@Math@@QEBA?AV12@AEBV12@AEBVScalar@2@@Z          0x18001d690
 //   ?Lerp@?$InterpolatedState@VTransform@Math@@@Graphics@@...       0x18001aff0
 //   ?RenderTextures@MaterialInstance@Graphics@@QEBAX...             0x180102df0
 //   ?AddDrawItem@Renderer@Graphics@@QEAAXPEBVGeometry@2@...         0x1801057b0
-//   (the PerlinNoise ctor is closed in ../utility/perlin.cpp, where its body
-//    already sat, written and unregistered, since Wave 8 lane E.)
-//
-// WHY A GRAPHICS FILE REGISTERS A MATH EXPORT. `Math::Transform::Lerp` is not
-// in any lane's function list and NOTHING in this project's tree resolves it by
-// name — it is here only because `InterpolatedState<Transform>::Lerp` is eleven
-// instructions of argument shuffling around a CALL to it, and a port of the
-// caller that reached the callee through the DLL would be a port that dies at
-// cutover (reference_converting_a_door_is_not_satisfying_it.md). It is
-// registered under this lane's kill switch, not Math's; that is a deliberate,
-// stated coupling, not an oversight.
+//   (Transform::Lerp is in ../math/transform.cpp, InterpolatedState<Transform>::Lerp
+//    in InterpolatedState.h and the PerlinNoise ctor in ../utility/perlin.cpp;
+//    RenderTextures and AddDrawItem are the bodies at the bottom of this file.)
 //
 // FLOAT ASSOCIATION ORDER IS LOAD-BEARING. Wave 9 has already found one defect
 // where a translation term folded in FIRST instead of being added LAST — the
 // same value algebraically, a different value in bits, and visible in one call
-// in 23,654 (reference_moved_term_hides_where_terms_cancel.md). Every float
+// in 23,654. Every float
 // expression below is transcribed in the order the SUBSS/MULSS/ADDSS sequence
 // gives it and must not be "simplified".
-//
-// KILL SWITCH: RT_GFX9=0 leaves all four on the DLL.
 // ============================================================================
 
 #include <cstdint>
@@ -61,20 +51,6 @@ namespace {
 // id — the same shape src/engine/ui/element.cpp already reads for
 // ClipRegionElement and ScrollElement. In the image at rest it is 0xffffffff;
 // the reflection registry fills it in at startup.
-//
-// AT CUTOVER this symbol is NOT minted, so the resolve returns null, the id
-// stays 0xffffffff, IsDerivedFrom is false for everything and the
-// render-to-texture pre-pass silently does nothing. No crash — a degraded
-// sub-feature, and strictly better than today's null AddDrawItem. It is
-// written up as the one open caveat in docs/history/runtime_port/WAVE9_LANE_GFX.md §5.
-//
-// SPELLED WITH A LITERAL `ResolveExport` ON PURPOSE, rather than through the
-// RT_DATA_SLOT macro that expands to exactly this. tools/rt_data_door_audit.py
-// matches a door by the identifier immediately in front of the mangled literal;
-// RT_DATA_SLOT is not in its door table, so a macro spelling files this read
-// under "UNCLASSIFIED doors — triage these, they are not known to be safe".
-// The semantics are identical (cache the HIT, retry a miss, so a read before
-// the mint is not poisoned) and the audit can now see the door is port-aware.
 // ---------------------------------------------------------------------------
 // ENDGAME B.3.9 TI-REST: the class's own `DEFINE_TYPE` record, read fresh
 // (the function-local cache over the minted record is gone, B9-10).
@@ -146,7 +122,7 @@ void DrawItemArrayResize(Collection::Array<RendererDrawItem>* self,
 // Math::Transform
 // Graphics::InterpolatedState<Math::Transform>::Lerp(const Scalar&) const
 // ?Lerp@?$InterpolatedState@VTransform@Math@@@Graphics@@QEBA?AVTransform@Math@@AEBVScalar@4@@Z
-// retail 0x18001aff0, ordinal 3188
+// retail 0x18001aff0, ordinal 3188 — the body is in src/engine/graphics/InterpolatedState.h
 //
 // Eleven instructions. RCX = this, RDX = hidden return slot, R8 = &t:
 //
@@ -193,9 +169,8 @@ void DrawItemArrayResize(Collection::Array<RendererDrawItem>* self,
 //     (0x180102e83), not hoisted, so a slot-58 handler that appends a texture
 //     is seen. Hoisting it would change behaviour in exactly that case.
 // ============================================================================
-// ENDGAME B.3.5 block GC: THE BODY MOVED to
-// `Graphics::MaterialInstance::RenderTextures`, at the bottom of this file. The
-// door keeps its name and both its registrations (by name and at 0x180102df0).
+// ENDGAME B.3.5 block GC: THE BODY is
+// `Graphics::MaterialInstance::RenderTextures`, at the bottom of this file.
 //
 // THE DEAD EFFECTIVENESS CONTROL IS GONE. The body opened with
 // `const bool didWork = (hasRenderedTexture != 0) && (textures._size > 0);` and
@@ -240,35 +215,24 @@ void DrawItemArrayResize(Collection::Array<RendererDrawItem>* self,
 //       has +0x48 <= 0.
 // This is the same list lane F recovered by decompilation; reading the bytes
 // reproduces it unchanged, which is a cross-check, and it confirms the claim at
-// src/diag/scene_watch.cpp:593 that AddDrawItem silently drops items.
+// src/diag/scene_watch.cpp:622 that AddDrawItem silently drops items.
 //
 // ORACLE: THERE IS NONE, AND THAT IS STATED RATHER THAN FAKED. The function's
 // entire effect is an append into a LIVE array that the array helper may
 // reallocate and free — running the shipped body a second time would either
 // share `_data` with the real group (so "theirs" frees memory the live Renderer
 // still points at) or need a deep copy of a group whose other 0x1c0 bytes this
-// lane does not own. What IS instrumented:
-//   * the diff oracle records how many calls reached the append at all, so a
-//     "clean" run on a site that always dropped cannot read as verification
-//     (reference_uncalled_port_is_not_verified.md);
-//   * the diff oracle checks that the element the ARRAY HELPER landed in memory
-//     is byte-identical to the record we handed it, over the 0x34 bytes that
-//     are actually written. That tests THE HELPER — the one piece of new
-//     transcription with a mechanical answer — and it does NOT test the port's
-//     agreement with retail. Do not read it as if it did.
+// lane does not own.
 //
-// The 0x34-not-0x38 span is the point of the two `_pad` fields: retail stores
-// uninitialised stack bytes at +0x24 and +0x34 on every append, and a compare
-// that included them would fail on garbage neither side wrote
-// (reference_oracle_must_not_compare_unwritten_bytes.md).
+// The two `_pad` fields (`_pad24`, `_pad34` in Camera.h) are retail's: it stores
+// uninitialised stack bytes at +0x24 and +0x34 on every append.
 // ============================================================================
 
 // ############################################################################
-// ENDGAME B.3.5 step 5, block GC — the member bodies whose live doors are the
-// functions above. Their own `namespace Graphics { }` block (B34_BRIEFS A.2:
-// `Graphics` and `RtGraphics` are siblings, so a member body cannot live inside
-// the `Rt*` one). This file's helpers are in the GLOBAL unnamed namespace, so
-// unqualified lookup from here reaches them.
+// ENDGAME B.3.5 step 5, block GC — the member bodies the banners above
+// describe, in their own `namespace Graphics { }` block. This file's helpers
+// are in the GLOBAL unnamed namespace, so unqualified lookup from here reaches
+// them.
 // ############################################################################
 
 namespace Graphics {
@@ -287,9 +251,9 @@ namespace Graphics {
 //  * the hand-inlined `(*(void***)obj)[0x58/8]` is slot ELEVEN of
 //    `Graphics::GeneratedImageBuffer`, which block C made a real class:
 //    `Render(renderer, scene, camera, generation)`. It stays a VIRTUAL call, so
-//    it still dispatches through whatever table the object wears — the minted
-//    one for every object alive today — and 0x58/8 == 11 is checked against
-//    GeneratedImageBuffer.h's slot list rather than asserted here.
+//    it still dispatches through whatever table the object wears, and
+//    0x58/8 == 11 is checked against GeneratedImageBuffer.h's slot list rather
+//    than asserted here.
 //    `IsDerivedFrom(GeneratedImageBuffer)` is what licenses the cast, and it is
 //    the test retail itself makes one line earlier.
 // ---------------------------------------------------------------------------
@@ -336,8 +300,7 @@ void Renderer::AddDrawItem(const Geometry* geometry, const MaterialInstance* mat
                            uint16_t arg4, uint16_t arg5, float arg6, float arg7, int arg8,
                            const void* arg9, uint32_t arg10) {
     // MOVSXD, both of them — Ghidra's C prints these as zero extensions and
-    // that misreading produced three Wave 6 defects including a crash
-    // (reference_ghidra_c_output_vs_disassembly.md).
+    // that misreading produced three Wave 6 defects including a crash.
     const int64_t groupIdx = static_cast<int32_t>(_currentDrawGroup);          // +0x34
     const int64_t pass     = static_cast<int32_t>(material->_shaderClass);     // +0x20
 

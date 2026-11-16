@@ -9,10 +9,9 @@
 //
 // THE POINT OF THIS FILE
 // ----------------------
-// `?PlatformStartup@Device@Video@@AEAA_NXZ` is the next cutover boot wall after
-// the IO chain. Our ported `Engine::Startup` calls it at
-// src/engine/engine/engine_lifecycle.cpp:719 and a null there returns 0 with
-// `g_startupFailAt == 11` — the boot ends, quietly, without a crash to
+// `Engine::Startup` calls `?PlatformStartup@Device@Video@@AEAA_NXZ` in
+// src/engine/engine/engine_lifecycle.cpp, and a false return there returns 0
+// with `g_startupFailAt == 11` — the boot ends, quietly, without a crash to
 // diagnose.
 //
 // `?Startup@` (0x1800f7270) and `?Shutdown@` (0x1800f7280) are ONE-INSTRUCTION
@@ -23,7 +22,7 @@
 //     1800f7280: JMP 0x1800f83f0
 //
 // so one body closes two rows each. Their live callers are
-// src/game/Dialog/optionsdialog.cpp:1138/1168 (applying video settings).
+// src/game/Dialog/optionsdialog.cpp (applying video settings).
 //
 // THREE RECORDED BLOCKERS FOR THIS CLUSTER WERE FALSE, AND ALL THREE WERE
 // RE-CHECKED AGAINST THE DISASSEMBLY RATHER THAN INHERITED
@@ -34,20 +33,20 @@
 //     (0x1800f7930) is thirty instructions and contains no `LoadLibrary`. It
 //     tests three ALREADY-POPULATED pointers in `Device::dllSlots[idx]` and
 //     calls the slot's `createDeviceData`. The `LoadLibraryW` lives in
-//     `InitializeInterfaces` (0x1800f79f0), driven by `EnumerateVideoModes`,
-//     which `src/app/video_interface.cpp` already detours.
+//     `InitializeInterfaces` (0x1800f79f0, src/platform/win/video_interfaces_win.cpp),
+//     driven by `EnumerateVideoModes`.
 //  2. Same doc: "calls the PRIVATE no-argument ValidateConfiguration". **False.**
 //     It is exported — `?ValidateConfiguration@Device@Video@@QEAA_NXZ`, ordinal
 //     4533. (Wave 6 lane B ported the EIGHT-ARGUMENT overload, ordinal 4532;
 //     that part was right, and the two are different functions.)
 //  3. Same doc: "with the DLL gone, Engine::Startup no longer runs; nothing in
 //     our tree starts the video device". **Stale.** `Engine::Startup` is ported
-//     (Wave 9 lane ENG) and line 719 IS that call.
+//     (Wave 9 lane ENG) and engine_lifecycle.cpp makes that call.
 //
 // TRANSITIVE CLOSURE, COUNTED BEFORE ANY BODY WAS WRITTEN (lane PICK's rule)
 // ---------------------------------------------------------------------------
 //   PlatformStartup 0x1800f8260
-//     -> Application::_singleton [0x1801fc678]        (DATA, minted)
+//     -> Application::_singleton [0x1801fc678]        (DATA)
 //     -> ValidateConfiguration   0x1800f8830   PORTED HERE
 //          -> GetDefaultResolution 0x1800f7540  PORTED (device_window.cpp)
 //          -> memset               0x1800881b0  = the CRT memset; std::memset
@@ -69,25 +68,8 @@
 //     -> Collection::Set erase   0x18000aba0   PORTED (collection/set_avl.cpp)
 //     -> the DeviceData vtable   (ours, src/render/dx11/)
 //
-//   MemAlloc 0x1800c7a50 / MemFree 0x1800c7ad0 / Free 0x1800c6c00 — registered
-//   by attempt 14's RegisterAllocatorAddresses().
-//
-// **Closure size: 13 new bodies here + 3 in the _win twin + 5 in the Set
-// cluster = 21, and it CLOSES.** Porting only the four assigned rows would have
-// created 17 new unregistered address doors where there are none today, which
-// is exactly the trade lane PICK refused.
-//
-// ORACLE
-// ------
-// `ValidateConfiguration` and the seven Array helpers get a lockstep synthetic
-// probe (device_startup_probe.cpp). `PlatformStartup` / `PlatformShutdown` do
-// NOT and cannot: they create and destroy the one D3D11 device, so running ours
-// and then theirs makes a second swap chain against a window that already has
-// one. What they get instead is **live exercise on the DLL-present boot** —
-// with this port registered, `Engine::Startup`'s `RT_EXPORT_ONCE` resolves to
-// OUR `PlatformStartup`, so every DLL-present run boots the video device
-// through this file. A wrong transcription does not report a divergence; it
-// fails to render.
+//   MemAlloc 0x1800c7a50 / MemFree 0x1800c7ad0 / Free 0x1800c6c00  PORTED
+//                                   (src/engine/system/allocator.cpp)
 // ============================================================================
 
 #include <cstddef>
@@ -130,8 +112,8 @@ using RefreshRate       = Video::Device::RefreshRate;
 //
 // NOT the eight-argument `?ValidateConfiguration@Device@Video@@QEAAXAEAH0000000@Z`
 // (0x1800f7370, ordinal 4532) that Wave 6 lane B ported. Different function,
-// adjacent ordinal — exactly the kind of pair that
-// reference_ghidra_mcp_address_param_silently_ignored.md exists for.
+// adjacent ordinal — exactly the kind of pair where GhidraMCP's metrics and
+// callees, which ignore address= and match by bare name, answer about the other one.
 //
 // EARLY OUT: `interfaceCount == 0` returns with AL holding that count, i.e.
 // FALSE, and no field is touched (0x1800f8852 jumps straight to the epilogue).
@@ -338,10 +320,10 @@ bool Video::Device::ValidateConfiguration() {
 // tested in the order +0xb0, +0xc0, +0xb8) and fails with an Error::SetText if
 // any is missing.
 //
-// The teardown of the previous `DeviceData` is vtable slot 0x18 (Destroy) then
+// The teardown of the previous `DeviceData` is vtable +0x18 (Shutdown) then
 // vtable slot 0 with flag 1 (the deleting dtor) — the same two-step every other
-// companion release in this tree uses — and the field is nulled between them so
-// a re-entrant read cannot see a half-destroyed object.
+// companion release in this tree uses — with the field re-read between them
+// (0x1800f7980) and nulled after the delete (0x1800f7996).
 //
 // It returns TRUE even when `createDeviceData` returns null (0x1800f79b7 sets
 // AL unconditionally). PlatformStartup catches that separately at 0x1800f838f

@@ -13,22 +13,12 @@
 // return value is whatever the callee returns, so each port here just forwards
 // the call and its result.
 //
-// PlatformUpdate (application_win.cpp) and PlatformStartup
-// (platform_startup_win.cpp) are already ported in this tree — this file
-// forwards to THEM, not to the DLL, so calling Update()/Startup() runs our own
+// PlatformUpdate and PlatformStartup (application_platform.cpp) are ported in
+// this tree — this file forwards to them, so calling Update()/Startup() runs our own
 // body exactly once.
 //
-// PlatformShutdown (0x18009fd70) landed with Wave 12 lane B
-// (platform_startup_win.cpp:556). Lane A had to leave a TEMPORARY SEAM here
-// that forwarded through the raw DLL door into the shipped DLL body, because
-// lane B's row was not in lane A's worktree. THE INTEGRATOR RE-POINTED IT at
-// the merge: Shutdown() now calls our own RtApp_PlatformShutdown, exactly as
-// Update/Startup call their siblings.
-//
-// This mattered. Leaving the seam in place would have shipped lane B's
-// PlatformShutdown REGISTERED BUT BYPASSED on this path -- a port that exists,
-// reports as ported, and never runs, which is one of the failure modes this
-// project has already paid for.
+// PlatformShutdown (0x18009fd70) is in application_platform.cpp too; Shutdown()
+// calls it exactly as Update/Startup call their siblings.
 // ============================================================================
 
 #include "application/Application.h"
@@ -41,10 +31,8 @@ using App = Application::Application;
 // Application::Application::Update()    retail 0x18009f4f0   jmp -> PlatformUpdate
 // ?Update@Application@1@QEAA_NXZ
 // ----------------------------------------------------------------------------
-// The tail call's own callee (PlatformUpdate) carries its own RT_DIFF site
-// and, per its file banner, has NO oracle (a second call would pump a second
-// message loop) — so this wrapper does not call the DLL a second time; it
-// records that the delegation happened and forwards.
+// The tail call's own callee (PlatformUpdate, application_platform.cpp) does the
+// work; this wrapper forwards.
 // ============================================================================
 bool Application::Application::Update() {
     return PlatformUpdate();
@@ -54,11 +42,8 @@ bool Application::Application::Update() {
 // Application::Application::Shutdown()   retail 0x18009f500   jmp -> PlatformShutdown
 // ?Shutdown@Application@1@QEAAXXZ
 // ----------------------------------------------------------------------------
-// Same shape as Update: PlatformShutdown (platform_startup_win.cpp:556)
-// carries its own site, so this wrapper forwards without diffing again. The
-// the diff oracle below is an ATTENDANCE MARKER, not a comparison -- it reports
-// equal=true without ever consulting the DLL, so its `divergences=0` proves
-// nothing and only its `calls=` is meaningful.
+// Same shape as Update: PlatformShutdown (application_platform.cpp) does the
+// work; this wrapper forwards.
 // ============================================================================
 void Application::Application::Shutdown() {
     PlatformShutdown();
@@ -68,8 +53,8 @@ void Application::Application::Shutdown() {
 // Application::Application::Startup()    retail 0x18009f510   jmp -> PlatformStartup
 // ?Startup@Application@1@QEAA_NXZ
 // ----------------------------------------------------------------------------
-// Same shape as Update: PlatformStartup carries its own RT_DIFF site
-// (platform_startup_win.cpp), so this wrapper forwards without diffing again.
+// Same shape as Update: PlatformStartup (application_platform.cpp) does the
+// work; this wrapper forwards.
 // ============================================================================
 bool Application::Application::Startup() {
     return PlatformStartup();

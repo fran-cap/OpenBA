@@ -401,10 +401,10 @@ def m_neg_drop_repeated_draws(recs):
 def m_neg_cb_buffer_size(recs):
     """Constant-buffer byte SIZE of a dynamic ring allocation is not config.
 
-    Recorded and printed, but listed in trace_oracle.NON_VERDICT? No -- it is
-    NOT in NON_VERDICT, so this control is a genuine test of whether the field
-    set is drawn too wide. If it is caught, that is a real finding about the
-    oracle and is reported as such rather than silently tolerated.
+    Recorded and printed, and listed in trace_oracle.NON_VERDICT as
+    `cbBufferSizes`, so S3 never promotes it to a finding. If another screen
+    catches it, that is a real finding about the oracle and is reported as such
+    rather than silently tolerated.
     """
     n = 0
     for r in recs:

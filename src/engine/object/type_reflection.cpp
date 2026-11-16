@@ -9,14 +9,12 @@
 //
 // WHY THIS FILE IS SEPARATE FROM type_system.cpp
 // ----------------------------------------------
-// type_system.cpp owns the registry: the `Rt*` ABI shims, the mangled-name and
-// retail-address doors, and `RT_EXPORT_ONCE`. None of that can link into
-// `make unit` (tests/unit/rt_port_stub.cpp stubs `ResolveExport`/`ResolveAddr`
-// but not `RtResolveCached`). The CLASSES have to be unit-testable — B33_RULES
-// §8 asks for the CRC, StripNamespace, the sentinel, the chain order, Startup,
-// and a find at two tree depths — so the bodies live here and the doors stay
-// there. It is the same split `src/engine/collection/set_core.cpp` has against
-// `Collection.h`, one level up.
+// type_system.cpp holds `TypeIdFromName` and the `RtObject_*` shims, and the
+// unit build (tests/unit/sources.cmake) does not link it. The CLASSES have to
+// be unit-testable — B33_RULES §8 asks for the CRC, StripNamespace, the
+// sentinel, the chain order, Startup, and a find at two tree depths — so the
+// bodies live here. It is the same split `src/engine/collection/set_core.cpp`
+// has against `Collection.h`, one level up.
 //
 // THE ALLOCATOR SEAM is the only thing this file needs from outside, and it has
 // a malloc branch under -DBANISHED_UNIT_TEST exactly as
@@ -115,8 +113,8 @@ bool Base::IsDerivedFrom(uint32_t typeId) const {
 //     python: t[i] = fold8(i, 0xEDB88320);  compared byte-for-byte with
 //     pefile.get_data(0x1f9080, 1024)  ->  identical: True
 //
-// Moved here from type_system.cpp's anonymous namespace by B.3.3 step 3 so the
-// class, the registry shim and the mint all call the SAME body. The one thing
+// Moved here from type_system.cpp's anonymous namespace by B.3.3 step 3 so
+// every caller calls the SAME body. The one thing
 // that must NOT happen is a second, independently written copy of a CRC that
 // agrees on today's names and diverges on tomorrow's.
 namespace {
@@ -169,12 +167,10 @@ uint32_t TypeNameCRC(const char* name) {
 // ?_firstTypeInfo@BaseTypeInfo@Object@@2PEAV12@EA — retail 0x1801fc6e0.
 //
 // A PLAIN STATIC, and it has to be one: the constructor below runs at CRT-init,
-// where the port registry does not exist yet, so it cannot RESOLVE a cell — it
-// must own one. Zero-initialised before any dynamic initialiser runs, which is
-// what makes static-init order across translation units a non-issue and is the
-// whole reason the exe-side staging list in src/game/Object/factory_registration.h
-// existed (B33_RULES §2). standalone/rt_data_mint.cpp routes the minted row's
-// two doors (name and address 0x1801fc6e0) here, so there is exactly ONE cell.
+// so it must own its cell. Zero-initialised before any dynamic initialiser runs,
+// which is what makes static-init order across translation units a non-issue
+// and is the whole reason the exe-side staging list in
+// src/game/Object/factory_registration.h existed (B33_RULES §2).
 BaseTypeInfo* BaseTypeInfo::_firstTypeInfo = nullptr;
 
 // ?_typeInfo@Base@Object@@0VBaseTypeInfo@2@A — retail 0x1801f9c50. ENDGAME
@@ -245,11 +241,8 @@ void BaseTypeInfo::StripNamespace() {
 // ============================================================================
 
 // ?_singleton@Factory@Object@@0PEAV12@EA — retail 0x1801fc6e8. The class
-// static (ENDGAME B.3.9 OBJ, B39_RULES D7); the minted row is redirected onto
-// it in RtObjectPortInit, so the name and address doors answer these bytes.
-// The mint never zeroes or re-seeds it; the language zero-initialises it and
-// the ctor door publishes into it. (The host has no singleton: in `make unit`
-// it stays null, which is what Get() answered there before.)
+// static (ENDGAME B.3.9 OBJ, B39_RULES D7); the language zero-initialises it and
+// `Ctor_Factory` (src/engine/engine/singleton_ctors.cpp) publishes into it.
 Factory* Factory::_singleton = nullptr;
 
 // ?Get@Factory@Object@@SAPEAV12@XZ — `MOV RAX,[0x1801fc6e8]; RET`.
@@ -372,7 +365,7 @@ bool Factory::Startup() {
         if (!p) {
             // UNQUALIFIED `printf`: src/app/log_strip.h does
             // `#define printf(...) ((void)0)` and the preprocessor cannot
-            // replace a qualified name (Makefile's check-log-strip gate).
+            // replace a qualified name (the check-log-strip target, tools/check_log_strip.py).
             printf("[RtPort] Factory::Startup: type \"%s\" (id 0x%08X) names "
                         "parent \"%s\" (id 0x%08X), which is NOT in the type "
                         "chain. The faithful LEA below yields (TypeRecord*)8 "
@@ -440,7 +433,8 @@ bool Factory::Startup() {
 // (0x1800c0580..0x1800c05b6). The profile build shows why: it guards an assert,
 //     "!existingOnly || IsTypeValid(type)"  "Type is not registered!"
 //     Object\Factory.cpp:0x59
-// which retail compiles out. Every one of our call sites passes `true`. The
+// which retail compiles out. Every src/game call site passes `true`;
+// src/ext/resources/text_reader.cpp passes `false`. The
 // parameter is accepted and ignored, deliberately, and this comment is the
 // reason it is not "cleaned up".
 uint32_t Factory::GetTypeIdFromName(const char* name, bool existingOnly) const {

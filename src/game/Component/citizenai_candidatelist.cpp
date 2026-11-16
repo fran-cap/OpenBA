@@ -15,13 +15,13 @@
 // Field names (B.4 W1 COMP-b, CitizenComponent.h): +0x238 is the HOME (B4_RULES
 // correction 3), +0x208 the school, +0x1e4 clothingLevel, +0x250 the spouse.
 //
-// Sub-callees reused via ResolveAddr (already registered reimpls):
-//   0x140008090  FindComponent_Residence  (Ghidra: "Entity_FindComponent_Storage")
-//   0x140006270  FindComponent_Storage    (Ghidra: same name -- see the typedefs)
-//   0x14012a9d0  Storage_GetResourceCount
-//   0x14012ab00  Storage_GetResourceCount2
-//   0x14012cf10  StorageComponent_QueryCount
-//   0x140115be0  CitizenComponent_CanFindHousing
+// Sub-callees, called by name:
+//   0x140008090  FindComponent<ResidenceComponent>  (Ghidra: "Entity_FindComponent_Storage")
+//   0x140006270  FindComponent<StorageComponent>    (Ghidra: same name -- see the note below)
+//   0x14012a9d0  ResidenceComponent::GetFoodCount
+//   0x14012ab00  ResidenceComponent::GetFuelCount
+//   0x14012cf10  StorageComponent::QueryCount
+//   0x140115be0  CitizenComponent::CanFindHousing
 //   the 14 CitizenAI_State_* handlers (ValidateAndEnterState dispatch)
 //
 
@@ -41,7 +41,7 @@
 #include "Entity/ComponentEntity.h"
 #include "Work/exe_bodies.h"
 #include "Game/exe_constants.h"
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
 
 // ============================================================
 // 1. SortByPriority (0x14002fe10): Component/citizenai_sortbypriority.cpp, declared in
@@ -49,7 +49,7 @@
 // ============================================================
 
 // ============================================================
-// Resolved sub-callees (all already registered reimpls in standalone).
+// Sub-callees (called by name).
 // ============================================================
 
 // ⚠️ TWO different component finders, both named "Entity_FindComponent_Storage" by
@@ -58,22 +58,16 @@
 // pseudocode cannot tell them apart. Always check the DISASSEMBLY's CALL target:
 //   0x140008090 -> reads [0x1401c7cf0] = ResidenceComponent  (1400080d3: MOV EDI,...)
 //   0x140006270 -> reads [0x1401c7e78] = StorageComponent    (1400062b3: MOV EDI,...)
-// (ownership per standalone/factory_registrations.csv; ResidenceComponent derives
-// from StorageComponent, which is why both feed StorageComponent::QueryCount and
-// the confusion is easy to miss.)
+// (ResidenceComponent derives from ControllerComponent, not from StorageComponent; the
+// shared Ghidra name is why the confusion is easy to miss.)
 //
 // Called by name:
-//   FindComponent_Residence(entity, outIBP) -> InternalBasePtr* (0x140008090)
-//     CitizenComp_Entity_FindComponent_Storage
-//   FindComponent_Storage(entity, outIBP) -> InternalBasePtr* (0x140006270)
-//     WorkBase_FindComponent_6270
-//   Storage_GetResourceCount(storageComp) -> int (0x14012a9d0)
-//     CitizenComp_Storage_GetResourceCount
-//   Storage_GetResourceCount2(storageComp) -> int (0x14012ab00)
-//   StorageComponent_QueryCount(storageComp) -> int (0x14012cf10)
-//     CitizenComp_StorageComponent_QueryCount
-//   CitizenComponent_CanFindHousing(citizenComp) -> char (0x140115be0)
-//     CitizenComp_CanFindHousing
+//   FindComponent<ResidenceComponent>() -> ResidenceComponent* (0x140008090)
+//   FindComponent<StorageComponent>() -> StorageComponent* (0x140006270)
+//   ResidenceComponent::GetFoodCount() -> int (0x14012a9d0)
+//   ResidenceComponent::GetFuelCount() -> int (0x14012ab00)
+//   StorageComponent::QueryCount() -> int (0x14012cf10)
+//   CitizenComponent::CanFindHousing() -> char (0x140115be0)
 // Wander-time .rdata float constants (read by BuildCandidateStateList case 0xc):
 // kRdata_1401721fc (75.0), kRdata_140172234 (300.0), kRdata_140172254 (1800.0, bits).
 static inline float RdataF(uint32_t bits) {
@@ -184,7 +178,7 @@ int CitizenComponent::HasSufficientResources2() {
 // haul-to-storage leg.
 //
 // 🐞 The finder here is 0x140006270 (StorageComponent), NOT the 0x140008090
-// (ResidenceComponent) used by (2)/(3) above — see the note at the typedefs. This
+// (ResidenceComponent) used by (2)/(3) above — see the TWO-finders note above. This
 // port originally called 0x140008090, which cannot match on a citizen entity:
 // Template/Citizen.rsc declares `StorageDescription storage` and no residence, so
 // the find always returned null, every citizen read as carrying nothing, state 0xd
@@ -210,7 +204,7 @@ int CitizenComponent::CarryCount() {
 //
 // +0x68 IS THE DISEASE POINTER, NOT A HOUSING LINK (settled 2026-09-06).
 // CitizenComponent::Infect (0x140116b90, ported in citizen_updatehealth.cpp) stores the
-// DiseaseDescription* at +0x68 and then calls FindCareBuilding (0x140111590), which fills
+// Disease* at +0x68 and then calls FindCareBuilding (0x140111590), which fills
 // +0x228; RecoverOrDie clears +0x68 again and AnyCitizenSick (0x1400893c0) scans it.
 // So every `+0x68` test in this function is "is this citizen SICK?":
 //   * early single-candidate branch  = sick AND a care building is linked -> nothing but
@@ -220,7 +214,7 @@ int CitizenComponent::CarryCount() {
 //   * elder arm `+0x68 == 0`         = FindWork only while healthy
 // State 5's handler (0x14010d790) walks to the care building's entity (+0x228 -> +0x10)
 // when one is linked, and otherwise navigates to +0x238. We carry it under the exe-derived
-// name `CitizenAI_State_Work`, but its ONLY entry condition is illness; read it as the
+// name `State_Work` (CitizenAIState::SeekCare), but its ONLY entry condition is illness; read it as the
 // sick-citizen state. No string in Application-x64-profile.exe names it, so the symbol
 // stays as-is rather than being renamed to a guess.
 // ============================================================

@@ -38,8 +38,6 @@ namespace {
 
 constexpr int kChildTick = 5;
 
-// The ctor/dtor doors only.
-
 }  // namespace
 
 namespace UI {

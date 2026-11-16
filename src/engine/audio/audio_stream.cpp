@@ -11,10 +11,9 @@
 // which is also what publishes this ctor's +0x48 event into the Device's
 // VoiceCallback record.
 //
-// Its own .cpp, and a `_win` one, because both bodies are almost entirely
-// KERNEL32 synchronisation primitives and PLAN.md §4.1 decision 1 keeps
-// <windows.h> out of audio.cpp — the same split audio_device.cpp already makes
-// for the Device+0xA50 critical section.
+// Its own .cpp because both bodies are almost entirely synchronisation
+// primitives, the `Platform::` ones of platform_sync.h (the platform seam of
+// PLAN.md §4.1 decision 1).
 //
 // ---------------------------------------------------------------------------
 // ABSENCE ESTABLISHED FIRST
@@ -26,13 +25,13 @@
 //   ??1Stream@Audio@@QEAA@XZ -> src/engine/engine/engine_lifecycle.cpp:955
 //   0x1800a0e30 / 0x1800a0d90 -> no hits at all.
 // A body ported but never REGISTERED is indistinguishable from an absent one to
-// the census (reference_half_registered_port_reads_as_absent.md), which is why
+// the census, which is why
 // the grep was by address as well as by name.
 //
 // ---------------------------------------------------------------------------
 // THE STATED BLOCKER, RE-CHECKED — IT IS AN *ORACLE* VERDICT, NOT A PORT ONE
 // ---------------------------------------------------------------------------
-// `src/engine/engine/singleton_ctors.cpp:702-710` (Wave 9 lane C2) holds it
+// `src/engine/engine/singleton_ctors.cpp:574-580` (Wave 9 lane C2) holds it
 // like this, verbatim:
 //
 //     "*** ORACLE DEFERRED — SAME BLOCKER AS PERSISTENCE. *** 0x1800a0e30 is
@@ -55,8 +54,8 @@
 //     did. That is the Wave 23 §6 defect class — a discharge does not
 //     propagate — in its other direction: a *narrow* holdback read as a *broad*
 //     one.
-//   * `??0Thread@System@@QEAA@I@Z` IS ALREADY PORTED and registered
-//     (src/platform/win/thread_win.cpp:457), so the base is not a wall
+//   * `??0Thread@System@@QEAA@I@Z` IS ALREADY PORTED
+//     (src/engine/system/Thread.h, thread.cpp), so the base is not a wall
 //     either. Re-derived here, not taken from the cross-lane note that also
 //     said so.
 //
@@ -126,16 +125,14 @@
 // THE INLINED TAIL IS `??1Thread@System@@QEAA@XZ`, PROVED NOT ASSUMED. The
 // shipped `System::Thread` dtor at 0x1800ca590 was disassembled beside this one:
 // it is the SAME twelve steps in the SAME order, from the 0x180155f20 stamp to
-// the tail CloseHandle of +0x28. That body is already ported and registered
-// (thread_win.cpp:458), so this port CALLS it rather than re-inlining a
-// thirteenth hand copy — the same reasoning tooltipdialog.cpp gives for sending
-// vtable slot 0 to deleting_dtor.cpp instead of copying it.
+// the tail CloseHandle of +0x28. That body is `System::Thread::~Thread`
+// (src/engine/system/Thread.h, thread.cpp), and it runs as the compiler's base
+// chain after ~Stream rather than as a thirteenth hand copy.
 //
 // 0x18000c4a0 is a heap-buffer release: `if (this[0]) { lock;
 // Free(*0x1801fc718, this[0]); unlock; } this[0] = 0; this[1] = 0;` — i.e. the
 // lock/Free/unlock triple that IS `?MemFree@MemoryAllocator@System@@`, plus a
-// two-qword clear. It is reached BY ADDRESS through `ResolveAddr`, which
-// consults the port registry first.
+// two-qword clear.
 //
 // *** WAVE 25 LANE INTERNAL42 CORRECTION, left in place rather than deleted so
 // the next reader sees which half was wrong. *** This banner used to end: "NOT
@@ -149,83 +146,9 @@
 // Freeing a buffer does not need a witness for what is in it; that is exactly
 // why J1 takes no stride and no parameters at all.
 //
-// It is now REGISTERED (array.cpp, the eighteenth/nineteenth J1 addresses), so
-// the `ResolveAddr` below reaches OUR body. Nothing in this file changed: the
-// call site was already a door, and a door is what made the port reachable
-// without touching its caller.
+// It is `rtcoll::ArrayDtorImpl` (src/engine/collection/Collection.h), run as the
+// `_buffers` member's destructor.
 //
-// ---------------------------------------------------------------------------
-// ??_7Stream@Audio@@6B@ (0x180154950) IS NOT MINTED, AND THAT IS DELIBERATE
-// ---------------------------------------------------------------------------
-// RE-DERIVED HERE, not accepted from a cross-lane note:
-//     grep -n '180154950\|Stream@Audio@@6B' standalone/rt_data_mint_tables.inc
-//                                           standalone/reg_mint_promoted.cpp
-//     -> ZERO hits.
-// So at cutover this vptr has no minted storage to point at.
-//
-// THIS PORT DOES NOT MAKE THAT WORSE — IT IS THE STEP THAT MAKES IT FIXABLE.
-// Retail's ctor stamps the vptr with a RIP-relative LEA, and a RIP-relative LEA
-// stamp IS NOT A DOOR: we intercept only at doors, so while the DLL owns this
-// ctor nothing we do to the mint table can ever change which table gets stamped
-// (reference_a_ported_row_can_be_permanently_unpromotable.md). Porting the ctor
-// CONVERTS that LEA into a `ResolveAddr(Module::Runtime, 0x180154950)` door,
-// which resolves to the minted row the moment one exists and to the DLL's table
-// until then.
-//
-// MINTING IT IS NOT IN THIS LANE'S SCOPE: `standalone/rt_data_mint_tables.inc`
-// is GENERATED by tools/rt_mint_gen.py, and regenerating it is a whole-file
-// change that would capture six other live Wave 24 lanes mid-wave — the reason
-// src/engine/ui/tooltipdialog.cpp gives for leaving its own row to the wave
-// owner. Handed forward explicitly instead:
-//
-//   HANDOVER: mint `??_7Stream@Audio@@6B@` (0x180154950).
-//   [SCOPE: CUTOVER-ONLY] — with the DLL present this row is harmless: the door
-//   resolves to the DLL's own table, which is what retail stamps anyway.
-//   [ADDRESSEE: Wave 24 lane CUTOVER, whose attempt-25 boot faults at this very
-//   ctor, or the wave owner at the close regeneration — whichever comes first.]
-//
-// ---------------------------------------------------------------------------
-// ORACLE — WHAT IS AND IS NOT AVAILABLE, STATED PLAINLY
-// ---------------------------------------------------------------------------
-// PROBE SHAPE (WAVE24_KICKOFF §1c): **shadow/diff site**, and honestly labelled
-// as a SELF-CHECK rather than an oracle. The other four shapes were considered
-// and each is ruled out by a named fact, not by "no run, therefore STRUCTURAL":
-//
-//   * INPUT SWEEP — needs a PURE function. Neither body is: one creates two OS
-//     event objects and a critical section, the other closes six handles and
-//     joins a thread.
-//   * SYNTHESISED ORACLE — a fabricated `Audio::Stream` is not a synthetic
-//     subject but a FAKE: the base ctor `_beginthreadex`s a real worker, so
-//     running either body against scratch memory starts (or joins) a real OS
-//     thread. This is the Wave 9 holdback quoted above, re-checked and UPHELD.
-//   * WRITE-PATH REPLAY — neither body is a Serialize.
-//   * TWO-SIDED A/B — a destructor cannot be replayed: running theirs after ours
-//     double-closes four handles, and the handle VALUES differ by construction
-//     anyway, so they are not a comparable quantity.
-//
-// WHAT THE SELF-CHECK DOES ASSERT — the post-conditions the disassembly pins,
-// which are invariants a WRONG port breaks even though no second party is
-// consulted. It is exactly the class of site
-// reference_shadow_marker_is_not_an_oracle.md warns about, and it is labelled
-// SELF-CHECK in its own site name so a sweep report cannot count it as an
-// oracle.
-//
-// EFFECTIVENESS COUNTERS: `g_ctorChecks` / `g_dtorChecks` count how many times
-// the predicate was actually EVALUATED (not merely how many times the body ran),
-// so a "0 divergences" line cannot be confused with a dead screen
-// (KICKOFF §3 rule 3).
-//
-// NEGATIVE CONTROL: `RT_AUDIOSTREAM_CONTROL=1` skips the
-// `[+0x38] = 0` store in the ctor. +0x38 IS in the checked set, so the control
-// corrupts a subject the predicate actually examines
-// (reference_control_must_pick_a_compared_subject.md); and it leaves the two
-// handle fields alone, which MUST NOT be compared against any fixed value
-// because they legitimately vary per run (the mirror failure,
-// reference_a_control_can_corrupt_a_byte_that_should_not_be_compared.md).
-//
-// ---------------------------------------------------------------------------
-// ONE KILL SWITCH: RT_AUDIOSTREAM
-// ---------------------------------------------------------------------------
 // ============================================================================
 
 // ENDGAME B.3.9 ENG W2: the ctor and dtor are the class's REAL ones (on

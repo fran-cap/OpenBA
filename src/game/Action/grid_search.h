@@ -7,7 +7,7 @@
 // The search the pathfinder worker runs for a path request (command 5,
 // PathfinderThread::ApplyCommand 0x1400a6430). With heuristicScale 1 it is
 // retail's GridPathSearch::Run / FindPath 0x14001d040 / Relax 0x14001d320 /
-// Neighbour 0x1400a5ec0 / Heuristic 0x1400a6030 (action_pf_astar.cpp,
+// Neighbour 0x1400a5ec0 / Heuristic 0x1400a6030 (action_pf_astar.cpp, PathSearch.h,
 // action_pf_geom.cpp) over a bucket open set instead of the AVL PathOpenSet:
 // the same pops in the same order, so the same path, count, cost, expansions,
 // `search.sequence` and `search.open.count`. ext.fast_paths

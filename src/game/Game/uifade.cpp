@@ -2,8 +2,7 @@
 // Implementation of the fullscreen-fade overlay helpers used by the standalone
 // loop stubs. See uifade.h for the high-level rationale.
 //
-// All work delegates to UI::UserInterface methods that already live in
-// Runtime-x64.dll:
+// All work delegates to UI::UserInterface methods (src/engine/ui/):
 //   - SetFullscreenFadeSprite (Runtime 0x18011F560) writes UI+0xE0 (sprite ptr)
 //     and UI+0xE8 (sprite index) from a 16-byte UI::Sprite blob.
 //   - SetFullscreenFade       (Runtime 0x18011F500) writes UI+0xF0 (rate),
@@ -11,9 +10,8 @@
 // Runtime per-frame Update advances UI+0xF4 toward 0 or 1 over ~0.25s, and
 // Runtime Draw renders the overlay sprite if alpha != 0 and the sprite is set.
 //
-// The fade sprite is loaded into the engine-wide KeyMap singleton at +0xA8/+0xB0
-// during Runtime bootstrap (KeyMap_Ctor pulls "ui/fadeSprite" or similar from
-// the global UI .rsc). We just copy those 16 bytes into the UI struct.
+// The fade sprite is GameContainer::spriteWhite at +0xA8/+0xB0 (Sprite(sheet, "White"),
+// built in loader_loop_stubs.cpp). We just copy those 16 bytes into the UI struct.
 
 #include "Game/uifade.h"
 #include "Game/game.h"   // B3R STORAGE: g_gameContainer
@@ -72,8 +70,8 @@ bool EnsureFadeSprite(UI::UserInterface* userInterface) {
            (long long)(static_cast<uint64_t>(static_cast<uint32_t>(keyMap->spriteWhite.spriteIndex)) |
                        (static_cast<uint64_t>(static_cast<uint32_t>(keyMap->spriteWhite.pad0C)) << 32)));
 
-    // Sheet may be null in standalone if KeyMap hasn't yet had ui/fadeSprite
-    // loaded — caller will see fades as "alpha set but nothing drawn".
+    // Sheet may be null if GameContainer::spriteWhite has no sheet yet —
+    // caller will see fades as "alpha set but nothing drawn".
     return installedSheet != nullptr;
 }
 

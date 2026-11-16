@@ -7,9 +7,8 @@
 //   ?EnableMouseClipping@Device@Input@@QEAAX_N@Z   retail 0x1800E1780  ord 2296
 //   (its only callee)  Device::PlatformUpdate      retail 0x1800E2130  ord 3411 (PRIVATE, AEAA -- exported)
 //
-// The Win32 half of Input::Device, behind PLAN.md §4.1 decision 1's platform
-// seam: <windows.h> must not appear in input.cpp, which is why this is its own
-// file rather than three more functions at the end of that one.
+// The platform half of Input::Device, behind PLAN.md §4.1 decision 1's platform
+// seam: it reaches the OS only through Platform::Window (platform_window.h).
 //
 // ---------------------------------------------------------------------------
 // THE STATED BLOCKER FOR THIS ROW WAS WRONG, AND THIS IS THE CORRECTION
@@ -36,32 +35,15 @@
 //     import table with pefile: GetClientRect (0x18014B558), ClientToScreen
 //     (0x18014B530, twice) and ClipCursor (0x18014B528).
 //   * ONE Runtime data read: `Application::Application::_singleton`
-//     (0x1801FC678), which our tree has MINTED since Wave 9 lane C2
-//     (standalone/rt_data_mint_tables.inc), and whose +0x00 our tree ALREADY
-//     documents as the HWND — src/engine/video/Device.h:180 says
-//     "+0x90 HWND, copied from Application::_singleton[0] by Startup".
+//     (0x1801FC678), whose +0x00 our tree documents as the HWND
+//     (`Application::_windowHandle`, Application.h) — src/engine/video/Device.h:619
+//     says "+0x90 HWND, copied from Application::_singleton[0] by Startup".
 //
 // So the helper `Update` and `EnableMouseClipping` share is satisfied on our
-// side; what `Update` is actually blocked on is the OTHER three helpers
-// (PlatformGetKeyboardState 0x1800E1C60, UpdateState 0x1800E0FC0,
-// PlatformGetMouseState 0x1800E1E10), which really are DirectInput and really
-// are unexported. Lane D's hold-back on `Update` stands unchanged; its
-// hold-back on `EnableMouseClipping` does not, and the row closes here.
-// Three of the "four internal helpers" remain; this is the fourth.
+// side; `Update`'s other three helpers (PlatformGetKeyboardState 0x1800E1C60,
+// UpdateState 0x1800E0FC0, PlatformGetMouseState 0x1800E1E10) are ported in
+// input_device_update.cpp.
 //
-// ---------------------------------------------------------------------------
-// ORACLE — there is none, and saying so is the honest answer
-// ---------------------------------------------------------------------------
-// Both functions END in `ClipCursor`, which is global mutable OS state for the
-// whole desktop. Calling the DLL's copy afterwards would clip the cursor a
-// second time to the same rectangle — a repeat of the side effect, not a
-// comparison of it (the same reason application_win.cpp's PlatformUpdate,
-// SleepThread and YieldToThreads are registered with ``).
-// What CAN be checked is the field write and the branch taken, so both sites
-// carry `the diff oracle` with the port's own guard verdict: `calls=` then counts
-// entries and the work column counts the calls that actually reached
-// `ClipCursor` with a rectangle. That is an effectiveness control, not an
-// oracle, and this file does not claim otherwise.
 // ============================================================================
 
 // Phase D.4 SDL W1: GetClientRect / ClientToScreen / ClipCursor moved behind
@@ -82,9 +64,8 @@ namespace Input {
 
 // ---------------------------------------------------------------------------
 // Input::Device::PlatformUpdate — retail 0x1800E2130, EXPORTED as the private
-// `?PlatformUpdate@Device@Input@@AEAAXXZ` (ordinal 3411; the registration at the
-// bottom of this file says so -- this banner said "NOT exported" until the B.3.7
-// close). It exists because EnableMouseClipping calls it, exactly as retail's does.
+// `?PlatformUpdate@Device@Input@@AEAAXXZ` (ordinal 3411). Its callers are
+// EnableMouseClipping, Update, PlatformStartup and OnFocusMessage / OnLostFocusMessage.
 //
 // Retail, instruction for instruction:
 //
@@ -119,11 +100,6 @@ void Device::PlatformUpdate() {
 
     const bool clipping = _mouseClipping != 0;
     const bool focused  = _hasFocus != 0;
-
-    // "Did work" = took the clipping branch. The other branch is the common
-    // one (every lost-focus message runs it), so without this the site's
-    // calls= column would say nothing about whether the port was ever
-    // exercised in the state that matters.
 
     if (!clipping || !focused) {
         Platform::Window::ClipCursor(nullptr);

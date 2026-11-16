@@ -2,7 +2,7 @@
 // tests/unit/ext_item_priority_test.cpp -- ext.item_priority
 // ============================================================================
 // src/ext/item_priority/item_priority.{h,cpp}, save_state.cpp without the game: the registry row (class C,
-// off by default), the lists (rank, unrank, move, by template path without case), the resolution of the lists
+// on by default), the lists (rank, unrank, move, by template path without case), the resolution of the lists
 // into the flat arrays the seams scan, `g_on` and Active following the row and the lists, the tier search
 // (one search with no list or the row off, else one per rank with the ceiling set, then an unconstrained
 // one), the save-tail codec (round trip with awkward paths, empty state, every kind of damaged payload, a
@@ -301,7 +301,7 @@ UNIT_TEST(ext_item_priority_state_codec_empty_state_is_still_a_valid_record) {
     c->reset();
     std::vector<uint8_t> payload;
     c->encode(payload);
-    // 4 categories + 4 counts, 4 bytes each
+    // the category count (4) and 4 list counts, 4 bytes each
     CHECK_EQ(payload.size(), 20u);
     Lists l;
     Rank(l, kTool, kIron);

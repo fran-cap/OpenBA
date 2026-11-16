@@ -10,16 +10,16 @@
 //
 //   | Export (short form)              | Retail      | Ord  | Ported | Oracle |
 //   |----------------------------------|-------------|------|--------|--------|
-//   | ??0Context (ctor)                | 0x1800f1820 |  125 | NO     | —      |
-//   | ??1Context (dtor)                | 0x1800f16e0 |  562 | NO     | —      |
-//   | ??3Context (operator delete)     | 0x180018500 |  945 | NO     | —      |
+//   | ??0Context (ctor)                | 0x1800f1820 |  125 | yes    | —      |
+//   | ??1Context (dtor)                | 0x1800f16e0 |  562 | yes    | —      |
+//   | ??3Context (operator delete)     | 0x180018500 |  945 | yes    | —      |
 //   | ?AddVertex@                      | 0x18001ad40 | 1592 | yes    | replay |
 //   | ?AddVertices@                    | 0x18001ad70 | 1593 | yes    | replay |
 //   | ?BeginIndexedVertices@           | 0x1800f2170 | 1644 | yes    | thunk  |
 //   | ?BeginInstancedIndexedVertices@  | 0x1800f2130 | 1645 | yes    | thunk  |
 //   | ?BeginVertices@                  | 0x1800f21b0 | 1651 | yes    | thunk  |
 //   | ?Clear@                          | 0x1800f23f0 | 1705 | yes    | thunk  |
-//   | ?ClearResources@                 | 0x1800f2090 | 1712 | NO     | —      |
+//   | ?ClearResources@                 | 0x1800f2090 | 1712 | yes    | —      |
 //   | ?DrawIndexed@                    | 0x1800f2410 | 2278 | yes    | thunk  |
 //   | ?EndIndexedVertices@             | 0x1800f2150 | 2312 | yes    | thunk  |
 //   | ?EndInstancedIndexedVertices@    | 0x1800f2110 | 2313 | yes    | thunk  |
@@ -40,108 +40,22 @@
 //
 // All 27 mangled names were checked against the shipped export directory of
 // C:\GOG Games\Banished\Runtime-x64.dll with pefile BEFORE any body was
-// written (reference_resolveexport_phantom_names.md: a name the DLL does not
-// contain resolves to NULL in silence, the port still registers, and the
-// census still counts it). All 27 are present; the addresses and ordinals in
-// the table above are that query's output, not Ghidra's guess.
+// written. All 27 are present; the
+// addresses and ordinals in the table above are that query's output, not
+// Ghidra's guess.
 //
 // ---------------------------------------------------------------------------
-// WHY REGISTERING THIS PORT IS SAFE, EVEN THOUGH THE DLL KEEPS CALLING ITSELF
+// THE LIFECYCLE FUNCTIONS ARE IN OTHER FILES
 // ---------------------------------------------------------------------------
-// Registering redirects OUR callers only. The DLL's own `Graphics::Renderer`,
-// `UI::UserInterface` and `Engine::MainLoop` reach these same methods through
-// direct near-CALLs the registry cannot see — verified, not assumed:
-// get_xrefs_to on ?SetTransform@ names three internal callers
-// (Graphics `Draw` 0x1800c38da, UI `Begin` 0x18011d389, `DrawItemList`
-// 0x1801055f8), and ?Reset@ has one (`Engine::MainLoop::Draw` 0x1800dcd82).
-// So for the rest of Wave 6 there really are two implementations operating on
-// one live `Video::Context`, which is the hazard WAVE6.md warns about.
-//
-// It is safe here because of three specific facts, each of which is checked
-// rather than assumed:
-//
-//   1. The class is NOT polymorphic. The ctor stamps no vtable (its first
-//      store is the Device pointer) and no Context method is virtual, so there
-//      is no vtable-ownership split (PLAN §4.3 risk 3 simply does not apply).
-//   2. Nothing ported here allocates, frees, or changes the layout. Every
-//      ported body reads and writes fields of an object somebody else owns,
-//      at offsets `static_assert`ed in src/engine/video/Context.h.
-//   3. The replay oracle below proves, on every diffed call, that our body
-//      leaves the WHOLE 0x2168-byte object byte-identical to what the DLL's
-//      body would have left. That is what makes "both implementations on one
-//      object" a non-event: after either one runs, the object is in the same
-//      state, so the next call — ours or theirs — sees exactly what it expects.
-//
-// NO DETOUR IS INSTALLED, deliberately. A detour (PLAN §4.1 decision 3) would
-// route the DLL's internal render-loop callers into this port too. That is a
-// much larger blast radius on the hottest path in the process, and it buys
-// nothing the argument above does not already give us: the DLL's callers are
-// happy with the DLL's bodies, and our callers are proven equivalent. When
-// `Graphics::Renderer` itself is ported (lane F and later waves) those edges
-// become ours by ordinary registration and the question disappears.
-//
-// ---------------------------------------------------------------------------
-// WHAT STAYS IN THE DLL, AND WHY
-// ---------------------------------------------------------------------------
-// THREE FUNCTIONS ARE HELD BACK. All three are lifecycle, all three would
-// split ownership of one object between two implementations, and all three
-// have ZERO live callers in our tree today.
-//
 //   ??0Context@Video@@QEAA@PEAVDevice@1@HHHPEAVRenderBuffer@1@@Z  (ctor)
-//       The object is created and destroyed entirely inside the DLL:
-//       `Engine::MainLoop::CreateVideoContext` (0x1800dd500) allocates 0x2168
-//       bytes from `System::MemoryAllocator` and runs this ctor, and
-//       `CreateVideoContext` / `ReleaseVideoContext` / `~MainLoop` /
-//       `OnVideoError` run the dtor. (This used to say "`Engine::MainLoop` is
-//       Wave 8, not Wave 6", which now reads as resolved -- Wave 8 is closed.
-//       It is not a wave-ownership question: `engine.cpp:367` calls the DLL's
-//       `CreateVideoContext` BY ADDRESS, which is a call-through to the DLL's
-//       own ctor, not a reimplementation. Corrected in the Wave 8.5 close-out;
-//       the `fn_VideoCtx_Ctor` this sentence used to name reached zero callers
-//       and was DELETED in ENDGAME B.3.5, batch b35-K2 (41baab1c).)
-//       The ctor also allocates FIVE sub-objects (a VertexBuffer, an
-//       IndexBuffer, an instance VertexBuffer, a RenderBuffer and two
-//       ImageBuffers) through each class's own `operator new`, and calls each
-//       one's `PlatformConstruct`. Porting it would mean our code allocates
-//       objects the DLL's dtor later frees, on a path we never take.
-//       Our tree has NO reference to it at all any more. It used to have one,
-//       `fn_VideoCtx_Ctor` in engine/funcs/engine_funcs.cpp, which was resolved
-//       and never called; ENDGAME B.3.5 batch b35-K2 deleted that pointer with
-//       the rest of the Context lifecycle group.
-//
+//       context_ctor.cpp, `RtVideo_Context_Ctor`.
 //   ??1Context@Video@@QEAA@XZ                                     (dtor)
-//       The mirror image: it frees those five sub-objects and destroys seven
-//       embedded `ConstantBuffer`s. Same ownership split, same zero callers --
-//       the `fn_VideoCtx_Dtor` that was resolved and never called is itself gone
-//       now (ENDGAME B.3.5, b35-K2).
-//
+//       context_lifecycle.cpp, `RtVideo_Context_Dtor`.
 //   ??3Context@Video@@SAXPEAX@Z                            (operator delete)
-//       Three lines, and every one of them is out of scope. It takes the
-//       allocator's critical section (`_singleton + 0x640`) and calls
-//       `System::MemoryAllocator::Free`. `EnterCriticalSection` is Win32, and
-//       PLAN §4.1 decision 1 keeps src/engine/ platform-neutral outside a
-//       `_win` twin; `MemFree` itself is Wave 2's allocator port, which
-//       shipped OPT-IN with a NO-GO verdict (WAVE2_ALLOCATOR.md). A Context
-//       port has no business being the thing that finally arms it.
-//
-// A FOURTH IS HELD BACK FOR A DIFFERENT REASON.
-//
+//       context_lifecycle.cpp, `Video_Context_OperatorDelete`.
 //   ?ClearResources@Context@Video@@QEAAXXZ
-//       It is pure, self-contained and trivially portable — and it has no
-//       caller. `fn_VideoCtx_ClearResources` used to be resolved-and-never-invoked
-//       in engine_funcs.cpp; it was deleted for that reason in ENDGAME B.3.5
-//       (b35-K2), and no DLL-internal caller exists either.
-//       A registered port on a path nothing executes reports `calls=0` and
-//       `divergences=0` forever, which reads as a pass and proves nothing;
-//       that is exactly the trap reference_uncalled_port_is_not_verified.md
-//       records (a wrong `Quaternion::operator*` survived all of Wave 1 that
-//       way). An honest hold-back beats an unverifiable port. The body is
-//       fully reversed and written up in WAVE6_LANE_A.md, so landing it costs
-//       nothing the day something calls it.
-//
-// The other ~90 exported Context methods (?SetLight@, ?SetBones@,
-// ?BeginCommands@, the private ?Bind*@ family, …) are not in this lane's scope
-// because our tree never calls them; they stay in the DLL untouched.
+//       context_lifecycle.cpp, `Video::Context::ClearResources` (written up in
+//       docs/history/runtime_port/WAVE6_LANE_A.md).
 //
 // ============================================================================
 
@@ -157,11 +71,8 @@
 #include "video/CompanionData.h"
 
 // ENDGAME B.3.5 block D1. `Video::Context` and `Video::Viewport` are real
-// classes now (src/engine/video/Context.h): every body below MOVED onto the
-// member, `self->x` became `x`, and each registered door kept its name, its
-// mangled-name row and its address row and became a one-line QUALIFIED
-// non-virtual delegation. Nothing is unregistered and nothing is retired
-// (B35_RULES 11).
+// classes (src/engine/video/Context.h): every body below is a member, and
+// `self->x` became `x`.
 //
 // THE THREE B.3.1 BRIDGES IN THIS FILE ARE GONE WITH THE CONVERSION. `MatrixRaw`
 // and `Vector4Raw` were byte-identical stand-ins for `Math::Matrix` and
@@ -186,9 +97,9 @@ namespace {
 // stays as the documentation of what each index is, and the nine asserts below pin
 // each one to its slot so the mapping is checked rather than stated in prose.
 //
-// The object behind the pointer is a `VideoDX11::ContextData` wearing dx11's
-// vtable; `_contextData` is typed `Video::ContextData*` (B.4 R-VIDEO), so the
-// receiver needs no view.
+// The object behind the pointer is the backend's `ContextData` subclass
+// (`VideoDX11::ContextData` under dx11); `_contextData` is typed
+// `Video::ContextData*` (B.4 R-VIDEO), so the receiver needs no view.
 //
 // NO NULL CHECK ON _contextData — retail has none (`MOV RCX,[RCX+0x2160]` then
 // `MOV RAX,[RCX]` unguarded), and CLAUDE.md's rule applies: a guard here would
@@ -235,7 +146,7 @@ static_assert(RtVideo::kSlotEndInstancedIndexedVertices   / 8 == 19, "ContextDat
 //
 // The bodies are UNCHANGED by the conversion except that `self->x` became `x`
 // and the three bridge helpers became direct member calls on
-// `Math::Matrix`. Each one's registered door is below, under its old name.
+// `Math::Matrix`.
 namespace Video {
 
 // ---- ?SetColor@Context@Video@@QEAAXAEBVVector4@Math@@@Z  0x18001a8e0 -------
@@ -471,8 +382,8 @@ void Context::SetCamera(const Math::Matrix& view, const Math::Matrix& projection
 // The frame reset: clear every binding, mark everything dirty, and re-arm the
 // viewport and scissor to the default render buffer's dimensions.
 //
-// Two details a readable rewrite would get wrong and the replay oracle would
-// catch: (1) `_dirty` is ASSIGNED 0x1fe00 and then OR'd bit by bit as each
+// Two details a readable rewrite would get wrong: (1) `_dirty` is ASSIGNED
+// 0x1fe00 and then OR'd bit by bit as each
 // binding is found non-null, so a Reset on an already-clean Context leaves a
 // different value from one on a dirty Context; (2) the vertex-slot test also
 // fires when only the offset or stride is non-zero, while the image-slot test
@@ -496,7 +407,7 @@ void Context::Reset() {
     _color        = Math::Vector4();
     std::memset(_boneAndProjectionStaging, 0, sizeof(_boneAndProjectionStaging));
     // `static_cast<void*>` here is not decoration: `Math::Matrix` has a retail
-    // default constructor that zeroes all sixteen cells (Math.h:218), so it is
+    // default constructor that zeroes all sixteen cells (Math.h:234), so it is
     // not trivially default-constructible and `-Wclass-memaccess` objects to a
     // raw `memset` over an array of them. Retail does ONE memset; a
     // value-initialising loop would write the same 0xd00 bytes but would stop
@@ -585,14 +496,6 @@ void Context::Reset() {
 // Copies one vertex of `_dynamicVertexStride` bytes to the mapped write cursor
 // and advances it. No bounds check — the caller promised a count to
 // BeginVertices and retail trusts it.
-//
-// REPLAY NOTE. The DLL's body writes through the cursor too, into the SAME
-// mapped buffer at the SAME address with the SAME source bytes (the scratch
-// Context is a copy, so its cursor is the value ours started from). The second
-// write is byte-for-byte identical to the first, so replaying it is idempotent
-// rather than a second, different write into live state. That is the one place
-// in this lane where the original touches something outside the scratch copy,
-// and it is deliberate: the alternative is no oracle at all.
 void Context::AddVertex(const void* vertex) {
 
     const size_t stride = static_cast<size_t>(_dynamicVertexStride);
@@ -617,10 +520,9 @@ void Context::AddVertices(int32_t count, const void* vertices) {
 // ============================================================================
 // The nine backend forwarders
 //
-// Each is a one-line tail call through the ContextData vtable at the byte
-// offset named in src/engine/video/Context.h. Their oracle is VerifyThunk,
-// run once at registration; there is no per-call comparison because running
-// the original as well would submit the draw twice.
+// Each calls through the ContextData vtable at the byte offset named in
+// src/engine/video/Context.h; BeginVertices / EndVertices also run the
+// `_extVertexTap` seam (NOT RETAIL).
 //
 // ENDGAME B.3.5 block J, COORDINATOR RULING: THESE NINE ARE CONVERTED. Block D1
 // left them hand-inlined, on the reading that `_contextData` points at a
@@ -696,7 +598,7 @@ void Context::EndInstancedIndexedVertices(int32_t primitiveType) {
 // with the four-argument constructor at 0x180018220.
 //
 // These are the only two `Video::Viewport` exports this block ports. The two
-// constructors and `operator=` stay DOORS — see the triviality banner on the
+// constructors and `operator=` are not declared — see the triviality banner on the
 // class in Context.h: `Video::Context` holds two Viewports by value and must
 // stay trivially copyable and trivially default-constructible, and retail's own
 // default constructor ZEROES, so neither a user-provided body nor `= default`
@@ -718,37 +620,3 @@ bool Viewport::operator!=(const Viewport& other) const {
 }
 
 }  // namespace Video
-
-// ============================================================================
-// STALE COMMENTS THIS LANE DISPROVED (PLAN §6 step 8)
-// ============================================================================
-// Lane A may only edit its own three files, so the corrections below are
-// recorded here and in docs/history/runtime_port/WAVE6_LANE_A.md for the wave lead to
-// apply at their source.
-//
-//  1. docs/history/runtime_port/wave6_lanes.txt lists all 27 lane-A rows with
-//     `kind = export`. THREE OF THEM ARE RESOLVED BY ADDRESS, not by name:
-//     engine/funcs/engine_funcs.cpp:1620 resolves the ctor with
-//     `ResolveAddr(Module::Runtime, 0x1800f1820)` and :1628 resolves
-//     `operator delete` with `ResolveAddr(Module::Runtime, 0x180018500)`;
-//     the dtor at :1622 tries the name first and falls back to
-//     `ResolveAddr(Module::Runtime, 0x1800f16e0)`. A name-only registration of
-//     those three would have registered nothing anybody calls — which happens
-//     to be harmless here only because all three are held back.
-//
-//  2. RESOLVED AND CLOSED. This lane reported `fn_VideoCtx_Ctor`,
-//     `fn_VideoCtx_Dtor`, `fn_VideoCtx_Delete` and `fn_VideoCtx_ClearResources`
-//     as DEAD RESOLVES -- assigned in `EngineFuncsInit`, mentioned nowhere else
-//     but a diagnostic printf, called by nothing in code/, engine/, standalone/,
-//     runtime/ or src/render/dx11/ -- and noted that `fn_VideoCtx_Reset` was the only
-//     member of the group with a live caller, in src/app/main.cpp.
-//
-//     ALL FIVE ARE GONE. ENDGAME B.3.5 batch b35-I3 moved main.cpp's
-//     FSE-refocus recovery onto `Video::Context::Reset()`, which emptied the
-//     last of them, and batch b35-K2 (41baab1c) deleted the whole group --
-//     typedefs, externs, definitions, initialisers and dump lines. So the
-//     `// resolved, never called` line this note asked for is moot: there is no
-//     pointer left to put it on. THE REGISTERED DOORS AND THE HELD-BACK
-//     CLASSIFICATION BELOW ARE UNAFFECTED -- what died was engine_funcs's copy
-//     of the addresses, not the ports or the registrations.
-// ============================================================================

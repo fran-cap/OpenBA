@@ -1,6 +1,6 @@
 #pragma once
 // ============================================================================
-// src/ext/staggered_passes/staggered_passes.h -- ext.staggered_passes (class A, live, default OFF)
+// src/ext/staggered_passes/staggered_passes.h -- ext.staggered_passes (class A, live, default ON)
 // ============================================================================
 // NOT RETAIL (issue #253). The sun's shadow map and the water's reflection image may each keep last
 // frame's contents on a near-still view instead of being rendered again: each renders at least every
@@ -11,8 +11,9 @@
 // camera it was rendered with. The decision is src/engine/graphics/stagger_hold.h; the two seams are
 // Graphics::SunLight::_extStaggerEvery and Graphics::ReflectionImageBuffer::_extStaggerEvery.
 // Class A: frames only, nothing saved. Under the faithful profile the row is off: both seams null.
-// No Enhanced-tab entry yet (it needs a combo in the kit-compiled dialog resource): settings.cfg only,
-// `ext.staggered_passes=1`, `ext.staggered_passes_shadow=N`, `ext.staggered_passes_reflection=N`.
+// No Enhanced-tab entry yet (it needs a combo in the kit-compiled dialog resource): the row is on the
+// Extensions dialog's Experimental tab; the values are settings.cfg only,
+// `ext.staggered_passes_shadow=N`, `ext.staggered_passes_reflection=N`.
 
 namespace Ext {
 namespace StaggeredPasses {

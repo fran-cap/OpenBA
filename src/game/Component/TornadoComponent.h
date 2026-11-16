@@ -3,9 +3,8 @@
 // src/game/Component/TornadoComponent.h — ENDGAME B.3.8 block CIT
 //
 // `TornadoComponent` (the tornado disaster's path, movement and damage) as a real
-// C++ class with a compiler-generated vtable (B38_RULES.md D1-D4). The
-// engine/types POD is a forwarder to this file. (The visual `Tornado`
-// Graphics::Particle class is block LOOP's.)
+// C++ class with a compiler-generated vtable (B38_RULES.md D1-D4). (The visual
+// `Tornado` Graphics::Particle class is block LOOP's.)
 //
 // RETAIL (Application-x64.exe, B38_SLOTS.md §6):
 //   reflected "TornadoComponent", parent "Component", ti 0x1401c4ad8
@@ -57,7 +56,7 @@ public:
         uint8_t        _pad24[4];  // +0x24
 
         // 0x1400a70c0: the first waypoint after `index` at least `radius` from `pos`
-        // (XY distance, the waypoint's Z ignored), -1 past the end.
+        // (the waypoint's Z taken as 0), -1 past the end.
         int  FindNext(const float* pos, float radius) const;
         // 0x1400a71e0: once `target` is within `arriveRadius`, latch the next
         // waypoint more than `skipRadius` away. False only when the path is exhausted.
@@ -70,7 +69,7 @@ public:
     void DamageTick(const System::Time* dt);
 
     // PUBLIC while the ported bodies read them (B38 decision 1).
-    System::Time   damageCountdown; // +0x28 reloaded from TornadoDescription::damageInterval
+    System::Time   damageCountdown; // +0x28 reloaded from TornadoDescription::_damageInterval
     Path           path;            // +0x30 .. +0x57
     Math::Vector3  position;        // +0x58 live world position
     uint8_t        _pad64[4];       // +0x64

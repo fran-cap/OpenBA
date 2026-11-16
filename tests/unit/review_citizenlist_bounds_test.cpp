@@ -1,7 +1,7 @@
 // tests/unit/review_citizenlist_bounds_test.cpp
 // review S-008: the saved residence cells CitizenBehavior::PostLoad files in the well bucket
-// grid (src/game/Game/citizenlist_bounds.h). PostLoad / AddCellEntry need a live world; they
-// call this. All platforms.
+// grid (src/game/Game/citizenlist_bounds.h). PostLoad / AddCellEntry need a live world; PostLoad
+// calls this before AddCellEntry. All platforms.
 
 #include "unit.h"
 #include "Game/citizenlist_bounds.h"

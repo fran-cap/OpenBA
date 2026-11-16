@@ -50,8 +50,6 @@
 //   +0x78  _width        one kScalarInt; the applier copies it to
 //                        `ImageElement::_width` (+0xd4) — that member's name.
 //   +0x7c  _height       one kScalarInt; copied to `ImageElement::_height`.
-// `void*` / `char*` for the two handles, the same bytes and the spelling
-// Dialog.h uses for the same pair.
 //
 // (Until ENDGAME B.3.9:) ABSTRACT (slot 0 `= 0`); NO out-of-line default ctor in retail
 // (`??0ImageDescription` 0x1801182d0 is the factory's door; Construct and

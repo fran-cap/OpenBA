@@ -10,7 +10,7 @@
 
 #include "PlayAnimation.h"
 #include "object/TypeInfo.h"
-#include "Action/exe_bodies.h"   // FindCharacterComponent, SetAnimation
+#include "Action/exe_bodies.h"
 #include "Game/exe_constants.h"  // kRdata_14017214c
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch C
 #include <cstdint>

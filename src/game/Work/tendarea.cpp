@@ -6,11 +6,12 @@
 // Inherits: Object::Internal -> Work (0x48) -> TendArea
 // Vtable: 0x140161990
 //
-// BST node layout (simple, 0x20 bytes):
-//   +0x00: key (InternalBasePtr, citizen entity)
+// BST node layout (Collection::Set<CitizenComponent*>::Node, 0x28 bytes):
+//   +0x00: key (the CitizenComponent*)
 //   +0x08: parent pointer
 //   +0x10: left child
 //   +0x18: right child
+//   +0x20: int16 balance, +0x22: int16 height
 //
 // Decompiled from Application-x64.exe using Ghidra.
 
@@ -43,30 +44,29 @@
 #include "Game/Map.h"
 
 // ============================================================
-// Sub-functions, called by name (B3R; the module exe_bodies.h headers)
+// Sub-functions, called by name
 // ============================================================
 //   0x1400296b0  WorkBST_BST_Serialize_296b0
 //   0x140025520  WorkBST_BSTFindRemove_25520
 //   0x14001a6e0  WorkBST_BSTRemove_a6e0
-//   0x1400c5400  WorkBase_TaskListCleanup_c5400
-//   0x1400f7100  WorkBase_ValidateTask_f7100
-//   0x140014c30  WorkBase_TreeNodeFree_14c30
-//   0x140002e10  AttendanceComponent_GetJobHostComponent
+//   0x1400c5400  ActionStack::Clear
+//   0x1400f7100  Work::ValidateTask
+//   0x140014c30  WorkBase_TreeNodeFree
+//   0x140002e10  ComponentEntity::FindComponent<WorkPlaceComponent>
 //   0x14012e5c0 WorkComponent::CalcMaxWorkers
-//   0x140003050  WorkBase_FindComponent_3050
-//   0x140005380  WorkAcc_FindComponent_5380
-//   0x140005440  WorkAcc_FindComponent_5440
-//   0x14009ccf0  WorkGrid_FindCell_9ccf0
-//   0x1400a00f0  WorkBase_ValidateCell_a00f0
-//   0x14009f3e0  Reimpl_MapGetTerrainPos
+//   0x140003050  ComponentEntity::FindComponent<WorkComponent>
+//   0x140005380  ComponentEntity::FindComponent<CropFieldComponent>
+//   0x140005440  ComponentEntity::FindComponent<OrchardComponent>
+//   0x14009ccf0  Map::FindCell
+//   0x1400a00f0  Map::ValidateCell
+//   0x14009f3e0  Map::GetTerrainPos
 //   0x1400bb0a0  WorkAct_GrazingWorkCtor_bb0a0
 //   0x140021a30  WorkBST_RegisterWork_1a30
-//   0x140115e60  CitizenAI_State_LongTermPlan
-//   0x140006270  WorkBase_FindComponent_6270
+//   0x140115e60  CitizenComponent::LongTermPlan
+//   0x140006270  ComponentEntity::FindComponent<StorageComponent>
 //   0x14012cf10  StorageComponent::QueryCount
 //   0x140172114  kRdata_140172114 (.rdata)
 //
-// Vtable pointers for dtor chain
 //
 // The Work BASE vtable is 0x140161a80, byte-verified in retail: TendArea_Ctor
 // disassembles to `0x1400f5a1d: LEA RAX,[0x140161a80]` followed by MOV [RBX],RAX.
@@ -82,7 +82,7 @@
 // Algorithm:
 // 1. Check max workers vs current count
 // 2. Get citizen position, random access RNG
-// 3. Depending on tendMode: find CropAreaComponent or OrchardAreaComponent
+// 3. Depending on tendMode: find CropFieldComponent or OrchardComponent
 // 4. Pick a random cell from the area, check pathability
 // 5. Get terrain position for target and citizen
 // 6. Create PerformWork action
@@ -158,7 +158,7 @@ int TendArea::Execute(CitizenComponent** citizenRef, System::Time* /*context*/) 
         return 0;  // No passable cell found
     }
 
-    bool canPath = static_cast<uint8_t>(mapGrid->ValidateCell(PathBits::Walk, citizenGridCell, nearestCell));   // the door read AL
+    bool canPath = static_cast<uint8_t>(mapGrid->ValidateCell(PathBits::Walk, citizenGridCell, nearestCell));   // low byte (AL) only
     if (!canPath) {
         return 0;  // Can't path to cell
     }
@@ -216,9 +216,8 @@ int TendArea::Execute(CitizenComponent** citizenRef, System::Time* /*context*/) 
 }
 
 
-// LEFT (slots 6 / 7, the validate removal, Persist): the set bodies 0x140025520 /
-// 0x14001a6e0 / 0x1400296b0 keep their C signature (outside callers): the set as
-// uintptr_t*.
+// Slots 6 / 7, the validate removal and Persist call the set bodies 0x140025520 /
+// 0x14001a6e0 / 0x1400296b0 (Work/KeyBst.h) on the Collection::Set member.
 
 // ============================================================
 // TendArea::OnComplete [6] -- BSTFindRemove + return false (0x1400f5470)

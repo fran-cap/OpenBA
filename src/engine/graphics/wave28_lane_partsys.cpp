@@ -34,8 +34,8 @@
 // hidden return slot plus TWO Vector3s. Retail loads all three
 // (`LEA RCX,[RSP+0x60] / LEA RDX,[RSP+0x50] / LEA R8,[RSP+0x20]` at
 // 0x1800a5fe5) and the third is a ZEROED Vector3 built two instructions
-// earlier. Ghidra dropped it — exactly
-// reference_ghidra_c_output_vs_disassembly.md.
+// earlier. Ghidra dropped it: its decompiled C can drop live register arguments,
+// so the disassembly decides.
 //
 // ---------------------------------------------------------------------------
 // EXTENT — .pdata is a LOWER bound, and this body proves it
@@ -48,7 +48,7 @@
 //   0x1800a62f1..0x1800a6867  0x576   UNW_FLAG_CHAININFO
 //   0x1800a6867..0x1800a6a7a  0x213   UNW_FLAG_CHAININFO
 //
-// Reading only the first entry would have sized this body at 0x9d bytes — 0.7%
+// Reading only the first entry would have sized this body at 0x9d bytes — 3%
 // of the truth. The real extent is 0x1800a5600..0x1800a6a79 = 0x147a bytes
 // (the brief's 0x1479 counts the last byte inclusive), independently
 // re-derived here rather than trusted.
@@ -90,8 +90,7 @@
 // retail forms the two multiplies SEPARATELY (`MULSS xmm7` then `MULSS xmm8`)
 // rather than folding them into a single 2^-31, and subtracts from a register
 // holding 1.0f. Folding them is algebraically identical and numerically
-// different (reference_moved_term_hides_where_terms_cancel.md), so the two
-// multiplies are reproduced.
+// different, so the two multiplies are reproduced.
 //
 // ---------------------------------------------------------------------------
 // A NAMING CORRECTION TO WAVE 27's RECORD MAP — and the licence, not just the
@@ -115,11 +114,10 @@
 //       record. +0x48/+0x4c IS the rotation, and Draw's degrees reading stands.
 //
 // THE LICENCE, not the sentence: naming a field from a reader that can only see
-// its SHAPE is the defect (reference_a_writer_beats_readers_agreeing_on_a_sign.md
-// is the same shape one level down). Wave 27's kRec_* constants are NOT renamed
-// here — that file's names are load-bearing for its own bodies and renaming
-// them is a merge hazard for no behaviour change. The correction is recorded
-// here and in the lane doc, on the surface the next particle lane will reach.
+// its SHAPE is the defect (readers testing a sign cannot name a field either; its
+// writer can). Both files read the record through
+// `RtGraphics::ParticleRecord`'s named fields (ParticleInstance.h): `_color` at
+// +0x28 and `_alpha` at +0x40.
 //
 // ---------------------------------------------------------------------------
 // OWNERSHIP (kickoff warning 6) — `RemoveState` frees CONDITIONALLY
@@ -168,8 +166,8 @@ namespace {
 
 // ---------------------------------------------------------------------------
 // Attendance. A run that entered none of these says so rather than staying
-// silent, and `calls=` is read separately from any comparison
-// (reference_uncalled_port_is_not_verified.md).
+// silent, and `calls=` is read separately from any comparison: a port with zero
+// calls is unverified, not clean.
 // ---------------------------------------------------------------------------
 uint64_t g_psiUpdate        = 0;   // entries
 uint64_t g_psiUpdateEarly   = 0;   // took the "same frame already" SetBounds tail
@@ -186,8 +184,7 @@ uint64_t g_sunAddDrawEmit   = 0;
 // ---------------------------------------------------------------------------
 // The shipped float constants, as bit patterns read out of Runtime-x64.dll with
 // pefile. `3.14159f/180.0f` and `1.0f/4294967296.0f` are DIFFERENT floats from
-// what the DLL ships; these are the DLL's
-// (reference_crt_coefficients_must_be_lifted_not_retyped.md).
+// what the DLL ships; these are the DLL's.
 // ---------------------------------------------------------------------------
 inline float FromBits(uint32_t bits) {
     float f;
@@ -276,7 +273,6 @@ inline int64_t SecondsToTicks(float s) {
 // (?_frameIndex@ParticleInstance@Graphics@@1HA, retail 0x1801fe77c) — the
 // protected static int every ParticleInstance stamps into its pool record's
 // frame tag so a system shared by several instances updates ONCE per frame.
-// Also tagged RT_UNPROMOTABLE on the DLL-PRESENT route.
 // ---------------------------------------------------------------------------
 // ENDGAME B.3.9 GFX (D7 row A37): the class static, not a lazy ResolveExport
 // cache.
@@ -286,8 +282,7 @@ int32_t* FrameIndexPtr() {
 
 // `?_typeInfo@ParticleSystem@Graphics@@0VBaseTypeInfo@Object@@A` (0x1801f9a58),
 // read for its FIRST DWORD only -- the typeId. That is the whole of what the
-// DLL's consumers of a BaseTypeInfo read
-// (reference_basetypeinfo_name_is_content_only.md).
+// DLL's consumers of a BaseTypeInfo read.
 // ENDGAME B.3.9 TI-REST: the class's own `DEFINE_TYPE` record, read fresh
 // (the function-local cache over the minted record is gone, B9-10).
 uint32_t ParticleSystemTypeId() { return Graphics::ParticleSystem::TypeId(); }
@@ -544,8 +539,8 @@ void ParticleSystemInstance::Update(const System::Time& timeRef) {
 
         // Retail calls the DLL's own sinf/cosf (0x180127d90 / 0x180126d10) in
         // this exact order: sin(B), sin(A), cos(B), cos(A). RtLibm is the
-        // project's seam for exactly these two (src/engine/rt_libm.h) and
-        // RT_LIBM=dll routes it back to the DLL's CRT for an A/B.
+        // project's seam for these two (src/engine/rt_libm.h), backed by the
+        // ported MSVC CRT bodies in src/engine/crt/msvc_libm.cpp.
         const float sinB = RtLibm::Sin(angleB);
         const float sinA = RtLibm::Sin(angleA);
         const float cosB = RtLibm::Cos(angleB);
@@ -854,13 +849,10 @@ void SunLight::Draw(Video::Context& context, const Camera& camera,
 //   Renderer::EndDrawGroup(renderer, g);                    // 0x180104f50
 //
 // ALL SIX CALLEES ARE NAMED EXPORTS — checked with pefile by VA before the body
-// was written, not assumed (a name the DLL lacks makes ResolveExport return
-// NULL in silence and the ResolveAddr fallback hides it:
-// reference_resolveexport_phantom_names.md). So this body opens SIX NAME doors
-// and ZERO address doors.
+// was written, not assumed.
 //
 // The `renderer->+0x3c` / `+0x48` gate is INDEPENDENTLY CORROBORATED: this
-// lane read it out of the bytes, and `src/game/Game/gameupdateloop.cpp:2171`
+// lane read it out of the bytes, and `src/game/Game/gameupdateloop.cpp:1602`
 // already records `renderer+0x3c != 0` as SunLight's shadow gate from the
 // caller's side. Two unrelated readings, one conclusion.
 //

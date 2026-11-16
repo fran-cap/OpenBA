@@ -68,7 +68,7 @@ struct ClassRow {
 
 // The component's embedded state node lives at comp+0x28 for every class in this
 // wave (ControllerComponent layout); the owning StateMachine carries the current
-// state id in its +0x0a byte. We read the StateMachineComponent instead, which is
+// state id in its +0x09 byte. We read the StateMachineComponent instead, which is
 // where the id is actually published — comp+0x28 is only the node.
 // Find a component of type `tid` on an entity (the +0x30 array / +0x38 count pair).
 Component* FindComp(ComponentEntity* ent, uint32_t tid) {
@@ -248,8 +248,7 @@ void DumpAll(int frame) {
                     grid && mw > 0 && radius > 0) {
                     // Retail resolves the list off the HERBALIST component's own
                     // description (comp+0x18), NOT the WorkPlaceComponent's — the work's
-                    // finder uses type id 0x1401c43a0, which is HerbalistComponent despite
-                    // the port naming its local `s_typeId_WorkplaceComponent`. `comp` here
+                    // finder uses type id 0x1401c43a0, which is HerbalistComponent. `comp` here
                     // is already that component.
                     const uint32_t tidHerbDesc = HerbalistDescription::TypeId();
                     HerbalistDescription* hdesc = nullptr;

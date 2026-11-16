@@ -10,7 +10,7 @@
 // EXTENT: 0x1800df6c0 .. 0x1800dfdd7 inclusive, `RET` then INT3 padding.
 // 0x718 = 1816 bytes. MEASURED with objdump against
 // C:\GOG Games\Banished\Runtime-x64.dll on disk, not from .pdata (which is only
-// a LOWER bound, reference_pdata_is_a_lower_bound_on_function_extent.md) and
+// a LOWER bound) and
 // not from Ghidra.
 //
 // ---------------------------------------------------------------------------
@@ -23,11 +23,7 @@
 //      restore of the Random state as well, which is a real and bounded next
 //      step rather than a missing tool."
 //
-// That snapshot/restore HAS EXISTED SINCE WAVE 2. `the diff oracle` in
-// src/engine/system/value_types.cpp snapshots the live `Random`, lets ours
-// mutate it, and replays the original on an independent scratch copy -- exactly
-// the shape Wave 8 described as the missing step. `System::Random` is a flat
-// 2500-byte POD, so the snapshot is a `memcpy`.
+// `System::Random` is a flat 2500-byte POD, so a snapshot of it is a `memcpy`.
 //
 // AND the RNG is not even the obstacle it was described as. This body reaches
 // `System::Random` through exactly TWO inlined draws, at 0x1800df992 and
@@ -52,8 +48,8 @@
 // ---------------------------------------------------------------------------
 // WHAT IS AND IS NOT VERIFIED  -- read this before quoting the attendance line
 // ---------------------------------------------------------------------------
-// There IS a live route: src/game/Game/gameupdateloop.cpp:1780 calls this
-// export every frame of an ordinary in-game run. So the ATTENDANCE counter
+// There IS a live route: src/game/Game/gameupdateloop.cpp:1288 calls this
+// body every frame of an ordinary in-game run. So the ATTENDANCE counter
 // below is real evidence that the body RUNS. It is NOT evidence that the body
 // is CORRECT -- nothing compares its output to retail's, and nothing can.
 // See docs/history/runtime_port/WAVE28_LANE_MISC.md section 5 for what was run.
@@ -64,7 +60,7 @@
 //     bool Scene::Update(Time a, Time b, Random& rng, const Vector3& listener,
 //                        float m)
 //
-// The caller (gameupdateloop.cpp:163) names them `time` and `scaledTime`. The
+// The caller (gameupdateloop.cpp:1288) passes copies of its `time` and `scaledTime`. The
 // BYTES say what they are used for, and that is what the names here follow:
 //
 //     rdx (arg1) homed at [rbp+0xc8]  -- ADDED to a startTime, twice
@@ -94,13 +90,10 @@
 // ---------------------------------------------------------------------------
 // NEW LAYOUT THIS BODY PINS, AND HOW WEAK THAT PIN IS
 // ---------------------------------------------------------------------------
-// Audio.h carries no `Device` and no `SoundEffect`. This body reads both, and
-// everything below is read out of THIS ONE FUNCTION -- a single reader. That is
-// the weakest kind of layout evidence there is
-// (reference_a_writer_beats_readers_agreeing_on_a_sign.md), so none of it is
-// promoted into Audio.h as a struct; it stays here as named byte offsets with
-// the instruction that produced each one. A later lane that finds the WRITER
-// should move it and correct it.
+// `Audio::Device` is in Device.h and `Audio::SoundEffect` in SoundEffect.h. This body
+// reads both, and the offsets below are read out of THIS ONE FUNCTION -- a single
+// reader, the weakest kind of layout evidence there is; each carries the
+// instruction that produced it.
 //
 //   Audio::Device (the `?_singleton@Device@Audio@@` object)
 //     +0x000  AudioSlot slots[0x40], stride 0x28   -- 0x1800dfadb `ADD RAX,0x28`
@@ -113,7 +106,7 @@
 //               +0x20 void*  onEnded           (= ?OnSoundEnded@Scene@Audio@@,
 //                                                0x1800dffe0, ord 3283)
 //     +0xa88  void*  -- a non-null GATE on the platform-channel table. NOT
-//             invented here: audio.cpp:1171 already records this exact guard as
+//             invented here: audio.cpp:997 already records this exact guard as
 //             `Device::StopPlatform`'s own, from a different body.
 //     +0xaa0  void*  platformChannels[], stride 0x20 -- 0x1800dfbef `SHL RAX,5`
 //
@@ -132,16 +125,15 @@
 //   SetFilterParameters, GetFilterParameters, SetOutputFilterParameters,
 //   GetOutputFilterParameters, SetVolume -- i.e. 12 * 8 = 0x60 is
 //   `SetVolume(float Volume, UINT32 OperationSet)`, and the second argument
-//   this body passes is 0 = XAUDIO2_COMMIT_NOW. The call is named `SetVolumeFn`
-//   below for that reason.
+//   this body passes is 0 = XAUDIO2_COMMIT_NOW. Below, that call is
+//   `Device::SetVolumePlatform`.
 //
-//   Recorded the way SLOTS recorded its own, and the distinction is deliberate:
-//   the INTERFACE is identified; the internal class that owns the record is
-//   UNIDENTIFIED and its name is not recoverable from the retail file. No name
-//   has been invented for it here.
+//   The INTERFACE is identified, and the internal class that owns the record is
+//   `Audio::Device::PlatformChannel` (Device.h), the name the mangled
+//   `?GetPlatformChannel@Device@Audio@@` signature carries.
 //
 //   Audio::SoundEffect
-//     +0x28  int64  total duration in ticks    -- 0x1800df7e0 (and audio.cpp:496
+//     +0x28  int64  total duration in ticks    -- 0x1800df7e0 (and audio.cpp:461
 //                                                 already reads this offset)
 //     +0x30  void*  sample table
 //     +0x38  int32  sample count               -- 0x1800df91c `CMP [RDI+0x38],0`
@@ -178,7 +170,7 @@
 // EVERY CALLEE, AND ITS DOOR
 // ---------------------------------------------------------------------------
 // Checked against the export directory with pefile by RVA. Seven direct call
-// targets; SIX are exported, so six are NAME doors:
+// targets; SIX are exported:
 //     0x1800dfde0  ?GetAttenuatedVolume@Scene@Audio@@  ord 2453  (private, AEBA
 //                  -- private is not unexported)
 //     0x1800df550  ?StopEffect@Scene@Audio@@           ord 4109  PORTED (W8.5)
@@ -187,20 +179,12 @@
 //     0x1800de7a0  ?PlayPlatform@Device@Audio@@        ord 3424
 //     0x1800c7dd0  ?NextGroup@Random@System@@          ord 3245  PORTED (this
 //                  lane, same commit)
-// and ONE is not exported and is taken BY ADDRESS:
-//     0x180050d30  Array<T16>::operator=  -- PORTED AND REGISTERED already
-//                  (src/engine/collection/array.cpp, lane Q's J10;
-//                  audio.cpp:1114 already reaches it the same way), so this
-//                  opens NO new cutover door.
+// and ONE is not exported:
+//     0x180050d30  Array<T16>::operator=  -- `Collection::Array<EmitterInstance>::operator=`
+//                  (Collection.h), which audio.cpp:976 also calls.
 // Plus one virtual call, `(*(vtbl+0x60))(platformChannel, volume, 0)` at
 // 0x1800dfc06, on a platform-channel object this body does not own.
 //
-// KILL SWITCH: RT_AUDIOSCENEUPDATE, DEFAULT ON (kickoff section 2.2 --
-// a registration behind an opt-in switch moves neither the live count nor the
-// cutover wall). Its OWN switch, separate from audio.cpp's, so this 1816-byte
-// body can be A/B'd out in one variable without taking the other 16 Audio ports
-// with it -- which is the bisection anyone chasing an audio regression will
-// want first.
 // ============================================================================
 
 #include <cstdint>
@@ -271,7 +255,7 @@ inline float RandUnitScale() {
     float f; std::memcpy(&f, &bits, sizeof f); return f;
 }
 
-// ---- doors -----------------------------------------------------------------
+// ---- callees ---------------------------------------------------------------
 // ENDGAME B.3.7 block B4 (B7-11 / B6-5): GetAttenuatedVolume, StopEffect,
 // StopEffect3D, PlayEffect (Scene), PlayPlatform (Device) and
 // Random::NextGroup were reached BY NAME behind function-local first-call
@@ -667,7 +651,7 @@ bool Scene::Update(System::Time delta, System::Time now, System::Random& rng,
                 // stores (`MOV DWORD PTR [RBP-0x18],R9D` then `MOV RAX,[RBP-0x18]`
                 // at 1800dfd28 / 1800dfd4b, and the same at 1800dfd3a /
                 // 1800dfd8f), so retail writes FOUR BYTES OF UNINITIALISED STACK
-                // into Channel+0x0c and +0x6c..+0x6f. audio.cpp:856 already
+                // into Channel+0x0c and +0x6c..+0x6f. audio.cpp:751 already
                 // records this read-8-write-4 quirk in this class. We write
                 // zeros there: the fields are `_pad0c` and the tail padding,
                 // nothing reads them, and uninitialised stack is not

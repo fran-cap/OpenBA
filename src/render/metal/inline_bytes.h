@@ -12,7 +12,7 @@
 //       // too big for the command stream: bind a buffer instead
 //   }
 //
-// Used by backend.mm (the expanded-vertex path) and by passes/ (the ASSAO per-draw constants).
+// Used by backend.mm (the expanded-vertex path).
 // Include after VideoMetalData.h (which holds the Metal headers behind the Carbon rename).
 // ============================================================================
 

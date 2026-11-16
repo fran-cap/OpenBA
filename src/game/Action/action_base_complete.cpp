@@ -1,20 +1,17 @@
 // src/game/Action/action_base_complete.cpp
 // Wave 3 (Action) — CompleteTask / ShowTool exe sub-helpers (closure-safe subset).
 //
-// The CompleteTask / ShowTool action .cpp files call them by name through
-// Action/exe_bodies.h (B3R); the registration (RegisterActionCompleteBatch in
-// standalone/reg_action_complete.cpp) stays for readers other blocks still have.
+// The CompleteTask / ShowTool action .cpp files call them by name: they are members of
+// WorkScheduler (Game/WorkScheduler.h) and CitizenComponent (Component/CitizenComponent.h).
 //
 // Wired (closure-safe): CompleteTask BST helpers 0x1400f8760 / 0x1400f8800 / 0x1400f8e30
 // and ShowTool 0x1401173b0 / 0x1401176e0. Each is a 1:1 port of the decompiled exe
 // helper (Ghidra); do NOT "improve" behavior.
 //
-// DEFERRED (NOT in this file): DropOffRawMaterial transfer helpers 0x1400c7570 /
-// 0x1400c7620 — their closure pulls in unregistered code sub-callees (the deep
-// create-raw-material spawn FUN_1400c78c0, MoveTo action ctor FUN_1400c9170, the
+// NOT in this file: the DropOffRawMaterial transfer helpers 0x1400c7570 / 0x1400c7620 are
+// DropOffRawMaterial::SpillAllStorage / ::Deposit (action_pf_roots_drop.cpp); a draft of
 #include "Action/exe_bodies.h"
-// task-list append FUN_1400c54e0, and an allocator dispatch slot). Drafted in
-// docs/history/notes/wave3_drafts/action_base_complete.cpp.draft; wire once that closure lands.
+// them is in docs/history/notes/wave3_drafts/action_base_complete.cpp.draft.
 //
 // B3R: every dispatch-slot and engine_funcs door this file read is a direct call now:
 // the IsDerivedFrom door is Object::IsDerivedFromNullSafe, the Time ctor slot
@@ -23,8 +20,7 @@
 
 // The runtime type headers come FIRST: they reach src/engine/volume/Volume.h,
 // whose global-scope `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()`
-// once <windows.h> has been seen (through resolve.h and this file's own
-// <windows.h> below).  ENDGAME B.3.5 batch K1.
+// once <windows.h> has been seen.  ENDGAME B.3.5 batch K1.
 #include "graphics/Geometry.h"
 #include "graphics/Mesh.h"
 #include "graphics/GraphicsMesh.h"
@@ -272,8 +268,8 @@ void CitizenComponent::HideTool() {
 //   - If a tool is already shown (toolSceneId >= 0), hide it first (FUN_1401176e0).
 //   - toolId >= 0: the mesh from the citizen description's _tools table, with g_fUVScale.
 //   - toolId < 0: the storage's largest stack: its ModelDescription for the mesh and its
-//     RawMaterialDescription for the UV scale. (The crash-prone path the ShowTool call
-//     site deliberately guards off; ported faithfully.)
+//     RawMaterialDescription for the UV scale. (ShowTool::AbstractImpl reaches it with
+//     toolId -2, the carry path; ported faithfully.)
 //   - Set the mesh on the tool MeshInstance, write the UV-scale vector (its _color),
 //     attach it at the model's "tool" node, then add it to the scene and record the ids.
 void CitizenComponent::ShowTool(int toolId) {
@@ -390,10 +386,6 @@ void CitizenComponent::ShowTool(int toolId) {
     toolSceneId = static_cast<int32_t>(objId);
     SceneWatch_Note(objId, tool, "ShowTool 0x1401173b0");
 }
-
-// ===========================================================================
-// B4 FORWARD: the C spellings other blocks' files still call, one line each.
-// ===========================================================================
 
 // (ActCt_TaskCleanup_8e30, the B4 FORWARD to TaskCleanup: its two callers call
 // TaskCleanup now, deleted, B4 X4-WORK.)

@@ -4,9 +4,8 @@
 // ModBrowseUI (0x30 bytes): Mod browser panel.
 // Extends DialogController (0x30 base). No subclass fields.
 //
-// Only non-type-system unhookable slot is Slot3 (Shutdown no-op).
-// All other slots are either the Dtor (reimplemented in engine/reimpl/)
-// or base class stubs.
+// Retail has no body past its `RET 0` slot 3 (Persist); the dtor is the defaulted
+// ~ModBrowseUI (Dialog/ModBrowseUI.h), the factory in ui_dialog_stub_factories.cpp.
 
 #include "Dialog/ui_panels.h"
 #include <cstdint>

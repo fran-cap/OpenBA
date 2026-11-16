@@ -1,8 +1,7 @@
 // src/game/Dialog/dialog_exe_helpers.cpp
-// Clean reimplementations of two exe-internal helpers referenced by the Dialog
-// module, ported to close the standalone Dialog code-gap.
+// Notes on two exe-internal helpers referenced by the Dialog module; no bodies here.
 //
-//   0x14005dec0  forwarder to AutoSaveDialog::Autosave (autosavedialog.cpp).
+//   0x14005dec0  is AutoSaveDialog::Autosave (autosavedialog.cpp).
 //   (GameContainer_EnsureLists, the standalone stand-in for 0x140099db0, is gone:
 //   GameContainer_Init runs from InnerLoaderLoop::Load as retail; D.4 RESIDUE.)
 //

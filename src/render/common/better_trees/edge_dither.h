@@ -4,7 +4,7 @@
 // per-texel noise on the shadow compare depth (docs/extensions/handins/BETTER-TREES.md)
 // ============================================================================
 // NOT RETAIL. Pure: no D3D, no retail bytes (the unit tests build synthetic ps_4_0 blobs). It reads
-// the blob it is handed -- the user's installed pixel shaders, at run time, AFTER ext.foliage_aa's
+// the blob it is handed -- the user's installed pixel shaders, at run time, AFTER ext.better_trees'
 // cutout rewrite when that applied -- and emits a copy in memory.
 //
 // THE PROBLEM IT SOLVES. receiver_rewrite.h moves each card's self-shadow cut per vertex, but a

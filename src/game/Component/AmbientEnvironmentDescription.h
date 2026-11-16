@@ -25,7 +25,7 @@
 class ComponentDescription;             // Component/ComponentDescription.h
 namespace Audio { class SoundEffect; }
 
-// One biome entry (0x28; Serialize 0x140043950: the enum through the uint door,
+// One biome entry (0x28; Serialize 0x140043950: the enum through the uint overload,
 // the ExternalPtr<ComponentDescription> (0x140002340), two ExternalPtr<SoundEffect>
 // (0x1400019a0), the int; resize 0x140002540 defaults the int to 1). No key
 // names: the names say what AmbientEnvironmentComponent::Update does with them.
@@ -65,7 +65,7 @@ public:
     // +0x20 Array<AmbientEnvironmentBiome> {data, count +0x28, capacity +0x2c} (H5, typed:
     // the ctor inlined in create 0x140001f40 zeroes +0x20 / +0x28 as qwords, the dtor
     // 0x140002100 MemFrees +0x20 and zeroes both qwords before ~Description; no element
-    // destroy). Resized by 0x140002540 (AmbientArrayResize_Reimpl).
+    // destroy). Resized by 0x140002540 (Collection::Array<AmbientEnvironmentBiome>::SetSize).
     Collection::Array<AmbientEnvironmentBiome> _entries;
     float _minTemp;                                 // +0x30
     float _maxTemp;                                 // +0x34

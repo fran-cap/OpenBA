@@ -1,5 +1,5 @@
 // ============================================================================
-// src/engine/ui/element_bodies_b5.cpp — thirteen assorted UI::*Element /
+// src/engine/ui/element_bodies_b5.cpp — ten assorted UI::*Element /
 // UI::*Description non-slot bodies
 // ============================================================================
 //
@@ -8,11 +8,10 @@
 // this batch contains four of the exact shapes that output is known to get
 // wrong — an argument dropped on an indirect call, a QWORD read of a DWORD
 // stack slot, a `bool` arriving in the seventh (stack) slot, and a 91-entry
-// jump table (reference_ghidra_c_output_vs_disassembly.md).
+// jump table.
 //
 //   retail       mangled name                                            note
 //   -----------  ------------------------------------------------------  ----
-//   0x180118c70  ??0NumberElement@UI@@QEAA@XZ                            ctor
 //   0x18011e090  ?GetRowHeight@TableElement@UI@@QEAAHH@Z
 //   0x18011e1a0  ?GetColumnWidth@TableElement@UI@@QEAAHH@Z
 //   0x1800d6c20  ?UpdateNumber@SliderElement@UI@@AEAAXXZ
@@ -21,7 +20,6 @@
 //   0x1800d3f70  ?DrawHighlight@ListElement@UI@@QEBAXAEAVSpriteContext@2@HI@Z
 //   0x18011a2d0  ?GetBarLayout@ScrollElement@UI@@AEBAXAEAH000@Z
 //   0x18011ef70  ?CreateInstance@TextDescription@UI@@QEBAX…@Z
-//   0x1801108d0  ?CreateInstance@ButtonDescription@UI@@QEBAX…@Z
 //   0x1800d2dc0  ?GetChildLayout@LayoutElement@UI@@AEAAXHHHHHH_N@Z
 //   0x1800cfd40  ?SelectCharacter@EditElement@UI@@AEBADH@Z
 //
@@ -62,21 +60,17 @@
 // THE ONE STALE COMMENT THIS FILE DISPROVES (PLAN.md §6 step 8)
 // ---------------------------------------------------------------------------
 // `src/engine/ui/ui_factory_wave28.cpp` (deleted by ENDGAME B.3.9 UI-D) said
-// of both constructors ported here:
+// of the TextElement and NumberElement constructors:
 // "The ctor is NOT ported: it calls ?CacheText@…, a private member this lane
 // does not own and did not read." For TextElement that premise expired before
 // it was written — `?CacheText@TextElement@UI@@AEAAXXZ` (0x18011ec10) has been
-// ported and registered by `src/engine/ui/textelement_cachetext.cpp` since
+// ported in `src/engine/ui/textelement_cachetext.cpp` since
 // Wave 10, together with `?SetParameterCount@` (0x18011e8e0). Its comment is
 // corrected at its source in this same commit.
 //
 // For NumberElement the callee is a DIFFERENT function with the same method
-// name — `?CacheText@NumberElement@UI@@AEAAXXZ` at 0x1801189f0, which is NOT
-// ported by anything in the tree (grep of runtime/ code/ standalone/ engine/
-// for both the name and the address finds only descriptive mentions in
-// src/engine/ui/NumberElement.h). This file reaches it through the
-// port-aware `ResolveAddr`, so it becomes ours the day somebody ports it, and
-// it is reported as a residual rather than silently skipped. Skipping it would
+// name — `?CacheText@NumberElement@UI@@AEAAXXZ` at 0x1801189f0, ported as
+// `UI::NumberElement::CacheText` in src/engine/ui/numberelement.cpp. Skipping it would
 // leave `_cachedText` (+0xD0) null on every freshly constructed NumberElement,
 // and both `ComputeSize` (0x180119000) and `Draw` (0x1801191E0) dereference it.
 //
@@ -97,12 +91,11 @@
 // SliderElement::UpdateNumber, RibbonElement::AddItem, ListElement::AddItem/
 // DrawHighlight, ScrollElement::GetBarLayout, TextDescription's non-virtual
 // CreateInstance applier, LayoutElement::GetChildLayout, EditElement::
-// SelectCharacter) and reaches fields by name; each registered door is a
-// one-line QUALIFIED delegation. (`??0TextElement`'s door was retired by
-// ENDGAME B.3.9 UI-A: TextElement's real ctor.) The ButtonDescription and
-// NumberElement notes above are history: that applier moved to
-// buttondescription.cpp in block C1, and the NumberElement ctor/CacheText
-// live in numberelement.cpp.
+// SelectCharacter) and reaches fields by name. TextElement's ctor is in
+// TextElement.h. The ButtonDescription and NumberElement notes above are
+// history: that applier moved to buttondescription.cpp in block C1, the
+// NumberElement ctor is in NumberElement.h and its CacheText in
+// numberelement.cpp.
 // ============================================================================
 
 #include <cstddef>
@@ -125,8 +118,6 @@
 #include "ui/TableElement.h"
 #include "ui/TextDescription.h"
 #include "ui/TextElement.h"
-// B6-5 door caches (AtomicExport) and the ResolveAddr declaration this file
-// used to spell for itself.
 #include "element_common.h"
 
 namespace {
@@ -172,9 +163,8 @@ void SetNeedsSizeCalcChain(UI::Element* elem) {
 
 // The three `Collection::Array<T>::SetSize(n)`-then-fill-the-new-tail helpers
 // retail inlines a call to. All three are ported in
-// src/engine/collection/array.cpp and registered BY ADDRESS (the template is
-// header-only and exports nothing under any name), so `ResolveAddr` is the only
-// door there is and it is registry-first.
+// src/engine/collection/array.cpp (the template is header-only and exports
+// nothing under any name) and are called here by name.
 //   0x180076900  stride 8, zero-then-assign   (kSpec_Fill8Z)
 //   0x180023830  stride 4                     (kSpec_Fill4)
 //   0x180024fe0  stride 8
@@ -536,7 +526,6 @@ namespace {
 int32_t ScrollSpriteExtent(const ::Sprite& sprite, bool vertical) {
     const int32_t idx = sprite.spriteIndex;
     if (idx < 0) return 0;                                         // 18011a3a8 JNS / else 0
-    // LEFT: UI::Sprite::spriteSheet is void* (Sprite.h, R-UI-b).
     const UI::SpriteSheet* sheet = sprite.spriteSheet;
     // `SpriteInfo` lives at GLOBAL scope in src/engine/ui/SpriteSheet.h, not
     // in namespace UI, and its sizeof is static_asserted there to be 0x38 —
@@ -651,8 +640,8 @@ void TextDescription::CreateInstance(Object::InternalPtr<TextElement>* element,
     elem->CacheText();                                             // 18011eff7
 
     // Five more stores, each through its own re-read of the slot, and note the
-    // TWO SEPARATE BYTES at +0xe8 / +0xe9 (the ctor above writes them as one
-    // word) and that +0xf4 is written BEFORE +0xf0.
+    // TWO SEPARATE BYTES at +0xe8 / +0xe9 (retail's ??0TextElement, 0x18011eb80,
+    // writes them as one word) and that +0xf4 is written BEFORE +0xf0.
     element->Get()->_drawShadow   = _dropShadow;                          // 18011f00b  +0xe8 <- +0x84
     element->Get()->_wrap         = _wordWrap;                          // 18011f01b  +0xe9 <- +0x85
     element->Get()->_wordWrapSize = _wordWrapSize;                 // 18011f02a  +0xec <- +0x88

@@ -13,10 +13,12 @@
 //       owner's rulings 2026-10-25);
 //   (b) otherwise (a desktop screen narrower than the backdrop, a row too wide for the screen) the
 //       menu dialogs (the main / pause menu and the version line) are laid out inside a safe
-//       area 4.5 % of the screen height in from every edge, the column centred between the logo
+//       area (phone_math.h SafeMargin: ext.phone_menu_safe_margin, 3.375 % of the screen height by
+//       default) in from every edge, the column centred between the logo
 //       and the version line when it fits there (MenuBand), the version line moved to the
 //       bottom-left when the column cannot sit above it (VersionAside);
-//   (c) the Options UI scale slider goes down to 25 % (the UI four times larger than 100 %);
+//   (c) the Options UI scale slider goes down to at least 25 % (the UI four times larger than 100 %),
+//       or only to UiScaleFloorNow on a screen wider than the backdrop;
 //   (d) every other dialog (the in-game toolbar and event notices bottom-right, the autosave
 //       notice, the panels, tooltips and drop-downs, the front end's other dialogs) is kept
 //       inside the same safe area: an edge or corner anchor moves in by the margin, a dialog
@@ -33,7 +35,7 @@
 //       src/game/Dialog/extensionsdialog.cpp, docs/android/README.md "Saves").
 // Default OFF on a desktop; the Android first run switches it on (src/platform/android/
 // app_android.cpp). Live: every hook reads the row each time. Under the faithful profile the
-// engine seam stays null.
+// engine seams stay null.
 
 #include <cstdint>
 
@@ -47,9 +49,9 @@ class DialogInstance;
 namespace Ext {
 namespace PhoneMenu {
 
-// Boot only (registry_boot.cpp): installs UI::UserInterface::_extDialogPlace, _extBackdropOver and
-// _extDialogScale (ext.touch_mode's toolbar scale, then the tall-dialog fit), all null under the
-// faithful profile.
+// Boot only (registry_boot.cpp): installs UI::UserInterface::_extDialogPlace, _extBackdropOver,
+// _extDialogScale (ext.touch_mode's toolbar scale, then the tall-dialog fit) and _extHoverWhileDown, and
+// the slider and spinner seams (touch_size.h SyncTouchSize), all null under the faithful profile.
 void Sync();
 
 // MainMenuDialog::OnOpened (the main menu, and the pause menu with `pause`): the dialogs the
@@ -59,7 +61,7 @@ void MenuOpened(const UI::Dialog* menu, const UI::Dialog* buildId, bool pause);
 
 // OptionsDialog::OnOpened, after Platform::Display::UiScaleSliderRange: the slider's minimum
 // (percent) while the row is on: UiScaleFloorNow on a screen wider than the menus' backdrop,
-// else 25; `platformMinPercent` unchanged with the row off.
+// else the lower of `platformMinPercent` and 25; `platformMinPercent` unchanged with the row off.
 float UiScaleSliderMinimum(float platformMinPercent);
 
 // The lowest UI scale (percent, a multiple of 5) at which the menus still fit as rows of squares

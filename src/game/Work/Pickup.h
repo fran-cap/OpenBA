@@ -4,7 +4,7 @@
 //
 // Pickup — "carry this loose pile to storage" work: one citizen at a time
 // (status +0x48: 0 unassigned / 1 assigned / 2 completing; citizen +0x50;
-// candidate array +0x58). A REAL class with a compiler-generated vtable.
+// profession +0x58). A REAL class with a compiler-generated vtable.
 //
 // RETAIL (B38_SLOTS.md §6): reflected "Pickup", parent "Work", ti 0x1401c6be0,
 //   create 0x14002bfc0 (MemAlloc(0x60) + ctor 0x1400f3c00); createInPlace = the
@@ -18,9 +18,9 @@
 //   [9] 0x1400f2e20 Validate  [10] 0x1400f3a50 GetTarget  [11] 0x14002c000 GetPriority
 //   [12] 0x1400f3a70 — Pickup's OWN 40-byte body: the post-load re-key of the item
 //        into the Laborer bucket (WorkScheduler::Rekey 0x1400f8400).
-//   RawMaterialComponent's Draw (rawmaterialcomponent.cpp, outside this block) builds a
-//   Pickup BY HAND (MemAlloc(0x60), Work_Ctor25) and stamps 0x140161810; that
-//   registration serves Pickup::Vtable() (B38 D5).
+//   RawMaterialComponent::OnAdded (rawmaterialcomponent.cpp, outside this block) builds a
+//   Pickup on a MemAlloc(0x60) block with the default ctor below and Work::InitFromEntity
+//   (retail: Work_Ctor25, then a stamp of 0x140161810).
 // ============================================================================
 
 #include <cstdint>

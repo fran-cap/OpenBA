@@ -5,7 +5,7 @@
 // Vtable at 0x1401623f0.  GetVersion = 6.
 //
 // Field layout (from ctor FUN_140109f10 + Serialize 0x140109dd0):
-//   +0x20 float  speedScale        (default 0.25  = 0x3e800000)
+//   +0x20 float  _radius           (default 0.25  = 0x3e800000)
 //   +0x24 float  _headingOffset    (default 0.0;  high dword of the 8-byte ctor write at +0x20)
 //   +0x28 float  _turnFilter       (default 0.85  = 0x3f59999a)
 //   +0x2c float  _defaultAnimationBlendTime (default 0.1   = 0x3dcccccd)

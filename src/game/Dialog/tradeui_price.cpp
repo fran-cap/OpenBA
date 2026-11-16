@@ -1,13 +1,11 @@
 // src/game/Dialog/tradeui_price.cpp
 // Wave A — 0x14005a520, the per-resource PRICE lookup, plus its sub-callee
-// 0x14000ea80 and the diagnostic that can tell a correct port from a plausible
-// wrong one.
+// 0x14000ea80.
 //
-// ⚠ THE REGISTERED NAME IS WRONG. `fn_Building_GetSellableCount` does not count
-// anything sellable; it returns a PRICE. The name is kept because ~4 call sites use
-// it (UpdateSellTotals, RefreshSellSpinnerValues, RefreshSellTable, and the merchant
-// auto-buy routine at 0x140059ad0). An earlier comment in engine_funcs.h calling it
-// "queries available sell count" has already been corrected there.
+// ⚠ IT RETURNS A PRICE (TradeComponent::GetResourcePrice), not a count of anything
+// sellable. Its callers are UpdateSellTotals, RefreshSellSpinnerValues and
+// RefreshSellTable in tradeui.cpp, and the merchant auto-buy routine at 0x140059ad0
+// (TradeComponent::AutoTrade, tradecomponent_dock.cpp).
 //
 // ── What it returns, from the 0x14005a520 decompile + disassembly ─────────────
 //
@@ -39,13 +37,12 @@
 //
 // 2. When a resource has NO ValueDescription, retail reads `*(int*)(0 + 0x40)` — a
 //    real null dereference, on BOTH branches. Not a decompiler artifact. Standalone
-//    returns 0 there instead; that is a deliberate divergence, and the probe counts
-//    it so a town full of value-less resources cannot hide behind a quiet zero.
+//    returns 0 there instead; that is a deliberate divergence.
 //
 // ── DAT_140172124 = 0.75f ────────────────────────────────────────────────────
 // Read directly out of the image at 0x140172124: bytes 00 00 40 3f = 0x3f400000 =
-// 0.75f. That agrees with the independently-derived constant already in the tree at
-// standalone/reg_citizenai_actionctors.cpp:51. Two sources, one value, and it is
+// 0.75f. That agrees with the independently-derived constant already in the tree as
+// kRdata_140172124 (src/game/Game/exe_constants.h). Two sources, one value, and it is
 // below 1.0 as a discount must be.
 #include "object/Internal.h"   // Object::Base::Type (B.3.8 callers)
 #include "object/TypeInfo.h"
@@ -93,7 +90,6 @@ constexpr float kTradeDiscount = 0.75f;      // DAT_140172124
 } // namespace
 
 // The BANISHED_TRADE_PRICE_PROBE invariant probe was deleted with the flag (ENDGAME C).
-// src/diag/tool_harness.cpp still calls the report entry point; the stub goes with it.
 
 
 // ── 0x14005a520 ──────────────────────────────────────────────────────────────

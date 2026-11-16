@@ -4,50 +4,33 @@
 //
 // WHAT THIS FILE HAS TO ESTABLISH
 // -------------------------------
-// B.3.4b turns `System::Thread` and `System::CriticalSection` into real C++
-// classes while the PODs (`RtSystem::Thread`, `RtSystem::CriticalSection`) stay
-// live for every unconverted user, and while FOUR construction sites keep
-// stamping a hand-built or minted vtable over +0x00:
+// `System::Thread` and `System::CriticalSection` are real C++ classes. Every
+// Thread in the build is a C++ subclass built by `: System::Thread(stackSize)`
+// (Engine::Loader, Audio::Stream, IO::PersistenceWorker, the exe
+// PathfinderThread), wearing the compiler's tables (src/engine/system/thread.cpp).
 //
-//   src/game/Game/pathfinder_seed.cpp:142-148     exe table 0x14015ef18
-//   src/engine/engine/singleton_ctors.cpp:448-450 0x180155860 over +0x10
-//   standalone/rt_data_mint.cpp:434-461            ??_7Loader@Engine@@6B@
-//   src/engine/audio/audio_stream.cpp:303-341 Audio::Stream's own
-//
-// plus two readers of the BASE table 0x180155f20 — `thread_win.cpp`'s
-// `RtSystemThreadVftable()` (by name) and
-// `src/engine/io/persistence_worker.cpp:585-589` (by address).
-//
-// So the step is only sound if GCC's compiler-generated vtable for a class
-// declared per ENDGAME §B.1 decision 2 is interchangeable, slot for slot, with
-// a hand-built `void*[2]` at retail's byte offsets — in BOTH directions:
+// So what has to hold is that GCC's compiler-generated vtable for a class
+// declared per ENDGAME §B.1 decision 2 puts each slot at retail's byte offset:
 //
 //   A. a raw caller reading `(*(void***)t)[1]` off a REAL `System::Thread`
-//      lands on that class's slot-1 override, `this` unadjusted;
-//   B. a REAL class's ordinary virtual call on an object whose vptr was stamped
-//      with a hand-built array of free functions lands on those free functions.
-//
-// Direction B is the one every live Thread depends on, because every live
-// Thread in this build wears a MINTED or a DERIVED table, never GCC's.
+//      lands on that class's slot-1 override, `this` unadjusted.
 //
 // THE RETAIL SLOT LIST BEING MIRRORED
 // -----------------------------------
-// `??_7Thread@System@@6B@` @ 0x180155f20, TWO slots, from
-// `standalone/rt_data_mint_tables.inc:3711-3717`:
+// `??_7Thread@System@@6B@` @ 0x180155f20, TWO slots:
 //
 //   [0] +0x00  0x18007ec28  `_purecall`  -> `virtual void Run() = 0`
-//              The NAME is evidence, not a guess: the one derived table this
-//              tree holds is `??_7Loader@Engine@@6B@`, whose slot-0 override is
-//              exported as `?Run@Loader@Engine@@UEAAXXZ` @ 0x1800dbfc0
-//              (standalone/rt_export_addrs.inc:3695).
-//   [1] +0x08  0x18000c590  RT_MINT_NAMED
+//              The NAME is evidence, not a guess: the derived table
+//              `??_7Loader@Engine@@6B@` has its slot-0 override exported as
+//              `?Run@Loader@Engine@@UEAAXXZ` @ 0x1800dbfc0.
+//   [1] +0x08  0x18000c590
 //              `?OnCompleted@Thread@System@@UEAAXXZ` -> `virtual void OnCompleted()`
 //
 // Full derivation and the rules: docs/history/endgame_b/B34B_RULES.md
 // §1.1, §2 and rules B4b-1 / B4b-2 / B4b-3.
 //
 // WHAT THIS FILE DOES NOT TEST. Nothing behavioural: `Start`, `WaitForFinish`,
-// `ThreadFunc`, `Lock` and `Unlock` all need live Win32 objects and are stubbed
+// `ThreadFunc`, `Lock` and `Unlock` all need live OS objects and are stubbed
 // to `abort()` in `system_abi_stubs.cpp`. Their bodies are verified by the real
 // run, not here. This file is about LAYOUT and SLOT ORDER, which is the part a
 // build cannot catch on its own.
@@ -58,9 +41,9 @@
 
 #include "system/Thread.h"
 #include "system/Value.h"   // B.3.4b SYSTEM (3), PART E
-#include "system/WideString.h"  // B.3.4b SYSTEM (4a), PART G
+#include "system/WideString.h"  // B.3.4b SYSTEM (4a)
 #include "system/Compression.h" // B.3.4b SYSTEM (4b), PART H
-#include "system/Configuration.h" // B.3.4b SYSTEM (4c), PART I
+#include "system/Configuration.h" // B.3.4b SYSTEM (4c)
 #include "system/Timer.h"   // B.3.4b SYSTEM (4), PART F
 #include "system/Crc.h"
 #include "system/Error.h"
@@ -117,26 +100,20 @@ UNIT_TEST(system_criticalsection_is_0x28_bytes_no_vptr_real_ctor_and_dtor) {
 // ===========================================================================
 
 UNIT_TEST(system_thread_is_abstract_which_is_what_forbids_constructing_one) {
-    // B4b-2/B4b-3. A concrete polymorphic class would have an implicit PUBLIC
-    // default constructor, so `System::Thread t;` would compile and stamp GCC's
-    // vtable on an object every live path expects to be wearing the MINTED one
-    // — with no build error at all. Abstract is what makes that a hard compile
-    // error, and retail's slot 0 really is `_purecall`, so abstract is also the
-    // faithful shape rather than a trick.
+    // B4b-2/B4b-3. Abstract makes `System::Thread t;` a hard compile error
+    // (Thread.h), and retail's slot 0 really is `_purecall`, so abstract is also
+    // the faithful shape rather than a trick.
     CHECK(std::is_abstract<System::Thread>::value);
     CHECK(std::is_polymorphic<System::Thread>::value);
     CHECK(!std::is_default_constructible<System::Thread>::value);
 
-    // The POD is NOT abstract and NOT polymorphic — it is what the four
-    // construction sites and `ThreadFunc` still write `self->vtable` through.
 }
 
 UNIT_TEST(system_thread_has_no_virtual_destructor_so_oncompleted_stays_at_slot_1) {
     // ENDGAME decision 2, stated as a measurement rather than a comment.
     // Itanium spends TWO slots on a virtual destructor, so declaring one on
-    // `System::Thread` would push `OnCompleted` from slot 1 to slot 3 and
-    // silently mis-aim `ThreadFunc`'s `vtAfter[1]` and every minted row that
-    // fills slot 1 with 0x18000c590. The guard is that slot 1 of a real probe
+    // `System::Thread` would push `OnCompleted` from slot 1 to slot 3, off
+    // retail's slot 1 (0x18000c590). The guard is that slot 1 of a real probe
     // IS the slot-1 override (PART C below proves it) AND that the class has no
     // virtual destructor to begin with.
     CHECK(!std::has_virtual_destructor<System::Thread>::value);
@@ -151,9 +128,7 @@ UNIT_TEST(raw_slot_0_and_slot_1_on_a_real_thread_reach_run_and_oncompleted) {
     g_probeRunCalls = 0;
     g_probeOnCompletedCalls = 0;
 
-    // Exactly what `ThreadFunc` (0x1800ca440) does on every worker pass, and
-    // what `persistence_worker.cpp` and the pathfinder do to a Thread they
-    // built themselves.
+    // Exactly what retail's `ThreadFunc` (0x1800ca440) does on every worker pass.
     RawSlot(&probe, 0)(&probe);
     CHECK_EQ(g_probeRunCalls, 1);
     CHECK_EQ(g_probeOnCompletedCalls, 0);
@@ -172,19 +147,16 @@ UNIT_TEST(raw_slot_0_and_slot_1_on_a_real_thread_reach_run_and_oncompleted) {
 // PART E — B.3.4b SYSTEM (3): the value types.
 // ===========================================================================
 // `System::Random`, `Time`, `Color` and `DateTime` have NO vtable, so there is
-// no slot order to pin and nothing here resembles PARTS C and D. What there IS
+// no slot order to pin and nothing here resembles PART C. What there IS
 // to pin is the thing a build can get wrong silently: that each class is the
 // same bytes as the POD the unconverted tree still reads through a cast, and
 // that none of them acquires a vptr, a virtual, or a destructor.
 //
-// NO MEMBER IS CALLED HERE, deliberately. Their bodies live in
-// `src/engine/system/value_types.cpp`, which includes <windows.h> and stands
-// on the port registry (`RT_EXPORT_ONCE` for `Timer::TicksToSeconds`,
-// `String::Format`, the two DateTime siblings) and cannot link into a host test
-// — the same reason `object_ptr_test.cpp` and `set_test.cpp` are header-only.
-// The MT19937 draw, the tick conversion and the three date formats are verified
-// by the real run. This part is layout, and layout is what a static_assert can
-// carry but a deleted static_assert cannot report.
+// NO MEMBER IS CALLED HERE. Their bodies live in
+// `src/engine/system/value_types.cpp`, which the unit host links for
+// `random_test.cpp` (the real MT19937 draw; tests/unit/sources.cmake). This part
+// is layout, and layout is what a static_assert can carry but a deleted
+// static_assert cannot report.
 
 UNIT_TEST(system_random_is_0x9c4_bytes_and_aliases_the_global_pod) {
     CHECK_EQ(sizeof(System::Random), sizeof(::Random));
@@ -213,15 +185,12 @@ UNIT_TEST(system_time_is_8_bytes_over_the_shared_global_struct_Time) {
     CHECK_EQ(offsetof(System::Time, _ticks), offsetof(::Time, ticks));
     CHECK(!std::is_polymorphic<System::Time>::value);
     CHECK(std::is_standard_layout<System::Time>::value);
-    // The ~132 `fn_Time_Ctor_Float` sites build these in RAW BYTE BUFFERS and
-    // convert as placement-new; a non-trivial default constructor or a
-    // destructor would change what those buffers cost.
     CHECK(std::is_trivially_default_constructible<System::Time>::value);
     CHECK(std::is_trivially_destructible<System::Time>::value);
 }
 
 UNIT_TEST(the_value_classes_write_the_same_bytes_the_pods_read) {
-    // The live mixed state, as PART D does for Thread: written through the POD
+    // The live mixed state: written through the POD
     // spelling (what the unconverted tree does) and read back through the
     // class, and the reverse. This is the whole coexistence claim for a class
     // with no vtable.
@@ -279,10 +248,8 @@ UNIT_TEST(the_all_static_system_classes_stay_empty_and_non_polymorphic) {
 }
 
 UNIT_TEST(system_crc_compute_matches_the_standard_crc32_check_vector) {
-    // THE ONE BEHAVIOURAL TEST IN THIS FILE, and it is possible because
-    // `crc.cpp` is the only one of B.3.4b's six converted files that links on
-    // the host: no <windows.h>, no RT_DATA_SLOT, no platform call, and its two
-    // registration calls are stubbed. So this runs the REAL
+    // THE ONE BEHAVIOURAL TEST IN THIS FILE: the unit host links `crc.cpp`
+    // (tests/unit/sources.cmake), so this runs the REAL
     // `System::CRC::Compute` member, not a copy of it.
     //
     // "123456789" is the standard CRC-32 check vector and 0xCBF43926 is its
@@ -312,15 +279,14 @@ UNIT_TEST(system_crc_compute_matches_the_standard_crc32_check_vector) {
 // ===========================================================================
 // The one 4b class whose live instance is a HEAP object and whose size is
 // pinned by a call site rather than by a POD: both constructors in the tree do
-// `MemAlloc(8, 4)` and hand those eight bytes to the `??0` door
-// (`src/engine/io/compressed_stream_write.cpp:629-633` and
-// `src/engine/save/saveload_meta.cpp:395-398`). Neither file can be told the
+// `MemAlloc(8, 4)` and placement-new the class into those eight bytes
+// (`src/engine/io/compressed_stream_write.cpp` and
+// `src/engine/save/saveload_meta.cpp`). Neither file can be told the
 // class grew, so `sizeof == 8` is not a tidiness assert — it is the contract
 // with two allocations that are out of this step's file set.
 //
 // Nothing is constructed here: the constructor allocates 0x40000 bytes through
-// the port registry's MemoryAllocator door, so `compression.cpp` does not link
-// on the host. The codec itself was verified against the shipped DLL by the
+// `RtSystem::RtMemAlloc`. The codec itself was verified against the shipped DLL by the
 // Wave-9 / Wave-22 oracles and is verified today by every package the game
 // loads.
 
@@ -335,8 +301,8 @@ UNIT_TEST(system_compression_is_one_pointer_and_must_stay_eight_bytes) {
     // happens somewhere else — and it would run on top of it.
     CHECK(std::is_trivially_destructible<System::Compression>::value);
 
-    // The constructor IS ported and IS registered, so the class is not
-    // default-constructible-by-accident in the trivial sense: the door
-    // placement-news it, which is what makes the 0x40000 table appear.
+    // The constructor IS ported, so the class is not
+    // default-constructible-by-accident in the trivial sense: its two callers
+    // placement-new it, which is what makes the 0x40000 table appear.
     CHECK(!std::is_trivially_default_constructible<System::Compression>::value);
 }

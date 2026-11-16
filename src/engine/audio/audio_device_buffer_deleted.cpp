@@ -59,10 +59,6 @@
 //       if (cb) cb(ch, ch->userData, ch->userValue);   // `this` is the CHANNEL
 //   }
 //
-// ORACLE: NONE, for `Device::Update`'s reason — this fires stored completion
-// callbacks and releases a COM voice. A replay is a second side effect, not a
-// comparison. the diff oracle records how many calls matched a channel at all;
-// the overwhelming majority of SoundBuffer deletions match none.
 // ############################################################################
 namespace Audio {
 

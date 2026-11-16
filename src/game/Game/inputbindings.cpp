@@ -10,8 +10,8 @@
 //
 // All 50 bindings are reproduced verbatim from the Ghidra decompile.
 //
-// This is the implementation of that function. RunGameMain calls us right after
-// Engine::Startup so OptionsDialog can poll hotkey bindings without crashing.
+// This is the implementation of that function. GameContainer_Init (loader_loop_stubs.cpp)
+// calls it last; OptionsDialog (optionsdialog.cpp) calls it too.
 
 #include "inputbindings.h"
 #include <cstdint>
@@ -112,9 +112,7 @@ static_assert(kBindingCount == 50, "Banished has exactly 50 default bindings");
 } // namespace
 
 void RegisterDefaultInputBindings() {
-    // Resolve the actual KeyMap via the same triple-deref pattern the
-    // original exe uses. See CLAUDE.md note about External reference
-    // indirection levels.
+    // The KeyMap is the one Input::Configuration::_singleton holds.
     if (Input::Configuration::_singleton == nullptr) {
         printf("[InputBindings] FATAL: Input::Configuration::_singleton not initialized\n");
         return;

@@ -16,7 +16,7 @@
 // disassembly rather than carried across:
 //
 //   ??_7RibbonDescription@UI@@6B@ (retail 0x180156ed0), ten slots:
-//     0  deleting dtor      0x180044620  deleting_dtor.cpp row (sizeof 0x80)
+//     0  deleting dtor      0x180044620  here (the class's own; sizeof 0x80)
 //     1  TypeName           0x180044130  here
 //     2  Type               0x180044110  here
 //     3  GetFileVersion     0x1800d5ef0  here  (returns 0x204, NOT Group's 0x104)
@@ -33,12 +33,8 @@
 // RibbonElement fields each one seeds).
 //
 // ENDGAME B.3.6 block C5: every slot body MOVED into the members of the real
-// `UI::RibbonDescription`; each registered door is a one-line QUALIFIED
-// delegation. The dtor stays a door (B4b-2).
+// `UI::RibbonDescription`.
 //
-// NOT HERE: `?CreateNewObject@RibbonDescription@UI@@` / `?CreateInPlaceObject@`
-// are already ported and registered, table-driven, by
-// src/engine/ui/factory_ui1.cpp.
 // ============================================================================
 #include <cstddef>
 #include <cstdint>

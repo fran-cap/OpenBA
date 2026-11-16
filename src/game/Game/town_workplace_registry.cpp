@@ -5,19 +5,19 @@
 // node insert. This is the piece that makes spawned workplaces FINDABLE by the
 // citizen employment finders (FindAvailableBuilding 0x14008d100 / FindWorkplace
 // core sub_1930 0x140111930), which is the gate for citizens to get jobs and stop
-// random-wandering. See docs/history/plans/ECONOMY_PLAN.md + reference_town_registry_node_create.
+// random-wandering. See docs/history/plans/ECONOMY_PLAN.md.
 //
-// The AVL insert cluster it depends on is ALREADY ported+registered (Keystone A):
+// The AVL insert cluster it depends on is ported (Keystone A):
 //   0x140017230  wrapper (ResidenceComponent_impl_7230, keystone_a_restree.cpp)
 //   0x1400172f0  find-or-create   0x140017460 node-alloc   0x140014b40 rebalance
-//   0x140003110  growable-array 8-byte value append (ActHunt_DynArraySetCount_3110)
+//   0x140003110  growable-array 8-byte value append (SetSizeFill)
 // TownManager (= Ghidra-mislabeled TradeComponent) = *(gameWorld+0xf0); ctor
 // 0x140090a30 (already Load step 10). Node = 0x38 bytes: +0x00 key(profession id) /
 // +0x08 array.data / +0x10 count / +0x14 cap / +0x18 parent / +0x20 left /
 // +0x28 right / +0x30 balance.
 
-#include "Action/exe_bodies.h"    // ActHunt_DynArraySetCount_3110
-#include "Component/exe_bodies.h" // ResidenceComponent_impl_7230, AttendanceComponent_GetJobHostComponent
+#include "Action/exe_bodies.h"
+#include "Component/exe_bodies.h"
 #include "Tutorial/exe_bodies.h"  // (WorkComponent_CalcMaxWorkers went in B6: the member is called)
 #include <new>
 #include "Entity/exe_bodies.h"
@@ -36,17 +36,15 @@
 #include "Entity/ComponentEntity.h"
 
 // Called by name:
-//   0x140017230 ResidenceComponent_impl_7230 -- Keystone-A insert wrapper; returns param_2
-//               (&out), *out = the found/created node (Component/exe_bodies.h)
-//   0x140003110 ActHunt_DynArraySetCount_3110 -- growable 8-byte-element array: set count
-//               to newCount + append *elem (Action/exe_bodies.h)
-//   0x140089470 TownRegistry_ShuffleProfessionList -- per-profession building-list
+//   0x140017230 ResidenceComponent_impl_7230 -- Keystone-A insert wrapper, reached through
+//               InsertCitizenBucket; *out = the found/created node (Entity/CitizenBehavior.h)
+//   0x140003110 entities.SetSizeFill -- growable 8-byte-element array: set count
+//               to newCount + append *elem
+//   0x140089470 CitizenBehavior::ShuffleProfessionList -- per-profession building-list
 //               shuffle; FindAvailableBuilding calls it unconditionally, as retail
 //               0x14008d11b (B8 RES, row 1061: the BANISHED_LIVE_SEAT_SHUFFLE gate is gone)
-//   0x14012e5c0 WorkComponent_CalcMaxWorkers -- max worker slots (Tutorial/exe_bodies.h;
-//               the registered, live one of the two bodies of this address)
-//   0x140002e10 AttendanceComponent_GetJobHostComponent -- find the job host into an
-//               IBP (Component/exe_bodies.h)
+//   0x14012e5c0 WorkComponent::CalcMaxWorkers -- max worker slots (Component/WorkComponent.h)
+//   0x140002e10 FindComponent<WorkPlaceComponent> -- find the job host into an IBP
 
 namespace {
 

@@ -82,7 +82,7 @@
 //   0x140105ed0 AnimalComponent::ReleaseToWander  0x1401240a0 LivestockComponent::PenInPasture
 //   0x140128570 PastureComponent::ComputeCapacity
 //   0x14012fc00 WorkPlaceComponent_SetAccepting
-//   0x14009f770 MapGrid_StampCellRefs_9f770 (below)
+//   0x14009f770 Map::StampCellRefs (below)
 //   0x140123070 Pf_RecursiveChildSum_123070 (footprint cell count)
 //   0x140122e20 Pf_EntityResolvePos_2e20     (footprint cell position)
 //   0x140006330 WorkAcc_FindComponent_6330   (RawMaterialDescription on a template)
@@ -97,10 +97,6 @@
 //   0x1400c48a0 EntityList_RegisterEntity_Impl
 //   0x1400c3720 ComponentEntity_CtorFromDescription
 //   .rdata 0x140172204 = 90.0f, the quarter-turn the dropped pile is rotated by.
-// LEFT (B.4 COMP-d): GameUpdateLoop m_citizenList / m_game / m_entityList are void* (W0
-// header); the Map's cells and RawMaterialComponent's quantity word (COMP-e) are
-// untyped; the leaves above take their
-// objects as int64_t / uintptr_t (other blocks' bodies).
 namespace {
 
 // The town manager at GameUpdateLoop+0xf0: the free-livestock list (+0x80), the pasture
@@ -164,7 +160,7 @@ void LivestockComponent::SetPasture(PastureComponent* const* pastureRef) {
 // pasture can take — behaviourally identical, no allocation.
 //
 // This is the path that turns the "easy start" free-roaming cows/sheep/chickens
-// (spawned by the start-config simple pool) into a stocked pasture.
+// (spawned by MapGenerator::SpawnStartingHerd) into a stocked pasture.
 // ============================================================
 void PastureComponent::AdoptWanderers() {
     CitizenBehavior* town = Town();

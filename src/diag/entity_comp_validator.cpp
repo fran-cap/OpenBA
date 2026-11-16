@@ -19,8 +19,7 @@
 // first call into the class on a load, so every lazily-resolved s_fn_* was
 // still null and the body null-guarded away every stream call -- consuming zero
 // bytes beyond the 13-byte InternalBasePtr header. Symmetric code, asymmetric
-// state. See reference_slot3_wrapper_must_resolve_first and keep
-// tools/slot3_resolver_audit.py clean.
+// state. Keep tools/slot3_resolver_audit.py clean.
 //
 // Do not resurrect the save-leg theory from this file. The probe below is still
 // worth keeping -- an entity whose componentCount includes a slot nothing
@@ -104,7 +103,7 @@ const char* TypeNameOf(const void* obj) {
 
 } // namespace
 
-// Called from ComponentEntity_Serialize on the SAVE leg, before the component
+// Called from ComponentEntity::Persist on the SAVE leg, before the component
 // IBP loop writes anything. Returns the number of bad slots found.
 extern "C" int EntityCompValidate(const ComponentEntity* entity, const ComponentDescription* desc,
                                   Object::InternalPtr<Component>* ibpArr, int count) {

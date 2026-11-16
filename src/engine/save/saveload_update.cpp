@@ -36,8 +36,8 @@
 //     so retail running second takes a DIFFERENT branch and the compare passes
 //     while the branch under test never ran.
 //
-// Each body below was written against the live sink (retired, B.4 R-IO):
-// every store goes through `out` and lands for real.
+// Each body below was written against the live sink (retired, B.4 R-IO);
+// every store is a plain assignment and lands for real.
 // ============================================================================
 
 #include <atomic>
@@ -87,9 +87,10 @@ using RtSaveDetail::ZeroTime;
 // re-declaration internal linkage and sever it from the real definition):
 //   kSpec_MetaData58              src/engine/collection/array.cpp
 //   RtColl_ArrayDtorElem_18002ac40  src/engine/collection/array_destroy.cpp
-// Both sit in `namespace rtcoll { ... }` there (non-static, non-anonymous),
-// and are not declared `extern`/forward-declared in any header this batch may
-// edit, so they are declared here instead. See the banners on `kSpec_MetaData58`
+// Both sit in `namespace rtcoll { ... }` there (non-static, non-anonymous).
+// kSpec_MetaData58 is also declared `extern` in collection/array_internal.h and
+// save/SaveLoad.h; RtColl_ArrayDtorElem_18002ac40 is declared in no header, so
+// it is declared here. See the banners on `kSpec_MetaData58`
 // and on `RtColl_ArrayDtorElem_18002ac40`'s call site below for why each is
 // used the way it is.
 namespace rtcoll { extern const ArraySpec kSpec_MetaData58; }
@@ -100,8 +101,8 @@ namespace {
 
 // ---- dependencies, all of them REAL exports in the shipped table -----------
 // Checked with pefile against C:\GOG Games\Banished\Runtime-x64.dll before
-// each name was written down, never copied out of Ghidra's demangler
-// (reference_resolveexport_phantom_names.md). Every one is called by name.
+// each name was written down, never copied out of Ghidra's demangler.
+// Every one is called by name.
 //
 // B.4 R-IO: the live sink (`src/engine/rt_sink.h`) these bodies were
 // written against is gone from this file. It was a pass-through left over from
@@ -185,10 +186,9 @@ namespace {
 //
 // The guard is TWO conditions and both matter: the ImageBuffer pointer at
 // SaveInfo+0x18 must be non-null AND the int at SaveInfo+0x40 must be >= 0.
-// That second one is the same "has metadata been loaded for this row yet"
-// sentinel UpdateList uses at 0x1800c1f8c and 0x1800c2d2b; a row still waiting
-// on its metadata has a live ImageBuffer and an unloaded thumbnail, and
-// uploading it would push a garbage block at the GPU.
+// That second one is the same "is this row backed by a real save" sentinel
+// UpdateList uses at 0x1800c1f8c and 0x1800c2d2b; the blank "new save" row
+// carries -1 there (SaveLoad.h, SaveInfo +0x40).
 //
 // FIELDS THIS BODY PINS. SaveInfo+0x18/+0x20/+0x24/+0x28/+0x40 were all inside
 // the `unknown10`/`unknown40` holes that Wave 5's header declared explicitly
@@ -262,7 +262,7 @@ namespace {
 
 
 // ============================================================================
-// THE SAVE/LOAD WORKER ENQUEUE — two unexported internals, called by address.
+// THE SAVE/LOAD WORKER ENQUEUE — two unexported internals, called by name.
 // ----------------------------------------------------------------------------
 // 0x1800b7460 (load) and 0x1800b75c0 (save) are the same shape: copy the
 // filename into the Persistence worker's own String slot, reset its counters,
@@ -270,13 +270,7 @@ namespace {
 // worker's slot table, then ResetEvent/SetEvent to hand the job to the thread.
 // Neither is exported under ANY name — checked against the shipped export
 // table, not inferred from Ghidra's FUN_ prefix, because a source grep alone
-// cannot tell an unexported internal from an export nobody has ported yet
-// (reference_grep_cannot_tell_internal_from_unported_export.md).
-//
-// So they are ADDRESS doors, and they go through the port-aware ResolveAddr,
-// not through the raw image: ResolveAddr(Module::Runtime, a) consults the port
-// registry FIRST (reference_resolveaddr_consults_port_registry_first.md), so
-// the day either one is ported this file picks it up with no edit here.
+// cannot tell an unexported internal from an export nobody has ported yet.
 //
 // Their first argument is `persistence + 0x10`, NOT the Persistence itself.
 // That sub-object is the worker; passing the container would write the queue
@@ -305,8 +299,7 @@ using NameGetterFn    = const char** (*)(const SaveLoad* self, const char** ret)
 // for what the disassembly shows as three registers
 // (0x1800c25e6: `LEA R8,[RBX+0x70]` is the NAME; `LEA RDX,[RSP+0x50]` is the
 // slot). A typedef that omits the slot is a wild write that still returns the
-// right answer, which is why it survives testing
-// (reference_hidden_retslot_wild_write.md). Confirmed register by register in
+// right answer, which is why it survives testing. Confirmed register by register in
 // the disassembly of both call sites before these lines were written.
 
 // ============================================================================
@@ -418,26 +411,16 @@ namespace {
 //
 // NONE of the three is exported — checked with pefile against the shipped
 // table, not inferred from Ghidra's `FUN_` prefix, because a source grep
-// cannot tell an unexported internal from an export nobody has ported yet
-// (reference_grep_cannot_tell_internal_from_unported_export.md).
+// cannot tell an unexported internal from an export nobody has ported yet.
 //
-// ALL THREE ARE ALREADY WRITTEN. `src/engine/io/modification.cpp` (Wave 9
-// lane MOD) ports them as RtIo_Mod_CopyCtor_1800101e0 / _Assign_180026ef0 /
-// _Dtor_180011460 and registers all three with RegisterRuntimeAddr. So these
-// doors go through the port-aware ResolveAddr, which consults the port
-// registry FIRST (reference_resolveaddr_consults_port_registry_first.md), and
-// this lane gets lane MOD's bodies without writing a line of Mod lifecycle
-// code or declaring a cross-lane symbol. Grepping for the port before planning
-// to write it is what this project's own
-// reference_grep_for_the_port_before_writing_it.md asks for, and it saved the
-// whole IO::Mod deep-copy surface here.
+// ALL THREE ARE ALREADY WRITTEN. `src/engine/io/modification.cpp` ports them
+// as RtIO::Mod's copy ctor, operator= and destructor, called directly below.
 //
 // WHY NOT CALL ?Swap@Modification@IO@@QEAAXHH@Z, WHICH IS THE SAME FIVE LINES
 // AND IS ALSO PORTED. Because retail's UpdateLoad does not call it — it
 // INLINES the triple, including the dirty-flag store, and Swap is a separate
 // exported body at 0x1800aeb20 that this function never reaches. Routing
-// through it would be a normalisation, and it would also nest lane MOD's own
-// RT_DIFF shadow site inside this file's predictive round.
+// through it would be a normalisation.
 // ----------------------------------------------------------------------------
 // B.4 acceptance MOD: the three are RtIO::Mod's copy ctor, operator= and
 // destructor (Modification.h / modification.cpp).
@@ -515,12 +498,12 @@ namespace {
 //    arguments shift right by one; for the FREE function `operator+` the slot
 //    is the FIRST argument in RCX and lhs/rhs follow in RDX/R8. A typedef that
 //    omits the slot is a wild write that still returns the right answer, so it
-//    survives testing (reference_hidden_retslot_wild_write.md). Every one of
+//    survives testing. Every one of
 //    the four was read register by register out of the disassembly.
 //
 // 3. `MOVSXD RCX,dword ptr [R13 + 0x48]` — the selected index is SIGN-extended
 //    at all three of its uses in this body. Ghidra's C prints it as a zero
-//    extension (reference_ghidra_c_output_vs_disassembly.md), which would turn
+//    extension, which would turn
 //    this class's live -1/-2/-4 sentinels into four-billion-element strides.
 //    `_saves._data[index]` with a signed int index does the sign extension.
 //
@@ -591,9 +574,9 @@ namespace {
 //     reads: every String this body creates is released before the iteration
 //     ends, so when the DLL runs afterwards there is nothing of ours for it to
 //     see. Suppressing them instead would leave `work.data` null and the
-//     search would compare nothing, which is the failure mode
-//     reference_uniform_population_is_not_a_verification.md is about — a scan
-//     that "matches" because every subject is empty.
+//     search would compare nothing: a uniform population, which cannot tell a
+//     wrong port from a right one — a scan that "matches" because every
+//     subject is empty.
 //
 // ----------------------------------------------------------------------------
 // RUN EVIDENCE, 2026-09-09, three runs on the BANISHED_AUTOLOAD=Auto route
@@ -608,7 +591,7 @@ namespace {
 //      objection this project has been burned by:
 //        changed=7 of 7 — EVERY prediction differed from its pre-value, so not
 //          one of them could be satisfied by the DLL doing nothing. There is no
-//          vacuous green here (reference_probe_needs_an_effectiveness_control).
+//          vacuous green here.
 //        unpredicted=0 — the coverage control. Across the watched SaveLoad
 //          (0x90) and IO::Modification header (0x18), the DLL changed NO byte
 //          this body failed to predict. Predictions alone are a lower bound;
@@ -641,8 +624,9 @@ namespace {
 // things and neither is free: mods mounted in WinData (for the clear loop and
 // the search), and a save RECORDED while they were mounted (for the reorder;
 // the recorded list is what the loop walks). The second one also collides with
-// reference_mods_off_breaks_save_loading.md, so it wants its own lane and its
-// own copy of the game directory, not a corner of this one.
+// the mods-missing prompt, which stalls the load of such a save once its mods
+// leave WinData, so it wants its own lane and its own copy of the game
+// directory, not a corner of this one.
 // ============================================================================
 }  // namespace
 
@@ -849,11 +833,10 @@ namespace {
 //    stay signed.
 //
 // 2. THE NAME FALLBACK IS A THREE-WAY, and the middle arm is easy to miss: for
-//    a normal index, retail uses the existing row's name ONLY IF that row's
-//    metadata is loaded (`SaveInfo+0x40 >= 0`); otherwise it GENERATES a new
-//    name. Collapsing that to "use the row's name" would silently write an
-//    empty display name over every save made into a row the list had not
-//    finished reading.
+//    a normal index, retail uses the existing row's name ONLY IF that row is
+//    backed by a real save (`SaveInfo+0x40 >= 0`); otherwise (the blank "new
+//    save" row) it GENERATES a new name. Collapsing that to "use the row's
+//    name" would write the blank row's empty name onto every new save.
 //
 // 3. THE `String` PASSED TO SaveMetaData IS BY VALUE, and this port does NOT
 //    release it. The caller retains it (`INC dword ptr [RAX-0x4]`) and then
@@ -879,8 +862,8 @@ void Save::SaveLoad::UpdateSave() {
 
     if (progress == Progress::Start) {
         // A BYTE store (`MOV byte ptr [RBX+0x7c],1`), matching the ctor's byte
-        // store of 0 into the same field — the upper three bytes of
-        // _captureFlags are never written by anything in this class.
+        // store of 0 into the same field — the three bytes after it (pad7d)
+        // are never written by anything in this class.
         _captureFlags = 1;
 
         // `MOV RCX,[RBX+0x60]` (the sheet) then `MOV RAX,[RCX+0x20]` (its entry
@@ -895,8 +878,8 @@ void Save::SaveLoad::UpdateSave() {
 
     if (progress == Progress::SaveSerialize) {
         // The capture has not landed yet — retail simply returns and retries
-        // next tick. This is the handshake with Draw(), which is the function
-        // that fills _capturePixels and which this project holds back.
+        // next tick. This is the handshake with Draw() (saveload_draw.cpp), the
+        // function that fills _capturePixels.
         void* pixels = _capturePixels;
         if (pixels == nullptr) return;
 
@@ -1091,21 +1074,14 @@ namespace {
 // ----------------------------------------------------------------------------
 // Every address below was checked against the SHIPPED export table with pefile
 // before it was called by address, because a source grep cannot tell an
-// unexported internal from an export nobody has ported yet
-// (reference_grep_cannot_tell_internal_from_unported_export.md). Result: five
+// unexported internal from an export nobody has ported yet. Result: five
 // of these are genuinely absent from all 4,800+ exports, and everything else
 // UpdateList calls turned out to be a plain named export and is resolved by
 // name below.
 //
 // THREE OF THEM ARE ALREADY OURS. `src/engine/save/saveload.cpp` has ported
-// and registered 0x1800329c0 (Array<SaveInfo>::~Array), 0x1800c3f40 (~SaveInfo)
-// and 0x1800331f0 (Array<ModInfo>::~Array) since Wave 5. Re-porting them here
-// would not merely duplicate work: a duplicate RegisterRuntimeAddr is
-// last-binding-wins, so it silently turns one of the two bodies into dead code
-// (reference_grep_for_the_port_before_writing_it.md). They are called through
-// `ResolveAddr(Module::Runtime, addr)`, which consults the port registry FIRST
-// (reference_resolveaddr_consults_port_registry_first.md), so these calls
-// already land in our code today with no edit here.
+// 0x1800329c0 (Array<SaveInfo>::~Array), 0x1800c3f40 (~SaveInfo)
+// and 0x1800331f0 (Array<ModInfo>::~Array); they are called directly by name.
 // ============================================================================
 
 // 0x1800329c0 — Collection::Array<SaveInfo>::~Array. PORTED (saveload.cpp).
@@ -1129,22 +1105,17 @@ namespace {
 // two Strings and its `ModInfo*` sub-array as raw pointers, so the
 // trait-derived `SpecFor<SaveInfo>()` would read `is_trivially_copyable` true
 // and silently drop retail's refcounting and nested-array release — exactly
-// the trap B32_RULES.md says never to fall into. `kSpec_MetaData58` has
-// external linkage (namespace rtcoll, array.cpp) but is not declared `extern`
-// in array_internal.h; declared locally rather than editing that header.
+// the trap docs/history/endgame_b/B32_RULES.md says never to fall into.
+// `kSpec_MetaData58` has external linkage (namespace rtcoll, array.cpp) and is
+// declared `extern` in array_internal.h and SaveLoad.h.
 //
-// `self->_savesData`/`_saves._size`/`_savesCapacity` (SaveLoad.h +0x50/+0x58/
-// +0x5c) are still three raw fields, not a `Collection::Array<SaveInfo>`
-// member — SaveLoad.h is not one of this batch's files, so the member call
-// below reaches them through the transitional
-// `reinterpret_cast<Collection::Array<SaveInfo>&>(...)` bridge (ENDGAME
-// §B.3.2's rule for a not-yet-retyped POD field), which is safe here because
-// the three fields sit at consecutive offsets 0/8/0xc exactly matching
-// `Collection::Array<T>`'s own {_data,_size,_capacity} layout (both pinned by
-// `static_assert` already). (Declared at file scope above the anonymous
-// namespace — see the note there.)
+// `_saves` (SaveLoad.h +0x50) is a `SaveInfoArray`: the
+// `Collection::Array<SaveInfo>` over
+// `Collection::ExplicitSpec<&rtcoll::kSpec_MetaData58>` (SaveLoad.h), so the
+// two call sites below are `_saves.SetSize(...)` member calls. (The spec is
+// declared at file scope above the anonymous namespace — see the note there.)
 
-// 0x1800c3de0 — SaveInfo::SetThumbnail(row, pixels, w, h). NOT ported, and NOT
+// 0x1800c3de0 — SaveInfo::SetThumbnail(row, pixels, w, h). Ported (saveload_saveinfo.cpp), and NOT
 // a small function: it allocates a Video::ImageBuffer, publishes it at row+0x18,
 // calls its vtable slot 9 to create the surface, and then uploads `pixels`
 // through the ImageBufferData vtable slot 5 under the Video::Device lock before
@@ -1160,18 +1131,17 @@ namespace {
 // (src/engine/collection/array_destroy.cpp), a J2 `~Array` — per-element
 // String release (`ReleaseStringsCounted` against `kD_Str_10at08`, "IO:
 // Persistence::SaveGameInfo {DateTime, String*@+8}") then the J1 buffer free.
-// NOT converted to a `Collection::Array<T>::~Array()` member call: the element
-// type has no name or header anywhere in this tree (Persistence+0x80 is bare
-// bytes, `IO::Persistence` is not a batch-2b file), and `kD_Str_10at08`
-// (array_destroy.cpp) is a `constexpr` at namespace scope, i.e. INTERNAL
-// linkage — it cannot be named from this translation unit at all, with or
-// without editing a header this batch does not own. Reached by declaring and
-// calling the already-ported free function directly, by name, instead of by
-// address; still not a member call, and this is why. (Declared at file scope
-// above the anonymous namespace — see the note there.)
+// NOT converted to a `Collection::Array<T>::~Array()` member call on its
+// receiver, `persistence->_worker._saves` (an `Array<RtIo::SaveGameInfo>`,
+// io/Persistence.h): `kD_Str_10at08` (array_destroy.cpp) is a `constexpr` at
+// namespace scope, i.e. INTERNAL linkage — it cannot be named from this
+// translation unit at all. Reached by declaring and calling the already-ported
+// free function directly, by name. (Declared at file scope above the anonymous
+// namespace — see the note there.)
 
-// 0x18007f050 — the DLL's own statically linked CRT `qsort`. Called by address
-// rather than through <cstdlib>'s: for a comparator that is not a total order
+// 0x18007f050 — the DLL's own statically linked CRT `qsort`. Called as its port,
+// RtCrt_Qsort_18007f050 (rt_libm.h), rather than through <cstdlib>'s: for a
+// comparator that is not a total order
 // (see below) the ORDER OF EQUAL ELEMENTS is an artefact of the sort algorithm,
 // and ucrt's qsort is not the one that shipped. The resulting row order is what
 // the save list shows the player, so it is observable.
@@ -1208,7 +1178,7 @@ using ComparatorFn = int (*)(const void*, const void*);
 // called directly (`RtSaveDetail::ArraySaveInfoDtor`, `SaveInfo::~SaveInfo`).
 // ENDGAME B.3.2 step 2: `ArraySaveInfoSetSize()`/`PersistenceClearSaveList()`
 // (the 0x1800332d0 / 0x18002ac40 address doors) are gone — their two call
-// sites below reach `rtcoll::AsArray<&rtcoll::kSpec_MetaData58>(...)` and
+// sites below reach `_saves.SetSize(...)` and
 // `rtcoll::RtColl_ArrayDtorElem_18002ac40(...)` directly. See the banners on
 // `kSpec_MetaData58` and `RtColl_ArrayDtorElem_18002ac40` above.
 // ENDGAME B.3.7 B2: `SaveInfoSetThumbnail()` / `SaveInfoComparator()` (the
@@ -1442,26 +1412,6 @@ void Save::SaveLoad::UpdateList() {
             rtcoll::RtColl_ArrayDtorElem_18002ac40(&persistence->_worker._saves);
             // The worker handshake, in retail's order: request code first, then
             // the result word, then the two events.
-            //
-            // THE SECOND PREDICTION IS KNOWN-FLAKY, and it is left in with its
-            // eyes open. `+0x48` is the word the WORKER THREAD writes when it
-            // finishes, so between retail's store of 0 and Verify()'s read the
-            // worker can have already put 1 back. Observed exactly once, in the
-            // this-test run:
-            //
-            //     MISMATCH ... Persistence+0x48 = 0 (result: pending)
-            //     pre=0x1 ours=0x0 theirs=0x1
-            //
-            // — note the ABSENCE of the "[SELF-TEST: corrupted on purpose]"
-            // tag, which is what says this one was real rather than the
-            // control. It is the same worker-thread race the banner names for
-            // states 3 and 4, showing up a third time, and it is a race in the
-            // OBSERVATION, not a disagreement about what retail stores: both
-            // bodies store 0 here. Forty-five uncorrupted rounds across two runs
-            // reported wrong=0, so it is rare. Excluding it would trade a rare
-            // false red for a permanent blind spot on the one handshake this
-            // state exists to perform; a reader who sees it go red on exactly
-            // this label should suspect the worker before suspecting the port.
             persistence->_worker._command = 4;   // request: list saves
             persistence->_worker._status  = static_cast<int32_t>(::IO::PersistenceWorker::Status::Pending);
 
@@ -1484,9 +1434,8 @@ void Save::SaveLoad::UpdateList() {
             alignas(SaveInfo) uint8_t blankStorage[sizeof(SaveInfo)];
             SaveInfo& blank = *new (blankStorage) SaveInfo(-1);
             // retail 0x1800332d0 — see the banner on `kSpec_MetaData58` above
-            // for the hand-derived-row reasoning and the `_savesData` bridge.
+            // for the hand-derived-row reasoning.
             _saves.SetSize(_saves._size + 1, blank);   // 0x1800332d0, the typed 3-arg form
-            // Not suppressed: see the banner. Its footprint is this stack local.
             blank.~SaveInfo();                        // 0x1800c3f40
         }
 
@@ -1717,8 +1666,8 @@ void Save::SaveLoad::UpdateList() {
 // ============================================================================
 // Save::SaveLoad::OnVideoError()        retail 0x1800c1000   (exported, NO caller)
 // ----------------------------------------------------------------------------
-// ENDGAME B.3.7 B2: defined so the class carries every export it declares; NOT
-// registered, because nothing reaches it — retail's own MainLoop::OnVideoError
+// ENDGAME B.3.7 B2: defined so the class carries every export it declares;
+// nothing calls it — retail's own MainLoop::OnVideoError
 // INLINES this very walk (src/engine/engine/mainloop_video.cpp, step 5).
 // Read whole from the retail bytes:
 //

@@ -4,38 +4,25 @@
 //   Application::Application::EnableCursor / LaunchProcess
 //   (PlatformUpdate moved to src/engine/application/application_platform.cpp, SDL W3)
 // ============================================================================
-// The members of this class that touch Win32 directly, so they live behind
-// the PLAN.md §4.1 decision 1 platform seam: <windows.h> must never appear in
+// The members of this class at the PLAN.md §4.1 decision 1 platform seam
+// (LaunchProcess's OS calls go through Platform::Process, see below): <windows.h> must never appear in
 // application.cpp (IsPaused/Quit, and since Phase D.4 THREADS E.4 SleepThread /
 // YieldToThreads, over the Platform:: time primitives).
 //
 //   ?EnableCursor@Application@1@QEAAX_N@Z     retail 0x18009f800   ord 2292
 //   ?LaunchProcess@Application@1@QEAA_NPEBD_N@Z retail 0x18009f5e0 ord 3179
 //
-// NONE OF THE FIRST THREE HAS AN ORACLE, and WAVE8.md §5 says so explicitly
-// before any lane started: "running both pumps two message loops or sleeps
-// twice."
-//   * PlatformUpdate drains the live Win32 message queue with PeekMessageW(…,
-//     PM_REMOVE) — a second call would eat the NEXT message, not the same one.
-//   * SleepThread and YieldToThreads block/yield the calling thread; calling
-//     the DLL's copy afterward would sleep or yield a second time for real.
-// All three are registered anyway (, matching the
-// ~SavedState precedent in src/engine/save/saveload.cpp — a site that is
-// counted by `calls=` but never compared) because each is unambiguous, short,
-// and reproduces retail's own Win32 call sequence exactly rather than
-// approximating it.
+// PlatformUpdate (application_platform.cpp) and SleepThread / YieldToThreads
+// (application.cpp) touch the OS the same way: PlatformUpdate drains the live
+// message queue and the other two block or yield the calling thread, so a second
+// run of any of them repeats its side effect for real
+// (docs/history/runtime_port/WAVE8.md §5).
 //
-// EnableCursor and LaunchProcess are Wave 12 lane C's two, and each needed a
-// DIFFERENT answer to "how do you oracle a function with a real side effect,
-// without performing that side effect twice":
+// EnableCursor and LaunchProcess are Wave 12 lane C's two:
 //   * EnableCursor's own body has NO direct Win32 call at all — see its own
 //     banner below — and is written against the live sink (rt_sink.h).
-//   * LaunchProcess spawns a real process or opens a real shell document; a
-//     predicting oracle cannot help because the state it changes (the OS
-//     process table, or whatever ShellExecuteW launches) is not a memory
-//     region either side could snapshot or restore. It is the diff oracle'd
-//     like the three above, for the same reason: calling the DLL's copy
-//     afterward would launch (or open) a SECOND time for real.
+//   * LaunchProcess spawns a real process or opens a real shell document
+//     through Platform::Process (see its banner).
 // ============================================================================
 
 // Phase D.4 SDL W7: no <windows.h>: LaunchProcess's CreateProcessW / ShellExecuteW are
@@ -82,9 +69,9 @@ using App = Application::Application;
 // and from decompile_function — the only CALL-shaped instruction is the tail
 // JMP through the found node's callback pointer). The Win32 calls the wave
 // brief's note pointed at happen one hop downstream, in whatever is
-// registered at WM_SETCURSOR: `src/render/dx11/devicedata.cpp:1105`
+// registered at WM_SETCURSOR: `src/render/dx11/devicedata.cpp`
 // (`DeviceData_OnSetCursor`) IS that registration —
-// `SetCursor(dd->cursor); ShowCursor(TRUE);` — and it ignores hwnd/msg/
+// `Platform::Cursor::Set(dd->cursor); Platform::Cursor::Show(true);` — and it ignores hwnd/msg/
 // wParam/lParam entirely, so the SAME two calls fire whether `enabled` is
 // going true or false. That is retail's own behaviour (the dispatch never
 // reads `enabled`, only the tree), not a defect this port introduces.
@@ -203,20 +190,10 @@ void Application::Application::EnableCursor(bool enabled) {
 //
 // BOTH WideString CONSTRUCTIONS (the literal "open", `cmd` itself on the
 // no-wait path, and the truncated ANSI buffer on the wait path) go through
-// the SAME already-ported call target, 0x1800cb110
-// (`RtSystem_WideString_CtorFromChars`, Wave 9 lane PLAT) — confirmed by
-// reading the same `CALL 0x1800cb110` at all three call sites
-// (0x18009f617, 0x18009f62d, 0x18009f73d). Its dtor is
-// `RtSystem_WideString_Dtor`, already used by platform_startup_win.cpp in
-// this same directory.
+// the SAME call target, 0x1800cb110 (`System::WideString`'s `const char*`
+// constructor) — confirmed by reading the same `CALL 0x1800cb110` at all three
+// call sites (0x18009f617, 0x18009f62d, 0x18009f73d).
 //
-// THE ORACLE: NONE, and the reason is structural, not awkward — running the
-// DLL's own copy afterward would spawn a SECOND real child process (wait
-// path) or open a SECOND real shell document (no-wait path). Neither side
-// effect lands in any memory region either implementation could snapshot or
-// restore.
-// the diff oracle'd like PlatformUpdate above and SleepThread/YieldToThreads (application.cpp), for
-// the identical reason.
 // ============================================================================
 // The verb literal @ 0x180154900 is "open"; Platform::Process::Open always opens
 // (SDL_OpenURL's ShellExecuteW verb is "open").
@@ -244,7 +221,7 @@ bool Application::Application::LaunchProcess(const char* cmd, bool wait) {
     } else {
         const System::WideString file(cmd);                    // 0x18009f617
         const System::String utf8 = file.AsUTF8();
-        // ShellExecuteW(NULL, verb "open" (kLaunchVerbOpen), file, NULL, NULL,
+        // ShellExecuteW(NULL, verb "open", file, NULL, NULL,
         // SW_SHOWDEFAULT) > 32, 0x18009f64d / 0x18009f6b7. SDL_OpenURL's verb is "open".
         ok = Platform::Process::Open(utf8._data);
     }
@@ -256,10 +233,9 @@ bool Application::Application::LaunchProcess(const char* cmd, bool wait) {
 // Application::Application::PlatformConstruct(void* platformHandle)
 // ?PlatformConstruct@Application@1@AEAAXPEAX@Z  retail 0x18009fbe0   ord 3331
 // ============================================================================
-// WAVE 12 LANE B. Four instructions, and the only body in this file that makes
-// no Win32 call at all — it is here because it is the `Platform*` seam by
-// retail's own architecture (a `_posix` twin would have a different one), not
-// because it needs <windows.h>.
+// WAVE 12 LANE B. Four instructions and no OS call — it is here because it is the
+// `Platform*` seam by retail's own architecture (a `_posix` twin would have a
+// different one), not because it needs <windows.h>.
 //
 //   18009fbe0: MOV  QWORD PTR [RCX],0x0        ; _windowHandle   = null
 //   18009fbe7: MOV  QWORD PTR [RCX+0x8],RDX    ; _platformHandle = arg
@@ -270,11 +246,7 @@ bool Application::Application::LaunchProcess(const char* cmd, bool wait) {
 // IT IS THE CONSTRUCTOR'S TAIL, LIFTED. `??0Application@0@QEAA@PEAX@Z`
 // (0x18009f590, ported in src/engine/engine/singleton_ctors.cpp) ends with
 // exactly these three stores in exactly this order — MSVC inlined the call.
-// That is why `calls=` for this site is zero on every run today: nothing in our
-// tree calls it, because retail's own only caller inlined it. The probe in
-// application_lifecycle_probe.cpp is what executes it, and unlike the other
-// four rows of this lane it gets a FULL BYTE-DIFF oracle, because the body is
-// three stores and no side effects.
+// Nothing in our tree calls it, because retail's own only caller inlined it.
 //
 // The 16-bit store is reproduced as a 16-bit store rather than as two byte
 // assignments. Single-threaded the two are indistinguishable, but this object

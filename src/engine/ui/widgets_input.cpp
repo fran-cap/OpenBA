@@ -28,90 +28,20 @@
 // ---------------------------------------------------------------------------
 // THE ORACLE
 // ---------------------------------------------------------------------------
-// Two shapes, argued per function in WAVE7_LANE_D.md §2:
-//
-//  (a) REPLAY for the seven pure getters: call ours, call the DLL's own body
-//      on the SAME (unmodified) object and compare the results. Safe
-//      because nothing here writes.
-//
-//  (b) PREFIX REPLAY for the ten mutators: memcpy the live object into a
-//      same-sized LOCAL scratch of this lane's own struct BEFORE our body
-//      runs, run our body on the real object, run the DLL's original on the
-//      scratch copy, and byte-compare over sizeof(OurStruct). Because both
-//      copies start byte-identical (a real memcpy of the SAME live bytes, not
-//      a freshly-constructed guess), ANY divergence in that range is a real
-//      behavioural difference regardless of how many of those bytes this lane
-//      has NAMED — same argument WAVE6_LANE_A.md gives for Video::Context.
-//      The one caveat, same shape as that lane's AddVertex note: where the
-//      mutator reaches a CHILD object through a shared pointer (Spinner's
-//      wrapped NumberEditElement, Radio's checkbox array), the scratch copy's
-//      pointer is the SAME address, so replaying the original touches the
-//      REAL child a second time. Every case here is checked to be idempotent
-//      under a repeated identical call before being ported this way; see
-//      WAVE7_LANE_D.md §2 for the per-function argument.
-//
-//      NOT done this way: anything that swaps a REFCOUNTED pointer (a
-//      shared string, a shared allocation). Replaying the original there
-//      would decrement/increment the SAME refcount a second time — wrong
-//      regardless of whether the first decrement freed it — which is exactly
-//      why `EditElement::SetText` is a documented NO-ORACLE port rather than
-//      a prefix-replay one (WAVE7_LANE_D.md §5).
-//
-//      *** THAT RULE WAS BROKEN IN THREE PLACES IN THIS FILE, and Wave 9
-//      lanes M and N found it the expensive way — the oracle handed the DLL a
-//      pointer our own call had already released, on every diff run of
-//      tutorials 1-3. The three were
-//      NumberElement::SetValue (both overloads), which reach the private
-//      NumberElement::CacheText, and NumberEditElement::SetMinMax, which
-//      reaches EditElement::SetText. All three are now NO-ORACLE ports; the
-//      full evidence is in the block above RtUi_NumberElement_SetValueInt and
-//      in docs/history/runtime_port/WAVE9_LANE_N.md. The rule was broken because
-//      NumberElement.h called the owning pointer at +0xD0 "padding, not
-//      reversed by this lane" — a layout gap is not a documentation problem
-//      when an oracle decision is taken from the header.
-//
-//      THE SWEEP (lane N, 2026-09-08). Every prefix replay in this file and in
-//      the rest of runtime/src was re-checked against ONE criterion: does the
-//      replayed body release or reassign an owning refcounted pointer that is
-//      COPIED INTO the scratch? Reaching such a pointer through a shared
-//      pointer to a LIVE object is safe — the refcounts stay correct and the
-//      work is merely done twice (the idempotency argument this block already
-//      makes). Holding a COPY of the pointer is not: ours may already have
-//      freed it. Results:
-//        * SpinnerElement::SetMinMax / SetValue — SAFE. They reach the
-//          refcounted `_text` through `_children._data[0]`, a live child, not
-//          through a copied field. SpinnerElement itself is {Element, int}.
-//        * SpinnerElement::SetElementId / SetIncrement, RadioElement::
-//          SetActiveRadio, ProgressElement::SetMax / SetCurrent — SAFE. No
-//          refcounted field is released by any of those bodies.
-//        * Element's ReplayGuard family (element.cpp) — SAFE; the two bodies
-//          that DO touch a refcounted string (SetName, SetToolTipString) were
-//          already shadow oracles with the same reasoning.
-//        * widgets_layout.cpp's TextElement::SetParameter / SetText — already
-//          NO-ORACLE, naming CacheText's refcount management as the reason.
-//        * sprite.cpp's replay* family — already balances its extra reference
-//          with ReleaseStringRef.
-//      Nothing else in runtime/src prefix-replays an object that owns a
-//      System::String. The three fixed here were the whole set.
-//
-//      sizeof(OurStruct) is a LOWER BOUND on the true retail object (this
-//      lane has not reversed every byte of any of its eight classes), so the
-//      oracle proves everything IN that range and is silent about anything
-//      past it — stated once here rather than on every function.
+// The replay-oracle argument per function is in
+// docs/history/runtime_port/WAVE7_LANE_D.md §2, the prefix-replay method in
+// docs/history/runtime_port/WAVE6_LANE_A.md §4, and the refcount finding on
+// NumberElement::SetValue / NumberEditElement::SetMinMax in
+// docs/history/runtime_port/WAVE9_LANE_N.md.
 // ============================================================================
 //
 // ---------------------------------------------------------------------------
 // ENDGAME B.3 step 6, FRAGMENT PASS F1 (2026-09-25)
 // ---------------------------------------------------------------------------
-// Every body in this file now lives in its class's MEMBER (src/engine/ui/
+// Every body in this file lives in its class's MEMBER (src/engine/ui/
 // {Spinner,Combo,NumberEdit,Number,Edit,Radio,Progress,Slider}Element.h
-// declare them). The registered doors keep their names and addresses and are
-// one-line QUALIFIED delegations, collected at the bottom of the file above
-// the registration. The `RtUI::` POD aliases this file used (`using RtUI::X`)
-// and block A's two `&self->base` forwarding overloads are gone: the members
-// reach the fields by name. Dependencies the old bodies reached through a
-// function-local first-call cache (RULE B6-5) now go either to the member
-// directly (NumberEditElement::SetValue, EditElement::SetText,
+// declare them), and the members reach the fields by name. Dependencies go
+// either to the member directly (NumberEditElement::SetValue, EditElement::SetText,
 // NumberElement::CacheText, TextElement::CacheText, Element::FindElementType,
 // UserInterface::CloseDialog, Object::Base::IsDerivedFrom) or through a
 // named free body (B3R RT-UI: MemoryAllocator::MemFree and the Collection
@@ -144,12 +74,7 @@
 #include "ui/DialogInstance.h"
 #include "ui/ComboDialog.h"     // ComboElement::_openDialog
 #include "collection/Collection.h"
-// WAVE 9 LANE UIW2 PART 2. The String primitives the two newly ported
-// address-door bodies call as ordinary C++ rather than through a door:
-// RtString_StrCompare, RtString_ReleaseInline and RtSystem_String_Assign.
 #include "system/string_internal.h"
-// B6-5 door caches (AtomicAddr / AtomicExport) and the ResolveAddr
-// declaration this file used to spell for itself.
 #include "element_common.h"
 
 namespace {
@@ -175,10 +100,9 @@ namespace {
 // lane D held this body back because it calls the variadic
 // `System::String::Format`, "which this lane declined to reproduce"
 // (WAVE7_LANE_D.md §3). `?Format@String@System@@SA?AV12@PEBDZZ` has in fact
-// been PORTED since Wave 2 (src/engine/system/string.cpp registers it), so the
-// blocker had already dissolved before Wave 9 opened -- the same shape as
-// reference_holdback_blockers_are_stale_check_them_first.md, three for three in
-// one session.
+// been PORTED since Wave 2 (src/engine/system/string.cpp defines it), so the
+// blocker had already dissolved before Wave 9 opened -- a stated holdback
+// blocker is re-checked against the callee and the tree, never assumed.
 //
 // `?SetText@EditElement@UI@@QEAAXAEBVString@System@@@Z` (0x1800d0db0) --
 // SetValue's second call -- is `EditElement::SetText`, likewise a member below.
@@ -217,26 +141,21 @@ namespace {
 // RadioElement reach. ENDGAME B.3.2 step 2 — every forwarder that used to sit
 // here is GONE. `ComboElement::_strings/_sprites/_userData` and
 // `RadioElement::_checkBoxes` are real `Collection::Array<...>` members
-// (ComboElement.h / RadioElement.h), but the first two of ComboElement's three
-// are declared `Array<void*>` as a PLACEHOLDER element type ("element =
-// System::String" / "= UI::Sprite" in the header's own comment) — the true
-// per-element operations (a String refcount bump, a 0x10-byte Sprite stride)
-// are NOT what `SpecFor<void*>()` would derive, so those two stay bridged
-// through their hand-derived row rather than called as the field's own
-// trait-derived member functions:
+// (ComboElement.h / RadioElement.h). The first two of ComboElement's three
+// (`Array<System::String>`, `Array<UI::Sprite>`) stay bridged through their
+// hand-derived row rather than called as the field's own trait-derived member
+// functions:
 //
 //   0x180034860  kSpec_StringRef  NON-TRIVIAL (assign copy-constructs a
 //                String, destroy releases it) — ComboElement::_strings
-//   0x18004bfc0  kSpec_Fill16     TRIVIAL, but stride 0x10 vs. the field's
-//                own `void*` stride of 8 — the field type is simply the
-//                wrong shape to call directly — ComboElement::_sprites
+//   0x18004bfc0  kSpec_Fill16     TRIVIAL, stride 0x10 — ComboElement::_sprites
 //
-// `_userData` and `_checkBoxes` ARE trait-equivalent for their field's actual
-// (and correctly declared, for `_checkBoxes`) element type, so those two call
-// their own `SetSizeFill`/`~Array` directly:
+// `_userData` IS trait-equivalent for its element type, so it calls its own
+// `SetSizeFill`/`~Array` directly; `_checkBoxes`' append goes through its
+// hand-derived row (see RadioElement::FindCheckBoxes below):
 //
 //   0x180024fe0  kSpec_Fill8   == SpecFor<void*>()      — ComboElement::_userData
-//   0x180048fe0  kSpec_Fill8Z  == SpecFor<Element*>()   — RadioElement::_checkBoxes
+//   0x180048fe0  kSpec_Fill8Z  NOT trait-equivalent     — RadioElement::_checkBoxes
 //
 // The two `~Array` (J1) cleanups, 0x180037310/0x180024aa0, are spec-agnostic
 // (a J1 body only frees the buffer and zeroes the header; `destroy` is null
@@ -306,7 +225,7 @@ inline void MarkNeedsSizeCalcUpToRoot(UI::Element* self) {
 //   0x1801fa190  ?_typeInfo@NumberEditElement@UI@@0VBaseTypeInfo@Object@@A  ord 4886
 //
 // The FIRST DWORD of a BaseTypeInfo is the type id: the same reading
-// src/engine/achievement/achievement_manager.cpp:274 uses, and the one retail's
+// src/engine/achievement/achievement_manager.cpp's AchievementTypeId uses, and the one retail's
 // own `MOV EDX,dword ptr [0x1801faee8]` at 0x1800d6cb9 proves.
 // ENDGAME B.3.9 TI-UI: each is `X::TypeId()` now -- TextElement, LabelElement,
 // NumberEditElement, and the checkbox's `dword ptr [0x1801fa9a8]` (CheckElement).
@@ -522,8 +441,8 @@ void ComboElement::RemoveAllItems() {
 //   1. `_children._data[4]`, NOT [0]. 0x18011219b/0x1801121a7 are
 //      `MOV RBX,[RCX+0xa0]` then `MOV RBX,[RBX+0x20]` — 0x20/8 = 4. Every other
 //      wrapped-widget lookup in this file is children[0]; this one is the fifth
-//      child. Ghidra's C prints both loads as one expression, which is the
-//      shape reference_ghidra_c_output_vs_disassembly.md warns about.
+//      child. Ghidra's C prints both loads as one expression, and its C
+//      misreports dereferences; the disassembly decides.
 //   2. NEITHER index into `_strings` NOR into `_sprites` is bounds-checked
 //      against the arrays' own sizes. Retail guards only the ITEM COUNT at the
 //      top (+0xf0) and, for the sprite, the sprite's own validity. A
@@ -580,8 +499,6 @@ void ComboElement::UpdateText() {
     // and is why the listing shows an `ADD RCX,RCX` before an `RCX*8` scale.
     // The two guards ARE UI::Sprite::IsValid() taken apart: index >= 0
     // (0x1801122bb `JL`) and sheet != null (0x1801122c2 `JZ`).
-    // B.4 LEFT: ComboElement.h spells `_sprites` Array<void*> over 16-byte
-    // UI::Sprite elements (block R-UI-a's header).
     const ::Sprite* src = _sprites._data + _currentItem;
     if (src->spriteIndex >= 0 && src->spriteSheet != nullptr) {
         ::Sprite* dst = &label->_sprite;   // LabelElement +0x100
@@ -612,7 +529,6 @@ void ComboElement::SetCurrentItem(int32_t index) {
         // The local slot retail builds at [RSP+0x30] and passes by address.
         DialogInstance* const open = _openDialog;
         Object::InternalPtr<DialogInstance> dialogSlot(open);
-        // B.4 LEFT: DialogInstance::_ui is `void*` (block R-UI-a's header).
         open->_ui->CloseDialog(&dialogSlot);   // +0x10
         _openDialog = nullptr;
     }
@@ -873,9 +789,8 @@ void SliderElement::SetParameter(int32_t index, const System::String& text) {
 // succeeded by dereferencing.
 //
 // This port REPRODUCES THAT, which means the load below is deliberately through
-// a possibly-null pointer. It is spelled as byte arithmetic on a `uint8_t*`
-// rather than `child->_params._size` so the compiler emits the load instead of
-// concluding the pointer cannot be null and deleting the branch around it.
+// a possibly-null pointer: `child->_params._size` (+0xd0) is read with no null
+// check between the cast and the load, as retail does.
 //
 // DO NOT "FIX" THIS WITH A NULL CHECK. Retail's unguarded deref is the
 // assertion that a ProgressElement's first child is a TextElement. If this

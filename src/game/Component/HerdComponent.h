@@ -3,8 +3,7 @@
 // src/game/Component/HerdComponent.h — ENDGAME B.3.8 block CIT
 //
 // `HerdComponent` (a wild-animal herd: grazing, migration, size) as a real C++
-// class with a compiler-generated vtable (B38_RULES.md D1-D4). The engine/types
-// POD is a forwarder to this file.
+// class with a compiler-generated vtable (B38_RULES.md D1-D4).
 //
 // RETAIL (Application-x64.exe, B38_SLOTS.md §6):
 //   reflected "HerdComponent", parent "Component", ti 0x1401c7820
@@ -68,7 +67,7 @@ public:
 
     // PUBLIC while the ported bodies read them (B38 decision 1).
     Object::InternalPtr<PopulationComponent> population;   // +0x28 InternalPtr<PopulationComponent>
-    int32_t               populationCell; // +0x30 grid cell of the population map; the ctor leaves it
+    int32_t               populationCell; // +0x30 population-map cell; the ctor zeroes it (retail's leaves it)
     uint8_t               _pad34[4];      // +0x34
     using MemberList = Collection::Array<Object::InternalPtr<WildAnimalComponent>, Collection::DefaultAllocator,
                                          Collection::ExplicitSpec<&rtcoll::kSpec_PtrZero>>;

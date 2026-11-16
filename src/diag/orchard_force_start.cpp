@@ -9,8 +9,9 @@
 // non-zero. The ctor zeroes it. The only two retail paths that set it both go
 // through CanCommand, which ANDs on hasType = (*(comp+0x60) != 0) — so an
 // untyped orchard (which is exactly what BANISHED_BUILD_DEMO_ORCHARD spawns) can
-// never start, by design. This harness force-sets both fields so the transition
-// can be observed without waiting on a full panel-click UI flow.
+// never start, by design. This harness gives it a tree type through the real combo-select
+// path and forces the switch on only if that path left it off, so the transition can be
+// observed without waiting on a manual panel click.
 //
 // Env:
 //   BANISHED_ORCHARD_FORCE_START=1   enable; fires once ~180 ticks after start
@@ -264,8 +265,7 @@ void FireForceStart(PlayerToolManager* entityUI, int frameNum) {
 
 }  // namespace
 
-// The tool manager (gameupdateloop.cpp hands its `m_toolManager`; its local
-// declaration still spells the parameter void*).
+// The tool manager (gameupdateloop.cpp hands its `m_toolManager`).
 extern "C" void OrchardForceStart_Tick(PlayerToolManager* entityUI, int frameNum) {
 
     Init();

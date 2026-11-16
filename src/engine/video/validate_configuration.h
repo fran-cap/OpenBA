@@ -2,7 +2,7 @@
 //
 // Video::Device::ValidateConfiguration() (retail 0x1800f8830, device_startup.cpp) and the 8-argument
 // overload (retail 0x1800f7370, device.cpp) clamp the persisted refresh rate and multisample index the
-// same way. The two steps live here, header-only, so tests/unit/video_validate_config_test.cpp can drive
+// same way. The two steps live here, header-only, so tests/unit/review_settings_input_test.cpp can drive
 // them without the device (review F-130, F-156).
 #pragma once
 

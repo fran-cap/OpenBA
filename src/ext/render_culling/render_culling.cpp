@@ -2,9 +2,7 @@
 // ext.anim_batch (class B), docs/extensions/handins/PERFXEXT.md.
 #include "render_culling.h"
 #include "graphics/Mesh.h"   // ENDGAME B.3.9 SS2: MeshInstance::_rootOnlyUpdates
-// ENDGAME B.3.5: Graphics::Camera / Renderer / Geometry, ahead of the
-// <windows.h> that "resolve.h" pulls in — <wingdi.h> declares a FUNCTION named
-// Rectangle, which breaks Volume.h's Volume::Rectangle (the <windows.h> trap).
+// ENDGAME B.3.5: Graphics::Camera / Renderer / Geometry.
 #include "graphics/Camera.h"
 #include "graphics/Geometry.h"
 #include <cstdint>
@@ -12,7 +10,7 @@
 #include <cstdio>
 #include <cstring>
 #include <algorithm>   // std::remove / remove_if (Forget*)
-#include <new>       // placement new — the retslot door body at the call site
+#include <new>       // placement new — the Frustum built into camFrustum (RefreshFrustum)
 #include <vector>
 #include "math/Math.h"       // -Iruntime/types
 #include "volume/Volume.h"   // B3R: RtVolume_Frustum_MulTransform3
@@ -39,7 +37,7 @@ namespace {
 // Runtime 0x1800f8e80: inside side is n.p - d > 0), plus one trailing dword; 0x64 bytes.
 // Camera::GetFrustum copies 0x64 bytes; MulTransform3 with the camera-to-world Transform3
 // at camera+0x64 (48 bytes) gives world-space planes — the same math as
-// GeomDraw_CollectDraw (src/game/Game/geometry_draw.cpp).
+// WorldGeometry::AddDrawItems (src/game/Game/geometry_draw.cpp).
 float    s_planes[6][4];
 bool     s_haveFrustum = false;
 unsigned s_frameSerial = 0;
@@ -109,15 +107,14 @@ void FlushCulled() {
         // GEOM_CULL left the render-scene transform stale: push model+0x148 first.
         // The receiver is the Geometry the vtable dispatch below also drives: every
         // drawable component in this port embeds its Geometry at owner+0x28
-        // (scene_watch.cpp:176-178 and engine/types/ModelComponent.h).
+        // (src/diag/scene_watch.cpp and src/game/Component/ModelComponent.h).
         if (g_flags.geomCull)
             geo->SetTransform(model->transform);   // +0x148
         // ENDGAME B.3.5 caller batch, COORDINATOR RULING. This was a hand-inlined
         // read of slot 1 (`vt + 0x8`) on the same proved `Graphics::Geometry` at
         // owner+0x28, guarded by `if (upd)` — a test of the OBJECT'S OWN VTABLE
         // SLOT, not of a door pointer. Slot 1 is `_purecall` only on the abstract
-        // bases, and every live Geometry in this process wears a complete minted
-        // table (`[RtMint] 152 of 152 vtables COMPLETE`), so that guard tested
+        // bases, and no live Geometry is of an abstract class, so that guard tested
         // nothing that can happen and it goes with the inlined dispatch. It is now
         // the virtual call it always was. The OBJECT-pointer reasoning above — the
         // receiver is proved from the code that produced it, not from its name —

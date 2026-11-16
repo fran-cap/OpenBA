@@ -8,27 +8,11 @@
 // 0x180000000, decompiled 2026-09-06). See src/engine/system/Value.h for
 // the governing layouts.
 //
-// STRING NOTE: four functions in this lane's scope return System::String
-// (DateTime::AsString, Configuration::CurrentBuildId/CurrentVersion/
-// GetVersionString). System::String's refcounted layout is Lane A's
-// (src/engine/system/String.h) — this file never models or touches it.
-// Every String these functions produce is built by calling the DLL's own
-// String::Set / String::Format / String::operator+= / String::Release
-// through the DLL's own String routines, exactly as retail's own code does; we
-// only ever
-// read a String's PUBLIC content (its data pointer used as a plain
-// null-terminated C string), never its private refcount/length header.
-//
-// Those calls go through RT_EXPORT_ONCE. Set / Format / operator+= / Release
-// are all PORTED.
-//
-// ENDGAME B.3.1 step 2 REPLACES THE PARAGRAPH ABOVE. Runtime-x64.dll is gone,
-// `System::String` is a real class over the same eight bytes, and the
-// file-local opaque `StrSlot` — whose whole purpose was to avoid modelling a
-// type that belonged to another binary — is deleted. The four bodies below
-// hold real `System::String` locals with RAII, and the Set / Format /
-// operator+= / Release name doors are the class's own members. The retail
-// addresses on each call stay: they are the provenance.
+// STRING NOTE: DateTime::AsString and Configuration::CurrentBuildId /
+// CurrentVersion / GetVersionString return System::String
+// (src/engine/system/String.h). The bodies below hold real `System::String`
+// values with RAII, and Set / Format / operator+= / Release are the class's own
+// members. The retail addresses on each call stay: they are the provenance.
 // ============================================================================
 
 #include <cstdio>
@@ -54,17 +38,16 @@
 // `System::Random`, `System::Time`, `System::Color` and `System::DateTime` are
 // real C++ classes since B.3.4b (src/engine/system/Value.h). Unlike
 // `Thread.h`, NO POD MOVED: `::Random` and `::Color` were already at global
-// scope and `::Time` is `engine/types/common.h`'s, shared with the exe tree.
+// scope and `::Time` is `src/engine/global_types.h`'s, shared with the exe tree.
 // Rule B4b-1 therefore does not fire here, and this commit touches nothing
 // outside `runtime/`.
 //
-// NONE OF THE FOUR GETS A REAL CONSTRUCTOR — Value.h's banner gives the
-// per-class reason, and for `Random` it is concrete: `Object::InternalFactory`
-// holds one BY VALUE at +0x20 (src/engine/object/Internal.h:662) while
-// `Ctor_InternalFactory` (src/engine/engine/singleton_ctors.cpp:352-361, not
-// this step's file) seeds it through the `??0Random@System@@QEAA@XZ` door. A
-// real constructor would seed the object factory's RNG twice, from two
-// different `time(nullptr)` values, with no build error.
+// `Random` is the one of the four with REAL constructors (below); Value.h's
+// banner gives the per-class reason the other three have none.
+// `Object::InternalFactory` holds a `Random` BY VALUE at +0x20
+// (src/engine/object/Internal.h:664), and `Ctor_InternalFactory`
+// (src/engine/engine/singleton_ctors.cpp) placement-constructs it with
+// `System::Random()`, once.
 //
 // MEMBER BODIES ARE DEFINED AT GLOBAL SCOPE with qualified names
 // (`uint32_t System::Random::Rand() {...}`) rather than inside a
@@ -86,7 +69,7 @@ namespace {
 // arithmetic, same loop bounds — the alternative was a `reinterpret_cast` at
 // every one of the nine call sites below.
 
-// Standard MT19937 init_genrand recurrence. Shared by both ctors.
+// Standard MT19937 init_genrand recurrence. The seeded ctor's body.
 // Pinned by ??0Random@System@@QEAA@I@Z (0x1800c7ed0).
 void SeedMT(System::Random* self, uint32_t seed) {
     self->_index = 0;
@@ -237,10 +220,7 @@ void System::Random::Serialize(::IO::Serializer& s) {
 // ============================================================
 
 // ??0Time@System@@QEAA@M@Z  retail 0x1800078c0
-// Delegates to Timer::SecondsToTicks. Not diffed here: the delegation is one
-// call and the arithmetic it delegates to now carries its OWN diff site
-// (src/engine/system/timer.cpp), so diffing it again would count the same
-// comparison twice under a second name.
+// Delegates to Timer::SecondsToTicks (src/engine/system/timer.cpp).
 //
 // B.3.4b: NOT a real constructor. Its ~132 call sites construct into RAW BYTE
 // BUFFERS and convert as placement-new (B34_RULES section 7.3), which is
@@ -271,8 +251,8 @@ float System::Time::AsSeconds() const {
 // four-byte `int&` door would have been a save-format change. B34B_RULES §3
 // sequenced the overload AFTER the 4a closing pass, because its body belongs in
 // `src/engine/io/serializer_class.cpp`, which another agent owned. That agent
-// has landed; the overload exists (`0x180035000`, registered by name and by
-// address in `src/engine/io/serializer.cpp`); this is now one member call to
+// has landed; the overload exists (`0x180035000`, defined in
+// `src/engine/io/serializer_class.cpp`); this is now one member call to
 // the same slot. The trailing `0` was the ignored `const char* name`.
 void System::Time::Serialize(::IO::Serializer& s) {
     s.Serialize(_ticks, nullptr);   // 0x180035000  +0x90 = rw_vtbl::kScalarInt64
@@ -291,8 +271,7 @@ void System::Color::Serialize(::IO::Serializer& s) {
 
 // ============================================================
 // System::DateTime / System::Configuration — String-returning functions.
-// See the file header for why StrSlot is opaque and why these delegate to
-// the DLL's own String routines rather than modeling System::String.
+// See the file header for why these hold real `System::String` locals.
 // ============================================================
 
 // ENDGAME B.3.1 step 2: `struct StrSlot { void* p; };` is gone — the four
@@ -318,13 +297,10 @@ System::String System::DateTime::AsString() const {
     // ?Format@String@System@@SA?AV12@PEBDZZ (0x1800c9730), spelled as itself.
     //
     // B.3.4b: this was `new (ret) String(Format(...))` writing the caller's
-    // hidden slot directly; it is now a `return` of the same prvalue, and the
-    // DOOR does the placement-new. THE STRING TRAFFIC IS UNCHANGED: under
-    // C++17 a prvalue initialises the object being created, so `Format`'s
-    // result constructs straight into this function's return object and that
-    // return object constructs straight into the door's `ret`. No temporary, no
-    // extra AddRef/Release pair retail did not spend — the same guarantee the
-    // old comment relied on, one frame further out.
+    // hidden slot directly; it is now a `return` of the same prvalue. THE STRING
+    // TRAFFIC IS UNCHANGED: under C++17 a prvalue initialises the object being
+    // created, so `Format`'s result constructs straight into this function's
+    // return object. No temporary, no extra AddRef/Release pair retail did not spend.
     return System::String::Format("%s %s", dateStr._data, timeStr._data);
 
     // The two `?Release@String@System@@AEAAXXZ` calls are the destructors now.
@@ -336,28 +312,23 @@ System::String System::DateTime::AsString() const {
 //   ?DateAsString@DateTime@System@@QEBA?AVString@2@XZ   0x1800c56a0  ord 2149
 //   ?TimeAsString@DateTime@System@@QEBA?AVString@2@XZ   0x1800c55b0  ord 4131
 //
-// These are the two functions AsString above has been forwarding to since
-// Wave 9. Registering them therefore lights up a route that already exists:
-// AsString resolves both BY NAME through RT_EXPORT_ONCE (the registry), so the
-// bodies below become the ones it calls the moment RtSystemValueRegister runs.
-// That is a real caller, not a synthetic driver.
+// These are the two functions AsString above calls, as members.
 //
 // THE HIDDEN RETURN SLOT IS REAL, AND GHIDRA DROPPED IT. `decompile_function`
 // prints both of these as `void __thiscall DateAsString(DateTime *this)` — no
-// second parameter and no return — which is the documented failure mode
-// (reference_ghidra_c_output_vs_disassembly.md: whole arguments dropped). The
+// second parameter and no return — a known failure of Ghidra's decompiled C,
+// which drops whole arguments. The
 // disassembly is unambiguous:
 //     1800c56a0  MOV qword ptr [RSP+0x10],RDX    ; RDX is a REAL argument
 //     1800c56b6  MOV RBX,RDX                     ; kept across the whole body
 //     1800c5773  MOV RAX,RBX / RET               ; and returned again in RAX
 // so the signature is `String* f(const DateTime* this, String* ret)` — RCX =
 // this, RDX = ret — and the callee returns the slot. Writing this as a C++
-// method returning `String` by value is the wild write in
-// reference_hidden_retslot_wild_write.md, which "works" because the right
+// method returning `String` by value is a hidden-return-slot wild write,
+// which "works" because the right
 // answer still lands in the right place while a second, uninitialised pointer
-// is scribbled through. Spelled out as a parameter here, exactly as every
-// other String-returning port in this tree does, and `StrSlot` is the same
-// opaque 8-byte pass-through the rest of this file uses.
+// is scribbled through. The slot is spelled out as a parameter of the helper
+// below; the two members return String by value.
 //
 // THE TWO BODIES ARE THE SAME FUNCTION WITH TWO CONSTANTS. Instruction for
 // instruction, DateAsString and TimeAsString differ in exactly two places:
@@ -369,16 +340,15 @@ System::String System::DateTime::AsString() const {
 // second one drifts.
 //
 // `this` IS A FILETIME. Retail's first instruction hands `this` straight to
-// FileTimeToLocalFileTime, so System::DateTime is an 8-byte FILETIME and
-// needs no layout of its own — the same reason the file header gives for
-// AsString. Left as `const void*` for that reason.
+// FileTimeToLocalFileTime, so System::DateTime is an 8-byte FILETIME, low dword
+// first (the static_assert in the helper below pins the size).
 //
 // THE WIDESTRING TEMPORARY IS RELEASED INLINE, AND WE ALREADY OWN THAT.
 // 0x1800c5742..0x1800c5773 is `WideString::~WideString` inlined: decrement the
 // refcount at data-4, and on zero rewind to data-8 and MemFree. That is
-// bit-for-bit the sequence `RtSystem_WideString_Dtor` (widestring.cpp, Wave 9
-// lane FS) already implements, including its asymmetry, so this calls that
-// rather than open-coding a third copy of the idiom.
+// bit-for-bit the sequence `System::WideString::~WideString` (widestring.cpp)
+// implements, including its asymmetry, so the helper's WideString local runs it
+// as its destructor rather than open-coding a third copy of the idiom.
 // B.3.4b: still a file-static helper over the retslot, and still shared by the
 // two members below, for the reason its own banner gives — two copies of a
 // 20-line body is how the second one drifts. `self` is now typed.
@@ -403,8 +373,6 @@ static System::String* RtSystem_DateTime_FormatPart(const System::DateTime* self
     // rules exist to prevent. Left uninitialised so the port says what retail
     // does. Do NOT "fix" a -Wmaybe-uninitialized warning here by adding `{}`.
     //
-    // The failure path is UNCOMPARABLE BY CONSTRUCTION rather than merely
-    // untested, and the sweep says so explicitly instead of scoring it.
     // Phase D.4 THREADS E.7: the FILETIME / SYSTEMTIME locals (retail's [RSP+0x40]
     // and [RSP+0x270]) live in Platform::FormatLocalDateTime now, still
     // uninitialised there.
@@ -441,9 +409,9 @@ static System::String* RtSystem_DateTime_FormatPart(const System::DateTime* self
 // the helper above still fills a slot, so each member hands it a local and
 // returns that.
 //
-// THE STRING TRAFFIC, STATED PRECISELY RATHER THAN OPTIMISTICALLY. The door's
-// `new (ret) String(member())` is guaranteed by C++17 to build the member's
-// return object AT `ret` — that part is the standard, not a hope. The member's
+// THE STRING TRAFFIC, STATED PRECISELY RATHER THAN OPTIMISTICALLY. AsString's
+// `::new (&dateStr) System::String(DateAsString())` is guaranteed by C++17 to build the
+// member's return object AT `&dateStr` — that part is the standard, not a hope. The member's
 // local into its own return object is NRVO, which is permitted but NOT
 // guaranteed; if the compiler declines it, the cost is exactly one MOVE
 // construction of a `System::String`, which steals the pointer and leaves a
@@ -476,7 +444,7 @@ System::String System::DateTime::TimeAsString() const {
 // `data` null and folded the store away) or a behaviour change on a slot the
 // caller did not zero. That question is open, this file already decided "left
 // exactly as retail spells it", and B.3.4b does not overturn a prior decision
-// on inference. The body stays the registered free door it is; the conversion
+// on inference. The body stays the free function it is; the conversion
 // is OWED once someone reads 0x1800c4c60's prologue and settles which it is.
 // Recorded in src/engine/system/Configuration.h and in B34B_RULES section 1.5.
 //
@@ -523,17 +491,16 @@ System::String* RtSystem_Configuration_CurrentBuildId(System::String* ret) {
 
 // ============================================================================
 // ENDGAME B.3.4b SYSTEM (4c) — two of `System::Configuration`'s three `SA`
-// statics move onto the class; the doors delegate.
+// statics are members of the class.
 // ============================================================================
 // The class is declared in `src/engine/system/Configuration.h`, whose banner
 // carries the "is it a class?" evidence, the 0x30-byte layout and the four rows
-// that deliberately did NOT convert. `?CurrentBuildId@` (0x1800c4c60, below) is
+// that deliberately did NOT convert. `?CurrentBuildId@` (0x1800c4c60, above) is
 // one of those four and stays exactly where it is — see the header, and the
 // note on its own body.
 //
-// Both doors below are HIDDEN-RETSLOT doors: `ret` is the caller's RAW BYTES,
-// so the member's prvalue is placement-CONSTRUCTED into it and the door returns
-// that slot, which is retail's `MOV RAX,R14`.
+// Both members below return `System::String` by value; the hidden return slot
+// (retail's `MOV RAX,R14`) is the compiler's.
 
 // ?GetVersionString@Configuration@System@@SA?AVString@2@I_N@Z  retail 0x1800c4f90
 // version is packed major<<24 | minor<<16 | patch<<8 | suffix. suffix in
@@ -545,7 +512,7 @@ System::String* RtSystem_Configuration_CurrentBuildId(System::String* ret) {
 System::String System::Configuration::GetVersionString(uint32_t version, bool detailed) {
     // ENDGAME B.3.1 step 2: ?Format@String@System@@SA?AV12@PEBDZZ (0x1800c9730)
     // spelled as itself. B.3.4b: the hidden return slot is the compiler's
-    // business now, so this is an ordinary local and the DOOR places it.
+    // business, so this is an ordinary local returned by value.
     System::String ret = System::String::Format(
         "%i.%i.%i", version >> 24, (version >> 16) & 0xffu, (version >> 8) & 0xffu);
 

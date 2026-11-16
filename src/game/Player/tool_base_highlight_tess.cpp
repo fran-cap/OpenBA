@@ -1,8 +1,8 @@
 // src/game/Player/tool_base_highlight_tess.cpp
 // TradeWork_impl_ace40 (0x1400ace40) — the radius / tiled-decal tile tessellation
 // builder. Shared by BOTH the PlacementTool radius-highlight overlay (via
-// Player_HighlightAdd_55430 -> TradeWork_impl_0d80) AND the building ground-decal
-// path (DecalComponent::Draw -> TradeWork_impl_0d80). It builds the vertex + index
+// RadiusDescription::AddHighlight -> WorldGeometry::AddDecal) AND the building ground-decal
+// path (DecalComponent::OnAdded -> WorldGeometry::AddDecal). It builds the vertex + index
 // buffers for one tile-renderer slot (gameWorld+0x110, slot = base+0x1f0 + idx*0x60),
 // deduping shared corner vertices through an AVL BST keyed by a 0x18-byte descriptor.
 //
@@ -12,10 +12,7 @@
 // dropped-arg call, and field offset. Do NOT "improve" — a wrong port here is SILENT
 // GEOMETRY CORRUPTION.
 //
-// STANDALONE-ONLY: like the rest of tool_base_highlight.cpp, this reimpl is reached
-// only via RegisterExeAddr. ResolveAddr on a .rdata constant returns NULL in standalone
-// (see reference_standalone_rdata_null_fallback), so the .rdata constants below are
-// embedded here as their retail values.
+// The .rdata constants below are embedded here as their retail values.
 //
 // The slot is a GeometryBatch (Game/WorldGeometryElements.h, the 0x60-byte decal
 // element at WorldGeometry +0x1F0; batch = decals.data + param_2):
@@ -52,8 +49,8 @@ constexpr uint8_t  kDAT_1401c23cf = 0x2e;        // base index byte (iVar13 seed
 
 namespace {
 
-// ---- exe sub-callees, called by name (Action/exe_bodies.h) -------------------------
-//   0x1400acc10 Pf_RoadQuad_cc10, 0x1400ae180 Pf_TileShapeLut_ae180,
+// ---- exe sub-callees, called by name ----------------------------------------------
+//   0x1400acc10 WorldGeometry::BuildRoadQuad, 0x1400ae180 Pf_TileShapeLut_ae180 (Action/exe_bodies.h),
 //   0x14001ee40 / 0x14001f8d0: Collection::Array<GeometryBatchVertex>::SetSize in its two
 //   forms (GeometryBatch::vertices' member; the RawArray pool's RawArraySetSize).
 // Static MemAlloc/MemFree (slots 0x140152b60/0x140152b68) are
@@ -67,7 +64,7 @@ namespace {
 
 // The two growable lists inside a highlight slot (GeometryBatch::vertices / indices):
 //   +0x08 {data, size, cap}  GeometryBatchVertex records, 0x14 bytes each (the pool ->
-//                            buffer copy at the end of TessellateSlot moves them 8+8+4);
+//                            buffer copy at the end of TessellateDecal moves them 8+8+4);
 //   +0x18 {data, size, cap}  uint16 triangle indices.
 // ENDGAME B.3.2 step 2: AppendIndex WAS a verbatim copy of rtcoll::SetSizeCore for
 // the +0x18 list (exact-equal early return; size stored before the capacity test;
@@ -251,7 +248,7 @@ void WorldGeometry::TessellateDecal(int param_2, char param_3,
     // ENDGAME B.3.2 step 2: both WERE inlined Collection::Array<T>::~Array bodies
     // for a trivially destructible T (MemFree the buffer — null-guarded in both —
     // then zero _data and the _size/_capacity qword). Now the dtor itself, in place.
-    // ppvVar9 keeps the pre-free index pointer because the fnE180 call below still
+    // ppvVar9 keeps the pre-free index pointer because the Pf_TileShapeLut_ae180 call below still
     // feeds its upper bytes through a register-passthrough byte argument.
     uint16_t* ppvVar9 = batch->indices._data;
     batch->vertices.DestroyAndFree();
@@ -299,7 +296,7 @@ void WorldGeometry::TessellateDecal(int param_2, char param_3,
                         BuildRoadQuad(iVar22, iVar18, descBlock.corner, iVar13,
                                          batch->alpha);
 
-                        // per-tile UV: 4 corners, write short pos pair into descBlock.
+                        // per-tile UV: 4 corners, write the short UV pair into descBlock.
                         {
                             int32_t xOff[4]; int32_t yOff[4];
                             // retail: one qword store per pair (H7: two stores each)

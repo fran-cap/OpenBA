@@ -20,24 +20,6 @@
 // ============================================================================
 //
 // ---------------------------------------------------------------------------
-// ABSENCE ESTABLISHED BEFORE A LINE WAS WRITTEN
-// ---------------------------------------------------------------------------
-// A body that is ported but never REGISTERED is indistinguishable from an
-// absent one to the census, so the grep was by ADDRESS *and* by NAME, scoped to
-// the source roots (never the repo root — `.claude/worktrees/` holds sibling
-// lane checkouts and an unscoped grep returns a confident wrong number):
-//
-//   grep -rn '180111d00\|1801146b0\|180074770'
-//       runtime/ code/ standalone/ engine/ src/render/dx11/
-//     -> ONE hit, and it is a COMMENT, not a port:
-//        src/engine/ui/ui_operator_delete.cpp:47 names 0x180074770 only to say
-//        that its sibling `operator delete` (0x1800747f0) is the one in THAT
-//        batch. The `operator new` itself was left on the DLL.
-//   grep -rn 'ComboDialog' <same roots>
-//     -> factory table rows (factory_ui1_tables.inc) and vtable-mint rows
-//        (rt_data_mint_tables.inc). No body.
-//
-// ---------------------------------------------------------------------------
 // THE SECOND DialogInstance CONSTRUCTOR, AND WHY IT IS A SEPARATE BODY
 // ---------------------------------------------------------------------------
 // src/engine/ui/dialog_create.cpp already ports a DialogInstance ctor — but a
@@ -97,9 +79,9 @@
 // always does for a ctor and what the callers are typed to receive.
 //
 // ---------------------------------------------------------------------------
-// FOUR INLINED CALLEES, EACH IDENTIFIED AGAINST ITS OWN EXPORTED BODY
+// FIVE INLINED CALLEES, EACH IDENTIFIED AGAINST ITS OWN EXPORTED BODY
 // ---------------------------------------------------------------------------
-// The ComboDialog ctor is large because MSVC inlined four member functions into
+// The ComboDialog ctor is large because MSVC inlined five member functions into
 // it. Each inlined sequence below was diffed instruction for instruction
 // against the exported body it came from, and the exported body's address is
 // quoted at the site:
@@ -157,8 +139,8 @@ namespace {
 
 // ---------------------------------------------------------------------------
 // ATTENDANCE — entries, and NOT a verification of anything. A zero here means
-// the row is registered and DEAD on the route that was run; a non-zero means
-// only that the body was entered.
+// the body was not entered on the route that was run; a non-zero means only
+// that the body was entered.
 // ---------------------------------------------------------------------------
 uint64_t g_newEntries   = 0;
 uint64_t g_newLastBytes = 0;
@@ -302,7 +284,7 @@ void GetPaddedSize(UI::Element* el, int32_t* outW, int32_t* outH) {
 // `??2SpriteSheet@UI@@`.
 //
 // Its ONE call site asks for 0xd0 (`MOV ECX,0xd0` at 0x18011282b), which is
-// what pins sizeof(UI::ComboDialog) in DialogInstance.h.
+// what pins sizeof(UI::ComboDialog) in ComboDialog.h.
 // ============================================================================
 extern "C" void* RtUi_ComboDialog_OperatorNew(uint64_t bytes) {
     ++g_newEntries;
@@ -431,7 +413,7 @@ UI::DialogInstance::DialogInstance(UserInterface* ui, Object::InternalPtr<Elemen
 // and tall as the combo box that opened it — unless the clip region already
 // reports more content than fits, in which case the padded size wins.
 //
-// All four InternalPtr parameters arrive by hidden reference; the parent is
+// All three InternalPtr parameters arrive by hidden reference; the parent is
 // deliberately NOT forwarded to the base ctor. Both facts are argued in the
 // banner. Returns `this` in RAX.
 // ============================================================================

@@ -32,8 +32,6 @@ using namespace rtuielem;
 
 namespace {
 
-// UI::SpriteContext (block D's class), reached by address.
-
 }  // namespace
 
 namespace UI {
@@ -49,10 +47,9 @@ namespace UI {
 //   width  = max(bottomLeft.w + bottomRight.w, topRight.w + topLeft.w)
 //   height = max(bottomRight.h + topRight.h,   bottomLeft.h + topLeft.h)
 //
-// *** THE TWO PAIRINGS ARE NOT THE OBVIOUS ONES *** — the height compares a
-// RIGHT-column pair against a LEFT-column pair while the width compares a
-// BOTTOM-row pair against a mixed pair. That is what 0x180110276..0x1801102e2
-// computes and it is transcribed rather than normalised.
+// The width compares the BOTTOM-row pair against the TOP-row pair and the
+// height the RIGHT-column pair against the LEFT-column pair: the sums at
+// 0x1801101e5..0x18011032a, the two CMP / CMOVG at 0x180110327..0x18011033a.
 void BorderElement::ComputeSize() {
     if ((_flags & kElementFlagNeedsSizeCalc) == 0) return;
 

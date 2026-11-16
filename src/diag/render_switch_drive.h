@@ -14,7 +14,7 @@
 //   failswitch=<backend>[+<backend>]  after the game loop's first frame, each named backend's next
 //                          CreateDevice fails once (the same placeholder): a switch whose picked backend
 //                          and fallback both fail, so SwitchNow's "no backend started" arm runs
-// A one-backend build parses nothing and does nothing.
+// A one-backend build parses and logs the flag, but no switch runs and no CreateDevice is failed.
 // ============================================================================
 #pragma once
 

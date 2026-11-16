@@ -1,7 +1,7 @@
 // ============================================================================
 // src/engine/graphics/scene_grid.cpp — WAVE 9 LANE GFX3
-// Graphics::Scene's quadtree grid: the five by-address cutover doors and their
-// transitive closure.
+// Graphics::Scene's quadtree grid: SceneGrid's constructor, GridAdd, GridUnthread,
+// GridThread and GridReindex.
 // ============================================================================
 //
 // WHAT THIS FILE CLOSES
@@ -24,13 +24,13 @@
 // as "trivially the MemFree static", and a second registration of it would have
 // been last-binding-wins and silently made one of the two bodies dead code.
 //
-// The remaining FIVE are this file:
+// The remaining FIVE, and the members that call them:
 //
-//   0x18005e4a0  GridInit      Scene::Scene         (scene.cpp:340)
-//   0x18005e5e0  GridAdd       Scene::AddObject     (scene.cpp:352)
-//   0x18005f090  GridUnthread  Scene::RemoveObject  (scene.cpp:362)
-//   0x18005ee30  GridReindex   Scene::Clean         (scene.cpp:373)  PER FRAME
-//   0x18005f1f0  FreeGlobals   Scene::~Scene        (scene.cpp:382)
+//   0x18005e4a0  GridInit      Scene::Scene         (SceneGrid's constructor, below)
+//   0x18005e5e0  GridAdd       Scene::AddObject
+//   0x18005f090  GridUnthread  Scene::RemoveObject
+//   0x18005ee30  GridReindex   Scene::Clean                                      PER FRAME
+//   0x18005f1f0  FreeGlobals   Scene::~Scene        (`_globals.Clear()`, Collection.h)
 //
 // THE CLOSURE, COUNTED BEFORE ANY CODE WAS WRITTEN
 // ------------------------------------------------
@@ -60,9 +60,8 @@
 //     census list because nothing outside the DLL calls it. Ported here.
 //
 // The allocator entries the two SetSize bodies and FreeGlobals reach
-// (0x1800c7a50 / 0x1800c7ad0) are already armed by
-// `RegisterAllocatorAddresses()`. So: **5 doors in, 7 bodies written, 0 new
-// doors out.**
+// (0x1800c7a50 / 0x1800c7ad0) are `System::MemoryAllocator::MemAlloc` / `MemFree`
+// (system/allocator.cpp).
 //
 // THE FACT THAT DECIDES EVERY ONE OF THESE BODIES
 // -----------------------------------------------
@@ -81,8 +80,7 @@
 // with no `if (prev >= 0)` anywhere. Read against a NULL-TERMINATED list that
 // says retail writes to `nodes[-1]`, i.e. sixteen bytes in FRONT of the array
 // buffer, which is the allocator's boundary tag — this project has already paid
-// for one wild write of exactly that shape
-// (reference_load_wild_write_high_dword_7fc.md), so "retail has a wild write
+// for one wild write of exactly that shape, so "retail has a wild write
 // here" was a plausible reading. It is wrong. With a circular chain a lone node
 // has `prev == next == id` and both stores land on the node itself, which is
 // also why GridUnthread needs the SECOND head fix at 0x18005f11e: the first one
@@ -92,18 +90,6 @@
 // The `-1` that DOES exist is written by GridUnthread at 0x18005f0fb/0x18005f108
 // AFTER the splice, into the node being removed. It marks the node unthreaded;
 // it is never a chain terminator.
-//
-// ORACLE
-// ------
-// A lockstep synthetic-subject probe, `scene_grid_probe.cpp`. Not a live diff:
-// every body here mutates the one shared grid, so "run ours, run theirs,
-// compare" re-threads a live scene twice and the second run starts from the
-// state the first left — a different experiment whose first product is a
-// corrupted allocator. And not an end-state comparison either
-// (lane PICK: "a defect that cancels out — push a link on the free list in the
-// wrong order, pop it back in the wrong order — compares equal at the end while
-// every query in between saw a different grid"): the probe applies each of its
-// indexed steps to BOTH subjects and compares the WHOLE scene after EVERY step.
 //
 // PORTABILITY: no <windows.h>, per PLAN.md §4.1 decision 1.
 // ============================================================================
@@ -131,18 +117,17 @@ namespace {
 //                                SpecFor<SceneNode>() is the same {3-qword
 //                                assign, no init, no destroy} shape.
 // GridInit and GridAdd below now call `.SetSize(...)` on the members directly.
-// Both rows stay registered in array.cpp: `code/` still reaches them by address.
+// Both rows are defined in array.cpp.
 // ---------------------------------------------------------------------------
 
 // ENDGAME B.3.2 step 2 (callers) — the `MemFreeLocked` forwarder that used to
 // sit here (0x1800c7ad0, ?MemFree@MemoryAllocator@System@@SAXPEAX@Z) is GONE:
-// its only caller, `FreeGlobals`, now bridges onto `Collection::LinkedList<T>::
-// Clear()` below, which reaches the identical door through
-// `Collection::detail::ListNodeFree` (linkedlist.cpp).
+// its only caller, `FreeGlobals` (0x18005f1f0), is `Collection::LinkedList<T>::
+// Clear()`, which Scene::~Scene calls on `_globals` (scene.cpp) and which frees
+// through `Collection::detail::ListNodeFree` (linkedlist.cpp).
 
 // ---------------------------------------------------------------------------
-// The float constants, LIFTED AS RAW BITS and not retyped from a decimal
-// (reference_crt_coefficients_must_be_lifted_not_retyped.md). Each was read
+// The float constants, LIFTED AS RAW BITS and not retyped from a decimal. Each was read
 // with `read_memory` out of the shipped DLL at the address the instruction
 // names, not from Ghidra's rendering of it.
 //
@@ -181,9 +166,6 @@ const float kOneF    = FromBits(0x3f800000u);   // DAT_18016169c
 //
 // The fill loop is bounded by a BYTE offset (`CMP RCX,0x15554`), which is
 // 0x5555 int32s, and it reloads BOTH array pointers on every iteration.
-// ORACLE: the probe's step 0 — both subjects are constructed, ours by this body
-// and theirs by the shipped one, and the whole 0x78-byte object plus all three
-// array CONTENTS are compared.
 // ============================================================================
 Graphics::SceneGrid::SceneGrid(float cellSize) {
     // 18005e4c9..4f1: the ten qwords are the five Arrays' constructors above.
@@ -242,13 +224,7 @@ namespace rtgfxgrid {
 //     the array;
 //   * the reuse arm writes only `_cell` and leaves +0x14 holding whatever the
 //     slot held before, which is equally indeterminate;
-//   * NO ORACLE MAY COMPARE +0x14. The probe excludes it, and the exclusion is
-//     derived from these two instructions rather than discovered from a failure
-//     (reference_oracle_must_not_compare_unwritten_bytes.md).
-//
-// ORACLE: the probe. `_freeIds` is deliberately non-empty before four of its
-// adds so the reuse arm runs; the counters say how many times each arm ran and
-// a zero is reported as a GAP.
+//   * NO ORACLE MAY COMPARE +0x14: neither arm writes it with a defined value.
 // ============================================================================
 uint32_t GridAdd(Scene* self, Geometry* const* geo) {
 
@@ -305,7 +281,7 @@ uint32_t GridAdd(Scene* self, Geometry* const* geo) {
 // would make step 5 dead and leave a dangling head — and this project has
 // already paid for a missing erase of precisely this kind, a cancel path that
 // never removed its primary node, with a teardown 100%-CPU hang and an `IsA`
-// execute crash at the far end of it (reference_workarea_bst_bad_entry.md).
+// execute crash at the far end of it.
 // `CheckPtr` is a bare RET in every shipped build, so nothing would have caught
 // it downstream.
 //
@@ -313,9 +289,6 @@ uint32_t GridAdd(Scene* self, Geometry* const* geo) {
 // is transcribed rather than hoisted: none of these can realloc, so a hoist
 // would be equivalent, but the point of a transcription is not to be
 // equivalent.
-//
-// ORACLE: the probe, whose remove steps deliberately unthread a HEAD of a
-// multi-node chain, a MIDDLE node, and a LONE node — the three arms.
 // ============================================================================
 void GridUnthread(Scene* self, int32_t id) {
 
@@ -353,10 +326,6 @@ void GridUnthread(Scene* self, int32_t id) {
         --self->_grid._cellCounts._data[cell];                         // 18005f14c
     }
 
-    // Branch coverage, INSIDE the function rather than a proxy outside it
-    // (WAVE9.md, "the effectiveness control was wrong twice, and both times it
-    // said PASS"). `wasHead` and `emptied` are the two arms a single-node-per-
-    // cell population never separates.
 }
 
 // ============================================================================
@@ -446,10 +415,6 @@ void GridThread(Scene* self, int32_t id) {
 // differs on some input, and this project has four near-misses in one container
 // family that all passed green runs — two differing only in an alignment
 // immediate, one in a shift, one in a trailing call.
-//
-// ORACLE: the probe. Its re-index steps deliberately include a box that does
-// NOT move (the early-out arm at 18005f04f, where `calls` is not coverage) and
-// boxes that move both within a level and across levels.
 // ============================================================================
 void GridReindex(Scene* self, int32_t id) {
 
@@ -517,8 +482,6 @@ void GridReindex(Scene* self, int32_t id) {
         GridThread(self, id);                                    // 18005f069
     }
 
-    // `calls` on this site counts ENTRIES, and Scene::Clean enters it for every
-    // object every frame. `worked` is the number that actually rethreaded.
 }
 
 }  // namespace rtgfxgrid

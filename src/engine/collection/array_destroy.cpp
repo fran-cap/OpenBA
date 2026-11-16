@@ -72,9 +72,9 @@
 //
 // Every helper's first parameter is `ignoredThis`: each one spills RCX to the
 // shadow space at entry and never reads it again (verified in all thirteen
-// disassemblies — reference_read_the_callee_before_holding_back_on_an_arg.md).
-// It is kept in the signature because retail passes it and the registered entry
-// points must have retail's arity, not a tidied one.
+// disassemblies).
+// It is kept in the signature because retail passes it, so the entry points
+// keep retail's arity, not a tidied one.
 //
 // ---------------------------------------------------------------------------
 // J2b (0x18001c8c0) IS BODY A, VIA A CRT TRAMPOLINE
@@ -108,7 +108,7 @@
 // (Order is preserved because it reaches the allocator, not because it is
 // observable in the object: the three slots do not alias, so a comparator on
 // the element buffer cannot see the order. Said plainly here so nobody reads
-// the probe's green line as proof that the order is right.)
+// a matching buffer as proof that the order is right.)
 //
 // ---------------------------------------------------------------------------
 // BODY B's ASYMMETRY — the one thing in this file a tidy-up would break
@@ -132,9 +132,8 @@
 // is being destroyed and the caller's next act is to free the whole buffer, and
 // a helpful `= nullptr` would hide a use-after-free that today is loud.
 //
-// It is also the ONLY part of either body a comparator can see, which makes it
-// the load-bearing check in the probe: getting the asymmetry backwards changes
-// the buffer and the probe's negative control does exactly that.
+// It is also the ONLY part of either body a comparator can see: getting the
+// asymmetry backwards changes the buffer.
 //
 // The `JZ` after `ADD [e+off],-8` tests the RESULT OF THE ADD, not the refcount
 // — the free is skipped when `str == 8`. Unreachable in practice; reproduced
@@ -155,14 +154,10 @@
 // ---------------------------------------------------------------------------
 // THE ALLOCATOR, AND WHAT THIS FILE DOES NOT TAKE
 // ---------------------------------------------------------------------------
-// Every free here goes through `rtcoll::MemFree` — lane Q's by-address call to
-// the exported 0x1800c7ad0, which IS `if (p) { Enter; Free(_singleton, p);
-// Leave; }`, instruction for instruction the tail of each of these loops. This
-// file adds no new Runtime address beyond the ones it registers, and it does
-// NOT arm the allocator: the allocator port is lane E's and carries a standing
-// NO-GO. A heap cannot be half-ours. Lane Q's LANE E DEPENDENCY note in
-// array.cpp covers this file too — repointing rtcoll::MemAlloc/MemFree at lane
-// E's allocator repoints these bodies with it.
+// Every free here goes through `rtcoll::MemFree` — outside the unit test it is
+// header-inline in Collection.h and calls System::MemoryAllocator::MemFree by
+// name (retail 0x1800c7ad0), which IS `if (p) { Enter; Free(_singleton, p);
+// Leave; }`, instruction for instruction the tail of each of these loops.
 // ============================================================================
 
 #include <cstdint>
@@ -184,7 +179,8 @@
 namespace rtcoll {
 
 // `DestroySpec` and the two body signatures are in array_destroy_internal.h,
-// shared with the probe so it drives THESE bodies and not a copy of them.
+// shared with the other files that include it, so they reach THESE bodies and
+// not a copy of them.
 
 // ---- one String slot, by name --------------------------------------------
 // The adopt half of retail's inlined System::String copy (slot zeroed FIRST)
@@ -259,7 +255,7 @@ void ReleaseStringsCore(uint8_t* base, int count, const DestroySpec* s) {
 }
 
 // ============================================================================
-// The specs, one row per registered helper address.
+// The specs, one row per helper address.
 //
 // Every row was read out of that address's own disassembly: `stride` is the
 // `ADD RBX,imm` (or the `*8` scale for 0x180011010) at the bottom of the loop,
@@ -373,13 +369,12 @@ constexpr DestroySpec kD_InnerArr_10 = { "inner Array @+0x000, stride 0x010", 0x
 // every (offset, stride) pair a slot is read out of has to FIT. Body A writes
 // sixteen bytes at each offset and Body B writes eight, so an offset that
 // overruns its own stride is a wild write into the NEXT element -- the failure
-// family reference_internalfactory_swapremove_wild_write.md and
-// reference_load_wild_write_high_dword_7fc.md are both about, and neither had a
-// proximate symptom.
+// family of ~Internal's swap-remove writing through a stale handle-table entry
+// and of a String destructor on a non-String corrupting the allocator's boundary
+// tag, and neither had a proximate symptom.
 //
 // These caught nothing when they were written. That is the point: they are free
-// and they run on every build, whereas the probe needs a run and nine of these
-// eighteen addresses are teardown-only.
+// and they run on every build.
 // ---------------------------------------------------------------------------
 #define RTCOLL_FITS(SPEC, N, W)                                               \
     static_assert((SPEC).nOffs == (N), #SPEC " nOffs");                       \
@@ -409,10 +404,10 @@ RTCOLL_FITS(kD_Str2_10, 2, 8u);
 static_assert(kD_Str2_38.offs[1] + 8u <= kD_Str2_38.stride, "offs[1]");
 RTCOLL_FITS(kD_Str_28at08, 1, 8u);
 
-// The three DESCENDING rows, asserted as descending. "Sorted them while tidying
-// up" is a silent change to the order the ALLOCATOR sees, and no comparator in
-// the probe can see it (the slots do not alias) -- so it has to be checked here
-// or not at all.
+// Four DESCENDING rows, asserted as descending. "Sorted them while tidying
+// up" is a silent change to the order the ALLOCATOR sees, and no comparator on
+// the element buffer can see it (the slots do not alias) -- so it has to be
+// checked here or not at all.
 static_assert(kD_InnerArr3_1f0.offs[0] > kD_InnerArr3_1f0.offs[1] &&
               kD_InnerArr3_1f0.offs[1] > kD_InnerArr3_1f0.offs[2],
               "eh_vector_destructor_iterator destroys in REVERSE order");
@@ -426,10 +421,10 @@ static_assert(kD_Str2_38.offs[0] > kD_Str2_38.offs[1],
 
 #undef RTCOLL_FITS
 
-// Counting wrappers. These do the work AND the counting in one pass rather than
-// re-walking the buffer afterwards, because after Body A the slots are zeroed
-// and after Body B they are the answer — a second pass could not tell what the
-// first one did.
+// Counting wrappers. These count the non-null slots in a pass BEFORE the body
+// runs rather than re-walking the buffer afterwards, because after Body A the
+// slots are zeroed and after Body B they are the answer — a pass afterwards could
+// not tell what the body did.
 static int FreeInnerArraysCounted(uint8_t* base, int count, const DestroySpec* s) {
     int freed = 0;
     if (count > 0) {
@@ -457,15 +452,14 @@ static int ReleaseStringsCounted(uint8_t* base, int count, const DestroySpec* s)
 }  // namespace rtcoll
 
 // ============================================================================
-// The registered entry points
+// The entry points
 // ============================================================================
 namespace rtcoll {
 
 // ---- the thirteen helper addresses ----------------------------------------
 // Signature is retail's: (ignoredThis, base, count). `ignoredThis` is spilled
 // to the shadow space and never read by any of them; it stays in the signature
-// because these are registered AT retail's addresses and must match retail's
-// arity, not a cleaned-up one.
+// so the entry points keep retail's arity, not a cleaned-up one.
 
 #define A_ENTRY(ADDR, SPEC)                                                   \
     void RtColl_DestroyInner_##ADDR(void* ignoredThis, void* base, int count) { \
@@ -474,27 +468,12 @@ namespace rtcoll {
             static_cast<uint8_t*>(base), count, &SPEC);  /* CAST-OK: elem_stride (block-comment marker: a macro line cannot end in //) macro: the erased element walk steps the caller's element storage (void* base) as bytes */ \
     }
 
-// ONLY THE HELPERS OUR TREE ACTUALLY RESOLVES GET AN ENTRY POINT.
+// NOT EVERY HELPER ADDRESS GETS AN A_ENTRY / B_ENTRY POINT HERE.
 //
-// Of the eleven destroy-helper addresses, exactly three are reached through
-// `ResolveAddr(Module::Runtime, …)` anywhere in this tree — the three lane Q's
-// non-trivial specs call. The other eight are reached only by RETAIL's own
-// bodies, which we are replacing, so from our side they have no callers at all.
-//
-// They are PORTED all the same (the J2 entry points below inline exactly the
-// body and spec each one contains) and they are deliberately NOT REGISTERED,
-// because tools/runtime_census.py reports a registration nothing calls under
-// "Ports with no caller in our tree — check each is not a vestigial resolve".
-// Eight permanent entries there would dilute the one signal this wave has for
-// finding a DEAD port (reference_uncalled_port_is_not_verified.md). Registering
-// them buys nothing at cutover either: with the DLL gone, only OUR callers
-// exist, and our callers go through the J2 entry points.
-//
-// The eight, with the spec that already covers each, so a future caller is one
-// A_ENTRY/B_ENTRY line away and no re-derivation:
-//     0x18001ce90 kD_InnerArr_110   0x1800419b0 kD_InnerArr_18
-//     0x180074100 kD_InnerArr_48    0x18005bce0 kD_InnerArr3_48
-//     0x180011010 kD_Str_08         0x180014a40 kD_Str_48
+// The ones without one, with the spec that already covers each, so a new entry
+// point is one A_ENTRY/B_ENTRY line away and no re-derivation:
+//     0x18001ce90 kD_InnerArr_110   0x180074100 kD_InnerArr_48
+//     0x18005bce0 kD_InnerArr3_48   0x180014a40 kD_Str_48
 //     0x180034440 kD_Str_18         0x18005c550 DestroyNestedPair
 //
 // *** WAVE 9 LANE UIW, 2026-09-08 — TWO OF THE EIGHT NOW HAVE A CALLER, and
@@ -520,12 +499,12 @@ namespace rtcoll {
 // grep the address across both before porting a Collection helper.**
 A_ENTRY(180052110, kD_InnerArr_40)    // Audio::EffectSlot array (NOT Audio-gated — see banner)
 A_ENTRY(1800419b0, kD_InnerArr_18)    // UI: GraphElement::_graphs, the nested point Array
-// 2026-09-12 — Video::ShaderProgram::_byteCode. Registered because array.cpp's
-// kSpec_InnerArrayU8 (0x180053f00's SetSize) reaches it through ResolveAddr on
-// both its destroy arms, which is this list's stated admission rule.
+// Video::ShaderProgram::_byteCode. Its caller is array.cpp's kSpec_InnerArrayU8
+// (0x180053f00's SetSize), on both its destroy arms.
 A_ENTRY(18004ff80, kD_InnerArr_10)    // Video: ShaderProgram::_byteCode inner Array<uint8>
-// Cutover closure batch 2b: Achievement's two-inner-Array element destroy. It
-// has a caller registered in this same commit (0x180004b70's J2_ENTRY below).
+// Cutover closure batch 2b: 0x180005680, Achievement's two-inner-Array element
+// destroy, has no entry point of its own: 0x180004b70's J2_ENTRY below runs its
+// row, kD_InnerArr2_20.
 
 #undef A_ENTRY
 
@@ -541,12 +520,10 @@ B_ENTRY(1800059e0, kD_Str2_38)        // SpriteSheet's 0x38 entry — lane Q's k
 B_ENTRY(180011010, kD_Str_08)         // UI: ComboElement::_strings — lane UIW's kSpec_StringRef
 B_ENTRY(180026b50, kD_Str_10)         // IO::PackageFile::Entry — lane Q's kSpec_PkgEntry
 B_ENTRY(18004fe20, kD_Str_20)         // Video::VertexLayout::Element — array.cpp kSpec_VertexElement (2026-09-12)
-// WAVE 26 LANE INT33 — the fifth, and it is one of "the eight ported but
-// deliberately unregistered" the banner above lists. The stated condition for
-// registering one of the eight is "when a caller exists", and one now does:
-// array.cpp's kSpec_ExtStr10at08 (0x180075d20's SetSize, ported in the same
-// commit) reaches it by address, exactly as retail's 0x180075d20 reaches it by
-// rel32. Offset re-read here rather than inherited: `LEA RBX,[RDX+0x8]` at
+// WAVE 26 LANE INT33. Its caller is array.cpp's DestroyExtStringAt08, the
+// destroy of kSpec_ExtStr10at08 (0x180075d20's SetSize), which calls it by name
+// as retail's 0x180075d20 reaches it by rel32.
+// Offset re-read here rather than inherited: `LEA RBX,[RDX+0x8]` at
 // 0x18003966c, `ADD RBX,0x10` -- String at +0x08, stride 0x10 == kD_Str_10at08.
 B_ENTRY(180039640, kD_Str_10at08)     // UI: DialogNamedTemplate {ptr, String*}
 // ...and the sixth, on the same terms. `LEA RBX,[RDX+0x18]` at 0x1800395ac and
@@ -604,8 +581,8 @@ B_ENTRY(18003f070, kD_Str_28at08)     // UI: SpriteCapture::_entries (CaptureEnt
 // resemblance. The spec is read out of THIS body (see kD_Str2_10 above).
 B_ENTRY(180005570, kD_Str2_10)        // UI: StringTable::TextEntry {name, text}
 // 2026-09-12 — Video::ShaderProgram::Parameter {String name, int dest, bool}.
-// Same admission rule: array.cpp's kSpec_ShaderParam (0x180055db0's SetSize)
-// calls it by address. The row is kD_Str_10 — stride 0x10, one String at +0x00
+// Its caller is array.cpp's kSpec_ShaderParam (0x180055db0's SetSize). The
+// row is kD_Str_10 — stride 0x10, one String at +0x00
 // — read out of 0x18004fed0's own `MOV RAX,[RBX]` / `ADD RBX,0x10`, not
 // inherited from the three other addresses that share that spec.
 B_ENTRY(18004fed0, kD_Str_10)         // Video: ShaderProgram::Parameter
@@ -655,8 +632,7 @@ B_ENTRY(18004fed0, kD_Str_10)         // Video: ShaderProgram::Parameter
 // produced (an alignment immediate, a missing SHL, a TRAILING CALL to
 // Filename::AdjustDelimiters, and a 0x32/0x33 that meant 51 vs 52) all hid in
 // exactly the columns tabulated above, which is why they are tabulated rather
-// than summarised. The probe compares against the SHIPPED 0x180026b50 — not
-// against 0x180005930 — so the claim is also tested against the right body.
+// than summarised.
 //
 // The trailing-call trap in particular does NOT recur here: this listing's only
 // CALLs are the allocator's Enter / Free / Leave, the same three 0x180005930
@@ -666,12 +642,11 @@ B_ENTRY(18004fed0, kD_Str_10)         // Video: ShaderProgram::Parameter
 // (stride 0x10, offs {0x00}) and this body computes those two numbers itself.
 // The ELEMENT is IO::PackageFile::Entry — System::Filename at +0x00, int32
 // offset at +0x08, int32 size at +0x0c — so the two dwords in the tail are
-// exactly the eight bytes Body B does not touch, and the `if (isSlot)` skip in
-// the probe's byte-for-byte check (step 3) covers them.
+// exactly the eight bytes Body B does not touch.
 
 // Cutover closure batch 2: Graphics::Material's parameter array (String* name
-// at +0x00, stride 0x18, ~MaterialInstance's call). Has a caller from the
-// first commit (0x180004c80's J2_ENTRY below), so registered immediately.
+// at +0x00, stride 0x18, ~MaterialInstance's call). Its caller is array.cpp's
+// kSpec_MaterialParam; 0x180004c80's J2_ENTRY below runs the same row.
 B_ENTRY(180005880, kD_Str_18at00)      // Graphics: Material parameter array
 // ---- BATCH 5 (2026-09-12): the two helpers the IO save-list / mod-reload ----
 //      arrays destroy through. Both are element-destroy helpers for SetSize
@@ -694,16 +669,15 @@ B_ENTRY(180005880, kD_Str_18at00)      // Graphics: Material parameter array
 //                 ADD RBX,0x18       @0x180029233   -> stride 0x18
 //                 == kD_Str_18, the row 0x180034440 already uses.
 //
-// 0x18002afc0 was ALREADY REACHABLE from this file — `J2_ENTRY(18002ac40, …)`
-// above names it as the helper that entry point CALLs — but only as a rel32
-// inside retail's body. Registering it is what makes the SetSize arm reach
-// ours, and it is the both-halves rule the 0x1800269a0 line records.
+// 0x18002afc0 is also the helper `J2_ENTRY(18002ac40, …)` below names as the
+// one that entry point CALLs (a rel32 inside retail's body). This B_ENTRY is
+// what array.cpp's kSpec_SaveGameInfo destroy (DestroySaveGameInfoRange) calls.
 B_ENTRY(18002afc0, kD_Str_10at08)     // IO: Persistence::SaveGameInfo {DateTime, String*@+8}
 B_ENTRY(180029190, kD_Str_18)         // IO: SetupFileSystem's {typeId, External*, Filename@+0x10}
 
 // Cutover closure batch 2b: Save's metadata entry {String*, String*, 3 ints}.
-// Three callers land in this commit — array.cpp's kSpec_MetaEntry20 (0x180034010
-// and 0x180033080) and this file's 0x180033f30 operator=.
+// Its caller is array.cpp's kSpec_MetaEntry20 (0x180034010 and 0x180033080);
+// this file's 0x180033f30 operator= runs the same row through ArrayClearMetaEntry20.
 B_ENTRY(1800341e0, kD_Str2_20)        // Save: Persistence metadata entry
 
 #undef B_ENTRY
@@ -714,10 +688,9 @@ B_ENTRY(1800341e0, kD_Str2_20)        // Save: Persistence metadata entry
 // helper-then-J1, and a second copy of J1 here would be a place for the two to
 // drift apart.
 //
-// The helper is reached through the same DestroySpec this file registers, NOT
-// through ResolveAddr — these six know statically which helper retail calls, so
-// going out to the registry and back would be a slower way to reach the same
-// function and would hide the edge from tools/runtime_census.py.
+// The helper's body is run directly with the same DestroySpec its A_ENTRY /
+// B_ENTRY line uses: these entry points know statically which helper retail
+// calls.
 
 #define J2_ENTRY(ADDR, CORE, SPEC)                                            \
     void* RtColl_ArrayDtorElem_##ADDR(void* self) {                           \
@@ -775,7 +748,7 @@ J2_ENTRY(180039280, ReleaseStringsCounted,  kD_Str_20at18)   // CALL 0x180039580
 // +0xB0 (src/engine/io/package_file_dtor.cpp:31 named it and recorded it as
 // "NOT PORTED <- the only one" of that dtor's seven callees).
 //
-// MEASURED, not inherited, with `tools/int33_normdiff.py` (9/9 controls):
+// MEASURED, not inherited (9/9 controls):
 //
 //   0x1800269a0 vs 0x18002ac40   extent 127/127   raw byte diff 13
 //     the ONLY normalised difference is the one operand that decides the
@@ -786,13 +759,13 @@ J2_ENTRY(180039280, ReleaseStringsCounted,  kD_Str_20at18)   // CALL 0x180039580
 //     +0x57 CALL 0x1800c6c00  }  the allocator Enter / Free / Leave triple,
 //     +0x60 CALL 0x18014b388  }  byte-for-byte the triple 0x180010ab0 makes
 //
-// The helper is ALREADY PORTED AND REGISTERED in this file as
-// `RtColl_DestroyStrings_180026b50` under `kD_Str_10`, and the B_ENTRY line for
-// it (above) already names its element as `IO::PackageFile::Entry`. So this is
-// an ENTRY POINT for machinery that exists, not a new body, and it needs NO new
-// DestroySpec row — which is asserted from 0x1800269a0's own CALL operand and
-// not from a hash, because a hash erases exactly that operand (see the three
-// Wave 25 rows above, where two siblings sharing hash 089ee8 take two specs).
+// The helper is ported in this file as `RtColl_DestroyStrings_180026b50` under
+// `kD_Str_10`, and the B_ENTRY line for it (above) names its element as
+// `IO::PackageFile::Entry`, so 0x1800269a0 needs NO new DestroySpec row — which
+// is asserted from 0x1800269a0's own CALL operand and not from a hash, because a
+// hash erases exactly that operand (see the three Wave 25 rows above, where two
+// siblings sharing hash 089ee8 take two specs). This file has no entry point for
+// 0x1800269a0.
 
 // ---- WAVE 27 LANE FRONTIER: the eleventh J2 address ------------------------
 //
@@ -804,12 +777,9 @@ J2_ENTRY(180039280, ReleaseStringsCounted,  kD_Str_20at18)   // CALL 0x180039580
 //   then the allocator Enter / Free / Leave triple through 0x1801fc718+0x640,
 //   0x18014b390, 0x1800c6c00, 0x18014b388, and finally `XOR EAX,EAX` with the
 //   two stores at [RDI] and [RDI+0x8] -- which is ArrayDtorImpl exactly.
-// So: entry point for machinery that now exists, no new spec.
-//
-// It is REGISTERED rather than left as one of "the eight", because at cutover
-// it is how `Object::External`'s dependency array is torn down and retail's
-// rel32 to 0x180006ac0 will not exist. Registering both halves is the lesson
-// the 0x1800269a0 line above records.
+// So: no new spec. This file has no entry point for 0x180006b80; the helper
+// 0x180006ac0's B_ENTRY above is what array.cpp's kSpec_ExtArrayElem destroys
+// through.
 
 // ---- WAVE 27 LANE FRONTIER: the twelfth J2 address -------------------------
 //
@@ -841,9 +811,10 @@ J2_ENTRY(180004f50, ReleaseStringsCounted,  kD_Str2_38)      // CALL 0x1800059e0
 // RDX,[RCX]` / `CALL 0x180005880` then the allocator triple and the two zero
 // stores -- the same J2 shape, a new (String, stride 0x18, offset 0x00) row.
 J2_ENTRY(180004c80, ReleaseStringsCounted,  kD_Str_18at00)   // CALL 0x180005880  Body B
-// 0x180051fe0 -- another `~Array` calling 0x180052110 (already ported/
-// registered above as A_ENTRY's Audio::EffectSlot row, kD_InnerArr_40). Read
-// from its own body: `CALL 0x180052110` then the same allocator triple.
+// 0x180051fe0 -- another `~Array` calling 0x180052110 (ported above as
+// A_ENTRY's Audio::EffectSlot row, kD_InnerArr_40). Read
+// from its own body: `CALL 0x180052110` then the same allocator triple. This
+// file has no entry point for 0x180051fe0.
 // ---- 2026-09-12: the two Video::ShaderProgram ~Array bodies ----------------
 //
 // ~ShaderProgram (0x1800f50b0) destroys three member arrays, through TWO
@@ -868,7 +839,7 @@ J2_ENTRY(18004fbd0, FreeInnerArraysCounted, kD_InnerArr_10)  // CALL 0x18004ff80
 // `CALL 0x180005680` with R8D=[RCX+8], RDX=[RCX], then the allocator triple and
 // the two zero stores. Body A, the new two-offset kD_InnerArr2_20 row.
 J2_ENTRY(180004b70, FreeInnerArraysCounted, kD_InnerArr2_20) // CALL 0x180005680  Body A
-// 0x180004d60 -- `CALL 0x180005930`, the ALREADY-REGISTERED Body B helper
+// 0x180004d60 -- `CALL 0x180005930`, the ALREADY-PORTED Body B helper
 // (kD_Str_10, the {String*, ExternalPtr} element). A second caller for a row
 // this file has carried since Wave 9; no new spec.
 J2_ENTRY(180004d60, ReleaseStringsCounted,  kD_Str_10)       // CALL 0x180005930  Body B
@@ -892,8 +863,8 @@ J2_ENTRY(180004d60, ReleaseStringsCounted,  kD_Str_10)       // CALL 0x180005930
 //       free *(void**)(e+0x10);  e+0x10 = 0;  e+0x18 = 0;
 //
 // Element layout, therefore: {…, Array<String-bearing> at +0x10,
-// Array<Array-bearing> at +0x20}, stride 0x30. Both sub-helpers are registered
-// addresses of this file, so this creates no new row either — but it is a THIRD
+// Array<Array-bearing> at +0x20}, stride 0x30. Both sub-helpers are rows of this
+// file (kD_InnerArr3_48, kD_Str_48), so this creates no new row either — but it is a THIRD
 // body and had to be written out rather than parameterized, because the inner
 // element count is read from the nested header and not passed in.
 //
@@ -959,20 +930,12 @@ void* RtColl_ArrayDtorElem_18005bf60(void* self) {
 // BANISHED_REDZONE=watch and a hardware write watchpoint can tell them apart.
 //
 // *** THE ELEMENT IS 0x38 BYTES AND THIS WRITES 0x00 THROUGH 0x33. BYTES
-// +0x34 .. +0x37 ARE NEVER WRITTEN BY THE ASSIGN. *** Lane Q's kSpec_Sprite38
-// carries `unwrittenLo = unwrittenHi = 0`, i.e. "no such window", and its probe
-// seeds all-zero elements so the gap never showed. Any oracle that memcmps a
-// freshly assigned SpriteSheet element will fail on four bytes of allocator
-// fill and read like a catastrophic port defect — which is
-// reference_oracle_must_not_compare_unwritten_bytes.md exactly, four times over
-// in Wave 6 and three more in lane Q.
-//
-// NOT fixed in lane Q's spec by this lane, deliberately: that field is
-// documented there as the window retail's DEFAULT (init) arm leaves alone, and
-// this window is on the ASSIGN arm. Widening the field's meaning from another
-// lane, with no ability to run lane Q's probe, would be the change that looks
-// harmless and silently stops comparing bytes that should be compared. The
-// finding is filed in docs/history/runtime_port/WAVE9_LANE_D2.md as lane Q's to make.
+// +0x34 .. +0x37 ARE NEVER WRITTEN BY THE ASSIGN. *** array.cpp's kSpec_Sprite38
+// carries that window as `assignUnwritten = [0x34, 0x38)`. Any oracle that
+// memcmps a freshly assigned SpriteSheet element without it will fail on four
+// bytes of allocator fill and read like a catastrophic port defect — which is
+// exactly how an oracle that compares bytes retail never stores fails. The finding is
+// filed in docs/history/runtime_port/WAVE9_LANE_D2.md.
 static void SpriteInfoCopy(UI::SpriteInfo* d, const UI::SpriteInfo* s) {
     AdoptStringSlot(d->name._data,  s->name._data);   // +0x00
     AdoptStringSlot(d->group._data, s->group._data);  // +0x08
@@ -1005,7 +968,7 @@ void* RtColl_SpriteEntryAssign_180004220(uint8_t* dst, const uint8_t* src) {
 // *** +0x31 .. +0x37 ARE NEVER WRITTEN. *** Same trap as the row above, one
 // byte later: an oracle that memcmps 0x38 bytes after this runs compares seven
 // bytes of allocator fill. array.cpp's kSpec_LayoutEntry38 carries that exact
-// window as `assignUnwritten = [0x31, 0x38)` so its probe does not.
+// window as `assignUnwritten = [0x31, 0x38)`.
 using LayoutEntry = UI::LayoutDescription::Entry;
 static void LayoutEntryCopy(LayoutEntry* d, const LayoutEntry* s) {
     d->desc = s->desc;                            // +0x00, no refcount touch
@@ -1063,9 +1026,8 @@ void* RtColl_LayoutEntryAssign_180043980(uint8_t* dst, const uint8_t* src) {
 // the refcounting variant looks like; do not merge the two.
 //
 // The other J4 address, 0x180010110 (`ModArrayCopy`), is NOT ported here: it
-// calls 0x1800101e0 (`ModEntry_CopyCtor`), which is lane D's J9 IO::Mod cluster
-// and reaches ExpandRelativePath / FindOrLoad / BinaryFileStream. Porting it
-// would create a J9 row, which is the trade J9 exists to avoid taking piecemeal.
+// calls 0x1800101e0 (Mod's copy ctor) and is Array<Mod>::operator= over
+// kSpec_Mod in io/modification.cpp.
 void* RtColl_ArrayAssign_180003970(void* self, const void* src) {
     ArrayHdr* a = static_cast<ArrayHdr*>(self);   // the erased core views its receiver (void* self) as the header  // CAST-OK: elem_stride
     const ArrayHdr* s = static_cast<const ArrayHdr*>(src);  // CAST-OK: elem_stride
@@ -1113,14 +1075,13 @@ void* RtColl_ArrayAssign_180003970(void* self, const void* src) {
 //     free(e[1]); e[1] = 0; e[2] = 0            Body-A-shaped, on a non-Array
 //                                               {ptr,count} pair
 //     release the System::String at e[0]        Body-B-shaped
-// Expressing that as a DestroySpec would need a THIRD core, and the helper is
-// not itself on the worklist, so it is reached by ADDRESS — the same door
-// kSpec_PkgEntry's DestroyPkgEntryRange uses, and registry-first, so the day
-// 0x180010f00 is ported this call lands on our body without an edit here.
+// Expressing that as a DestroySpec would need a THIRD core. This file has no
+// entry point for 0x1800109d0; the helper 0x180010f00 is
+// RtVideo_ArrayInterfaceElemDestroy in video/device_enum_types.cpp.
 
 // ---- The generic J4 --------------------------------------------------------
 //
-// `RtColl_ArrayAssign_180003970` and `..._18001b1a0` above each write this body
+// `RtColl_ArrayAssign_180003970` above and `..._18001b1a0` below each write this body
 // out by hand because each was landed alone. Three arrive at once here, one of
 // them with a non-trivial element, so the body is parameterised by the same
 // `ArraySpec` the SetSize family uses plus a CLEAR callback — which is the one
@@ -1205,12 +1166,12 @@ J4_ENTRY(180033f30, kAsgn_MetaEntry20, ArrayClearMetaEntry20)   // clear 0x18003
 //                No element ctor, no String adopt: a POD element.
 //   0x18001c620  Array<blob0x38>::Array(const Array&)   `_data = 0; _size =
 //                _capacity = 0;` then a CALL to 0x18001cd30 and `MOV RAX,RCX`.
-//   0x18001c650  Array<blob0x38>::~Array   the thirteenth copy of J1
+//   0x18001c650  Array<blob0x38>::~Array   a copy of J1
 //                (allocator lock, Free, zero the three fields) — the same body
-//                array.cpp:1929 already named as the one ArrayDtorImpl IS.
+//                array.cpp's 0x1800638e0 row already named as the one ArrayDtorImpl IS.
 // The one caller of the copy ctor is the eh_vector copy iterator at
-// 0x18001bece (Graphics::DrawGroup's inner arrays, graphics/closure_batch2b.cpp
-// reaches it BY ADDRESS through InnerArrayCopyCtor), which is how the closure
+// 0x18001bece (Graphics::DrawGroup's inner arrays; graphics/closure_batch2b.cpp
+// calls it by name through InnerArrayCopyCtor), which is how the closure
 // found all three.
 void Assign56(uint8_t* d, const uint8_t* s) { AssignAs<uint64_t, &CopyWords<uint64_t, 7>>(d, s); }
 const ArraySpec kAsgn_Blob38 = {
@@ -1232,12 +1193,11 @@ void* RtColl_ArrayCopyCtor_18001c620(void* self, const void* src) {
 
 // Cutover closure batch 2 (2026-09-12): 0x18001b1a0, `Array<Graphics::
 // Geometry*>::operator=`. Read out of its own body and IDENTICAL in shape to
-// 0x180003970 above -- dtor first (CALL 0x18001bf50, itself already ported as
-// array.cpp's `J1_ENTRY(18001bf50)`, a parameterless body so which address it
+// 0x180003970 above -- dtor first (CALL 0x18001bf50, a J1 body, called here as
+// ArrayDtorImpl: a parameterless body so which address it
 // is does not matter), then the same realloc-and-copy loop, T a raw 8-byte
 // pointer with no refcount and no pre-zero. A second occurrence of one J4
-// body, not a new one — its own Site so the diff registry attributes
-// divergences to the right retail address.
+// body, not a new one, with its own entry point for its own retail address.
 void* RtColl_ArrayAssign_18001b1a0(void* self, const void* src) {
     ArrayHdr* a = static_cast<ArrayHdr*>(self);   // the erased core views its receiver (void* self) as the header  // CAST-OK: elem_stride
     const ArrayHdr* s = static_cast<const ArrayHdr*>(src);  // CAST-OK: elem_stride
@@ -1385,9 +1345,8 @@ void RtColl_DestroyVtxStream_180056cb0(void* ignoredThis, void* basev, int count
 //     EDI = _size; RBX = _data;
 //     while (EDI--) { 0x1800fb290(RBX); RBX += 0x70; }     // forward order
 // then, instruction for instruction, the J1 body. 0x1800fb290 is
-// `Graphics::~Animation`, which is a row of the sibling gfx batch and is
-// therefore reached BY ADDRESS — registry-first, so the day it lands this call
-// goes to our body with no edit here.
+// `Graphics::~Animation`, called by name as RtGraphics_Animation_Dtor
+// (graphics/Animation.h, defined in graphics/batchc_gfx_leaves.cpp).
 void* RtColl_ArrayDtorAnim_18001c1e0(void* self) {
     ArrayHdr* a = static_cast<ArrayHdr*>(self);   // the erased core views its receiver (void* self) as the header  // CAST-OK: elem_stride
     const int32_t n = a->_size;
@@ -1477,9 +1436,8 @@ static_assert(kD_InnerArr2_28.offs[1] + 16u <= kD_InnerArr2_28.stride, "offs[1]"
 static_assert(kD_InnerArr2_28.offs[0] > kD_InnerArr2_28.offs[1], "descending");
 
 // The Video::VertexProgram parameter element's row, `kD_Str2_18`, is NOT
-// redefined here: the sibling batch working below 0x1800571b0 landed it (and
-// registered both 0x180056960 and its ~Array wrapper 0x180056610) in the same
-// merge. One row, one owner.
+// redefined here: it is defined above, with the entry points for 0x180056960
+// (D1_B_ENTRY) and its ~Array wrapper 0x180056610 (D1_J2_ENTRY). One row, one owner.
 
 // ---- 0x1800664c0: a Body-A range destroy ----------------------------------
 #define A_ENTRY(ADDR, SPEC)                                                   \
@@ -1586,8 +1544,8 @@ void Assign4(uint8_t* d, const uint8_t* s);
 // not duplicated: it lives in array.cpp with the other element ops).
 void AssignVtxElement18(uint8_t* d, const uint8_t* s);
 
-// 0x1800571b0's clear is 0x180056610, which the sibling batch ported and
-// registered as a J2 in this same file. Calling its entry point IS retail's
+// 0x1800571b0's clear is 0x180056610, which is ported as a J2 (D1_J2_ENTRY)
+// in this same file. Calling its entry point IS retail's
 // `CALL 0x180056610`, and it keeps one body for that address.
 void* RtColl_ArrayDtorElem_180056610(void* self);
 void ArrayClearVPParam18(ArrayHdr* a) { RtColl_ArrayDtorElem_180056610(a); }
@@ -1629,27 +1587,6 @@ J4_ENTRY(1800571b0, kAsgnD2_VPParam18, ArrayClearVPParam18)   // clear 0x1800566
 
 }  // namespace rtcoll
 
-// ============================================================================
-// Registration
-// ============================================================================
-//
-// `RegisterRuntimeAddr` and not `RegisterRuntimeExport`, for lane Q's reason:
-// none of these instantiations has an exported name in either build. Every
-// address is spelled as a LITERAL at the call below even though the entry-point
-// name already contains it, because tools/runtime_census.py counts address
-// registrations by scanning for that literal
-// (reference_census_cannot_see_nonliteral_registrations.md — twelve live ports
-// went uncounted for a full wave when the address was a named constant).
-//
-// *** THIS REGISTRATION CHANGES WHAT LANE Q's OWN CODE CALLS. ***
-// array.cpp reaches 0x1800059e0, 0x180052110 and 0x180005930 through
-// `static Fn fn = ResolveAddr(Module::Runtime, …)`, and ResolveAddr consults the
-// port registry FIRST. Those statics initialise on FIRST USE — a real Array
-// call, long after any init — so registering here binds them to these bodies
-// without any ordering requirement between the two inits. It does mean that
-// from this commit, lane Q's three non-trivial specs no longer reach the DLL
-// for their destroy step, and array.cpp's row table saying they do is corrected
-// in the same change.
 // ENDGAME B.3.2 closing pass (2026-09-18): ten entry points and their rows were
 // removed at zero callers — 18001c7e0, 1800269a0, 180073c90, 180006b80,
 // 180051fe0, 18001c8c0, 180005680, 1800109d0, 180005770, 18001c650. The test is

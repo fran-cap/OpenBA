@@ -4,9 +4,10 @@
 // TerraformComponent (0x48 bytes) — manages terrain modification during construction.
 // Fields: +0x28/+0x30/+0x34 = original-terrain undo record, +0x38/+0x40/+0x44 = retyped cells
 //
-// Vtable at 0x14015a880. Two non-trivial overrides:
-//   Shutdown (0x140057500) — Serialize Vector3 array
+// Vtable at 0x14015a880. Three non-trivial overrides:
+//   Persist  (0x140057500) — Serialize Vector3 array
 //   OnRemove (0x140057350) — Restore original terrain heights + tile types
+//   OnEvent  (0x140057310) — msg 4: apply the deformation
 //
 
 #include "Component/terraformcomponent_funcs.h"
@@ -43,7 +44,7 @@
 
 // Terrain helpers for the OnRemove restore + the completion passes:
 // CitizenAI_impl_b150 (0x1400ab150) — terrain region-dirty recalc around (x,y); the
-// registered body is Pf_RegionDirty4_b150 (action_pf_road.cpp).
+// body is WorldGeometry::MarkChunksDirty (action_pf_road.cpp).
 // NOTE: the literal was previously 0x1400a4b50 (a dropped/transposed digit) which
 // lands mid-FUN_1400a4b30, an unrelated merchant-name binary search. The true callee
 // in TerraformComponent OnRemove is CitizenAI_impl_b150 @ 0x1400ab150.
@@ -79,7 +80,7 @@ static float TF_RdataF32(uint32_t bits) { float f; memcpy(&f, &bits, sizeof f); 
 // ceiling pass raises terrain where the mesh sits ABOVE it (the hill over the mouth).
 // Only the ceiling pass records an undo entry — faithful to retail.
 //
-// 0x14009f3e0 Reimpl_MapGetTerrainPos samples the terrain; slot 0x140152a98 is
+// 0x14009f3e0 Map::GetTerrainPos samples the terrain; slot 0x140152a98 is
 // ?IsDerivedFrom@Base@Object@@, called on the object. Import slots 0x140152b60 /
 // 0x140152b68 are System::MemoryAllocator::MemAlloc / MemFree (the static pair).
 // .rdata 0x140172100 == 0.25f (vertex bias), 0x14017214c == 1.0f (g_fUVScale, cell step)
@@ -136,10 +137,10 @@ static int16_t& TerraformHeightAt(WorldGeometry* terrain, int mapX, int mapY) {
 // 0x140056b50 — one heightmap pass over a TerraformDescription picking mesh.
 // ------------------------------------------------------------
 void TerraformComponent::ApplyMesh(bool ceiling) {
-    // Every way this pass can silently do nothing is reported once. A deformation that
-    // does not happen is invisible in a log otherwise, and the failure modes here are all
-    // "a pointer or type id resolved to zero" — the exact class of bug that reads as
-    // "the feature is broken" when it is really "the feature never ran".
+    // Each bail() below reports why this pass did nothing, up to 8 lines in all. A
+    // deformation that does not happen is invisible in a log otherwise, and the failure
+    // modes here are all "a pointer or type id resolved to zero" — the exact class of bug
+    // that reads as "the feature is broken" when it is really "the feature never ran".
     auto bail = [&](const char* why) {
         static int n = 0;
         if (n < 8) { ++n;
@@ -190,9 +191,9 @@ void TerraformComponent::ApplyMesh(bool ceiling) {
         const ::Vector3& localVtx = mesh->Vertices(0)[i];
 
         // Transform::operator*(const Vector3&) — slot 0x140151470. LEFT: the picking
-        // mesh's element is the global engine Vector3, Math::Vector3's layout twin.
+        // mesh's element is the global engine Vector3, an alias of Math::Vector3.
         const Math::Vector3 world =
-            xform * localVtx;   // ::Vector3 is Math::Vector3 (engine/types/common.h alias)
+            xform * localVtx;   // ::Vector3 is Math::Vector3 (engine/global_types.h alias)
 
         // p = transformed vertex, nudged a quarter cell so it lands inside a cell
         // rather than exactly on the shared corner.
@@ -395,7 +396,7 @@ void TerraformComponent::OnRemove() {
                     tileIndex % gridWidth, tileIndex / gridWidth);   // 0x1400a8c90 (Pf_FineCellDirty_a8c90's body)
             }
 
-            // Set terrain type (0x1400a6fe0; args 3/4 cast as above)
+            // Set terrain type (0x1400a6fe0)
             map->pathfinder->SetCellTerrain(static_cast<int>(tileIndex), ToUnderlying(PathType::Walkable));   // 0x1400a6fe0 (Pf_EnqueueCmd2_a6fe0's body)
         }
     }

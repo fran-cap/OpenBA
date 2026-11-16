@@ -8,11 +8,11 @@
 //
 // Fields from Serialize:
 //   +0x20: description entity (ExternalPtr/type ref, serialized via FUN_140002340)
-//   +0x28: InternalBasePtr (source building)
+//   +0x28: InternalBasePtr (the working citizen)
 //   +0x30: InternalBasePtr (optional secondary entity)
 //   +0x38: InternalBasePtr (optional tertiary entity)
-//   +0x40: int (total quantity)
-//   +0x44: int (material type index)
+//   +0x40: int (carrier volume capacity)
+//   +0x44: int (map cell index)
 //   +0x48: uint (placement flags)
 //   +0x4c: float (yield multiplier)
 //   +0x50: bool (natural resource flag)
@@ -23,8 +23,8 @@
 #include "CreateRawMaterial.h"
 #include "object/TypeInfo.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
-#include "Action/exe_bodies.h"            // Pf_FindPlacementCell_bd40, ActRm_* helpers
-#include "Game/exe_bodies.h"              // Reimpl_ExternalPtr_Serialize_StringTable
+#include "Action/exe_bodies.h"
+#include "Game/exe_bodies.h"
 #include "Entity/ComponentEntity.h"   // ComponentEntity(ComponentDescription*) (0x1400c3720)
 #include "Entity/EntityList.h"        // EntityList::RegisterEntity (0x1400c48a0)
 #include "Entity/EntityList.h"
@@ -53,17 +53,17 @@
 
 // ============================================================
 // Helpers, called by name (B3R)
-//   0x140002340 Reimpl_ExternalPtr_Serialize_StringTable -- serialize StringHash/type ref
-//   0x1400c3720 ComponentEntity_CtorFromDescription      -- clone entity from description
-//   0x14009bd40 Pf_FindPlacementCell_bd40 -- find placement cell
+//   0x140002340 ::Object::SerializeExternal -- serialize StringHash/type ref
+//   0x1400c3720 ComponentEntity(ComponentDescription*) -- clone entity from description
+//   0x14009bd40 Map::FindPlacementCell -- find placement cell
 //               (mapGrid*, cellIndex, naturalResourceFlag, outEntityPtr*, placementFlags)
-//   0x140129760 ActRm_PositionEntity_9760 -- position entity at cell with rotation
-//   0x140088ef0 ActRm_RegisterRawMaterial_88ef0 -- register raw material with resource tracker
-//               (entityList, sourceIBP, placeNearFlag, descEntity, quantity)
-//   0x1400c48a0 EntityList_RegisterEntity_Impl -- register entity with entity list
-//   0x140022520 WorkAcc_FindComponent_22520 -- get child entities from source building
+//   0x140129760 Component::PositionRawMaterial -- position entity at cell with rotation
+//   0x140088ef0 CitizenBehavior::CountProducedMaterial -- register raw material with resource tracker
+//               (town, sourceIBP, placeNearFlag, descEntity, quantity)
+//   0x1400c48a0 EntityList::RegisterEntity -- register entity with entity list
+//   0x140022520 ComponentEntity::FindComponent<AutoPickupComponent>
 //               (member ABI: RCX=entity, RDX=retbuf)
-//   0x140003050 WorkBase_FindComponent_3050 -- find component on entity (ResourceDescription?)
+//   0x140003050 ComponentEntity::FindComponent<WorkComponent>
 // ============================================================
 
 /// Constant: rotation scale factor (90.0f) at 0x140172204

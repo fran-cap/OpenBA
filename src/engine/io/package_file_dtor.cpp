@@ -9,8 +9,7 @@
 //
 // `UEAA` is the VIRTUAL spelling and it is the one the DLL exports — the
 // non-virtual `QEAA` form of this name does not exist, and asking for it would
-// have resolved NULL with `ResolveExport` hiding the miss
-// (reference_phantom_dtor_mangling_qeaa_vs_ueaa.md). The name above was printed
+// have resolved NULL with `ResolveExport` hiding the miss. The name above was printed
 // out of the shipped export directory by ADDRESS, not typed from the pattern.
 //
 // ---------------------------------------------------------------------------
@@ -35,14 +34,8 @@
 //       0x180010ab0  ~Array<T> (elem dtor)   PORTED  collection/array_destroy.cpp:902
 //       0x1800bc950  ~Object::External       PORTED  object/external.cpp:762
 //
-//     The count was wrong by four and, more to the point, **an unported callee
-//     was never a blocker in the first place**: retail reaches all seven by
-//     rel32, this port reaches them through
-//     `ResolveAddr(Module::Runtime, addr)`, and that consults the PORT REGISTRY
-//     FIRST and falls through to the DLL. So 0x1800269a0 lands on the DLL's own
-//     body today and on whatever registers it later, with no change here. That
-//     is the kickoff's worked specimen — "not exported" is not "no door" — in
-//     its dependency form.
+//     The count was wrong by four. The callees are now the members' and the
+//     base's own destructors, which the compiler runs after the body below.
 //
 //     ENDGAME B.3.2 step 2 (callers, 2026-09-13): both 0x1800269a0 and
 //     0x180010ab0 are now `Collection::Array<T>::~Array()` member calls at
@@ -53,16 +46,9 @@
 //     SMALLBODY as "the strongest-held of the nine, and correctly scoped":
 //     *"it has no oracle... a fabricated subject is a fake rather than a
 //     synthetic one"*.
-//     **RE-DERIVED: FALSE, and §3 is the oracle.** The objection is real but it
-//     is an objection to ONE construction (fabricating a PackageFile by hand),
-//     not to the existence of an oracle. The subject below is not fabricated:
-//     it is built by **retail's own exported constructor**
-//     (`??0PackageFile@IO@@QEAA@XZ`, which this tree already ports and which
-//     `package_file.cpp` §5 already byte-verifies against the DLL), then filled
-//     with **real refcounted System::String blocks from the real allocator**.
-//     That is a SYNTHETIC SUBJECT, which beats a fake precisely because every
-//     part of it was produced by the shipped code
-//     (reference_synthetic_subject_beats_a_fake.md).
+//     **RE-DERIVED: FALSE.** The objection is real but it is an objection to
+//     ONE construction (fabricating a PackageFile by hand), not to the
+//     existence of an oracle.
 //
 // ---------------------------------------------------------------------------
 // 2. THE BODY — WHAT THE BYTES DO
@@ -91,102 +77,24 @@
 //
 // (ii)  **THE RELEASE IDIOM'S TWO ARMS LEAVE THE SLOT HOLDING DIFFERENT
 //       THINGS.** On the freeing arm the slot keeps `data - 8`; on the sharing
-//       arm it is NULLED. That asymmetry is retail's and it is the ONLY part of
-//       this function a byte comparator can see, which is why §3's subject
-//       deliberately contains both kinds. `RtSystem::RtString_ReleaseInline`
-//       already is this idiom, instruction for instruction (string.cpp:132),
-//       so this file calls it rather than re-transcribing it — the fifth and
-//       sixth copies of a refcount idiom are how one of them drifts.
+//       arm it is NULLED. That asymmetry is retail's. Here the five Strings are
+//       the members' own `System::String` destructors, which the compiler runs
+//       after the body below.
 //
-// (iii) **TWO MORE STRING FIELDS THAN FileSystem.h NAMES.** The header models
-//       +0x40 `name`, +0x48 `author`, +0x50 `description` and then
-//       `_unknown58[0x58..0x67]`. The dtor releases **+0x58 and +0x60 with the
-//       same String idiom**, so both are `System::String`. They are recorded in
-//       the header as strings-of-unknown-purpose; they are NOT given invented
-//       names, because a destructor pins the TYPE and says nothing about the
-//       MEANING (reference_a_writer_beats_readers_agreeing_on_a_sign.md is the
-//       same discipline one step over).
+// (iii) **TWO MORE STRING FIELDS THAN THE ACCESSORS NAME.** Past +0x40 `_name`,
+//       +0x48 `_author` and +0x50 `_description`, the dtor releases **+0x58 and
+//       +0x60 with the same String idiom**, so both are `System::String`. In
+//       PackageFile.h they are `_icon` and `_preview`, marked purpose unknown:
+//       a destructor pins the TYPE and says nothing about the MEANING
+//       (the same discipline one step over: readers testing a sign cannot
+//       name a field; its writer can).
 //
 // (iv)  **THE LAST CALL IS A TAIL JUMP, SO ITS RETURN VALUE IS THIS
 //       FUNCTION'S.** `JMP 0x1800bc950` — whatever `~Object::External` leaves
 //       in RAX is what `~PackageFile` returns. Retail's callers are free to use
-//       it. Declaring this `void` would leave RAX unset, which works with the
-//       DLL present and is exactly the shape §1c of the kickoff describes for
-//       ctors; so the signature returns what the tail call returns rather than
-//       discarding it. That is a transcription of the jump, not a guess about
-//       a caller.
-//
-// ---------------------------------------------------------------------------
-// 3. THE ORACLE — PROBE SHAPE: **SYNTHESISED ORACLE**, named up front
-// ---------------------------------------------------------------------------
-// Why not the others: an INPUT SWEEP needs purity and this mutates an object
-// and the heap; a SHADOW SITE alone cannot work, and the reason is the whole
-// difficulty of this row — the two arms would share the same String blocks and
-// the second run would DOUBLE FREE; a WRITE-PATH REPLAY has no stream; the
-// fallback is TWO-SIDED DISASSEMBLY and it was not needed.
-//
-// The construction, and every part of it is shipped code:
-//
-//   1. two arenas of 0xF0 bytes, prefilled 0xCD
-//   2. `the raw DLL door<CtorFn>("??0PackageFile@IO@@QEAA@XZ")` on BOTH — the DLL's
-//      own constructor, so the starting states are retail's and identical
-//   3. five String slots filled per arena with **SEPARATE** blocks from
-//      `RtString_SetLength` (the real allocator), with a deliberately MIXED
-//      refcount pattern: refcount 1 on +0x60/+0x50/+0x40 (the FREEING arm) and
-//      refcount 2 on +0x58/+0x48 (the SHARING arm). Separate blocks are what
-//      makes two runs safe; the mixed pattern is what makes the comparison
-//      mean anything (reference_uniform_population_is_not_a_verification.md —
-//      a population where every case takes the same branch verifies one branch
-//      and reports as if it verified the function).
-//   4. `the raw DLL door<DtorFn>("??1PackageFile@IO@@UEAA@XZ")` on arena B — **this
-//      is a real consultation of the DLL**, which is what makes the site an
-//      `[ORACLE]` rather than one of the 133 NO-COMPARISON sites the kickoff
-//      counts. `ResolveAddr(Module::Runtime, …)` would NOT do: it checks the
-//      port registry first and would compare this port with itself
-//      (reference_resolveaddr_consults_port_registry_first.md).
-//   5. our body on arena A
-//   6. compare all 0xF0 bytes — EXCEPT the two qwords holding the String
-//      pointers whose arms FREED, because those hold `data - 8` for two
-//      DIFFERENT heap blocks and must differ. Comparing them would fail 100%
-//      of calls and read like a catastrophic port
-//      (reference_oracle_must_not_compare_unwritten_bytes.md). They are checked
-//      by PREDICATE instead — "freed slot holds its own block minus 8" — which
-//      is strictly stronger than a byte compare and is stated as its own row.
-//
-// CONTROLS (kickoff §3.2: a control must corrupt something the probe COMPARES):
-//   C1  release the Strings in ASCENDING order         -> must ABSTAIN (agree):
-//                                                         the object bytes
-//                                                         cannot see order. It
-//                                                         is the EFFECTIVENESS
-//                                                         control and its green
-//                                                         is the honest report
-//                                                         of a real blind spot.
-//   C2  null the slot on the FREEING arm too           -> must be CAUGHT
-//   C3  skip the +0x58 release                         -> must be CAUGHT
-//   C4  skip the vtable stamp                          -> must be CAUGHT
-//   C5  skip the ~Array at +0x20                       -> must be CAUGHT
-// Each control's verdict is reported on ITS OWN ROW and never unioned
-// (reference_union_control_hides_a_blind_screen.md).
-//
-// **WHAT THE ORACLE DOES NOT ESTABLISH, PLAINLY:** it cannot see the ORDER of
-// the seven callee invocations (C1 is the standing proof of that, not a
-// suspicion), and it cannot see anything the five member destructors do to
-// memory OUTSIDE the 0xF0 arena. It establishes that the object is left in the
-// same state, with the same slots freed and the same slots shared.
-//
-// ---------------------------------------------------------------------------
-// 4. DOOR ARITHMETIC — DECLARED
-// ---------------------------------------------------------------------------
-// CLOSES: the NAME door `??1PackageFile@IO@@UEAA@XZ` and the ADDRESS door
-//         0x1800b4540.
-// OPENS:  **0x1800269a0** — an ADDRESS door, and it is genuinely one: the
-//         function is not in the export directory under any name (checked by
-//         address with pefile; `AEAA` would not have settled it, since this DLL
-//         exports its private members —
-//         reference_aeaa_is_private_not_unexported.md). The other six callees
-//         are already registered, so they add no rows.
-// NET DECLARED SURFACE GROWTH: **+1 census row** (0x1800269a0, address-keyed,
-// which lands in the `internal` bucket), against 1 row moved into `ported`.
+//       it. Here the destructor is the C++ `IO::PackageFile::~PackageFile()`,
+//       which returns nothing, and the tail into ~External is the compiler's
+//       base-destructor call (the body below).
 //
 // ============================================================================
 

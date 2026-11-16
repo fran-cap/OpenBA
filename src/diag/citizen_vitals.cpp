@@ -4,14 +4,14 @@
 // CitizenComponent::Update pick between four of them by field value:
 //   +0x3C age    vs  +0x40 maxAge   -> HandleLifeEvent(2)  old age
 //   +0x44 hunger vs  desc+0xD0 cap  -> HandleLifeEvent(0)  starvation
-//   +0x48 thirst vs  desc+0xF0 cap  -> HandleLifeEvent(1)  thirst
+//   +0x48 cold   vs  desc+0xF0 cap  -> HandleLifeEvent(1)  freezing
 //   health                          -> HandleLifeEvent(3)
 // Burials all logged flags=0x80 ("death with no grave, eventType != 2"), which
 // already rules out old age — so this samples the two accumulators directly and
 // prints one aggregate line, letting a load run be diffed against a new game.
 //
-// Reads only the TownManager citizen registry (gameWorld+0xF0, array +0xA0 /
-// count +0xA8) and four floats per citizen; it never writes.
+// Reads the TownManager citizen registry (gameWorld+0xF0, array +0xA0 / count +0xA8), four
+// floats, three links and the action-stack top per citizen, and the EntityList count; it never writes.
 
 #include "citizen_vitals.h"
 #include "options.h"

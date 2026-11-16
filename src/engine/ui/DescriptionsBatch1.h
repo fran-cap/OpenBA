@@ -44,15 +44,13 @@
 //
 // LabelDescription is the one that is NOT a direct ElementDescription: it
 // derives from `UI::TextDescription` (its Serialize calls 0x18011ee30 and its
-// dtor tail-jumps to 0x18011eae0, both TextDescription's). TextDescription is
-// another agent's class, so the base is spelled here as an opaque 0xa8-byte
-// prefix with only the fields LabelDescription's own bodies touch named.
+// dtor tail-jumps to 0x18011eae0, both TextDescription's); LabelDescription.h
+// derives the real class from `UI::TextDescription`.
 //
 // ENDGAME B.3.6 fragment pass F2: ALL TEN structs are retired. Each layout
 // below survives as its evidence comment; the definition is the real class in
 // src/engine/ui/<X>Description.h, and `RtUI::<X>Description` is an alias of
-// it (the block at the bottom of this file). What this header still OWNS is
-// the kVtbl* export names.
+// it (the block at the bottom of this file).
 //
 // PORTABILITY: no <windows.h>, per PLAN.md §4.1 decision 1.
 // ============================================================================
@@ -138,11 +136,9 @@ namespace RtUI {
 // ---------------------------------------------------------------------------
 // UI::LabelDescription — 0xb8 — UI::TextDescription (0xa8) + two fields
 // ---------------------------------------------------------------------------
-// The base is another agent's class; only the six dwords LabelDescription's own
-// Serialize (0x1800d2820) touches are named, and the prefix below them is kept
-// opaque so this header claims nothing about TextDescription's own layout.
-// `_base3c` is `ElementDescription`'s +0x3c, which LabelDescription's applier
-// copies to the element's +0x128 (`MOV EAX,[RSI+0x3c]` @ 0x1800d27f1) — the
+// The base is UI::TextDescription; LabelDescription's own Serialize (0x1800d2820)
+// touches six dwords. LabelDescription's applier copies `ElementDescription`'s
+// +0x3c to the element's +0x128 (`MOV EAX,[RSI+0x3c]` @ 0x1800d27f1) — the
 // one field of the base this class reads.
 // RtUI::LabelDescription is now an ALIAS of the real class UI::LabelDescription (LabelDescription.h);
 // see the alias block at the bottom of this file.
@@ -160,8 +156,7 @@ namespace RtUI {
 // the POD), and nothing embeds any of them by value, so the POD is retired and the
 // old spelling names the class. The class headers carry the absolute offsets
 // the PODs used to pin. A FORWARD declaration is enough for the alias, which
-// keeps this header free of the class headers (they include this one for the
-// kVtbl* names above).
+// keeps this header free of the class headers (they include this one).
 namespace UI {
 class BorderDescription;
 class ButtonDescription;

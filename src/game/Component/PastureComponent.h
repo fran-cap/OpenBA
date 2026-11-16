@@ -5,7 +5,7 @@
 // `PastureComponent` (a pasture: its livestock, capacity and herder commands) as a
 // real C++ class with a compiler-generated vtable and its state controller as an
 // EMBEDDED MEMBER at +0x48, after the class's own 0x20 bytes (B38_RULES.md D1-D6;
-// there is no multiple inheritance). The engine/types POD is a forwarder.
+// there is no multiple inheritance).
 //
 // RETAIL (B38_SLOTS.md §2 / §6, bytes read 2026-09-26):
 //   reflected "PastureComponent", parent "ControllerComponent", ti 0x1401c7ba0
@@ -86,7 +86,7 @@ public:
     using AnimalList = Collection::Array<Object::InternalPtr<LivestockComponent>, Collection::DefaultAllocator,
                                          Collection::ExplicitSpec<&rtcoll::kSpec_PtrZero>>;
     AnimalList            animals;          // +0x30 Array<InternalPtr<LivestockComponent>> (count +0x38, capacity +0x3c)
-    int32_t               capacity;         // +0x40 ComputeCapacity (OnAdded); not written by the ctor
+    int32_t               capacity;         // +0x40 ComputeCapacity (OnAdded); retail's ctor leaves it unwritten
     int32_t               production;       // +0x44 credited by LivestockComponent::Update, spent by TickOperational
     StateController _controller;   // +0x48 the embedded controller (D6)
 };

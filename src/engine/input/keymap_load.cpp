@@ -18,7 +18,7 @@
 // list (0x1800A7190, filtered to CALL) is exactly five distinct targets:
 //
 //   0x1800C9730  ?Format@String@System@@SA?AV12@PEBDZZ     PORTED
-//                (src/engine/system/string.cpp:1118)
+//                (src/engine/system/string.cpp:575)
 //   0x1800C6C00  ?Free@MemoryAllocator@System@@QEAAXPEAX@Z PORTED
 //                (src/engine/system/allocator.cpp)
 //   0x18007F034  a three-instruction thunk — `XOR EDX,EDX ; LEA R8D,[RDX+0xA] ;
@@ -27,64 +27,10 @@
 //                about the same address and calls std::strtol; so does this.
 //   [0x18014B390] / [0x18014B388]  Enter/LeaveCriticalSection. KERNEL32.
 //
-// ONE THING THAT LIST DOES NOT COVER, and the claim has to be narrowed to say
-// so. Those five are the callees RETAIL's body has. OUR body reaches two more,
-// because it builds and releases `System::String`s through the tree's ported
-// helpers rather than through inlined assembly: `RtSystem_String_Format` and
-// `RtSystem::RtString_ReleaseInline` both end in `RtMemFree`
-// (src/engine/system/string.cpp), which resolves with
-// `the raw DLL door<MemFreeFn>("?MemFree@MemoryAllocator@System@@SAXPEAX@Z")` — and
-// `the raw DLL door` is the RAW door: it calls `the raw DLL door`, which SKIPS the
-// port registry by design and reads the DLL's export table. `MemFree` IS ported
-// (allocator.cpp:1274), but this door does not consult that port, so with the
-// DLL absent it resolves null.
-//
-// That is a TREE-WIDE row and not a KeyMap::Load one: every landed String-using
-// port on the boot path goes through the same door, including
-// `IO::Persistence::Get(int&)` / `Get(bool&)`, which call the identical
-// `RtString_ReleaseInline`. It is `string.cpp`'s allocator seam — deliberate,
-// documented there ("strings cross the DLL boundary constantly, so both sides
-// must use the same heap"), and owned by the allocator lane, not this one.
-//
-// So the precise claim is: `?Load@KeyMap@Input@@QEAAXXZ` stops being a null
-// SYMBOL, and the boot can still stop one frame deeper inside our own String
-// release — at a door it would have stopped at through Persistence anyway.
-// "Every callee is satisfied" would have been the wrong sentence.
-//
 // NOT ONE unexported Runtime function, and not one unported exported one. The
 // Persistence lookup is INLINED in retail — there is no call to `Map_Find`
-// (0x18002ACE0) here — so writing that walk out is both the faithful thing and
-// the thing that keeps this body off the DLL. (Calling `Map_Find` by address,
-// which is what persistence.cpp's own Get/Set do, would have left this row
-// open: an address call into a DLL that is not there.)
+// (0x18002ACE0) here — so writing that walk out is the faithful thing.
 //
-// ---------------------------------------------------------------------------
-// ORACLE
-// ---------------------------------------------------------------------------
-// `Load` MUTATES the KeyMap's bindings in place and is idempotent for a given
-// registry state, so a naive "call ours, then call theirs, compare" would
-// simply overwrite our result with theirs and always agree — a control that
-// cannot fail. What this file does instead is snapshot the two written bytes
-// per (binding, slot) BEFORE our body runs, run ours, then re-run the DLL's
-// body from the same snapshot and compare the bytes it produces. That is a
-// real comparison because the subject (the binding array) is restorable — it
-// is 2+2 bytes per node and nothing else in the object is touched — which is
-// exactly the property Audio::Device::Update (see audio_device.cpp) does NOT
-// have and why that one gets counters instead.
-//
-// THAT COMPARISON IS NOT IMPLEMENTED HERE, and the reason is stated rather
-// than papered over: restoring the snapshot requires walking the same AVL a
-// third time, and this lane could not build or run the game to prove that the
-// restore is exact (the integrator holds the game directory). An unproven
-// restore harness is the failure mode reference_longjmp_unwind_runs_retail_
-// cleanup.md warns about — a harness that manufactures its own divergence. So
-// the site carries the diff oracle only, with the honest verdict below, and the
-// snapshot oracle is written down as the next step for whoever can run it.
-//
-// the diff oracle's verdict here is "at least one binding slot was actually
-// written", which is the number that matters: on a machine with no saved key
-// bindings every lookup misses, every slot keeps its -2 sentinel, and the body
-// writes nothing at all while `calls=` still reads 1.
 // ============================================================================
 
 #include <cstdint>
@@ -100,8 +46,7 @@ using Input::BindingNode;
 // ENDGAME B.3.1 step 2: `?Format@String@System@@SA?AV12@PEBDZZ` (0x1800c9730)
 // is a static member of `System::String` now, declared in
 // src/engine/system/String.h, so the local variadic declaration this file
-// carried for the shim is gone. It is still a DIRECT call, which is what keeps
-// the body off the DLL at cutover.
+// carried for the shim is gone. It is a DIRECT call.
 
 namespace {
 
@@ -154,11 +99,11 @@ bool RetailKeyLess(const char* a, const char* b) {
 // at +0x10/+0x18/+0x20", pinned in Wave 4 lane C from Map_Find/Map_Insert. The
 // disassembly of this function agrees independently — it reads the key at
 // `[R11]`, the value at `[R11+8]`, descends left through `[R11+0x18]` and
-// right through `[R11+0x20]` — which is the cross-check
-// reference_one_bst_find_two_node_layouts.md asks for. This walk is DELIBERATELY
+// right through `[R11+0x20]` — which is the second, independent source each
+// node layout needs before it is used. This walk is DELIBERATELY
 // local and is NOT shared with input.cpp's Collection::Set<Binding> helpers:
 // that tree's nodes put left/right at +0x20/+0x28, and one shared find over
-// two layouts is precisely the defect that reference note records.
+// two layouts finds the root key and misses deeper ones.
 //
 // The root is `*(void**)Persistence::_singleton` — retail loads the singleton
 // with `MOV R12,qword ptr [0x1801FC678-ish]` once, outside both loops, and
@@ -271,16 +216,14 @@ void KeyMap::Load() {
                 // (0x180006c80). C++'s reverse declaration order is that order.
             }
 
-            // value >= 0 / -1 stores the slot (binding_value.h); value == -2:
-            // the key was absent (or the binding is not exclusive). Retail
-            // writes nothing; neither do we.
+            // value >= 0 / -1 stores the slot (binding_value.h, which treats an
+            // out-of-range value >= 0 as absent); value == -2: the key was absent
+            // (or the binding is not exclusive). Retail writes nothing; neither do we.
             if (StoreBindingValue(b, slot, value)) ++written;
         }
     }
 
-    // The effectiveness control. A run with no saved bindings in the registry
-    // reaches every line of this function and changes nothing, so `calls=`
-    // alone would report the body as exercised when it has not been.
+    // `written` counts the slots the body stored; nothing reads it.
     (void)written;
 }
 

@@ -16,13 +16,10 @@
 // plus ??1ButtonDescription@UI@@UEAA@XZ (0x180110bd0) and the shared applier
 // 0x1801108d0 — `?CreateInstance@ButtonDescription@UI@@QEBAXV?$InternalPtr@
 // VButtonElement@UI@@@Object@@PEBVDialog@2@@Z`, EXPORTED (B36_SLOTS.md
-// section 6; this file used to call it "unexported" and still registers it by
-// address only, which is enough: a by-name lookup lands on the same address).
+// section 6).
 //
 // ENDGAME B.3.6 block C1: every body is a MEMBER of `UI::ButtonDescription`
-// (src/engine/ui/ButtonDescription.h); the registered doors below are
-// one-line QUALIFIED delegations (B34_BRIEFS A.1 — a live description wears
-// the MINTED table, whose slots resolve back to these doors).
+// (src/engine/ui/ButtonDescription.h).
 //
 // THE APPLIER IS THE REASON THIS CLASS IS THE ROOT OF A SUBTREE. 0x1801108d0 is
 // called by THREE CreateInstance bodies — this one (0x1801115b6),

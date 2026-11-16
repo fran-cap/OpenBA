@@ -10,14 +10,8 @@
 // write-up, the oracle argument, and everything held back are in
 // docs/history/runtime_port/WAVE7_LANE_E.md.
 //
-// None of these eight classes' field offsets are modeled as inheriting a
-// C++ `UI::Element` -- lane A owns Element.h and had not published it when
-// this lane's recon happened (docs/history/runtime_port/WAVE7.md, "cross-lane layout
-// contract"). Every access below is instead a raw offset from `this`, proven
-// against retail disassembly and named in the corresponding type header. This
-// cannot collide with whatever struct lane A ships, and the header comments
-// say explicitly which offsets are believed to belong to the shared Element/
-// ContainerElement base rather than to the widget class itself.
+// The layout contract the eight type headers were recovered under is
+// docs/history/runtime_port/WAVE7.md, "cross-lane layout contract".
 // ============================================================================
 //
 // ENDGAME B.3 step 6, FRAGMENT PASS F1 (2026-09-25): every body below now
@@ -25,10 +19,7 @@
 // classes' non-virtual members declared in src/engine/ui/{Element,
 // TableElement,ImageElement,LabelElement,TextElement,DocumentTextElement,
 // TabElement,PageElement,GraphElement}.h — and reaches the fields by name
-// instead of by raw offset. The registered doors keep their names and are
-// one-line QUALIFIED delegations at the bottom of the file. The retslot doors
-// (`GetSprite` ×2, `GetLink`) keep retail's `(this, ret, …)` shape and
-// placement-new the member's prvalue; the by-value 16-byte `UI::Sprite` /
+// instead of by raw offset. The by-value 16-byte `UI::Sprite` /
 // `UI::String` and the `InternalPtr<Element>` arguments arrive by HIDDEN
 // POINTER (RULE B6-11), so those members take the pointer.
 // ============================================================================
@@ -42,7 +33,7 @@
 #include "system/String.h"
 #include "rt_sink.h"
 #include "ui/Element.h"
-#include "object/VSlot.h"   // B3X W0: Object::SlotAddressOf for the recorder
+#include "object/VSlot.h"
 #include "ui/TableElement.h"
 #include "ui/ImageElement.h"
 #include "ui/LabelElement.h"
@@ -53,8 +44,6 @@
 #include "ui/GraphElement.h"
 #include "../collection/array_internal.h" // ENDGAME B.3.2 step 2 — kSpec_I32 etc.
 #include "collection/Collection.h"
-// B6-5 door caches (AtomicAddr / AtomicExport) and the ResolveAddr
-// declaration this file used to spell for itself.
 #include "element_common.h"
 
 namespace {
@@ -116,56 +105,10 @@ void RtGraphArrayClear(void* arrayHeader) {
     rtcoll::RtColl_ArrayDtorElem_1800416d0(arrayHeader);
 }
 
-// ---- ?UpdateContainers@TabElement@UI@@AEAAXXZ  0x1800d9710 -----------------
-//
-// WAVE 10. Lane E declined this in Wave 7 ("visibility recomputation, not
-// reversed by this lane") and lane V2 confirmed it a REAL DEPENDENCY. It is
-// ported here, written against the live sink (src/engine/rt_sink.h).
-//
-// WHY THE REPLAY ORACLE CANNOT DO IT -- two independent reasons:
-//
-//  1. The mutated state is a GRAPH. The dirty bit propagates from each child
-//     up its _parent (+0x98) chain, through objects that are not inside any
-//     copyable extent of `this`. There is no scratch to run retail against --
-//     the same rock SetUpperLeft was held back on (WAVE7_LANE_B.md sec2b).
-//
-//  2. The propagation is GUARDED BY "did bit 0 actually change" (0x1800d9760
-//     and 0x1800d97cc). Under replay our body has already flipped it, so
-//     retail's guard is false and it never walks the chain -- the compare goes
-//     green having tested nothing. Lane C named this exact shape on
-//     EnableCursor: "the object compare would pass while the only thing that
-//     can go wrong went untested."
-//
-// ---- Layout facts, all from the disassembly at 0x1800d9710 ----------------
-//
-//   this+0xc0   int32   tab count            (loop bound, 0x1800d971f/0x1800d97ed)
-//   this+0xf8   int32   active tab index     (0x1800d9750)
-//   this+0xa0   ptr     Element::_children._data
-//   this+0xc4   int32   inset used by the resize call (0x1800d9786)
-//   this+0xfc   int32   a second inset, doubled (0x1800d979b, LEA +RDX*2)
-//   this+0x68/0x6c/0x70/0x74  int32  the element's own x/y/w/h
-//   child+0x34  uint32  Element::_flags   (bit 0 = hidden; 0x8000000 = dirty)
-//   child+0x98  ptr     Element::_parent
-//
-// THE ADDRESSING IS FAITHFUL, AND ITS MEANING IS NOT ESTABLISHED HERE.
-// Retail indexes the children array at BYTE offset 0x20 + i*0x10 (RSI starts
-// at 0x20 at 0x1800d9730 and adds 0x10 at 0x1800d97e9), i.e. _data[4 + 2*i]
-// for an Array<Element*>. Why the containers start at index 4 and sit two
-// apart is AddTab's business (0x1800da130, still held back) and is NOT
-// claimed here. The port reproduces the addressing, not an interpretation of
-// it -- and if the addressing is wrong, the oracle's `unpredicted=` column is
-// what says so, because retail's real writes would then land where we
-// predicted nothing.
-//
-// One ordering detail a "tidied" port would drop: in the propagate branch
-// retail RE-READS child+0x34 after storing the new flag word, so the child
-// ends at (nf | 0x8000000), not (old | 0x8000000). The predictor gets this
-// right only because it reads back through the sink (RtSink::ReadU32).
-
-// The body that lived here was a second copy of ?UpdateContainers@TabElement@UI@@
-// (0x1800d9710); src/engine/ui/tabelement.cpp owns it since vtable batch 4
-// (2026-09-12) as `UI::TabElement::UpdateContainers`, registered with both
-// doors there.
+// TabElement::UpdateContainers (0x1800d9710) dirty-walks the _parent chain of
+// each container whose hidden bit flips, the graph shape
+// docs/history/runtime_port/WAVE7_LANE_B.md §2b describes for SetUpperLeft; its
+// body is in src/engine/ui/tabelement.cpp.
 
 }  // namespace
 
@@ -175,7 +118,7 @@ namespace UI {
 // UI::TableElement
 // ============================================================================
 // GetRowCount / GetColumnCount are one instruction each and live inline in
-// TableElement.h; their doors are below.
+// TableElement.h.
 
 // ?SetChild@TableElement@UI@@QEAAXV?$InternalPtr@VElement@UI@@@Object@@H@Z
 // 0x18011daa0 — the handle arrives as the ADDRESS of the caller's copy.
@@ -189,7 +132,7 @@ void TableElement::SetChild(Object::InternalPtr<Element>* child, int32_t index) 
         if (old) {
             // Slot 0 with flag 1 — the scalar deleting destructor, the
             // InternalPtr<T> "release and possibly delete" idiom
-            // (src/engine/object/Internal.h's kInternalVtblScalarDtor).
+            // (src/engine/object/Internal.h's vtable slot 0).
             delete old;
             *cellSlot = nullptr;
         }
@@ -432,7 +375,7 @@ void GraphElement::RemoveGraphs() {
 // engine's APPEND idiom: grow by one and fill the new tail from `*fill`.
 //
 // THE MOVSXD IS REPRODUCED AS A SIGNED WIDENING, deliberately (Ghidra's C
-// prints it as a zero extension — reference_ghidra_c_output_vs_disassembly.md).
+// prints it as a zero extension).
 // A negative `graph` indexes backwards exactly as retail does. NOT guarded.
 //
 // ORACLE: none — a replay would append the point a SECOND time.
@@ -503,8 +446,8 @@ void GraphElement::AddGraph(uint32_t colour) {
 //   Collection::Array<Element*>::SetSize(&this->_children, 0);   // TAIL JMP
 //
 // Slot 0 called with a flag of 1 is the scalar deleting destructor -- destroy
-// AND free -- the idiom src/engine/object/Internal.h already names as
-// kInternalVtblScalarDtor. It is NOT `??1Element`.
+// AND free -- the idiom src/engine/object/Internal.h describes at its vtable
+// slot 0. It is NOT `??1Element`.
 //
 // THE RE-READ OF `_children.data` INSIDE THE LOOP IS LOAD-BEARING, and is why
 // this is an index loop over a refetched base rather than the obvious cached

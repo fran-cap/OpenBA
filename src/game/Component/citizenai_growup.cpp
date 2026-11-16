@@ -4,11 +4,10 @@
 // handlers plus one private find-helper:
 //
 //   0x14010c890  CitizenAI_State_GrowUp        (state id 4)
-//   0x140115e60  CitizenAI_State_LongTermPlan  (state id 13)  — SHARED: also reached by
-//                Gather/Gather2/GrowUp via ResolveAddr(0x140115e60).
-//   0x14008f230  Entity_impl_f230 (private GrowUp helper; ported here, not registered
-//                separately as a reused symbol — but DOES get a RegisterExeAddr so the
-//                handler's `ResolveAddr(0x14008f230)` resolves to it).
+//   0x140115e60  CitizenAI_State_LongTermPlan  (state id 13)  — SHARED: also called by
+//                Gather/Gather2/GrowUp (CitizenComponent::LongTermPlan).
+//   0x14008f230  Entity_impl_f230 (private GrowUp helper, CitizenAI_Entity_impl_f230; ported
+//                here and called by name from State_GrowUp).
 //
 // ─────────────────────────────────────────────────────────────────────────────
 // SELF / CHAIN (verified against the Ghidra decompile + disassembly):
@@ -25,49 +24,45 @@
 //
 //   GrowUp success epilogue (both branches): *self → +0x30=-1, +0x54|=4, +0xb0=0 (lastErrand None),
 //     stamp Time(DAT_1401721fc * desc_walktime) into citizen+0x60, return 1.
-//   GrowUp early/adult branch (age > _maxAge 15.0): tail-call LongTermPlan, set
+//   GrowUp carrying branch (own StorageComponent QueryCount > 0): call LongTermPlan, set
 //     param_1+0x2c = 4 (next-state), return 1.
 //   GrowUp food-shortage branch (QueryCount < 1): Time(DAT_1401721fc) → citizen+0x60,
 //     run dd30 find-best-food-source, scan its storage occupants for the right slot,
 //     and if found push a PerformWork(Ctor11) chain (eat) → return 1, else return 0.
 //
 // ─────────────────────────────────────────────────────────────────────────────
-// Registered exe sub-callees (resolved via ResolveAddr; bodies NOT duplicated):
-//   0x140006270  Entity_FindComponent_Storage  (reg_work_base WorkBase_FindComponent_6270)
-//   0x14012cf10  StorageComponent_QueryCount    (reg_component_people)
-//   0x14008dd30  CitizenAI_State_sub_dd30       (reg_citizenai_findtarget)
-//   0x140087fb0  Entity_impl_7fb0               (reg_pf_road Pf_EntityAnchorCell_7fb0)
-//   0x1400bc790  PerformWork_Action_Ctor11      (reg_citizenai_actionctors)
-//   0x14008d590  FUN_14008d590  (find-storage-with-resource)   (reg elsewhere)
-//   0x1400c1070  PerformWork_Action_Ctor4       (reg_citizenai_actionctors)
-//   0x14012cd80  StorageComponent_impl_cd80     (reg elsewhere)
-//   0x1400c4c50  CitizenAI_ActionExecutor_c4c50 (reg_citizenai_executor)
-//   --- f230 closure (all registered) ---
-//   0x14009f3e0  CharacterComponent_impl_f3e0 == fn_MapGetTerrainPos (mapquery)
-//   0x140002ed0  Entity_FindComponent_Position  (reg_work_base WorkBase_FindComponent_2ed0)
-//   0x140122e20  Entity_impl_2e20               (reg_pf_road Pf_EntityResolvePos_2e20)
-//   0x140008830  FUN_140008830 (cell distance)  (reg_work_base WorkBase_CalcDistance_8830)
-//   0x1400a00f0  FUN_1400a00f0 (cell validate)  (reg_work_base WorkBase_ValidateCell_a00f0)
+// Exe sub-callees (called by name; bodies NOT duplicated):
+//   0x140006270  Entity_FindComponent_Storage  (ComponentEntity::FindComponent<StorageComponent>)
+//   0x14012cf10  StorageComponent_QueryCount    (StorageComponent::QueryCount)
+//   0x14008dd30  CitizenAI_State_sub_dd30       (CitizenBehavior::FindBestTarget)
+//   0x140087fb0  Entity_impl_7fb0               (EntityAnchorCell)
+//   0x1400bc790  PerformWork_Action_Ctor11      (CitizenAI_PerformWorkCtor11_bc790)
+//   0x14008d590  FUN_14008d590  (find-storage-with-resource)   (CitizenBehavior::PickBestDropTarget)
+//   0x1400c1070  PerformWork_Action_Ctor4       (CitizenAI_PerformWorkCtor4_c1070)
+//   0x14012cd80  StorageComponent_impl_cd80     (StorageComponent::CanAdd)
+//   0x1400c4c50  CitizenAI_ActionExecutor_c4c50 (ActionStack::Execute)
+//   --- f230 closure ---
+//   0x14009f3e0  CharacterComponent_impl_f3e0 == fn_MapGetTerrainPos (Map::GetTerrainPos)
+//   0x140002ed0  Entity_FindComponent_Position  (ComponentEntity::FindComponent<InteractComponent>)
+//   0x140122e20  Entity_impl_2e20               (InteractComponent::NodePosition)
+//   0x140008830  FUN_140008830 (cell distance)  (Map::CalcDistance)
+//   0x1400a00f0  FUN_1400a00f0 (cell validate)  (Map::ValidateCell)
 //
-// Engine dispatch slots used (all already wired by their owning reimpl batches; resolved
-//   here via ResolveSlot for portability):
+// Engine import slots retail uses (their ports are called by name):
 //   [0x140152ab0] fn_InternalBasePtr_CheckPtr   [0x140152a90] fn_InternalBasePtr_Ctor
 //   [0x140152a98] fn_IsDerivedFrom              [0x140152b60] MemAlloc  [0x140152b68] MemFree
 //   [0x140152b00] System::Time::Time(Time*,float)  [0x140151320] Math::Vector3::Vector3(Scalar&)
-//   (All of the above are also exposed as engine_funcs.h externs; this file uses those
-//    externs where they exist and ResolveSlot for the Vector3-from-Scalar ctor.)
 //
-// SELF-CONTAINED-BRICK type-ids (the DAT_1401c7xxx globals are UNFILLED 0xFFFFFFFF in the
-//   standalone build → resolved here via Object::GetTypeIdByName, derived from each global's
-//   *_Register/_RegisterType [DATA] writer; scan-result derefs are null-guarded):
+// Type ids (each class's TypeId(), cached by EnsureInit; the global-to-name mapping comes from
+//   each global's *_Register/_RegisterType [DATA] writer):
 //     DWORD_1401c7cb8 -> "RawMaterialDescription"  (RawMaterialDescription_Register@14014f7b5;
 //                        it is a *Description*, used by GrowUp's storage-slot scan + cd80 + d590)
 //     DWORD_1401c7e78 -> "StorageComponent"        (LongTermPlan's component-type scan filter)
 //     DWORD_1401c80e0 -> "WorkPlaceComponent"      (WorkPlaceComponent_RegisterType@14014feb5;
 //                        f230's nearest-workplace scan filter)
 //
-// .rdata float const: DAT_1401721fc (GrowUp food-cooldown / walk-time scale). Read from the
-//   exe via ResolveAddr; null-guarded fallback 0.0f.
+// .rdata float const: DAT_1401721fc (GrowUp food-cooldown / walk-time scale) = kRdata_1401721fc
+//   (75.0, Game/exe_constants.h).
 //
 
 
@@ -103,11 +98,11 @@
 #include "Work/exe_bodies.h"
 #include "Game/exe_bodies.h"
 #include "Game/exe_constants.h"
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
 
 namespace {
 
-// --- registered exe sub-callees (incl. the f230 closure): called by name ---
+// --- exe sub-callees (incl. the f230 closure): called by name ---
 // --- Math::Vector3::Vector3(const Scalar&) (import slot 0x140151320): Math::Vector3's own ---
 
 static uint32_t s_tid_RawMaterialDescription = 0;  // DWORD_1401c7cb8
@@ -155,7 +150,7 @@ static inline Description* ElemObj(Description* e) { return e; }
 //   +0x30 array / +0x38 count  — a component ENTITY, e.g. inside 0x140115e60:
 //       if (0 < *(int *)(lVar4 + 0x38)) {                            // count = +0x38
 //         puVar1 = (undefined8*)(*(longlong*)(lVar4 + 0x30) + i*8);  // array = +0x30
-//     (the ENT_COMP_ARR/ENT_COMP_CNT pair starttown.cpp names.)
+//     (ComponentEntity::_components / _components._size.)
 //
 //   +0x28 array / +0x30 count  — a storage ROW node, e.g. inside 0x14010c890:
 //       if (0 < *(int *)(lVar4 + 0x30)) {                            // count = +0x30
@@ -516,9 +511,9 @@ uint64_t CitizenAIComponent::State_GrowUp() {
         return 0;
     }
 
-    // scan the source storage's occupant rows for an eatable RawMaterialDescription item
+    // scan the source storage's occupant rows for a health RawMaterialDescription item
     // that still has stock (count[+8] - reserved[+0xc] > 0 and the RawMaterialDescription's
-    // +0x5c bit13 "edible" flag is set), picking one (random if multiple, biased by +0x58).
+    // +0x5c bit13 Health flag is set), picking one (random if multiple, biased by +0x58).
     int rowCount = tStorNode->storageSlots._size;
     int eligible = 0;          // (uint)local_res18
     int preferred = -1;        // uVar21 (the +0x58-flagged candidate index, or random)

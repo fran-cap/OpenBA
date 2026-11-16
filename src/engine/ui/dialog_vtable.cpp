@@ -5,21 +5,13 @@
 //
 // THE ROW, AND WHAT WAS ACTUALLY BLOCKING IT
 // ---------------------------------------------------------------------------
-// `tools/runtime_census.py --unported --namespace UI` lists
-// `??_7Dialog@UI@@6B@` (DLL 0x1801562a0, 9 slots). Wave 10B lane MINT minted
-// the vtable DATA; what was missing was its CONTENTS. At this lane's baseline
-// the readiness screen read
+// `??_7Dialog@UI@@6B@` (DLL 0x1801562a0, 9 slots). Slot 4,
+// `?Compile@External@Object@@`, is inherited (src/engine/object/
+// external_class.cpp); this file holds SEVEN of the other eight. The eighth,
+// slot 0, is the unexported VECTOR deleting destructor at 0x180038b20, the
+// class's own (`~Dialog() override`, Dialog.h). See §"SLOT 0" below.
 //
-//     BLOCKED  ??_7Dialog@UI@@6B@   slots= 9 ported= 1 TRAP= 8 purecall= 0
-//
-// — one ported slot (4, `?Compile@External@Object@@`, src/engine/object/
-// external.cpp) and eight named abort traps. This file closes SEVEN of the
-// eight. The eighth, slot 0, is the unexported VECTOR deleting destructor at
-// 0x180038b20 and belongs to the 37-row family in
-// src/engine/object/deleting_dtor.cpp; this lane adds it there as a 38th row
-// rather than writing a 38th copy of that body here. See §"SLOT 0" below.
-//
-// GREP-BEFORE-WRITE (CLAUDE.md, reference_grep_for_the_port_before_writing_it):
+// GREP-BEFORE-WRITE (CLAUDE.md):
 // all eight mangled names and all nine slot addresses were grepped across
 // `code/`, `runtime/`, `engine/` and `standalone/` before a line was written.
 // `src/engine/ui/dialog.cpp`, `dialog_ctor_dtor.cpp`, `dialog_create.cpp` and
@@ -36,8 +28,7 @@
 // slots, same order, same `Object::External` family idiom. But lane UI3's array
 // dtor recipe was WRONG last wave in exactly this way — a recipe from a good
 // lane, followed literally, would have swapped a body that destroys every
-// element for one that only frees the block
-// (reference_a_written_recipe_can_be_wrong.md). So every Dialog body below was
+// element for one that only frees the block. So every Dialog body below was
 // disassembled, and so was its SpriteSheet analogue, before anything was
 // reused. Four of the seven DIFFER, and three of the four differences would
 // have been silent:
@@ -51,13 +42,10 @@
 //      every Dialog our ctor builds. Nothing would crash.
 //   2. `+0x40` is stored as a DWORD and `+0x44` is never written by either the
 //      ctor or Construct. A qword zero-fill there writes four bytes retail
-//      leaves alone — the same four bytes lane DLG2's ctor oracle already
-//      excludes.
+//      leaves alone — the same four bytes the ctor (Dialog.h) leaves unwritten.
 //   3. SpriteSheet's `Construct` ends with a single BYTE store (`self[0x50]=0`)
 //      and 0x51..0x57 is never touched; Dialog's ends with a QWORD at +0x80 and
-//      the written extent is the whole class. The oracle windows are therefore
-//      different, and an oracle that compares bytes NEITHER side writes fails
-//      100% of calls (reference_oracle_must_not_compare_unwritten_bytes.md).
+//      the written extent is the whole class.
 //   4. `Serialize` is not remotely the same body. SpriteSheet's is two strings,
 //      three scalars, one array and one ExternalPtr. Dialog's is FOUR arrays,
 //      three of them walked element-by-element with a different per-element
@@ -68,7 +56,7 @@
 // The three that genuinely ARE the same shape (`TypeName`, `Type`,
 // `GetFileVersion`) say so at the body, and `Destruct` is instruction-identical
 // to SpriteSheet's three-instruction tail jump. Read out of the DISASSEMBLY,
-// never Ghidra's decompiled C (reference_ghidra_c_output_vs_disassembly.md).
+// never Ghidra's decompiled C.
 //
 // ---------------------------------------------------------------------------
 // SLOT 0 — WHY IT IS NOT IN THIS FILE
@@ -87,19 +75,16 @@
 //     MOV RAX,RBX / RET
 //
 // i.e. it is a K1 ("call the dtor") row with `dtorVa=0x180112e40`,
-// `elemSize=0x88`. Both constants are now re-derived from the shipped bytes by
-// `tools/rt_deleting_dtor_verify.py`, which reads the table out of
-// deleting_dtor.cpp and checks it against the DLL — the row this lane added is
-// checked by the same instrument as the other 37, which is the whole reason to
-// put it there rather than here.
+// `elemSize=0x88`. In the port it is the class's own vector deleting
+// destructor (Dialog.h, slot 0).
 //
 // TWO FACTS THAT FELL OUT OF IT, both new:
 //
 //   * `sizeof(UI::Dialog) == 0x88`, MEASURED. src/engine/ui/Dialog.h has
 //     carried an explicit refusal to assert a size, on the correct ground that
 //     a constructor's written extent is a LOWER BOUND and not a measurement
-//     (reference_never_written_needs_by_whom.md — a written extent belongs to a
-//     WRITER). The array branch's `MOV EDX,0x88` is a different witness with a
+//     (a written extent belongs to a WRITER). The array branch's `MOV EDX,0x88`
+//     is a different witness with a
 //     different relationship to the fact: it is the STRIDE the compiler walks a
 //     `Dialog[]` with, which is `sizeof` by definition. The assert is now in
 //     that header, pinned to this instruction.
@@ -111,8 +96,8 @@
 //     (`if (p) { Enter(cs); Free(_singleton, p); Leave(cs); }`, disassembled).
 //     It changes nothing about the port — the family calls one canonical
 //     MemFree — but "unexported internal" was the wrong description of it, and
-//     that is the exact class of mistake
-//     reference_grep_cannot_tell_internal_from_unported_export.md is about.
+//     that is the exact class of mistake a source grep invites, since it cannot
+//     tell an unexported internal from an unported export.
 //
 // ---------------------------------------------------------------------------
 // WHAT THIS FILE PROVES ABOUT UI::Dialog's LAYOUT, AND WHAT IT RENAMES
@@ -131,8 +116,8 @@
 //                                    (0x180038910) is `MOV EAX,[RCX+0x34]; RET`
 //                                    and Serialize records it through
 //                                    kScalarInt — LAST of all fourteen.
-//   +0x70  int32   _templateCount    Serialize's third array bound.
-//   +0x80  int32   _referenceCount   Serialize's fourth array bound. Dialog.h
+//   +0x70  int32   _templates._size  Serialize's third array bound.
+//   +0x80  int32   _references._size Serialize's fourth array bound. Dialog.h
 //                                    said of +0x80 "ctor zeroes it; never
 //                                    read". It is read here, and it is the size
 //                                    of the `_references` array at +0x78 —
@@ -142,21 +127,15 @@
 //                                    anonymous pointer.
 //
 // ---------------------------------------------------------------------------
-// NINE ADDRESS DOORS, AND WHAT THEY COST
+// NINE UNEXPORTED CALLEES
 // ---------------------------------------------------------------------------
-// `?Serialize@` calls eleven functions. TWO are exported and already ported
+// `?Serialize@` calls eleven functions. TWO are exported
 // (`?Serialize@String@System@@` 0x1800c9930, and the ReaderWriter virtuals,
-// which are dispatched not called). The other NINE are unexported internals
-// reached through `ResolveAddr(Module::Runtime, …)`. That door consults the
-// port registry FIRST (reference_resolveaddr_consults_port_registry_first.md),
-// so each becomes our body the moment somebody registers it and is the DLL's
-// until then — but it also GROWS the cutover surface by nine
-// (reference_porting_can_grow_the_cutover_surface.md), which is stated here and
-// in the lane doc rather than left for a later census to find.
+// which are dispatched not called). The other NINE are unexported internals;
+// the port calls each by name (the Serialize body below).
 //
 // EVERY ONE WAS CHECKED AGAINST THE EXPORT TABLE, not just grepped — a source
-// grep cannot tell an unexported internal from an export nobody ported yet
-// (reference_grep_cannot_tell_internal_from_unported_export.md). All nine are
+// grep cannot tell an unexported internal from an export nobody ported yet. All nine are
 // genuinely absent from Runtime-x64.dll's export directory:
 //
 //   0x180038f90  ExternalPtr<UI::ElementDescription>::Serialize. Named by lane
@@ -165,11 +144,9 @@
 //                four and deliberately left the rest. Called from THREE places
 //                in this body (+0x38, each named template, each config entry).
 //   0x180004590  ExternalPtr<UI::SpriteSheet>::Serialize (EXTPTR:75). +0x20.
-//                NOTE the collision hazard: 0x180004590 in **VideoDX11-x64.dll**
-//                is `FillSwapChainDesc`, and src/render/dx11/ names that address in four
-//                places. Different module, different image; the Module::Runtime
-//                argument is what keeps them apart, and it is spelled at every
-//                call.
+//                NOTE: 0x180004590 in **VideoDX11-x64.dll** is `FillSwapChainDesc`,
+//                which src/render/dx11/ names in three places. Different module,
+//                different image.
 //   0x1800756d0  ExternalPtr<UI::DialogControllerConfig>::Serialize (EXTPTR:96).
 //   0x180075d20  Array<DialogNamedTemplate>::SetSize, stride 0x10.
 //   0x180075b20  Array<DialogControllerConfigEntry>::SetSize, stride 0x20.
@@ -180,17 +157,6 @@
 //                rows — the same call lane SS made for 0x180078950.
 //   0x1800493d0  the `_templates` element walker (count, ExternalPtr[]).
 //   0x18002f170  the `_references` element walker (count, ExternalPtr[]).
-//
-// ---------------------------------------------------------------------------
-// ATTENDANCE — read this before believing any A/B in the lane doc
-// ---------------------------------------------------------------------------
-// Six of these seven bodies read a constant or restamp an object; an A/B boot
-// with and without `??_7Dialog@UI@@6B@` promoted can be byte-identical whether
-// they ran a million times or never once. Lane DLGV hit exactly that: a GREEN
-// readiness screen and a promotion it correctly refused, because its ATTENDANCE
-// counter read zero in both halves of both pairs. So this file counts ENTRIES,
-// unconditionally, on every build, and prints them at exit — the idiom from
-// dialog_controller_base.cpp and dialog_settings.cpp.
 //
 // ============================================================================
 
@@ -238,8 +204,7 @@ namespace {
 //     ^ the IO::Serializer CONSTRUCTOR, inlined, version = 0. Identical in
 //       shape to the one spritesheet_vtable.cpp and
 //       elementdescription_serialize.cpp each spell out; constructing it MOVES
-//       THE STREAM CURSOR by 12 bytes, which is why the oracle below uses
-//       synthetic sinks and never the real stream.
+//       THE STREAM CURSOR by 12 bytes.
 //
 //   18011311d  [RAX+0x98](rw, this+0x40, 0)      uint   _defaultFlags
 //   18011312b  CALL 0x180038f90 (this+0x38,&ser) ExternalPtr<ElementDescription>
@@ -301,24 +266,6 @@ namespace {
 //   1801132eb  if (rw) rw->vtable[0](rw, 1)      inlined Serializer dtor
 //   1801132fe  MOV AL,1                          unconditional `true`
 //
-// ---------------------------------------------------------------------------
-// ORACLE
-// ---------------------------------------------------------------------------
-// the emission oracle in the WRITING direction against two synthetic sinks —
-// on the write path a Serialize is a pure read of the object, so ours and
-// theirs can both run provided they emit into DIFFERENT sinks
-// (reference_write_path_serialize_is_replayable.md).
-//
-// NO `stopAfter`, and that is a claim about THIS body rather than an omission:
-// every one of the four stores into the object is a `SetSize` call, and every
-// one of the four is guarded by retail's own `direction == 0` test, so on the
-// write path this body writes nothing anywhere. The element walkers and the
-// three ExternalPtr serializers touch only their own locals on the write side.
-//
-// Read the report's `calls=` column and not only `divergences=`: a body with no
-// caller reports clean (reference_uncalled_port_is_not_verified.md), and
-// `calls=0` has four causes that invert the conclusion. The ATTENDANCE counter
-// at the top of this file is the instrument that tells them apart.
 // ============================================================================
 
 namespace RtUiDlgV {
@@ -336,13 +283,9 @@ using rt::io::Stream;
 // (B4 Y RT-UI: the raw-slot StringSerialize bridge had no caller left.)
 
 // ENDGAME B.3.2 step 2 — the four by-address SetSize forwarders that used to
-// sit here are GONE. All four target fields are the {pointer, count,
-// capacity} triples `Dialog.h` already lays out contiguously (and asserts) at
-// the SAME offsets `Collection::Array<T>` would use — the header just spells
-// them as three named members instead of one `Array<T>` member, the same
-// situation `dialog_ctor_dtor.cpp`'s dtor conversion bridges. None of the four
-// rows is trait-equivalent, so each call site below bridges through its own
-// hand-derived row (B4 Y RT-UI: now each typed member's own spec):
+// sit here are GONE. All four target fields are `Collection::Array<T>` members
+// of `Dialog.h`, and none of the four rows is trait-equivalent, so each member
+// carries its own hand-derived row (an `ExplicitSpec`):
 //
 //   0x180075d20  kSpec_ExtStr10at08  {0x10,8,assign,init,destroy,byteCopy=false}
 //                NON-TRIVIAL — Array<DialogNamedTemplate>

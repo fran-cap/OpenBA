@@ -1,4 +1,4 @@
-// engine/src/ui/resourcelimitui.cpp
+// src/game/Dialog/resourcelimitui.cpp
 // Clean reimplementation of ResourceLimitUI game logic.
 //
 // ResourceLimitUI (0x40 bytes) — resource limit spinner panel.
@@ -18,8 +18,8 @@
 // bound) and differ from retail only in their null guards. The unreferenced
 // copies were deleted with resourcelimitui_funcs.h.
 //
-// LEFT: the limit table is read through GameUpdateLoop::m_citizenList (void*,
-// block GAME-a: CitizenBehavior::professionResources, +0x170).
+// The limit table is CitizenBehavior::professionResources (+0x170), read through
+// GameUpdateLoop::m_citizenList.
 
 #include "Dialog/ui_panels.h"
 #include "Dialog/ResourceLimitUI.h"
@@ -43,8 +43,8 @@
 // The limit read / write helpers below take the ledger entry explicitly:
 // townMgr(gw+0xf0)+0x170[idx*0x20+8] (CitizenBehavior::professionResources, 0x20 bytes an
 // entry). The index is the row's config index (resourcelimitui_sa::IdxFor). Entries 0..10
-// are the Town Hall's built-in limits (Log=0, Stone=1, Iron=2, Herbs=3, Tools=4, Fuel=5,
-// Food=6, Clothing=7, Alcohol=8, Coal=9, Textile=10); 11..20 are the custom limits
+// are the Town Hall's built-in limits (Log=0, Stone=1, Iron=2, Fuel=3, Tools=4, Food=5,
+// Herbs=6, Clothing=7, Alcohol=8, Coal=9, Textile=10); 11..20 are the custom limits
 // Custom0..Custom9.
 
 static int GetResourceLimitByIdx(int resourceIndex) {
@@ -69,24 +69,20 @@ static void SetResourceLimitByIdx(int resourceIndex, int value) {
     arrayBase[resourceIndex].maxCount = value;
 }
 
-// Read the live default/limit for a row (used by the trace + external checks).
+// Read the live default/limit for a row (used by the trace).
 int ResourceLimitUI_ReadLimit_SA(int resourceIndex) {
     return GetResourceLimitByIdx(resourceIndex);
 }
 
-// ---- ResourceLimitUI: PROMOTED to the real reimpl (resource-limit bring-up) --
+// ---- ResourceLimitUI ----------------------------------------------------------
 // Each row of the Town Hall "Limits" tab (Log/Stone/Iron/Herbs/Tools/Fuel/Food/
 // Clothing/Alcohol/Coal/Textile) is a ResourceLimitUI child controller bound to a
 // ResourceLimitUIConfig (resource index at config+0x20). Slot4 (+0x20, setup)
 // finds the row's "editLimit" spinner and seeds it from the live per-resource
 // limit at townMgr(gw+0xf0)+0x170[idx*0x20+8]; Slot7 (+0x38) keeps it synced;
-// Slot9 (+0x48) writes an edited value back. The generic stub left every slot a
-// no-op, so all limit spinners showed the .rsc default 0 even though the
-// town-manager ctor (TradeComponent_impl_0a30) seeds real per-resource defaults
-// (200 / 5000 / 100 / 50 / 500 / 1000 ...). Construction stays the stub
-// alloc+zero+vtable; the framework fills the base fields (dialog +0x18,
-// config +0x10, element root +0x20) afterward. Same shape as the
-// BuildRequirementUI / MapUI promotions above.
+// Slot9 (+0x48) writes an edited value back. The town-manager ctor (CitizenBehavior,
+// 0x140090a30) seeds the per-resource defaults (200 / 5000 / 100 / 50 / 500 / 1000 ...).
+// Construction is ResourceLimitUI::CreateNewObject (ui_dialog_stub_factories.cpp).
 namespace resourcelimitui_sa {
     // The row's config (DialogController::_config, +0x10) as a ResourceLimitUIConfig. Retail's
     // Slot4 / Slot7 / Slot9 do IsDerivedFrom(config) ? config : null and read the resource index

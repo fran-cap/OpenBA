@@ -1,8 +1,8 @@
 // src/game/Tutorial/tutorial_wave.cpp
 //
-// The second half of the Tutorial ResolveAddr gap: 12 exe-internal helpers the
-// already-ported Tutorial module resolves by address and which are registered
-// NOWHERE, so every one of them is a null function pointer.
+// 12 exe-internal helpers of the Tutorial module, listed below by retail address. This
+// file holds the step driver, its step->UI refresh, the TutorialSetupDialog show/hide
+// and highlight helpers, the ExternalRef resolve and the PlayerToolManager tutorial-tree insert.
 //
 // The eight from docs/history/notes/wave_remaining/lane2_tutorial.txt:
 //   0x1400262B0  ExternalPtr<Tutorial>::Serialize        (fn_ExternalPtr_SerializeTutorial)
@@ -14,8 +14,8 @@
 //   0x1400E29F0  TutorialSetupDialog::ShowListed         (fn_TSD_Slot9Helper)
 //   0x1401001F0  FinishTutorialGoal tutorial-tree insert (fn_TutorialTreeInsert)
 //
-// plus four sub-callees of those that are equally unregistered and were not on
-// the list (closure verified in Ghidra with get_function_callees on every one):
+// plus four sub-callees of those that were not on the list (closure verified
+// in Ghidra with get_function_callees on every one):
 //   0x1400E2250  recursive element show/hide             (called by 2330)
 //   0x14001AF90  ExternalRef copy-construct              (called by 2700)
 //   0x14001AFE0  ExternalRef resolve + extract           (called by 2700)
@@ -23,15 +23,12 @@
 //
 // Every address above was verified as a real function ENTRY with
 // get_function_by_address (Entry == address) — the mid-function-resolve trap
-// ([[reference-midfunction-raw-address-resolves]]) does not apply to any of them.
+// does not apply to any of them.
 //
-// STILL DARK, deliberately (see the report):
-//   0x1400E0D70  "tutorial finished -> launch the scenario" transition. Its own
-//                closure pulls in four more unported exe functions
-//                (0x140013A60 / 0x140013AA0 / 0x140098060 GameUpdateLoop ctor /
-//                0x140099130). TutWave_StepExecute logs and returns instead of
-//                calling a null pointer, and says so.
-// (0x1400E1870 FindUIElementByPath is now ported — see
+// 0x1400E0D70, the "tutorial finished -> launch the scenario" transition, is
+// TutorialInstance::LoadNextScenario (tutorial_next_scenario.cpp); StepExecute
+// calls it after the last step.
+// (0x1400E1870 FindUIElementByPath is in
 //  src/game/Tutorial/find_ui_element_by_path.cpp. Both call sites here,
 //  ShowListed and OpenHighlight's by-path branch, are live.)
 //
@@ -73,7 +70,7 @@
 #include "Tutorial/exe_bodies.h"
 #include "Entity/CitizenBehavior.h"
 #include "Component/ComponentDescription.h"
-#include "ui/Dialog.h"   // UI::Dialog (TutWave_SerializeDialogRef's ExternalPtr<UI::Dialog>)
+#include "ui/Dialog.h"   // UI::Dialog
 
 namespace {
 
@@ -233,7 +230,7 @@ Object::InternalPtr<UI::DialogInstance> TutorialSetupDialog::FindHighlightDialog
     bool havePath = HasText(HighlightPath());
     bool haveDialog = (highlightDialog != nullptr);
     if (!havePath || !haveDialog) {
-        // FUN_14001B1D0 (ResolveExternalByName_Impl).
+        // FUN_14001B1D0 (NamedExternalRef::ResolveDescription).
         toolbarRef.ResolveDescription();
         if (toolbarRef.resolved == nullptr) return nullptr;
     }
@@ -255,7 +252,7 @@ Object::InternalPtr<UI::DialogInstance> TutorialSetupDialog::FindHighlightDialog
 
 // ===========================================================================
 // 0x14001AF90 — copy-construct a NamedExternalRef {String, generation, cached*}
-//               (B4 Y GAMEA: NamedExternalRef's copy ctor, Goal/goal_exe_helpers.h).
+//               (B4 Y GAMEA: NamedExternalRef's copy ctor, Object/NamedExternalRef.h).
 // 0x14001AFE0 — resolve one and hand back the cached External*; it takes the
 //               reference BY VALUE, so the copy's String dies with the call.
 // Used as a pair by OpenHighlightDialog to look the toolbar External up

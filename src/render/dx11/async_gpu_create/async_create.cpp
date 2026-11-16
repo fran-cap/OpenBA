@@ -7,8 +7,8 @@
 // One FIFO of jobs, a small pool of worker threads made at the first deferred create and never
 // destroyed (they sleep on the queue's condition variable), and the set of objects with a job
 // pending. Every lock is this file's one mutex; no D3D11 call is made while it is held, and the
-// workers take nothing else (not the device lock, not the Present mutex: a create never touches
-// the immediate context, and the device is free-threaded, created with flags 0).
+// workers take neither the device lock nor the Present mutex (a create never touches the immediate
+// context, and the device is free-threaded, created with flags 0).
 //
 // Back-pressure: the loader blocks in Push while more than kMaxBytesInFlight of initial data
 // waits, so the deferred copies never grow the working set by more than that.

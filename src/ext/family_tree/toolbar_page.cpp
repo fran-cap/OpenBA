@@ -519,7 +519,7 @@ std::string LeafOf(const std::string& path) {
     return slash == std::string::npos ? path : path.substr(slash + 1);
 }
 
-// "Saved FamilyTree3.png in Screenshots (12 people, 4 generations)": the end of every success line. The
+// "Saved FamilyTree3.png (12 people, 4 generations)": the end of every success line. The
 // status line is one line in a box that cannot grow (a longer text would make the window wider), so it is
 // kept short.
 constexpr size_t kStatusMaxChars = 84;
@@ -536,7 +536,7 @@ std::string SavedLine(const std::string& path, const PictureLayout& layout, cons
 }
 
 // The whole-town picture into Screenshots, and the status line: a PNG, or an SVG when asked (and when the PNG
-// cannot be drawn because the system has no font).
+// cannot be had: the system has no font, the names cannot be drawn at its scale, or not enough memory).
 void SaveImage(bool png) {
     PictureOptions options;
     options.livingOnly = g_imageLiving;

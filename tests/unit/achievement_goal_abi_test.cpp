@@ -28,9 +28,8 @@
 //   by value, `MOV EDX,[RDX+0x8]`) receive a POINTER in RDX. Their declared
 //   types are pinned.
 //
-// WHAT IS *NOT* PROVEN HERE: the bodies. src/engine/achievement/ stands on
-// the port registry and the allocator and cannot link into a host test; the
-// bodies are verified by the real run.
+// WHAT IS *NOT* PROVEN HERE: the bodies, which are verified by the real run
+// (AchievementManager::Update's bounds are achievement_update_bounds_test.cpp).
 // ============================================================================
 #include "unit.h"
 #include "slot_check.h"

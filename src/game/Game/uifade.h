@@ -1,16 +1,17 @@
 #pragma once
 // src/game/Game/uifade.h
-// Fullscreen-fade overlay helpers shared between standalone exe and DLL hook
-// builds. The original Engine::DialogLoaderLoopT (loading screens) and
+// Fullscreen-fade overlay helpers used by the standalone loop stubs. The original
+// Engine::DialogLoaderLoopT (loading screens) and
 // MenuDialogLoopT (main menu) trigger UI cross-fades in their Startup paths
 // via UI::UserInterface::SetFullscreenFade. Standalone bypasses those code
 // paths today, so transitions hard-cut. These helpers add the fade calls
-// alongside the existing Stub_Startup / Stub_Update implementations.
+// in MenuDialogLoopT::Startup and GameLoadDialogLoopT::Update (menudialogloopt_stubs.cpp,
+// splash_loop_stubs.cpp).
 //
-// The actual fade animation runs INSIDE Runtime-x64.dll's UI::UserInterface
+// The actual fade animation runs INSIDE UI::UserInterface (src/engine/ui/)
 // (Update advances the alpha each frame, Draw renders a fullscreen sprite
 // modulated by the alpha). Standalone only needs to:
-//   1) install the fade sprite once (SetFullscreenFadeSprite from KeyMap+0xA8)
+//   1) install the fade sprite once (SetFullscreenFadeSprite from GameContainer+0xA8)
 //   2) trigger the fade-in/fade-out at the right moments (SetFullscreenFade)
 //   3) optionally observe alpha at +0xF4 for log-based verification
 //
@@ -41,12 +42,12 @@ float GetCurrentAlpha(const UI::UserInterface* userInterface);
 float GetCurrentRate(const UI::UserInterface* userInterface);
 
 // Install the fullscreen fade sprite onto a UI::UserInterface, copied from
-// KeyMap+0xA8 (the engine-wide white-pixel sprite reference loaded by the
-// resource bootstrap). Without this, SetFullscreenFade triggers do not draw.
+// GameContainer::spriteWhite (+0xA8, the "White" sprite built in loader_loop_stubs.cpp).
+// Without this, SetFullscreenFade triggers do not draw.
 // Idempotent: re-calling is safe but redundant.
 //
 // Returns true if the sprite was installed (or was already non-zero), false
-// if KeyMap singleton or required fn pointers are not yet resolved.
+// if userInterface or g_gameContainer is null, or the installed sprite has no sheet.
 bool EnsureFadeSprite(UI::UserInterface* userInterface);
 
 // Trigger the standard "Startup reveal" curve: instant fade IN to opaque
@@ -57,7 +58,7 @@ bool EnsureFadeSprite(UI::UserInterface* userInterface);
 // Use this from each loop's Startup so the new loop's first frames are
 // covered by the overlay then revealed.
 //
-// color: packed 0xRRGGBBAA. Pass 0xFF000000 for black (the game's default).
+// color: packed 0xAARRGGBB. Pass 0xFF000000 for black (the game's default).
 void TriggerReveal(UI::UserInterface* userInterface, uint32_t color = System::kColorBlack);
 
 // Trigger a fade IN (toward opaque) over ~0.25s. Mirrors the call in
@@ -67,8 +68,8 @@ void TriggerReveal(UI::UserInterface* userInterface, uint32_t color = System::kC
 void TriggerFadeIn(UI::UserInterface* userInterface, uint32_t color = System::kColorBlack);
 
 // Diagnostic — log "[UIFade::tag] alpha=X rate=Y" exactly once per call (no
-// throttling). Caller is responsible for throttling. Useful from Stub_Draw
-// to capture the fade curve in the standalone log.
+// throttling). Caller is responsible for throttling. Called from MenuDialogLoopT::Draw
+// and GameLoadDialogLoopT::Draw to capture the fade curve in the standalone log.
 void LogState(const char* tag, const UI::UserInterface* userInterface);
 
 } // namespace UIFade

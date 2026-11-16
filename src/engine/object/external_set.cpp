@@ -7,8 +7,7 @@
 // Byte-faithful port of the disassembly at the retail address named above each
 // function (Runtime-x64.dll, image base 0x180000000, read 2026-09-08 with
 // `disassemble_function(address=)` — NOT the decompiled C, which drops
-// dereferences and prints MOVSXD as a zero extension,
-// reference_ghidra_c_output_vs_disassembly.md).
+// dereferences and prints MOVSXD as a zero extension).
 //
 // Layout evidence and the file-level argument: external_set.h.
 // Wave write-up, including what this lane DECLINED and why:
@@ -31,37 +30,18 @@
 //                     semantically one — the SAME no-difference lane COLL
 //                     recorded for 0x18000adc0 vs 0x18002a310.
 //
-// **They are still transcribed and registered separately here.** Reusing
-// `rtsetavl24::RotateLeft` at 0x18002d860 would work today and would be a
-// latent trap: `RegisterRuntimeAddr` is the door a by-address caller jumps
-// through, and a body registered at an address it was not read from carries no
+// **They are still transcribed separately here.** Reusing
+// `rtsetavl24::RotateLeft` for 0x18002d860 would work today and would be a
+// latent trap: a body used for an address it was not read from carries no
 // evidence of its own. Three ~30-line bodies is cheaper than the next lane
 // having to re-derive which instantiation a shared body came from.
 //
 // ---------------------------------------------------------------------------
-// WHAT IS NOT HERE, AND THE MEASURED REASON
+// WHAT IS NOT HERE
 // ---------------------------------------------------------------------------
-// `ExternalFactory::FindOrLoad` (0x1800bf320) is NOT ported by this lane, and
-// neither is `LoadResources` (0x1800dd7d0), which cannot precede it. The
-// blocker is not the tree — the tree is this file — it is the OTHER two
-// callees, and it was measured rather than inherited:
-//
-//   0x1800bd360 `ExpandRelativePath`, 834 instructions, needs
-//       `ExternalFactory::_opaque30/_opaque38` (the path stack; External.h
-//       records both as NOT PINNED), `FileSystem::ExistsInPackfile` and
-//       `System::WideString`.
-//   0x1800bc620 `External::Load`, which opens with
-//       `CompressedStream::CompressedStream` + `BinaryFileStream::
-//       BinaryFileStream` and drives `IO::Serializer` through the shared
-//       encoding vtable at 0x1801554a8 — the vtable WAVE9.md lane W records as
-//       having no exported name and no row the mint can carry.
-//
-// Porting `FindOrLoad` on top of two null callees would REMOVE one name from
-// `unsatisfied_export_scan.py` while ADDING two addresses to
-// `addr_door_audit.py`, and the boot would die one frame deeper for the same
-// reason. That is exactly the "closes 3 doors and opens 4" trade WAVE9.md
-// warns about, so the row is declined with the count rather than taken for the
-// census movement.
+// `ExternalFactory::FindOrLoad` (0x1800bf320) is in external_compiled.cpp; its
+// callees `ExpandRelativePath` (0x1800bd360) and `External::Load` (0x1800bc620)
+// are in src/engine/io/external_path.cpp and src/engine/object/external_load.cpp.
 //
 // PORTABILITY: no <windows.h>, per PLAN.md §4.1 decision 1.
 // ============================================================================
@@ -110,18 +90,10 @@ ProbeCounters g_rc = {};
 
 // The refcounted-String release retail inlines at every site in this family:
 //     dec [p-4]; if (0) { p -= 8; MemFree(p) } else { slot = null }
-// Transcribed rather than delegated so the "else store a NULL into the slot"
-// half — which is retail's, and which a tidied version would drop — stays
-// visible. `src/engine/system/string_internal.h` has the same body as
-// RtString_ReleaseInline; it is repeated here only because these call sites
-// operate on a `Filename` embedded at a node offset, not on a `String` local.
-// ENDGAME B.3.1 step 2: this hand-respelled release is `~Filename`
-// (0x180006980) — the "else store a NULL into the slot" half included, since
-// System::String's destructor carries retail's asymmetry verbatim (String.h).
-// The four call sites now spell it as the destructor it is; the local copy of
-// the idiom is gone, and with it the fourth place it could drift.
-// B.4 Z MIRROR: ResourceEntry::path is the real System::Filename; the helper
-// keeps the four sites' spelling.
+// That release is `~Filename` (0x180006980) — the "else store a NULL into the
+// slot" half included, since System::String's destructor carries retail's
+// asymmetry verbatim (String.h). ResourceEntry::path is the real
+// System::Filename; the helper keeps the two sites' spelling.
 static void ReleaseInline(System::Filename* slot) {
     slot->~Filename();
 }
@@ -189,7 +161,7 @@ void VisitIndexStats(uint64_t* size, bool* broken, uint64_t* duplicates) {
 // at 0x18007eefc, which is locale-sensitive in MSVC — and the DLL never calls
 // `setlocale`, so it runs in the "C" locale where `_stricmp` is plain ASCII
 // case folding. Spelled out here for the reason filename.cpp and external.cpp
-// both spell it out: runtime/src must not depend on a CRT whose locale
+// both spell it out: src/engine must not depend on a CRT whose locale
 // behaviour differs between toolchains (PLAN §4.1).
 //
 // This is the SAME function external.cpp already has as `StriCmpAscii` /
@@ -459,8 +431,6 @@ Node* AllocNode(void* /*ignored, never read*/, const ResourceEntry* src, Node* p
 // have to wonder.
 //
 // AN EQUAL KEY RETURNS THE EXISTING NODE AND INSERTS NOTHING (0x18002cf36).
-// That is what makes a live ours-then-theirs replay vacuous, and it is why the
-// oracle for this file is a lockstep probe on private trees.
 // ---------------------------------------------------------------------------
 Node** InsertCore(Set* set, Node** out, const ResourceEntry* pair) {
     Node* n = set->root;
@@ -572,8 +542,7 @@ void FreeEntryNode(void* ignored, Node* node) {
 //
 // Reading case 3 as a successor splice would be wrong in a way no balanced input
 // reveals: it produces a valid AVL tree with the same key set and a DIFFERENT
-// SHAPE, so a probe that only checked the key sequence would pass. The probe
-// compares shape.
+// SHAPE, so a check of the key sequence alone would pass.
 //
 // CASE 1 RELEASES THE ELEMENT INLINE AND THEN CALLS 0x180009c30 DIRECTLY;
 // cases 2 and 3 call the combined 0x18002ee40. Same effect, different code, and
@@ -674,9 +643,7 @@ void Erase(Set* set, Node* z) {
 // of it (`0x1800be2a2  MOV RBX,[RBX+0x8]`).
 //
 // `external.cpp`'s `ResourceSetFind` is the same body, ported in Wave 3 as a
-// file-static with no address door. It stays there — deleting it would edit a
-// file another lane owns mid-wave — and THIS is the registered entry point.
-// The two are checked against each other in the probe, which drives this one.
+// file-static.
 // ---------------------------------------------------------------------------
 Node* Find(const Set* set, const System::Filename* key) {
     // NOT RETAIL (block PATHINDEX): the index's answer when it has one; the
@@ -784,8 +751,7 @@ namespace RtObject {
 // Because phase 2 ERASES, and an erase rebalances: any node pointer collected
 // in phase 1 could have been spliced or freed by an earlier erase in phase 2.
 // The key is stable, the node pointer is not. This is the shape of the UAF the
-// Work family paid for three times over
-// (reference_workscheduler_erase_and_destroy), arrived at from the other side —
+// Work family paid for three times over, arrived at from the other side —
 // retail already knew.
 //
 // *** RETAIL HARD-FAULTS ON A KEY IT CANNOT FIND, AND THE GUARD IS NOT ADDED ***
@@ -806,12 +772,8 @@ namespace RtObject {
 //
 // NO ORACLE, AND THE POSITIVE REASON. `Clean` mutates the one live factory
 // tree and destroys the resources it evicts; running it twice against the same
-// factory would double-free every `External` it touched. Its four tree
-// primitives — Find, Erase, Retrace and the two rotations — are each verified
-// against the shipped bodies in external_set_probe.cpp; what is NOT covered by
-// that probe is the three-phase composition, and the instrument for it is the
-// `g_rc.clean*` counters plus the post-Clean structural check the probe runs
-// over the LIVE tree. Said plainly rather than left as a clean-looking silence.
+// factory would double-free every `External` it touched. The instrument for its
+// three-phase composition is the `g_rc.clean*` counters.
 // ============================================================================
 void RtObject_ExternalFactory_Clean(ExternalFactory* self) {
     using rtresset::Node;
@@ -895,14 +857,14 @@ void RtObject_ExternalFactory_Clean(ExternalFactory* self) {
     evicted.size     = 0;
     evicted.capacity = 0;
 
-    // ONE LINE PER CALL. The `calls=` discipline
-    // (reference_uncalled_port_is_not_verified.md): this body has no
+    // ONE LINE PER CALL. The `calls=` discipline: this body has no
     // ours-vs-theirs oracle, so the only thing separating "verified by
     // construction" from "never executed" is a live count. `Clean` runs at
     // world teardown, a handful of times per session, so an unconditional
-    // printf costs nothing. `visited` is the whole tree; `evicted` is what it
-    // destroyed; `arrayGrow` is the one branch of `ArrayResize` this path
-    // reaches, and it is the ONLY live coverage that body gets.
+    // printf costs nothing. The counters are running totals over every `Clean`
+    // of the session (`g_rc` is never reset): `visited` counts nodes walked,
+    // `evicted` entries destroyed; `arrayGrow` is the one branch of `ArrayResize`
+    // this path reaches, and it is the ONLY live coverage that body gets.
     printf("[ResSet] Clean: visited=%llu evicted=%llu bitCleared=%llu "
                 "arrayGrow=%llu cleanBit=%d generation=%d\n",
                 (unsigned long long)g_rc.cleanVisited,

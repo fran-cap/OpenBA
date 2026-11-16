@@ -32,12 +32,12 @@
 #include "Game/WorldGeometry.h"
 #include "Game/WorldGeometryElements.h"   // GeometryBatch (the _decals element)
 #include <cstring>
-#include "Player/exe_bodies.h"   // AddDecal 0x1400b0d80
+#include "Player/exe_bodies.h"
 
 // ============================================================
 // Helpers, called directly: IsDerivedFrom (import slot 0x140152a98) is
 // Object::Base::IsDerivedFrom; the terrain-decal remove FUN_1400b0d00 is
-// DecalComponent_TerrainDecalRemove below.
+// WorldGeometry::RemoveDecal below.
 // ============================================================
 
 // Sub-callees of the terrain-decal-slot release (FUN_1400b0d00) were
@@ -84,27 +84,27 @@ static DecalDescription* GetDecalDescription(DecalComponent* self) {
 }
 
 // ============================================================
-// DecalComponent::Draw (vtable slot [6], 0x14011b560)
+// DecalComponent::OnAdded (vtable slot [6], 0x14011b560)
 // ============================================================
 // Real terrain-decal rendering (was a delegate to the exe body). Faithful 1:1 port of
 // the 0x14011b560 disassembly: read the building footprint (MapComponent tile bbox +
 // rotation), the model variant index (ModelComponent+0x164 → per-variant UV rect), and
 // the DecalDescription (material list + tiled/uv params), then submit one decal to the
-// terrain-decal system (gameWorld+0x110) via AddDecal (TradeWork_impl_0d80 @ b0d80).
+// terrain-decal system (gameWorld+0x110) via WorldGeometry::AddDecal (0x1400b0d80).
 // AddDecal fills a slot in the +0x1f0 array and tessellates it (ace40); the slot is then
 // rendered every frame by GeomDraw_CollectDraw's +0x1f0 loop (geometry_draw.cpp). The
-// resulting decalId is stored at self+0x2c so OnCreate can release it.
+// resulting decalId is stored at self+0x2c so OnRemove can release it.
 //
 // This is the brown ground foundation under a StorageYard (and any building carrying a
 // DecalDescription). Dispatched by ComponentEntity::OnAddedPass at
 // EntityList::RegisterEntity (the ctor's flags 0xc3 carry bit 0), as retail.
 
-// AddDecal (0x1400b0d80, tool_base_highlight.cpp; Player/exe_bodies.h) — 19-arg
+// AddDecal (0x1400b0d80, tool_base_highlight.cpp; Game/WorldGeometry.h) — 19-arg
 // tile-slot manager + tessellate.
 
-// Draw-path helpers, called directly: 0x140004680 FindComponent(MapComponent)
-// (FloorComponent_FindResData), 0x140003f60 FindComponent(ModelComponent)
-// (ActCNR_FindComponent_3f60), DAT_1401c3dd8 = g_pGameWorldSingleton.
+// Draw-path helpers, called directly: 0x140004680 FindComponent<MapComponent>,
+// 0x140003f60 FindComponent<ModelComponent>, DAT_1401c3dd8 = g_pGameWorldSingleton
+// (GameUpdateLoop::_singleton).
 
 // ============================================================================
 // ENDGAME B.3.8 VIS — DecalComponent as a REAL class (DecalComponent.h).
@@ -132,8 +132,9 @@ static DecalDescription* GetDecalDescription(DecalComponent* self) {
 //     c7 43 30 0000803f   mov [rbx+0x30], 1.0f     decalScale = 1.0
 // and flags |= 0xc3. decalId -1 matters: 0 means "I own terrain decal slot 0",
 // and decalId is NOT in the save stream (slot 3 serializes only decalScale and
-// decalState), so a stream-restored decal with 0 would TerrainDecalRemove(sys, 0)
-// at world teardown. See reference_ctor_scalars_in_startup_are_unset_after_load.
+// decalState), so a stream-restored decal with 0 would RemoveDecal(0)
+// at world teardown. A loaded component runs its ctor but never Startup (+0x20), so the
+// ctor is where -1 must be set.
 DecalComponent::DecalComponent()
     : decalState(0), decalId(-1), decalScale(1.0f), _pad34{} {
     OrFlagsInCtor(0xc3);
@@ -141,7 +142,7 @@ DecalComponent::DecalComponent()
 
 // [3] 0x14011b820 — decalScale/decalState round-trip here.
 // ============================================================
-// DecalComponent::Shutdown (vtable slot [3], 0x14011b820)
+// DecalComponent::Persist (vtable slot [3], 0x14011b820)
 // ============================================================
 // Serializes:
 //   1. Component_Serialize base
@@ -169,7 +170,7 @@ void DecalComponent::Persist(IO::Stream& stream) {
 void DecalComponent::Startup() {
     decalScale = GetDecalDescription(this)->_initialAlpha;
 }
-// [6] 0x14011b560 — Draw: build + submit the terrain decal.
+// [6] 0x14011b560 — OnAdded: build + submit the terrain decal.
 //
 // Retail tests nothing here but the ModelComponent (0x14011b60d CMP / JZ): the
 // MapComponent (0x14011b5d6), the DecalDescription cast (0x14011b64b CMOVNZ, then
@@ -231,9 +232,9 @@ void DecalComponent::OnAdded() {
         '\0', 0, 0, p19);
     decalId = id;
 }
-// [7] 0x14011b510 — OnCreate: release the decal slot.
+// [7] 0x14011b510 — OnRemove: release the decal slot.
 // ============================================================
-// DecalComponent::OnCreate (vtable slot [7], 0x14011b510)
+// DecalComponent::OnRemove (vtable slot [7], 0x14011b510)
 // ============================================================
 // If decalId >= 0, removes the decal from terrain, resets decalId to -1.
 void DecalComponent::OnRemove() {

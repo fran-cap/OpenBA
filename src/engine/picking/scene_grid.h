@@ -3,10 +3,8 @@
 // src/engine/picking/scene_grid.h — Wave 9 lane PICK
 // ============================================================================
 //
-// Shared between scene_grid.cpp (the nineteen ported bodies) and
-// scene_grid_probe.cpp (the synthetic-subject oracle). It exists for exactly
-// the reason array_internal.h exists: a probe that re-derives the body it is
-// probing is testing a copy of the port, not the port.
+// Declares the nineteen bodies ported in scene_grid.cpp for the files that
+// call them by name (picking/scene.cpp and several files in src/engine/graphics/).
 //
 // PORTABILITY: no <windows.h>, per PLAN.md §4.1 decision 1.
 // ============================================================================
@@ -53,12 +51,6 @@ static_assert(offsetof(CellIter, scene) == 0x20, "CellIter::scene @ +0x20");
 // them would have swapped five unregistered address doors for fourteen new
 // ones, which is not progress.
 //
-// Every one is registered by ADDRESS only (RegisterRuntimeAddr). None is
-// exported: `tools/pe_exports.py` finds no name in either the retail or the
-// profile export directory whose address is any of these nineteen, so
-// RegisterRuntimeExport has nothing to register under. That is stated
-// explicitly rather than left implied, because "a port reached by address
-// needs BOTH doors" is the normal rule and this is the exception to it.
 // ---------------------------------------------------------------------------
 
 // 0x18001c100  Array<T>::~Array for trivially-destructible T (the J1 body).

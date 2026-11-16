@@ -5,11 +5,10 @@
 // WHAT IS UNDER TEST, AND WHAT IS NOT
 // -----------------------------------
 // `Collection::Set<T, Compare, Allocator, Key>` is a WRAPPER: at runtime the
-// rotations and the retrace are the Wave 9 bodies registered at
+// rotations and the retrace are the ported bodies at
 // 0x18000adc0/b040/b170/aba0 (element 0x10), 0x180023170/23570/236a0 (element
-// 0x18) and 0x180030540/307b0/308e0 (element 0x30). Those bodies stand on the
-// address registry and the allocator singleton, neither of which a host test
-// links, so the header compiles its GENERIC core under `BANISHED_UNIT_TEST`
+// 0x18) and 0x180030540/307b0/308e0 (element 0x30). Under `BANISHED_UNIT_TEST`
+// the header compiles its GENERIC core for every width instead
 // (Collection.h's banner says so in as many words). The generic core is those
 // same bodies with `Node*` in place of the baked-in offsets, so what this file
 // verifies is the algorithm, the layouts, the duplicate-key rule and the
@@ -18,10 +17,9 @@
 // host as well: tests/unit/set_ported_test.cpp links the four cores and runs
 // them against this same invariant walker and against the generic core.)
 //
-// No tree source is linked (tests/unit/sources.cmake says the same): everything
-// under test is in src/engine/collection/Collection.h, and the allocator is
-// the counting policy below — which is also how "Clear releases every node
-// exactly once" is measured.
+// Everything under test is in src/engine/collection/Collection.h, and the
+// allocator is the counting policy below — which is also how "Clear releases
+// every node exactly once" is measured.
 // ============================================================================
 
 #include "unit.h"
@@ -335,7 +333,7 @@ UNIT_TEST(set_iterates_in_key_order) {
 // ============================================================================
 // Clear releases every node EXACTLY ONCE, and it runs the element destructor
 // exactly once per element (which is what the string-map instantiation's
-// `~Pair<String,String>` rides on — set_clear.cpp).
+// `~Pair<String,String>` rides on — Collection.h's Clear, retail 0x18000f7d0).
 // ============================================================================
 namespace {
 int g_dtorCalls = 0;
@@ -446,8 +444,8 @@ UNIT_TEST(set_balances_random_inserts_and_removes) {
 // differently-shaped tree on any input containing a null key.
 //
 // `Collection::AVLCompare` on a `char*` key resolves to
-// `detail::AvlStrCmpSigned`, which is out of line in set_core.cpp and not
-// linked here, so the test supplies its own comparator policy. What it
+// `detail::AvlStrCmpSigned` (out of line in set_core.cpp); the test supplies
+// its own comparator policy. What it
 // exercises is `KeyTraits<char*>` and the two null arms, which are the header's.
 // ============================================================================
 namespace {
@@ -500,13 +498,14 @@ UNIT_TEST(set_pointer_key_null_orders_first) {
 // and fell through to `AvlGeneric` for 8, so the one width-8 tree in the DLL —
 // the `Set<System::Filename>` path set every `IO::Modification::Mod` carries —
 // could not be spelled as a `Collection::Set` at all. Its ported core is
-// src/engine/io/modification_refresh.cpp's 0x1800274c0 / 0x180027e20 /
-// 0x180027f50 and the three forwarders live beside it.
+// src/engine/io/modification_avl8.cpp's 0x1800274c0 / 0x180027e20 /
+// 0x180027f50; the template calls the retrace by name.
 //
 // ON THE HOST THIS TEST DRIVES `AvlGeneric`, not those three bodies: the
-// specialisation is behind `#if !defined(BANISHED_UNIT_TEST)` like the other
-// three widths, for the reason this file's header block gives (the ported
-// bodies stand on the address registry). What it therefore verifies is the
+// specialisation is behind `#if !defined(BANISHED_UNIT_TEST) ||
+// defined(BANISHED_UNIT_PORTED_AVL)` like the other three widths, and this file
+// does not define BANISHED_UNIT_PORTED_AVL (tests/unit/set_ported_test.cpp
+// drives the ported bodies). What it therefore verifies is the
 // SHAPE the width-8 tree needs — node 0x28, a key with a null state, a
 // case-insensitive comparator, the duplicate rule and erase — and the real run
 // verifies the bodies. The two halves together are what B32_RULES asks for.
@@ -541,7 +540,7 @@ using PathSet = Collection::Set<FilenameLike, FilenameICompare, CountingAllocato
 
 namespace Collection {
 namespace detail {
-// The null arm, exactly as modification_refresh.cpp specialises it for the real
+// The null arm, exactly as Modification.h specialises it for the real
 // `System::Filename`.
 template <> struct KeyTraits<FilenameLike> {
     static bool IsNull(const FilenameLike& k) { return k.data == nullptr; }

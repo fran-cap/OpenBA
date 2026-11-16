@@ -2,8 +2,8 @@
 // src/diag/darwin/crash_handler_darwin.cpp -- the exe's crash handler (Darwin)
 // ============================================================================
 // The Darwin twin of src/diag/posix/crash_handler_posix.cpp (arm64 register dump from the
-// Mach ucontext; copy of the POSIX file otherwise). The POSIX twin of src/diag/win/crash_handler_win.cpp (Phase D.4 LINUX-1; D4_RULES
-// C10: the crash / hang handlers get a POSIX twin once a Linux exe exists). Same
+// Mach ucontext; copy of the POSIX file otherwise), itself the POSIX twin of
+// src/diag/win/crash_handler_win.cpp. Same
 // entry points (src/diag/crash_handler.h), same artifact, same exit codes:
 //
 //   standalone_crash.log   opened (truncated) at boot beside the other logs, written
@@ -16,20 +16,19 @@
 //   exit 5                 std::terminate
 //
 // The dump keeps the Windows log's shape (=== STANDALONE CRASH ===, the registers,
-// Module: <name> + 0x<off>, Fault:, the VCALL-of-0 block, the MemoryAllocator cell,
-// Stack trace:, === END CRASH ===) so triage reads both alike. What differs:
-//   * "Exception:" carries the signal number and name (there is no NTSTATUS), and
-//     "Fault:" READ / WRITE comes from the page-fault error code (REG_ERR bit 1);
-//     EXEC is RIP == fault address.
-//   * The stack is glibc's backtrace() from inside the handler (libgcc unwinds
-//     through the kernel's signal frame), each frame resolved with dladdr to
-//     module + offset and, when the dynamic symbol table has it, the symbol name.
-//     The exe links with -rdynamic, so its own functions are named.
+// Module: <name> + 0x<off>, the MemoryAllocator cell, Stack trace:, === END CRASH ===)
+// so triage reads both alike. What differs:
+//   * "Exception:" carries the signal number and name (there is no NTSTATUS); the
+//     registers are arm64's (PC / SP / LR / FP, X0-X28), and there is no "Fault:" line
+//     and no VCALL-of-0 block.
+//   * The stack is backtrace() (execinfo.h) from inside the handler, each frame resolved
+//     with dladdr to module + offset and, when the dynamic symbol table has it, the
+//     symbol name. The exe links with -Wl,-export_dynamic, so its own functions are named.
 //   * The redzone heap dump is RedzoneAlloc_HeapDump's POSIX twin, which says it is
 //     unavailable (src/diag/posix/redzone_alloc_posix.cpp).
 //   * There is no first-chance fail-fast VEH and no hardware-watchpoint single step:
 //     a stack-protector failure on glibc is __stack_chk_fail -> abort -> SIGABRT,
-//     which lands here; hw_watch has no POSIX body.
+//     which lands here; hw_watch's POSIX twin arms nothing (src/diag/posix/hw_watch_posix.cpp).
 //
 // _purecall: the MSVC CRT's pure-virtual handler, named by CompanionData.h. This file
 // defines it for the POSIX build.

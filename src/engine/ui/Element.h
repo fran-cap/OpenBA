@@ -4,10 +4,7 @@
 // ============================================================================
 //
 // Wave 7 lane A wrote the layout contract below; ENDGAME B.3 step 6 block A
-// turned `UI::Element` into the REAL C++ class (bottom half of this file) and
-// moved the field-identical POD to `RtUI::Element`, which is what the seven
-// leaf headers that embed an Element BY VALUE now spell (an abstract class
-// cannot be a member — see the B.3.6 banner below).
+// turned `UI::Element` into the REAL C++ class (bottom half of this file).
 //
 // ---------------------------------------------------------------------------
 // SIZE IS PROVEN, NOT INFERRED:  sizeof(UI::Element) == 0xC0 (192), align 8.
@@ -77,27 +74,9 @@ namespace UI {
 class Element;
 class Dialog;              // block B
 class DialogInstance;      // block B
-struct SpriteContext;      // block D (a struct in the tree today)
-struct UserInterface;      // block E (a struct in the tree today)
+struct SpriteContext;      // block D
+struct UserInterface;      // block E
 }  // namespace UI
-
-// ############################################################################
-// RtUI::Element — the Wave 7 POD, MOVED here from `UI::Element` by B.3.6
-// block A (B4b-1). Field-for-field identical to the class below and
-// cross-asserted against it at the bottom of this file.
-//
-// WHY A POD SURVIVES, contrary to "prefer one definition and an alias": when
-// block A ran, seven leaf headers held `Element base;` BY VALUE, and
-// `UI::Element` is ABSTRACT (slot 4 `ComputeSize` is `_purecall` in retail),
-// which a data member cannot be. The C blocks turned those leaves into real
-// classes deriving from `UI::Element`; as of the B.3.6 closing pass the
-// `RtUI::` PODs that still embed `RtUI::Element base;` are FOUR:
-// `EditElement.h`, `NumberElement.h`, `ProgressElement.h`, `SpinnerElement.h`
-// (`ComboElement.h`, `RadioElement.h` and `SliderElement.h` no longer do). The
-// pointer members name the REAL class, so `pod->_parent` and
-// `pod->_children[i]` are `UI::Element*` and no caller needs a bridge to walk
-// the tree from a POD. The POD dies with the last of those four.
-// ############################################################################
 
 
 
@@ -193,9 +172,9 @@ enum ElementFlag : uint32_t {
 // PARENT `Object::Internal` — READ, not inferred:
 //     ?_ParentTypeName@Element@UI@@CAPEBDXZ  @0x180035410 -> "Object::Internal"
 //
-// RULE B5-15 / B6-7 — THE TWO NAME LITERALS, COPIED FROM B36_SLOTS.md SECTION 3
-// AND RECORDED, NOT USED. No `DEFINE_TYPE` is introduced in step 6 (B36_RULES
-// section 7); slots 1/2 keep reading `?_typeInfo@Element@UI@@…` (0x1801fab30).
+// RULE B5-15 / B6-7 — THE TWO NAME LITERALS, COPIED FROM B36_SLOTS.md SECTION 3;
+// DEFINE_TYPE(UI::Element, …) in element_vtable.cpp produces both, and slots 1/2
+// read the class's own `_typeInfo`.
 //     ?_TypeName@Element@UI@@CAPEBDXZ        @0x180035400 -> "Element"
 //     ?_ParentTypeName@Element@UI@@CAPEBDXZ  @0x180035410 -> "Object::Internal"
 //
@@ -227,9 +206,7 @@ enum ElementFlag : uint32_t {
 //     contents. (B36_RULES section 2.2 and the block prompt spell it by value;
 //     that is the MSVC source signature, not the ABI.)
 //
-// B6-5: nothing here is a static initialiser or a lazy cache. The door-
-// resolving caches the member bodies need are namespace-scope std::atomic
-// slots in element.cpp / element_vtable.cpp (rtuielem::AtomicExport).
+// B6-5: nothing here is a static initialiser or a lazy cache.
 // ############################################################################
 class Element : public Object::Internal {
 public:
@@ -308,9 +285,8 @@ public:
         Object::InternalPtr<Element>* ret) const;                 // [11] 0x180035630 RETSLOT
 
     // ---- PORTED non-virtual members (bodies in element.cpp) ----------------
-    // Each keeps its registered door, now a QUALIFIED delegation. The retslot
-    // ones return by value here (both ends of a C++ call are this GCC); the
-    // door keeps retail's `(this, ret, …)` shape and placement-news the result.
+    // The retslot ones return by value here (both ends of a C++ call are this
+    // GCC).
     // `V?$InternalPtr` BY VALUE arrives by HIDDEN POINTER (RULE B6-11): retail
     // 0x180115df0 opens `MOV RAX,[RDX]` and hands that same RDX to SetSizeFill
     // as the fill (`MOV R8,RDX`), so the member takes the pointer.
@@ -325,8 +301,8 @@ public:
                             int32_t& outX, int32_t& outY,
                             int32_t& outW, int32_t& outH,
                             bool stretchX, bool stretchY);        // 0x180115ff0
-    // THE STATIC 17-ARGUMENT OVERLOAD — the door decides which one a caller
-    // meant (`…QEAAXHHHHHHAEAH000_N1@Z` vs `…SAXW4Alignment@…`).
+    // THE STATIC 17-ARGUMENT OVERLOAD (`…SAXW4Alignment@…`; the member above is
+    // `…QEAAXHHHHHHAEAH000_N1@Z`).
     static void GetAlignedPosition(ElementDescription::Alignment alignment,
                                    int32_t x, int32_t y,
                                    int32_t containerW, int32_t containerH,
@@ -350,12 +326,11 @@ public:
     void SetUserData(Object::Base* userData);                     // 0x180115560
 
     // ---- PORTED; DEFINED in another block's file (moved there by the
-    // fragment pass), whose registered door delegates to the member.
+    // fragment pass).
     void RemoveChildren();                                        // 0x180115570  widgets_layout.cpp
     System::String GetToolTipString() const;                      // 0x1800356a0  tooltipdialog.cpp (RETSLOT)
 
-    // ---- one-instruction accessors, from the disassembly quoted on each
-    // field of RtUI::Element above. Exported, registered nowhere; inline
+    // ---- one-instruction accessors. Exported, registered nowhere; inline
     // because each is the whole body.
     int32_t  GetLeftPad() const      { return _leftPad; }         // 0x1800355e0
     int32_t  GetRightPad() const     { return _rightPad; }        // 0x180035600
@@ -394,8 +369,8 @@ public:
     Element(const Element& src);                                  // 0x1800358c0  not ported
     Element& operator=(const Element& src);                       // 0x180035a50  not ported
 
-    // Reflection statics (retail's DECLARE_TYPE block). `_typeInfo` is still the
-    // MINTED record TypeId reads by name.
+    // Reflection statics: DECLARE_TYPE_INHERITED_INPLACE above; `_typeInfo` is the
+    // class's own record (DEFINE_TYPE in element_vtable.cpp).
     // Abstract: retail's factory is `xor eax,eax; ret` (element.cpp).
 
 protected:
@@ -412,9 +387,7 @@ private:
 public:
     // ---- the 0xB0 bytes Element adds after Object::Internal -----------------
     // PUBLIC for the reason `Object::Internal`'s are: unconverted bodies reach
-    // them at these offsets. Names and TYPES are RtUI::Element's, unchanged, so
-    // every includer of this header compiles untouched; the per-field evidence
-    // is on the POD above.
+    // them at these offsets.
     char*    _name;              // +0x10  System::String body (H5: raw char* storage)
     int32_t  _leftPad;           // +0x18
     int32_t  _rightPad;          // +0x1c
@@ -511,7 +484,5 @@ static_assert(offsetof(Element, _border)           == 0xb0, "");
 static_assert(offsetof(Element, _description)      == 0xb8, "");
 static_assert(offsetof(Element, _name) == sizeof(Object::Internal),
               "Element's own fields begin at the end of the Object::Internal base");
-
-// The class and the POD describe the same bytes.
 
 } // namespace UI

@@ -73,16 +73,15 @@
 // `<RenderState>` elsewhere in the tree.
 //
 // sizeof 0x48: the `MOV EDX,0x48` in the slot-0 vector deleting destructor
-// (0x18004efb0 — B35_SLOTS.md), agreeing with `RT_DELDTOR(0x18004efb0,
-// 0x1800f4650, 0x048, "Video::VideoProgram")` at deleting_dtor.cpp:825 and with
-// `?CreateNewObject@` (0x18004ed40), which allocates 0x48 with alignment 8.
+// (0x18004efb0 — B35_SLOTS.md), agreeing with `?CreateNewObject@` (0x18004ed40),
+// which allocates 0x48 with alignment 8.
 //
 // ---------------------------------------------------------------------------
 // ENDGAME B.3 step 9, block VID (B39_RULES.md D1/D2): CONCRETE. Retail's real
 // public constructor (??0VideoProgram 0x1800f45b0), its own slot 0, and the
 // factory pair as its own statics: every live VideoProgram wears the COMPILER's
 // table. The minted row, its RT_DELDTOR row 0x18004efb0, the ??0 / ??1 doors and
-// the seven slot doors are retired (tools/rt_mint_retired/vid.txt).
+// the seven slot doors are retired.
 // ---------------------------------------------------------------------------
 // THE DESTRUCTOR IS VIRTUAL (B3X W1): retail slot 0 is
 // the deleting destructor. `~VideoProgram()` (0x1800f4650) is D1 + D0 here, and
@@ -178,15 +177,8 @@ public:
     //
     // OUR `Object::ExternalPtr<T>` is trivially copyable and eight bytes
     // (External.h asserts both and B.3.3 requires the triviality), so GCC returns
-    // it in RAX with NO hidden slot. A door for any of these four therefore has to
-    // be declared with the EXPLICIT retail-order signature
-    // `ExternalPtr<T>* Door(const VideoProgram* self, ExternalPtr<T>* ret)` and
-    // PLACEMENT-NEW the member's prvalue into `ret` (RULE B5-12, as amended: GCC's
-    // ms_abi lowering passes a hidden return pointer BEFORE `this`, where MSVC
-    // passes `this` first, so a door must never be a tail call to a by-value
-    // member and must never leave the slot implicit). None of the four has a
-    // registration today, here or anywhere in the tree; the bodies below exist so
-    // that the four field names are load-bearing rather than commentary.
+    // it in RAX with NO hidden slot. The bodies below exist so that the four field
+    // names are load-bearing rather than commentary.
     Object::ExternalPtr<VertexLayout>  GetVertexLayout() const;    // 0x18004ee10
     Object::ExternalPtr<VertexProgram> GetVertexProgram() const;   // 0x18004ee20
     Object::ExternalPtr<PixelProgram>  GetPixelProgram() const;    // 0x18004ee30
@@ -197,8 +189,9 @@ public:
     const void* GetData() const;
 
     // ?SetupShaders@VideoProgram@Video@@QEBAXAEAVContext@2@@Z  0x1800f4520.
-    // B.4 (R-GFX): retail's `Context&` (`AEAVContext@2@`); its one caller is
-    // graphics/wave21_lane_gfxbody.cpp's MaterialInstance::Setup.
+    // B.4 (R-GFX): retail's `Context&` (`AEAVContext@2@`); its engine caller is
+    // graphics/wave21_lane_gfxbody.cpp's MaterialInstance::Setup; src/ext/better_water
+    // and src/ext/winter_ice call it too.
     void SetupShaders(class Context& context) const;
 
     // ?Bind@VideoProgram@Video@@QEBAXAEAVContext@2@H@Z  0x1800f4830 — not ported.
@@ -206,8 +199,8 @@ public:
     // are how the engine actually binds a program.
     void Bind(void* context, int32_t permutation) const;
 
-    // The three platform halves. `AEAA` is PRIVATE IN RETAIL, not unexported
-    // (reference_aeaa_is_private_not_unexported.md); public here as the rest of
+    // The three platform halves. `AEAA` is PRIVATE IN RETAIL, not unexported;
+    // public here as the rest of
     // this family has them. `PlatformCreate` returns void, like VertexLayout's
     // and unlike VertexProgram's and PixelProgram's.
     void PlatformConstruct();    // 0x1800f47a0
@@ -219,7 +212,7 @@ public:
     // placement `operator new` (not ported): placement spells `::new (p)`.
     static void*         operator new(size_t size);                // 0x18004ec60 — not ported
     static void*         operator new(size_t size, void* storage); // 0x18004ecd0 — not ported
-    static void          operator delete(void* p) { ::Object::detail::InternalMemFree(p); }                 // 0x18004ece0 — class_operator_delete.cpp
+    static void          operator delete(void* p) { ::Object::detail::InternalMemFree(p); }                 // 0x18004ece0
 
     // Real exported bodies, not compiler defaults (the situation RULE B5-10
     // records for `Graphics::Geometry`): declared, deliberately left undefined.
@@ -241,7 +234,7 @@ public:
     Object::ExternalPtr<PixelProgram>  _pixelProgram;    // +0x30
     Object::ExternalPtr<RenderState>   _renderState;     // +0x38
     // The `Video::VideoProgramData*` the Device factory hands back (DeviceData
-    // vtable +0x90, slot 18 — `Dx11_CreateVideoProgramData`).
+    // vtable +0x90, slot 18 — `DeviceData::CreateVideoProgramData`).
     VideoProgramData*                  _data;           // +0x40  (B.4 R-VIDEO, H4)
 };
 

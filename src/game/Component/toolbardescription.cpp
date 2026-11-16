@@ -15,9 +15,9 @@
 //   +0x38: String  _str1                                           (default empty)
 //   +0x40: String  _str2                                           (default empty)
 //   +0x48: String  _str3                                           (default empty)
-//   +0x50: String* _entries[]     String array buffer              (default 0)
-//   +0x58: int32   _entryCount                                     (default 0)
-//   +0x5c: int32   _entryCap                                       (default 0)
+//   +0x50: String* _entries._data String array buffer              (default 0)
+//   +0x58: int32   _entries._size                                   (default 0)
+//   +0x5c: int32   _entries._capacity                               (default 0)
 //   +0x60: int32   _val0          (default -1)
 //   +0x64: int32   _val1          (default 0)
 //
@@ -79,8 +79,8 @@ bool ToolbarDescription::Serialize(IO::Stream& stream) {
     IO::Serializer ser(stream, 0);
     // +0x20 in the exe uses FUN_14000bd30 (ExternalPtr<UI::SpriteSheet>); +0x30 uses
     // FUN_14000bf40 (ExternalPtr<UI::StringTable>). Both have a byte-identical stream
-    // layout (only the validated typeId differs, trusted in standalone). Use the
-    // registered Serialize2 for both.
+    // layout (only the validated typeId differs). Each goes through
+    // ::Object::SerializeExternal<T> with its own T::GetTypeInfo().
     ::Object::SerializeExternal<UI::SpriteSheet>(ser, _spriteSheet);   // 1. _spriteSheet
     _name.Serialize(ser);                        // 2. _name
     ::Object::SerializeExternal<UI::StringTable>(ser, _stringTable);   // 3. _stringTable
@@ -96,10 +96,9 @@ bool ToolbarDescription::Serialize(IO::Stream& stream) {
     int count = _entries._size;
     ser.Serialize(count, nullptr);
     
-    // 8. on load, resize the String array (+0x50) to count. ResolveAddr(Exe, 0x140028860)
-    //    is NULL in the standalone exe, so
-    //    fall back to the reimpl above (otherwise +0x50 stays NULL and the two
-    //    cost/status strings are never deserialized — the "cost ???" bug).
+    // 8. on load, resize the String array (+0x50) to count (Array<System::String>::SetSize,
+    //    0x140028860; otherwise +0x50 stays NULL and the two cost/status strings are
+    //    never deserialized — the "cost ???" bug).
     //
     // ENDGAME B.3.4a closing — the same one-field-off read as
     // ambientemitterdescription.cpp: `*(int*)(*(void**)(serializer + 8) + 8)`

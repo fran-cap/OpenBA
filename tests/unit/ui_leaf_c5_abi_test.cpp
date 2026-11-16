@@ -7,8 +7,8 @@
 // ============================================================================
 //
 // PART A — LAYOUT. Retail `sizeof` (the `MOV EDX,imm` in each class's slot-0
-//   vector deleting destructor, B36_SLOTS.md section 1), `alignof`, abstract,
-//   no virtual destructor, derived fields starting at sizeof(base).
+//   vector deleting destructor, B36_SLOTS.md section 1), `alignof`, concrete,
+//   a virtual destructor, derived fields starting at sizeof(base).
 //
 // PART B — SLOT ORDER. A probe subclass of each leaf overrides only slot 0;
 //   every slot the leaf OWNS is raw-called at its retail byte offset and must

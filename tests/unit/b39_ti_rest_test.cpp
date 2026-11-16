@@ -22,13 +22,12 @@
 // against the record by each namespace's own ABI test (slot-order tests).
 //
 // STARTUP-EQUIVALENT. `Factory::Startup` (type_reflection.cpp) is run for
-// real, over the process chain, with stub records for the parents the unit
-// harness does not link (`Base`, `External`, `CompiledExternal`: minted in the
-// exe, OBJ's). Startup's second pass faults on a parent missing from the
+// real, over the process chain, with stub records for any parent the chain
+// names but does not hold. Startup's second pass faults on a parent missing from the
 // chain — exactly as retail's does — so every missing parent is stubbed. The
 // stubs are head-inserted and the chain head is restored afterwards.
 //
-// The factory statics live in the classes' registry-bound TUs, which do not
+// The factory statics live in the classes' own TUs, which do not
 // link here: this file defines them as null-returning MARKERS so the records'
 // `&X::CreateNewObject` / `&X::CreateInPlaceObject` resolve. The test compares
 // POINTERS against them, which is the property under test.

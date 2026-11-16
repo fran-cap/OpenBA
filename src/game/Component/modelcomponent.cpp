@@ -6,11 +6,11 @@
 // Math::Transform at +0x148 (0x1C bytes).
 //
 // Vtable at 0x140163ba0. Non-trivial overrides:
-//   Shutdown  (0x140124b70) — Serializes mesh state, transform, model variant data
-//   Serialize (0x140124ac0) — Reads building data, sets mesh from resource arrays
-//   Draw      (0x140124a30) — Adds mesh to Graphics::Scene if valid variant
-//   OnCreate  (0x1401249d0) — Removes mesh from Scene, resets modelId
-//   OnRemove  (0x140124960) — Calls MeshInstance update, checks animating, clears flag
+//   Persist   (0x140124b70) — Serializes mesh state, transform, model variant data
+//   Startup   (0x140124ac0) — Reads building data, sets mesh from resource arrays
+//   OnAdded   (0x140124a30) — Adds mesh to Graphics::Scene if valid variant
+//   OnRemove  (0x1401249d0) — Removes mesh from Scene, resets modelId
+//   Tick      (0x140124960) — Calls MeshInstance update, checks animating, clears flag
 //
 // Decompiled from Application-x64.exe using Ghidra.
 
@@ -40,15 +40,13 @@
 #include <atomic>
 #include "system/Value.h"   // ENDGAME B.3.4b System caller batch
 #include "Component/exe_bodies.h"
-// graphics/*.h are included at the TOP of this file (before resolve.h) because
-// they pull src/engine/volume/Volume.h, whose global-scope `struct Rectangle`
+// graphics/*.h are included at the TOP of this file because they pull
+// src/engine/volume/Volume.h, whose global-scope `struct Rectangle`
 // is hidden by <wingdi.h>'s `Rectangle()` once <windows.h> has been seen.
 
 // Helpers, called by name (B3R): RtSystem_Time_Ctor (import slot 0x140152b00,
 // ??0Time@System@@QEAA@M@Z), ComponentEntity::SendEvent (0x1400c2b70, below),
 // ComponentEntity::RefreshEntityFlags (0x1400c3470).
-//
-// LEFT (B.4 COMP-d): GameUpdateLoop::m_graphicsScene is void* (W0 header).
 //
 // ENDGAME B.3.9 GFX (coordinator ruling 4, B9-13 foreign site): the
 // embedded Graphics::MeshInstance at +0x28 is built and destroyed by the real
@@ -72,11 +70,9 @@ void ComponentEntity::SendEvent(int eventId) {
 // ============================================================
 // Helper: the linked ModelDescription
 // ============================================================
-// The standalone Runtime factory tree is incomplete, so fn_IsDerivedFrom
-// returns false for legit descriptions. ComponentEntity::CtorFromDescription
-// has already linked _description to this component's ModelDescription template,
-// so trust the non-null pointer (matches the IsDerivedFromOrTrust policy used
-// throughout the spawn path).
+// The ComponentEntity ctor from a description (0x1400c3720) has already linked
+// _description to this component's ModelDescription template, so the pointer is
+// cast without an IsDerivedFrom check.
 static ModelDescription* LinkedModelDescription(const ModelComponent* self) {
     Description* obj = self->_description;
     return static_cast<ModelDescription*>(obj);
@@ -107,10 +103,10 @@ static Graphics::GraphicsMesh* GetMeshFromDescription(const ModelDescription* de
 // Before: a 24-slot g_ModelComponent_RealVtable filled on first use, every
 // unset slot a file-local stub, ModelComponent_InitReal as the ctor. After: the
 // compiler's 16-slot vtable and a real ctor/dtor chain (B38_RULES D1, D2). The
-// spawn chain still drives rendering: ComponentEntity::CtorFromDescription
-// calls slot 4 (Startup = ModelComponent_Serialize, sets the mesh from the
-// description) and OnAddedPass calls slot 6 (OnAdded = ModelComponent_Draw,
-// registers the geometry in Graphics::Scene).
+// spawn chain still drives rendering: the ComponentEntity ctor from a description
+// (0x1400c3720) calls slot 4 through StartupComponents (Startup, sets the mesh from the
+// description) and OnAddedPass calls slot 6 (OnAdded, registers the geometry in
+// Graphics::Scene).
 // ============================================================================
 #include "Object/factory_registration.h"
 #include "object/class_vptr.h"   // Object::ClassVptr (the ctor records the vptr hint)

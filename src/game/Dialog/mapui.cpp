@@ -9,7 +9,7 @@
 #include "Dialog/ui_panels.h"
 // ENDGAME B.3.5 batch K1: the runtime type headers come FIRST — they reach
 // src/engine/volume/Volume.h, whose global-scope `struct Rectangle` is hidden by
-// <wingdi.h>'s `Rectangle()` once <windows.h> has been seen through resolve.h.
+// <wingdi.h>'s `Rectangle()` once <windows.h> has been seen.
 #include "video/ImageBuffer.h"
 #include "graphics/Material.h"
 #include "options.h"
@@ -33,7 +33,7 @@
 #include "ui/SpriteSheet.h"  // ENDGAME B.3.6 UI callers (K3)
 #include <new>  // ENDGAME B.3.6 UI callers (K3)
 #include "ui/ImageElement.h"  // ENDGAME B.3.6 UI callers round 2 (K3)
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc
 #include "Component/exe_bodies.h"   // B3R: FrustumOutline_ProjectCorners
 #include "Game/exe_constants.h"   // B3R: kRdata_*
 
@@ -55,7 +55,7 @@ void MapUI::SetupImage(Video::ImageBuffer* imageBuffer, UI::SpriteSheet** sprite
     MAPTRC("enter");
 
     // Defensive (standalone bring-up): the minimap ImageBuffer must exist — the
-    // very first thing below is fn_ImageBuffer_Width(imageBuffer). If the GPU
+    // body below calls imageBuffer->Width(). If the GPU
     // buffer was never created (Minimap_CreateAndUpload not yet run) skip rather
     // than fault. Also require the allocator (B3R: the fn_MemAlloc readiness test was
     // always true and is gone; the g_pMemAllocSingleton snapshot is read live).
@@ -120,7 +120,6 @@ void MapUI::SetupImage(Video::ImageBuffer* imageBuffer, UI::SpriteSheet** sprite
     // Set sprite sheet name/group strings (empty) and dimensions
     UI::SpriteSheet* ss = *spriteSheetOut;
     System::String emptyStr1, emptyStr2;
-    // LEFT: SpriteSheet holds them as char* (H5, R-UI's header).
     ss->m_groupName = emptyStr1;
     ss->m_textureName = emptyStr2;
     ss->m_imageWidth = imgW;
@@ -180,14 +179,10 @@ void MapUI::SetupImage(Video::ImageBuffer* imageBuffer, UI::SpriteSheet** sprite
 // complex to reimplement. The core logic is:
 //   1. Validate click is within bounds
 //   2. Get camera frustum corners, project far corners to ground
-//   3. Average the projected positions (camera center)
-//   4. Compute new position offset: (click - center) * worldScale
+//   3. Average the projected positions (the result is discarded, see below)
+//   4. Compute new position: (click - half map size) * worldScale, Y flipped
 //   5. Write to camera target position
 //
-// For now, we implement the final coordinate mapping directly,
-// which is the essential game logic. The frustum projection
-// (FUN_14006c5b0) is called as a resolved function pointer since
-// it depends on deep math/camera internals.
 
 // FUN_14006c5b0 is FrustumOutline_ProjectCorners, called by name (B3R).
 
@@ -197,8 +192,8 @@ static void MapUI_HandleClick(Object::InternalPtr<UI::Element>* /*element*/, int
         return;
 
 
-    // FUN_14006c5b0 fills an array of 4 projected ground-plane corner positions
-    // (Vector3, 12 bytes each) plus 4 frustum corners = 8 Vector3s total
+    // FUN_14006c5b0 fills the first 4 Vector3s (12 bytes each) of this 8-Vector3
+    // buffer with the camera frustum's far corners projected to the ground plane
     float fullBuf[8 * 3];
     for (int i = 0; i < 8 * 3; i++) fullBuf[i] = 0.0f;
 
@@ -235,7 +230,7 @@ static void MapUI_HandleClick(Object::InternalPtr<UI::Element>* /*element*/, int
 // "imageOverlay" elements. Slot9 (+0x48) handles minimap clicks → move camera.
 // The generic stub left both no-ops so the map dialog opened blank. The GPU
 // buffers are created by Minimap_CreateAndUpload (src/game/Game/minimap_upload.cpp);
-// SetupImage is standalone-guarded (skips if the buffer is null / vtables absent).
+// SetupImage is standalone-guarded (skips if the buffer is null or the allocator is absent).
 
 // ============================================================
 // Slot4 (vtable +0x20): Setup map and overlay images

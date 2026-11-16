@@ -16,47 +16,22 @@
 // path. `ExternalList` is an External whose payload is a flat array of other
 // Externals (the mod list, the help topics, the scenarios, the map generators).
 //
-// WHAT IS LIVE HERE, AND WHY THAT SPLIT
-// -------------------------------------
-// The factory's two trees are DLL-owned global state, and registration
-// redirects only OUR call sites — the DLL's own internal calls still land in
-// the DLL (PLAN.md §4.1 decision 2). So both implementations drive the same
-// tables, and the only safe shape is Wave 2's allocator shape: operate on the
-// LIVE singleton's own tables, byte-faithfully, never a private replica.
-// Everything ported below obeys that: nothing here keeps state of its own.
-//
-// Ported and registered, all READ-ONLY on the factory and all with a real diff
-// oracle behind them:
+// WHAT IS HERE
+// ------------
+// The read-only half of the factory:
 //     External::GetPath
 //     ExternalFactory::Find / FindNext / GetReferenceId / GetPathForReferenceId
-//     ExternalFactory::IsReferenceModeEnabled
-//     ExternalList::Find / GetResourceCount
-// Ported and registered, trivially-verifiable writers with no oracle possible:
-//     External::External / ~External          (one vtable stamp + one release)
-//     ExternalFactory::EnableReferenceMode    (a single byte store)
+// The rest of the family has its own files: FindOrLoad (external_compiled.cpp),
+// Add (external_add.cpp), Clean (external_set.cpp) and SerializeReferenceTable
+// (external_reftable.cpp); External::SaveText is src/engine/io/external_savetext.cpp.
 //
-// NOT ported — see the write-up for the full argument:
-//     ExternalFactory::FindOrLoad, ExternalFactory::Clean
-//         Both rewrite the resource tree. Porting them means porting Set
-//         insert/erase/rebalance for a 0x18-wide element plus ExpandRelativePath,
-//         External::Load and Add — a large body of code that this wave has no
-//         way to prove, since running both implementations would mutate the one
-//         shared tree twice. Reversed and written up; NOT registered.
-//     ExternalFactory::SerializeReferenceTable, External::SaveText
-//         Both reach IO::Stream / IO::Serializer / IO::TextFileStream and the
-//         filesystem, which is Wave 4. Reversed and written up; NOT registered.
-//         (Wave 2 took the same decision for Time::AsSeconds, except that one
-//         landed as a forwarder; a forwarder is declined here because it would
-//         add indirection and a census row for zero behaviour change.)
-//
-// ABI. Wave 1 defect 1 / reference_hidden_retslot_wild_write.md: a member that
+// ABI. Wave 1 defect 1: a member that
 // returns a class BY VALUE takes a HIDDEN RETURN SLOT in RDX and every real
 // argument shifts right. Three functions in this lane do:
 //     External::GetPath                    (this, ret)
 //     ExternalFactory::GetPathForReferenceId (this, ret, id)
 //     ExternalList::Find                   (this, ret, path, type)
-// Each returns the slot in RAX. The existing engine/funcs/engine_funcs.h
-// typedefs for all three were checked against this and are CORRECT.
+// Each returns the slot in RAX.
 //
 // PORTABILITY: no <windows.h>, per PLAN.md §4.1 decision 1.
 // ============================================================================
@@ -82,7 +57,7 @@ using RtSystem::StringRefCount;
 // Retail's tree comparisons all go through the CRT's _stricmp. That is
 // locale-sensitive in MSVC and the DLL never calls setlocale, so it runs in the
 // "C" locale where _stricmp is plain ASCII case folding. Spelled out here for
-// the same reason filename.cpp spells it out: runtime/src must not depend on a
+// the same reason filename.cpp spells it out: src/engine must not depend on a
 // CRT whose locale behaviour differs between toolchains (PLAN.md §4.1).
 static int StriCmpAscii(const char* a, const char* b) {
     for (;;) {
@@ -163,10 +138,6 @@ static ResourceSet::Node* ResourceSetSuccessor(ResourceSet::Node* n) {
 // HIDDEN RETURN SLOT: (this in RCX, ret in RDX). One line in retail — the
 // Filename copy constructor from `this->_path`, which shares the buffer and
 // bumps its refcount; it does NOT copy the characters.
-//
-// Diffable because ours and theirs both copy from the same `_path`, so the two
-// results are the SAME char* and an 8-byte compare is exact. The oracle call
-// takes one extra reference, which the scratch release below gives back.
 System::Filename* RtObject_External_GetPath(const ::Object::External* self, System::Filename* ret) {
 
     // ENDGAME B.3.1 step 2: retail's copy ctor (0x1800067d0), spelled as itself.
@@ -200,8 +171,8 @@ System::Filename* RtObject_External_GetPath(const ::Object::External* self, Syst
 //     the buffer IN PLACE and the working copy SHARES the caller's buffer, so
 //     `Find` normalises the caller's Filename as a side effect. That is retail's
 //     behaviour and callers depend on it (see the ctor note in filename.cpp).
-//  3. **The tree is case-INSENSITIVE.** ExternalList::Find, three functions
-//     below, is case-SENSITIVE over the same kind of path. That asymmetry is
+//  3. **The tree is case-INSENSITIVE.** ExternalList::Find (external_class_doors.cpp)
+//     is case-SENSITIVE over the same kind of path. That asymmetry is
 //     real, not a transcription slip.
 const ::Object::External* RtObject_ExternalFactory_Find(const ExternalFactory* self,
                                               const System::Filename* path) {
@@ -356,8 +327,6 @@ static uint32_t GetReferenceIdRetail(const ExternalFactory* self,
     {
         // `got` is GetPath's hidden return slot: it is declared null and then
         // CONSTRUCTED INTO by the call, so it must not be constructed twice.
-        // The class->POD cast is the registered entry point's signature, which
-        // B31_RULES keeps until the whole family converts.
         System::Filename got;
         RtObject_External_GetPath(external, &got);
         System::Filename key(got);   // the second copy; transcribed, see above
@@ -391,8 +360,7 @@ System::Filename* RtObject_ExternalFactory_GetPathForReferenceId(const ExternalF
 
     // `ret` is the hidden return slot in both arms — raw bytes, so placement.
     if (n != nullptr) {
-        // Adopt-then-adjust-twice is the copy ctor; `path` is a POD member of
-        // the not-yet-converted node element, hence the bridge.
+        // Adopt-then-adjust-twice is the copy ctor.
         System::Filename tmp(n->element.path);
         new (ret) System::Filename(tmp);
     } else {
@@ -420,7 +388,7 @@ System::Filename* RtObject_ExternalFactory_GetPathForReferenceId(const ExternalF
 // walk over Object::Factory's type map here, read by name since B.4 P2
 // (Factory::TypeSet::Node, TypeRecord: TypeInfo.h).
 // Two consequences worth stating:
-//   * `Factory::_singleton` is read by address, since Lane A owns the accessor.
+//   * `Factory::_singleton` is read through its address, FactorySingletonSlot() below.
 //   * Retail does NOT null-check the type-map lookup: a type id absent from the
 //     map falls out of the search loop with a null node and is then read at
 //     +0x08. Faithful, unguarded, same argument as GetReferenceId above.
@@ -440,8 +408,8 @@ System::Filename* RtObject_ExternalFactory_GetPathForReferenceId(const ExternalF
 // failure mode this file's own header warns about one section down.
 //
 // ENDGAME B.3.9 OBJ (B39_RULES D7): the cell is the class static
-// `Object::Factory::_singleton` (Runtime 0x1801fc6e8), onto which the minted
-// row is redirected -- no resolve, no cache, no init ordering to assume.
+// `Object::Factory::_singleton` (Runtime 0x1801fc6e8) -- no resolve, no cache,
+// no init ordering to assume.
 static ::Object::Factory* const* FactorySingletonSlot() {
     return &::Object::Factory::_singleton;
 }

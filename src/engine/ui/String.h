@@ -11,9 +11,8 @@
 // (one raw pointer, no refcount) and an int32 text index, plus 4 bytes nobody
 // writes. Byte-for-byte the shape of `UI::Sprite`. NOT refcounted: SetToolTip
 // copies exactly two qwords (Element.h banner). Held BY VALUE by
-// `Element::_toolTip` (+0x48), TextElement, DocumentTextElement; the exe
-// constructs it into caller storage through the ctor doors 63 times, and those
-// doors (src/engine/ui/sprite.cpp) delegate here by placement-new.
+// `Element::_toolTip` (+0x48), TextElement, DocumentTextElement; its two
+// table constructors are defined in src/engine/ui/sprite.cpp.
 //
 // Retail exports (B36_SLOTS.md section 6, all eight declared below):
 //   ??0String@UI@@QEAA@XZ                                       0x18011da40

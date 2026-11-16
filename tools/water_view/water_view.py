@@ -6,14 +6,14 @@
                                                                   write --at=X,Y: a leading minus needs the =)
   water_view.py <water_dump.bin> --out b.png --at=31,-58 --carve 1.5   the same with a least channel previewed
   water_view.py <water_dump.bin> --thin                           list the thin channels
-  water_view.py <water_dump.bin> --thin --crops 6 --out dir       ... and draw the six largest
+  water_view.py <water_dump.bin> --thin --crops 6 --out dir       ... and draw the first six listed
 
 What the picture shows, per pixel, from the terrain's own triangles (the diagonal alternates per cell):
   land (tan to green by height), water (blue by depth: under the waterline AND under the water mesh),
-  bare bed (magenta: under the waterline, no water mesh over it). At --scale 10 and up: the cell grid,
-  each height vertex as a dot (white = under the waterline, brown = above) and the water mesh's edges
-  (yellow river, cyan lake). `--mesh retail` draws retail's mesh instead of the extension's copy;
-  `--mesh both` draws retail's edges in red under the copy's.
+  bare bed (magenta: under the waterline, no water mesh over it). At --scale 6 and up: the water mesh's
+  edges (yellow river, cyan lake); at --scale 10 and up also the cell grid and each height vertex as a
+  dot (white = under the waterline, brown = above). `--mesh retail` draws retail's mesh instead of the
+  extension's copy; `--mesh both` draws retail's river edges in red under the copy's.
 """
 import argparse
 import os

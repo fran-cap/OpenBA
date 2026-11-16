@@ -18,16 +18,9 @@
 // is not covered; `PersistObject`'s read-arm bounds are driven by
 // review_object_index_bounds_test.cpp.
 //
-// What only a live boot can prove, called out in the step's report:
-//   * that the registered `RtObject_Internal_Ctor`/`_Dtor` shims, which still
-//     stamp `VtblInternal()`/`VtblBase()` rather than the compiler's table,
-//     drive the same handle table these members now compute —
-//     `[RtInternalTable] ctorRuns=/dtorRuns=` in standalone_debug.log is the
-//     counter that says so, and `[RtInternalVtbl]` is the line that says which
-//     table got stamped;
+// What only a live boot can prove:
 //   * that `ClearPersistState`/`ResetPersistState` still write the same bytes
-//     in the same order (`[RtPort] FIRST LIVE CALL into our ?ClearPersistState@`
-//     plus the resave gate's byte-for-byte compare);
+//     in the same order (the resave gate's byte-for-byte compare);
 //   * post-`Factory::Startup` type ids. `Internal::TypeId()` is the 0xFFFFFFFF
 //     ctor sentinel until Startup runs (B33_RULES §2.5), and Startup needs the
 //     whole registered chain — including a record named "Base", whose absence
@@ -138,9 +131,6 @@ UNIT_TEST(internal_layout_matches_the_alias_pod) {
     static_assert(sizeof(::Object::Internal) == 0x10, "Object::Internal is 16 bytes");
     static_assert(offsetof(::Object::Internal, _factoryIndex) == 0x08, "+0x08");
     static_assert(offsetof(::Object::Internal, _generation)   == 0x0c, "+0x0c");
-
-    // The POD must stay trivially destructible — it is destroyed BY HAND out of
-    // a vtable slot, so a destructor on it is a double free (B31_RULES).
 
     // B3X W1: a virtual destructor on every level of the chain. GCC spends two
     // slots on it and shifts Type/TypeName/Persist by one — RetailSlot<T>
@@ -399,8 +389,8 @@ UNIT_TEST(internal_copy_ctor_and_assign_copy_two_dwords_and_nothing_else) {
     // oversight. It shares `a`'s `_factoryIndex` without being in the table, so
     // whichever of the two is destroyed second runs `RemoveObject` with a stale
     // index against a shorter array — `_objects._data[idx] = _objects._data[-1]`
-    // — which is precisely the wild write
-    // reference_internalfactory_swapremove_wild_write.md is about. Retail
+    // — which is precisely the wild write ~Internal's swap-remove makes through a
+    // stale handle-table entry. Retail
     // behaves this way and this port keeps it; the test observes the copy's
     // fields and then abandons the storage instead of exercising the fault.
     void* storage = ::Object::detail::InternalMemAlloc(sizeof(TestInternal), 8);

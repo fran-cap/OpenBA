@@ -1,26 +1,12 @@
 // ============================================================================
-// src/engine/io/encoding.cpp — the IO::Encoding factory pair and the two
-// IO::BinaryReader / IO::BinaryWriter constructors they call.  Wave 9 lane ENC.
+// src/engine/io/encoding.cpp — the IO::Encoding factory pair. The two
+// IO::BinaryReader / IO::BinaryWriter constructors they call are in Serializer.h.
 // ============================================================================
 //
 //   0x1800a8120  IO::Encoding::CreateReader   (UNEXPORTED — vtable slot +0x18)
 //   0x1800a8080  IO::Encoding::CreateWriter   (UNEXPORTED — vtable slot +0x20)
 //   0x1800a8340  ??0BinaryReader@IO@@QEAA@AEAVSerializer@1@H@Z   (EXPORTED)
 //   0x1800a8a30  ??0BinaryWriter@IO@@QEAA@AEAVSerializer@1@H@Z   (EXPORTED)
-//
-// ----------------------------------------------------------------------------
-// WHY ALL FOUR, AND NOT JUST THE TWO THE ASSIGNMENT NAMED
-// ----------------------------------------------------------------------------
-// The row this lane was given is the two FACTORIES: they are slots 3 and 4 of
-// the shared IO::Encoding vtable 0x1801554a8, which lane C2 mints BY ADDRESS
-// with all five slots as RT_MINT_UNNAMED traps. Registering the two factories
-// alone does replace those two traps — but each factory's whole body is
-// "allocate 0x30, then CALL the constructor", and those constructors
-// (0x1800a8340 / 0x1800a8a30) are reached by a DIRECT call, not through a
-// minted slot. Porting only the factories therefore moves the stop two
-// instructions later instead of removing it: at cutover the CALL lands on an
-// address nothing registers. That is the "porting can grow the cutover surface"
-// failure, so the unit ported here is the FACTORY AND ITS CONSTRUCTOR, twice.
 //
 // A CORRECTION TO THE INHERITED NOTES. Both constructors are EXPORTED, checked
 // against the DLL's export directory by address, not assumed:
@@ -29,8 +15,7 @@
 // "AEAVSerializer@1@H" is (Serializer&, int) and pins the signature that
 // src/engine/io/Serializer.h had only inferred from the call site. The two
 // FACTORIES are genuinely unexported (the same check returns nothing for either
-// address), which is why they are registered by ADDRESS ONLY and the two
-// constructors are registered by BOTH name and address.
+// address).
 //
 // ----------------------------------------------------------------------------
 // THE FACTORIES — transcribed from 0x1800a8120..0x1800a81b3 and
@@ -115,16 +100,6 @@
 // MOV RAX,RSI before the epilogue: MSVC constructors return "this", which is
 // what makes the factory's "return Ctor(...)" produce the object pointer.
 //
-// ----------------------------------------------------------------------------
-// ORACLE — see encoding_probe.cpp, and read its HONEST LIMITS section.
-// ----------------------------------------------------------------------------
-// There is deliberately NO per-call RT_DIFF site in this file, and that is a
-// decision rather than an omission. A per-call oracle would have to run THEIRS
-// alongside OURS, and both constructors MUTATE THE STREAM — theirs would
-// consume or emit a second copy of the 12-byte header on the live save/load
-// stream. The lockstep probe in encoding_probe.cpp instead gives each side its
-// own MemoryStream over its own buffer, which is the only shape that can
-// compare these two bodies without corrupting the thing they are called on.
 // ============================================================================
 
 #include <cstdint>

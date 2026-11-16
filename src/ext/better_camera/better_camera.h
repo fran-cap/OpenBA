@@ -1,8 +1,8 @@
 #pragma once
 // ============================================================================
-// src/ext/better_camera/better_camera.h -- ext.better_camera (class B, default OFF)
+// src/ext/better_camera/better_camera.h -- ext.better_camera (class B, default ON)
 // ============================================================================
-// NOT RETAIL. docs/extensions/handins/BETTERCAM.md. Two changes to retail's camera, one toggle:
+// NOT RETAIL. docs/extensions/handins/BETTERCAM.md. One change to retail's camera:
 //
 //   * A WIDER ZOOM RANGE. Retail clamps the zoom target (the distance the camera settles at) to 20 .. 130
 //     (.rdata 0x1401721c4 / 0x140172218, span 110 at 0x14017220c). With the row on the range is 6 .. 200. The top
@@ -12,11 +12,8 @@
 //     normalises the zoom for the pitch blend and the pan speed is recomputed from the new limits (max - min),
 //     as the exe fix does, so those two keep their near-to-far shape across the new range.
 //
-//   * A STEADY TILT. Retail's pitch target is a blend between a NEAR pair of slopes and a FAR pair,
-//     weighted by how far out the camera is (normZ, 0 near .. 1 far). The far pair is weaker, so the
-//     camera flattens toward top-down as you zoom out -- by design, but it is what players ask to turn off.
-//     With the row on the far pair is replaced by the near pair, so the tilt is the same at every zoom.
-//     (Banished Game Tweaks' tilt fix redirects the same two constants.)
+//   * The tilt is not this row's: ext.camera_angle (src/ext/camera_angle/camera_angle.h, FarPair) sets the far
+//     pair of the pitch blend, and UpdateCamera calls PitchTarget below with steady = false.
 //
 // The pitch's own ceiling is NOT touched: Vector3::FromYawPitch is a fitted approximation that is only valid
 // up to about 1.0 rad (the exe-fix research found raising the ceiling flips the camera).

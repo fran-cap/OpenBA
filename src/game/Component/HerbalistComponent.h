@@ -4,8 +4,7 @@
 //
 // `HerbalistComponent` (the herbalist AND the gatherer's hut: GathererShelter.rsc
 // carries HerbalistDescription) as a real C++ class with a compiler-generated
-// vtable (B38_RULES.md D1-D6). No fields beyond ResourceProduceComponent. The
-// engine/types POD is a forwarder.
+// vtable (B38_RULES.md D1-D6). No fields beyond ResourceProduceComponent.
 //
 // RETAIL (B38_SLOTS.md §6, bytes read 2026-09-26):
 //   reflected "HerbalistComponent", parent "ResourceProduceComponent", ti 0x1401c43a0

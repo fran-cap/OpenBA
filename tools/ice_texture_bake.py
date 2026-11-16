@@ -10,7 +10,7 @@ src/ext/winter_ice/ice_texture_data.h: two SIZE x SIZE planes of straight RGBA8,
     kIceDetail   r, g = the normal's x and y (OpenGL convention, 0.5 = flat), b = the displacement
                  (the fake inner layer's depth), a = 255
 
-Only the top level is baked; the exe builds the mip chain at load (winter_ice_texture.cpp). The
+Only the top level is baked; the exe builds the mip chain at load (winter_ice.cpp MipChain). The
 resize is a Lanczos filter of the whole 1024 image, which keeps the material tileable.
 
     python tools/ice_texture_bake.py [SOURCE_DIR]      (needs Pillow; default ~/Downloads/Ice003_1K-JPG)

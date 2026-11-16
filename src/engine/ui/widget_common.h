@@ -9,11 +9,8 @@
 // TabElement, TableElement, TextElement) each get ONE .cpp next to this file.
 // What they all share lives here and nowhere else:
 //
-//   * the byte accessors every body needs (these objects are addressed by
-//     offset, not by a C++ struct, because most of the fourteen have no
-//     complete layout header and inventing one would be a guess),
-//   * the small set of Runtime functions they CALL rather than reimplement
-//     (called by name since B3R RT-UI),
+//   * the inlined Element helpers every body needs (DirtyWalk, SetFlags,
+//     ModulateColor, ScreenWidth / ScreenHeight, RootUiScale),
 //   * `InlineGetPaddedSize`, which is `?GetPaddedSize@Element@UI@@`
 //     (0x180115f10) INLINED — the compiler inlined it into a dozen of these
 //     bodies and the inlined copy is what is transcribed, not a call.

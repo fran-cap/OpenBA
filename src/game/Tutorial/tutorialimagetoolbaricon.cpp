@@ -41,16 +41,16 @@
 #include "ui/ElementDescription.h"   // B8 RT2: ::Object::SerializeExternal<UI::ElementDescription> (the downcast needs it complete)
 
 // ============================================================
-// Exe helpers, resolved PER CALL (ENDGAME B.3.8, B6-5). The External ctor
+// Exe helpers, called by name (ENDGAME B.3.8, B6-5). The External ctor
 // dispatch slot and the two vtable addresses this file cached lazily are
 // gone: the compiler runs External() and stamps both tables.
 // ============================================================
 
 // TutorialImage_sub_7ad0 -- ExternalPtr serialize helper (exe 0x140027ad0)
-// called by name: TutBase_SerializeImageRef (Tutorial/exe_bodies.h)
+// called by name: ::Object::SerializeExternal<UI::ElementDescription> (object/External.h)
 
 // FUN_140027de0 -- resolves toolbar from String at +0x30
-// called by name: TutBase_ResolveToolbarRef (Tutorial/exe_bodies.h)
+// called by name: NamedExternalRef::ResolveToolbar (Object/NamedExternalRef.h)
 
 // ============================================================
 // Construction / destruction (ENDGAME B.3.8 block GOAL)

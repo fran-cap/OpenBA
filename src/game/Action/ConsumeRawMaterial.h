@@ -52,7 +52,7 @@ public:
     void CheckEntity() override;                               // [8] 0x1400c5e30
     bool GetTarget(ComponentEntity** param) override;                      // [9] 0x1400c5f10
 
-    // ---- fields, retail order (PUBLIC: the slot bodies are C functions) ----
+    // ---- fields, retail order (PUBLIC) ----
     Object::InternalPtr<ComponentEntity> _storageEntity;   // +0x20 storage entity (Persist checks ComponentEntity)
     // +0x28 Array<Entry> (H5: the raw triple as a POD; the dtor frees the data as retail's does)
     EntryList _materials;          // +0x28 consume list {data (stride 0x10), count +0x30, capacity +0x34}

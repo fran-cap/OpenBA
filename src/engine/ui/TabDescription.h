@@ -27,7 +27,7 @@
 //     ?_ParentTypeName@TabDescription@UI@@CAPEBDXZ @0x18004c1c0 -> "ElementDescription"
 //
 // `??_7TabDescription@UI@@6B@` @ 0x1801577f0, TEN slots:
-//   [0] 0x18004c640 deleting dtor (RT_DELDTOR row)  [1] 0x18004c1f0 TypeName
+//   [0] 0x18004c640 deleting dtor                   [1] 0x18004c1f0 TypeName
 //   [2] 0x18004c1d0 Type            [3] 0x1800da8d0 GetFileVersion (0x104)
 //   [4] External::Compile (inherited, NOT declared — B6-1.5)
 //   [5] 0x1800da760 Serialize       [6] 0x18004c370 Reconstruct
@@ -39,8 +39,7 @@
 // own slot 0 (the vector deleting dtor), a virtual ~TabDescription holding
 // the retired ??1 door's body, and the factory pair as the class's own statics;
 // every live one wears the COMPILER's table. The minted `??_7TabDescription@UI@@6B@`,
-// its RT_DELDTOR row 0x18004c640 and the ctor / dtor / slot doors are retired
-// (tools/rt_mint_retired/ui-b.txt).
+// its RT_DELDTOR row 0x18004c640 and the ctor / dtor / slot doors are retired.
 // ABSTRACT (slot 0 `= 0`), NO real ctor. The destructor is declared only:
 // `??1` (0x1800da8e0) is the registered door.
 // ============================================================================

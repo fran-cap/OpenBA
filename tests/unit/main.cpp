@@ -1,4 +1,4 @@
-// tests/unit/main.cpp -- runs every UNIT_TEST in link order. Exit code = failures (a
+// tests/unit/main.cpp -- runs every UNIT_TEST in link order. Exit code 1 on any failure, else 0 (a
 // skipped test, UNIT_SKIP in unit.h, is counted and listed but never fails the run).
 //
 // `--shard K/N` runs only the tests whose position in the list is K modulo N (0 <= K < N), so N

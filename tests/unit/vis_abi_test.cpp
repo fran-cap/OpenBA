@@ -6,8 +6,6 @@
 // billboard Geometry) and the five UI/Graphics strays, measured on the SHIPPED
 // HEADERS (src/game/Component/<Class>.h):
 //
-// PART A — LAYOUT. sizeof / alignof against each retail create function's
-//   MemAlloc (B38_RULES §1.3), and the member offsets the ported bodies read raw.
 // PART B — SHAPE. Every class is concrete, `final`, single inheritance from its
 //   proved parent, polymorphic, a virtual destructor (B3X W1).
 // PART C — SLOT ORDER, read off pointers to VIRTUAL members (Itanium PMF =
@@ -17,8 +15,7 @@
 //   declared in retail order `T* (T* ret, const Dialog*) const` and sits on
 //   slot 8.
 //
-// NOT PROVEN HERE: the bodies (they stand on the address registry and cannot
-// link into a host test), so no object is constructed and the raw retail-order
+// NOT PROVEN HERE: the bodies. No object is constructed, and the raw retail-order
 // call through slot 8 is left to the real run.
 // ============================================================================
 #include "unit.h"

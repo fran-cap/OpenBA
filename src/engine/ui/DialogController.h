@@ -4,11 +4,8 @@
 // ============================================================================
 //
 // ENDGAME B.3 step 6, block B. The byte evidence for every field is the
-// `RtUI::DialogController` POD's banner in DialogInstance.h (which stays: the
-// engine-side alias `engine/types/ui/DialogController.h` still names it. The 38
-// exe panel structs that embedded it BY VALUE are gone — ENDGAME B.3.8 block PNL
-// made every panel a real subclass of this class — so the POD retires at the END
-// of B.3 with its alias.)
+// `UI::DialogController` banner in the RtUI namespace of DialogInstance.h.
+// ENDGAME B.3.8 block PNL made every exe panel a real subclass of this class.
 //
 // PARENT: `Object::Internal`, proved by
 //   0x18003b6a0  ?_ParentTypeName@DialogController@UI@@CAPEBDXZ -> "Object::Internal"
@@ -34,7 +31,7 @@
 // Never copy one class's slot comments onto the other.
 //
 // sizeof 0x30: the deleting dtor's `MOV EDX,0x30` AND all 38 exe panel structs
-// in engine/types/ui/Panels.h start their own members at +0x30.
+// in src/game/Dialog/Panels.h start their own members at +0x30.
 //
 // A BASE: the exe panel classes derive it as real C++ classes (ENDGAME B.3.8
 // block PNL) and the exe never instantiates the base itself (its factory pair
@@ -94,13 +91,12 @@ public:
     virtual void OnElementEvent(Object::InternalPtr<Element>* element,
                                 UI::EventId a, int32_t b, int32_t c,
                                 int32_t d, int32_t e, void* userData);
-    // [10] 0x1800cd250  RET. `IO::Stream&` in retail; spelled as the pointer
-    // every C caller passes, the `Object::Internal::Persist` precedent.
+    // [10] 0x1800cd250  RET. `IO::Stream&`, as in retail.
     virtual void OnSerializeSettings(IO::Stream& stream);
 
     // ---- non-virtual exported surface ------------------------------------
     // RETSLOT in retail (`MOV RAX,[RCX+0x20]; MOV [RDX],RAX; MOV RAX,RDX`);
-    // a plain by-value return here, the door placement-news it (B5-12).
+    // a plain by-value return here.
     Object::InternalPtr<Element> GetContainer();                  // 0x18003b700
 
     // Exported, NOT PORTED, no caller: declared, deliberately undefined.
@@ -110,7 +106,7 @@ public:
     DialogController(const DialogController& other);              // 0x18003b710
     DialogController& operator=(const DialogController& other);   // 0x18003b780
 
-    // 0x18003b6c0 — the minted record's type id (dialog_controller_base.cpp).
+    // 0x18003b6c0 — the type id of the class's own record (dialog_controller_base.cpp).
     // Retail's factory pair (B39_RULES D2): both are `XOR EAX,EAX ; RET`.
     // Defined and registered in dialog_controller_base.cpp.
 
@@ -121,10 +117,8 @@ protected:
     //     XOR EAX,EAX ; MOV [RBX+0x10],RAX ; MOV [RBX+0x18],RAX ; MOV [RBX+0x20],RAX
     // The two stamps are the compiler's; the body is the three zero stores.
     // +0x28 (`_dataSource`) is NOT written — AddController fills it.
-    // THERE IS NO CTOR DOOR for this class (B38_RULES D1 lists one; there is
-    // none — 0x1800cd320 was never ported or registered, and the 38 exe panel
-    // factories build their base as alloc + zero + table, EXE_SUBCLASSES.md
-    // 1B), so nothing is shared: this is the port.
+    // This is the port: every exe panel class runs it as its base constructor
+    // (the subclass inventory: docs/history/endgame_b/b36_session/EXE_SUBCLASSES.md 1B).
     DialogController() : _config(), _dialog(nullptr), _container(nullptr) {}
 
     // RULE B5-15 / B6-7, both COPIED from B36_SLOTS section 3:

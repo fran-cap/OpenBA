@@ -1,8 +1,7 @@
 // ============================================================================
 // tests/fuzz/text_codec_fuzz.cpp -- IO::TextCodec (src/engine/io/text_codec.cpp) over arbitrary text
 // ============================================================================
-// P0_MAP input surface rank 6. Build: `~/fz.sh build text_codec src/engine/io/text_codec.cpp`
-// (text_codec.cpp is not in the unit tree archive).
+// P0_MAP input surface rank 6. Build: `~/fz.sh build text_codec src/engine/io/text_codec.cpp`.
 //
 // Input layout:
 //   byte 0   source format id  (b % 8: 0..5 the codecs, 6 = "detect", 7 = an unknown id)
@@ -20,9 +19,9 @@
 //      character, and trailing encoded NULs are stripped from each result.
 //
 // MASKS (findings already recorded, so the fuzzer can go deeper):
-//   M1  Format 1 (raw 16-bit) with an ODD source length: DecodeOne's case 1 reads src[1] one byte
-//       past the end (heap-buffer-overflow READ, recorded as finding TC-1). The target rounds an
-//       odd format-1 source down to an even length unless FUZZ_NO_MASK_M1 is defined.
+//   M1  Format 1 (raw 16-bit) with an ODD source length (finding TC-1): DecodeOne's case 1 refuses
+//       the lone trailing byte. The target rounds an odd format-1 source down to an even length
+//       unless FUZZ_NO_MASK_M1 is defined.
 // ============================================================================
 #include "io/Serializer.h"
 #include "io/Stream.h"
@@ -120,7 +119,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     const int b = dstFmt % 6;
     bool skipRound = false;
 #ifndef FUZZ_NO_MASK_M1
-    // M1 again: an odd-length raw-16 source would only re-find TC-1.
+    // M1 again: an odd-length raw-16 source skips the round trip (TC-1).
     skipRound = (a == 1 && (len & 1));
 #endif
     if (!skipRound) {

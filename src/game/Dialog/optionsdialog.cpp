@@ -33,8 +33,8 @@
 #include "Dialog/ui_dialogs.h"
 #include "input/Device.h"   // ENDGAME B.3.9 SS2: Input::Device::_singleton
 // ENDGAME B.3.5 batch K1: video/Device.h FIRST. It pulls no Volume.h itself, but the
-// house rule (a runtime type header ahead of anything that reaches <windows.h> through
-// resolve.h, whose <wingdi.h> `Rectangle()` hides Volume.h's global `struct Rectangle`)
+// house rule (a runtime type header ahead of anything that reaches <windows.h>,
+// whose <wingdi.h> `Rectangle()` hides Volume.h's global `struct Rectangle`)
 // is kept here too so a later include change cannot break it silently.
 #include "video/Device.h"       // Video::Device, Video::Configuration
 #include "options.h"
@@ -68,7 +68,7 @@
 #include "Dialog/exe_bodies.h"
 #include "Game/exe_bodies.h"      // B3R: GameSettings_Save / _Load
 #include "Game/inputbindings.h"   // B3R: Game::RegisterDefaultInputBindings
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc
 
 // ============================================================
 // Element IDs assigned in Startup, dispatched in OnEvent
@@ -129,7 +129,7 @@ enum OptionsElementId {
 //   +0x2C: shadow res, +0x30: shadow quality, +0x34: reflection quality
 //   +0x38: refresh num, +0x3C: refresh den, +0x40: fullscreen, +0x41: vsync
 //
-// g_pGameSettingsPtr -> int32_t* (pointer at 0x1401c3de0 to actual settings array):
+// g_gameSettings -> GameSettings (Game/GameSettings.h; the pointer cell at 0x1401c3de0):
 //   [0]=uiScale, [1]=autosave, [2]=statusIconDist, [3]=statusIconEnabled
 //   [4]=statusIconScale, [5]=edgeScroll, [6]=autopause, [7]=lastTab
 //   Byte: +0x14=edgeScroll, +0x15=showCelsius, +0x16=showWeather, +0x17=autoslow, +0x18=autopause
@@ -159,14 +159,12 @@ static inline void SetCheckState(UI::CheckElement* elem, uint8_t val) {
 // order: copy five UI sound-effect pointers out of the game container into the
 // UserInterface's sound table, hand the container's white sprite (+0xA8) to
 // UI::UserInterface::SetFullscreenFadeSprite, then write the UI scale ratio
-// (settings[0] / 100.0f) to UserInterface::_uiScale — which edittool.cpp:674 reads back.
+// (settings[0] / 100.0f) to UserInterface::_uiScale — which edittool.cpp reads back.
 //
 // Retail callers: 0x140098fa0 GameLoadDialogLoopT::Startup (splash_loop_stubs.cpp),
 // 0x1400727d0 OptionsDialog::RestoreVideoSettings (below), 0x140097c00
 // GameUpdateLoop::Startup and 0x14009b930 MenuDialogLoopT::Startup (the four code
 // xrefs). Retail null-checks neither parameter.
-// B4: stays free — it reads the GameContainer (game.h, block GAME-a) through its
-// first argument; not a member of a class this block owns.
 void GameContainer::ApplyKeyMapToUI(UI::UserInterface* userInterface) {
     // 0x140099260 tests neither RCX (the container) nor RDX (the UI) nor the settings global.
     userInterface->_sounds[2] = beginDragEffect.Get();   // +0xA8 BeginDrag
@@ -266,10 +264,9 @@ static const UI::StringTable* LoadStringTable(const char* path) {
 // match by ratio (Runtime @ 0x1800f7370). If `*p6` (savedRefreshDen) is 0 we
 // hit `idiv 0` -> SIGFPE. That can only happen if the Configuration singleton
 // wasn't populated with refresh defaults before the dialog opened — which in
-// turn only happens if g_pVideoConfigSingleton was NULL at Startup time (so
-// the saved-* fields stayed zero-initialized). In standalone we now fall back
-// to the Runtime DLL's _singleton slot in EngineFuncsInit, but keep this
-// guard as belt-and-braces so a future regression here can't crash the game.
+// turn only happens if Video::Configuration::_singleton was NULL at Startup time (so
+// the saved-* fields stayed zero-initialized). This guard is belt-and-braces so a
+// future regression here can't crash the game.
 void OptionsDialog::ValidateVideoConfig() {
     if (savedRefreshDen == 0) {
         // Defaults from Video::Configuration ctor (Runtime @ 0x1800f6f10): 60/1.
@@ -278,7 +275,7 @@ void OptionsDialog::ValidateVideoConfig() {
         savedRefreshNum = 60;
         savedRefreshDen = 1;
     }
-    // THE DOOR DECIDES THE OVERLOAD. `Video::Device` has TWO
+    // `Video::Device` has TWO
     // `ValidateConfiguration`s at adjacent ordinals; this call is
     // `?ValidateConfiguration@Device@Video@@QEAAXAEAH0000000@Z` (0x1800f7370, the EIGHT
     // `int&` out-parameter one), NOT `…QEAA_NXZ` (0x1800f8830, no arguments). Eight
@@ -534,7 +531,7 @@ void OptionsDialog::PopulateVideoComboBoxes() {
 // each major init block is wrapped behind a `static bool s_enable*` flag
 // (default ON, trivially flippable).
 // To localize the per-frame KeyMap::Pressed crash, flip flags to false one
-// at a time. See `docs/history/notes/NOTES030126.md` and the project memory for context.
+// at a time. See `docs/history/notes/old/NOTES030126.md` and the project memory for context.
 void OptionsDialog::OnOpened() {
     // Bisect knobs — flip these to narrow down the standalone Slot4 crash.
     // Order mirrors the original Startup body.
@@ -735,10 +732,10 @@ void OptionsDialog::OnOpened() {
     if (s_enableTabRestore) {
         this->tabOptions = FindElementAs<UI::TabElement>(this, "tabOptions");
         if (this->tabOptions) {
-            // EXT SEAM (NOT RETAIL, docs/extensions/handins/AOMENU.md): ext.ambient_occlusion's fifth tab "Enhanced", added
-            // BEFORE the restore below so a saved lastOption of 4 lands on it. Offered whenever
-            // the build has the extension (not gated on the row: the tab is where the player
-            // turns it on); absent under the gate's /profile:faithful (menus stay retail's).
+            // EXT SEAM (NOT RETAIL, docs/extensions/handins/AOMENU.md): the fifth tab "Enhanced"
+            // (src/ext/enhanced_tab/), added BEFORE the restore below so a saved lastOption of 4
+            // lands on it. Not gated on a row (the tab is where the player turns the extensions
+            // on); absent under the gate's /profile:faithful (menus stay retail's).
             Ext::EnhancedTab::Open(this, this->tabOptions);
             int lastTab = (g_gameSettings != nullptr) ? g_gameSettings->lastOption : 0;
             // The port's guard, not retail's: 0x1400750db..0x1400750fb passes settings[7]
@@ -753,7 +750,7 @@ void OptionsDialog::OnOpened() {
 // ============================================================
 // Shutdown (vtable +0x28, exe 0x140073480): RET 0 (3 bytes)
 // ============================================================
-// No-op shutdown; nothing to clean up.
+// Retail's body is a no-op; the port's only closes the three EXT SEAMs below.
 void OptionsDialog::OnClosed() {
     Ext::EnhancedTab::Close(this);   // EXT SEAM (NOT RETAIL, docs/extensions/handins/AOMENU.md): forget the Enhanced tab's elements
     Ext::FullscreenMode::CloseVideoRow(this);   // EXT SEAM (NOT RETAIL): forget the Video tab's combo
@@ -888,10 +885,6 @@ void OptionsDialog::ApplyGameSettings() {
 // applies changes via Video::Device (shutdown/startup or apply changed),
 // and saves video config on success. Restores on failure.
 void OptionsDialog::ApplyVideoSettings() {
-    // Diagnostic trace for the video-apply path (default quiet). The dialog
-    // logic itself is verified correct — see notes: ApplyChangedSettings runs
-    // and returns success; the standalone gap is the render backend not
-    // recreating the M5 scene targets with the new sample count.
     ::Video::Device* vidDev = ::Video::Device::_singleton;
     ::Video::Configuration* vidCfg = ::Video::Configuration::_singleton;
     if (!vidDev || !vidCfg) return;

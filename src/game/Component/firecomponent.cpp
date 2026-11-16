@@ -1,6 +1,6 @@
 // src/game/Component/firecomponent.cpp
 // FireComponent — the per-frame tick (vtable slot 9), the Serialize slot (3), and
-// the standalone factory that installs a REAL vtable for slots 3, 9 and 15.
+// the factory.
 //
 // Two-state fire:
 //   idle    (fireTimer == 0) — accumulate dt into +0x40 and roll for ignition,
@@ -39,7 +39,7 @@
 // Leaf bodies (firecomponent_ignite.cpp): FireComponent::Ignite / SpreadToNeighbors /
 // Extinguish.
 
-// FUN_1400a9290 — {rate, weight} probability roll (ActMvDep_TimeCheck_a9290,
+// FUN_1400a9290 — {rate, weight} probability roll (BreakTimeCheck, Action/exe_bodies.h,
 // called directly). Reads BOTH floats of the pair and CLEARS *time on every call,
 // both arms.
 
@@ -101,9 +101,9 @@ void FireComponent::Update(const System::Time* time) {
 
         // GameWorld+0xD0 is the debug / new-game flag word: bit0 zeroCost, bit1 noHunger,
         // bit2 noCold, bit3 noHealth, bit4 noSick, bit5 noCropDisease, BIT6 noFire,
-        // bit7 noTornado. NewGameDialog::StartGame writes the whole word explicitly
-        // (newgamedialog.cpp:740): disaster combo index 0 => 0 (fire ON), otherwise
-        // 0xF0 (bits 4-7 => fire OFF). It is never left uninitialised.
+        // bit7 noTornado. The GameUpdateLoop ctor (gameupdateloop.cpp) writes the whole word
+        // explicitly from NewGameDialog::StartGame's disaster combo: index 0 => 0 (fire ON),
+        // otherwise 0xF0 (bits 4-7 => fire OFF). It is never left uninitialised.
         const uint32_t worldFlags = gw->m_gameFlags;
         if ((worldFlags >> 6) & 1) {
             return;

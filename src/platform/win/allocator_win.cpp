@@ -7,7 +7,7 @@
 // `Platform*` members and every VirtualAlloc/GetSystemInfo/CRITICAL_SECTION call
 // in the allocator is either one of them or an inlined copy of one. So this file
 // is not a wrapper we invented — it is the retail `_win` translation unit,
-// reconstructed. A `_posix`/`_sdl` twin implements the same entry point:
+// reconstructed. A `_posix`/`_darwin` twin implements the same entry point:
 //
 //     RtSystemAllocatorInstallPlatform()
 //
@@ -34,8 +34,8 @@
 using rt::system::MemoryAllocator;
 using rt::system::RtSysMemPlatform;
 
-// The seam table, defined in the portable half. PlatformAllocate/PlatformFree
-// go through it rather than calling VirtualAlloc twice from two files.
+// The seam table, defined in the portable half (src/engine/system/allocator.cpp) and filled
+// from kWin32 by RtSystemAllocatorInstallPlatform below.
 extern RtSysMemPlatform g_plat;
 
 // The one Win32 fact the OBJECT LAYOUT depends on (the critical section at +0x640

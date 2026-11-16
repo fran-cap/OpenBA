@@ -39,8 +39,7 @@
 // — all four agree. The two `Remove*` bodies are NOT SetSize and are written
 // out here in full.
 //
-// A separate translation unit from `external_path.cpp` for the reason
-// `rt_object_port.cpp` gives at the top: one lane owns one file. Nothing here
+// A separate translation unit from `external_path.cpp`. Nothing here
 // needs <windows.h>, so this is the portable half and carries no `_win`.
 //
 // EVIDENCE
@@ -48,7 +47,7 @@
 // Every body was transcribed from `disassemble_function(address=)` on
 // Runtime-x64.dll (image base 0x180000000, read 2026-09-09), not from the
 // decompiled C. Ghidra's C for `PushPath` is misleading in the usual way
-// (reference_ghidra_c_output_vs_disassembly.md): it DROPS the right-hand
+// (its C drops dereferences and arguments): it DROPS the right-hand
 // operand of both `System::operator+` calls, so the two string literals the
 // entry filename is built from — "." at 0x180155814 — are invisible in it, and
 // it reports four "unreachable" blocks that are the ordinary release idiom.
@@ -75,8 +74,7 @@ namespace RtObject {
 
 namespace {
 
-// 0x180155814. A named constant so the negative control below can swap it for
-// a token the oracle must reject.
+// 0x180155814.
 const char* const kDot = ".";
 
 }  // namespace
@@ -149,12 +147,6 @@ void RtObject_ExternalFactory_PushPath(ExternalFactory* self, const System::File
     // (filename, then directory) first, then the six locals before it — dir,
     // file, t2, t1, fname, ext — in reverse declaration order.
 
-    // NO LIVE SHADOW. PushPath is a destructive mutator on one shared stack:
-    // running theirs after ours would push the same entry TWICE and leave the
-    // factory two deep where retail leaves it one. Verification is the
-    // lockstep synthetic-subject probe in external_path_stack_probe.cpp — the
-    // same instrument, and the same reason, as external_set.h records for the
-    // resource tree's twelve Set bodies.
 }
 
 // ============================================================================
@@ -189,7 +181,6 @@ void RtObject_ExternalFactory_PopPath(ExternalFactory* self) {
     out->~PathStackEntry();                                      // 0x1800bd066
     g_psc.depthAfterPop = self->_pathStack._size;
 
-    // No live shadow, same reason as PushPath.
 }
 
 }  // namespace RtObject
@@ -199,16 +190,16 @@ void RtObject_ExternalFactory_PopPath(ExternalFactory* self) {
 // ============================================================================
 // They are `extern "C"` and external_path_stack.h declares them at global
 // scope. Defining them inside `namespace RtObject` as well would give one
-// C-linkage entity two declarations in two scopes; GCC then rejects every
-// `&RtObject_PathStack*` in the registration hook as "address of overloaded
+// C-linkage entity two declarations in two scopes; GCC then rejects the
+// `&RtObject_PathStackDestroyRange_18002e8d0` in `kSpec_PathStack` as "address of overloaded
 // function with no contextual type information". And `rtcoll` must be the REAL
 // `rtcoll` — nested inside `RtObject` it is a different namespace with no
 // `ArraySpec` and no `SetSizeCore` in it.
 //
 // Everything they touch is therefore spelled out. No `using` at global scope:
-// src/engine/common.h forward-declares GLOBAL structs called `Filename` and
-// `String`, so an unqualified use here is AMBIGUOUS rather than wrong
-// (src/engine/engine/mainloop_video.cpp:261 records the same trap).
+// src/engine/common.h forward-declares a GLOBAL struct called `Filename`,
+// so an unqualified use here is AMBIGUOUS rather than wrong
+// (src/engine/engine/mainloop_video.cpp:255 records the same trap).
 // ============================================================================
 
 // ============================================================================
@@ -220,9 +211,8 @@ void RtObject_ExternalFactory_PopPath(ExternalFactory* self) {
 // releases the SECOND Filename (+0x08, the filename) BEFORE the first (+0x00,
 // the directory); the order is observable whenever the two share a buffer.
 //
-// One function, two jobs, deliberately: it IS `kSpec_PathStack`'s destroy arm
-// and it IS the registered entry point for the address. Two spellings would be
-// two places to drift (mainloop_video.cpp:249 makes the same call).
+// It IS `kSpec_PathStack`'s destroy arm. factory_dtors.cpp's `PathStackDestroyRange`,
+// which `PathStackArrayDtor` runs, is a second body for the same address.
 extern "C" void RtObject_PathStackDestroyRange_18002e8d0(void* ignoredThis,
                                                           uint8_t* base, int count) {
     (void)ignoredThis;
@@ -323,18 +313,6 @@ extern "C" void RtObject_PathStackRemoveAt_18002de30(
         RtObject::PathStackArray* a, int index) {
     ++RtObject::g_psc.removeAtCalls;
 
-    // CONTROL 3, and note WHERE it perturbs. It removes a DIFFERENT, valid
-    // index -- it does not break the body's invariants.
-    //
-    // Its first form did: it skipped the shift-down, which leaves every
-    // shifted-from slot holding pointers the loop had already released, and the
-    // next pop then copy-constructs from freed memory and releases it again.
-    // That is a DOUBLE FREE, and it took the process down inside
-    // System::MemoryAllocator::Free (0x1800c6c00) on the measuring run rather
-    // than reporting `control CAUGHT` -- taking control 4 and the whole of the
-    // probe's part 2 with it. A negative control has to survive being wrong:
-    // it must produce an observable, COMPARABLE divergence, not undefined
-    // behaviour. See WAVE11_LANE_OBJEXT.md §10.
     if (index < a->_size) {
         int32_t i = index;
         do {

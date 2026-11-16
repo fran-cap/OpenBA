@@ -35,7 +35,7 @@ public:
     void CheckEntity() override;                               // [8] 0x1400c9320
     bool GetTarget(ComponentEntity** param) override;                      // [9] 0x1400c92d0
 
-    // ---- fields, retail order (PUBLIC: the slot bodies are C functions) ----
+    // ---- fields, retail order (PUBLIC) ----
     Object::InternalPtr<CitizenComponent> workTarget;   // +0x20 the working citizen (Persist checks CitizenComponent)
     float     facingYaw;         // +0x28 facing yaw (degrees)
     int32_t   animationId;       // +0x2C animation id

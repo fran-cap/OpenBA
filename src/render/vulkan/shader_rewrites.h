@@ -32,7 +32,8 @@ struct ShaderEntry;
 
 namespace Rewrites {
 
-// True while any of the three stages is requested (one relaxed load): the Bind slots ask the stages.
+// True while any of the three stages is requested or still holds copies to release (one acquire load):
+// the Bind slots ask the stages.
 bool Active();
 
 // VertexProgramData::Bind / PixelProgramData::Bind, after the permutation is chosen: the copy the draw

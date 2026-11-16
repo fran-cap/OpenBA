@@ -8,7 +8,7 @@
 //   | ?Decompress@Compression@System@@SAHPEBXIPEAXI@Z   | 0x1800c4660 | 2150 |   72   |
 //
 // Name and ordinal printed out of Runtime-x64.dll's own export directory with
-// `pefile`, not transcribed. `tools/export_name_audit.py` re-checks it.
+// `pefile`, not transcribed.
 //
 // ---------------------------------------------------------------------------
 // 1. WHY THIS FUNCTION, AND WHY FIRST
@@ -19,15 +19,13 @@
 // short version: ReadPackfile is not 1,864 instructions of novel logic, it is a
 // header/directory parser in which MSVC **inlined `CompressedStream::Read`
 // twenty-five times**, and the whole of it stands on an `IO::CompressedStream`
-// read path that nothing in this tree has ported.
+// read path (src/engine/io/compressed_stream_read.cpp).
 //
 // `Compression::Decompress` is the bottom of that stack. It is 72 instructions,
 // it is PURE, it calls nothing, and it is the function whose correctness
 // decides **every byte of every package the game loads**. A silent defect here
 // is not a crash; it is subtly wrong resource data.
 //
-// It is also the only member of the stack with a *perfect* oracle available
-// today — see §3.
 //
 // ---------------------------------------------------------------------------
 // 2. THE CODEC, INSTRUCTION BY INSTRUCTION
@@ -91,10 +89,8 @@
 //     There is no test before the first iteration (0x1800c4678 falls straight
 //     into 0x1800c4680); the only test is at the bottom. That is a one-byte read
 //     past the end of a zero-length buffer, and it is retail's behaviour, not a
-//     transcription slip. It is NOT guarded here — the project rule is that a
-//     faithful unguarded read stays faithful, and a guard would change what the
-//     function returns rather than protect anything (the caller always passes a
-//     non-empty window). The probe in §3 never passes srcLen == 0.
+//     transcription slip. The body below returns 0 for `srcLen == 0` before the
+//     loop (NOT RETAIL, review F-001).
 //
 //  4. **`mp < dst` is an UNSIGNED compare (`JC`, not `JL`).** With `mp`
 //     computed by subtraction it can wrap below the buffer; the unsigned form is
@@ -103,59 +99,6 @@
 // Distance is `((c & 0x1f) << 8) + lo + 1`, so 1..8192 — an 8 KB window, which
 // is consistent with CompressedStream's 32 KB (0x8000) page size.
 //
-// ---------------------------------------------------------------------------
-// 3. THE ORACLE — THREE INDEPENDENT CHECKS, AND VALID INPUTS BY CONSTRUCTION
-// ---------------------------------------------------------------------------
-// Nothing in our tree calls Decompress today: its only caller is the DLL's own
-// `CompressedStream::DecompressFromSource`, and a `RegisterRuntimeExport` does
-// not redirect the DLL's internal direct CALLs. So registering it alone would
-// report `calls=0` — the failure this project keeps paying for
-// (reference_uncalled_port_is_not_verified.md). It needs a driver, and it gets
-// a good one.
-//
-// `?Compress@Compression@System@@QEAAHPEBXIPEAXI@Z` (0x1800c4230, ord 1749) is
-// exported. So the probe **compresses a real buffer with the DLL's own
-// compressor and decompresses it with both implementations**, which gives:
-//
-//   A. ours == theirs, on the returned length AND on every byte written;
-//   B. ours round-trips: the decompressed bytes equal the ORIGINAL input.
-//      This check does not involve the DLL's Decompress at all, so a shared
-//      misreading of the format cannot pass it;
-//   C. the three failure exits return 0 on both sides.
-//
-// Check B is the one that matters most. A and B together mean a defect would
-// have to be present in our port, absent from the DLL's, and still reproduce
-// the original bytes — which is to say there is no such defect.
-//
-// EFFECTIVENESS CONTROL (reference_probe_needs_an_effectiveness_control.md).
-// A codec probe is exactly where a uniform population hides: feed it garbage and
-// almost every case returns 0 from the same bounds check, and 5,000 agreeing
-// zeroes read as a thorough test. So the port counts which branch each case
-// actually took — literal run, short match, extended-length match, and each of
-// the three failure exits — and the probe prints all six. **A bucket that reads
-// 0 is reported as uncovered rather than averaged into a pass**, and the
-// corpus is built to fill all six on purpose (§4).
-//
-// ---------------------------------------------------------------------------
-// 4. THE CORPUS
-// ---------------------------------------------------------------------------
-// Compressible-real, incompressible-real, and pathological, because the three
-// exercise different branches:
-//
-//   * **Runtime-x64.dll's own loaded image**, in sliding windows. Real, highly
-//     non-uniform data — x86 code, ASCII string tables, relocation tables, long
-//     zero runs — and it is already mapped, so reading it needs no file I/O, no
-//     new Win32 API and no new import (this file adds neither). The zero runs
-//     drive long overlapping matches; the code bytes drive literal runs.
-//   * **Synthetic RLE**: a single repeated byte, which forces the
-//     extended-length branch (`len == 7`, read another byte) and maximal
-//     overlap, the case a memcpy-based port gets wrong.
-//   * **Synthetic incompressible**: a counter-derived pattern with no repeats,
-//     which forces literal runs almost exclusively.
-//   * **Malformed and tight-buffer cases**: RAW (uncompressed) bytes fed in as
-//     `src` to make the decoder walk nonsense, and valid streams given a `dstCap`
-//     one byte short of what they need — that is what fills the failure buckets
-//     deliberately rather than by luck.
 // ============================================================================
 
 #include <cstdint>
@@ -163,25 +106,23 @@
 #include <cstdio>
 #include <cstring>
 
-#include <new>        // placement new: the ??0 door builds into the caller's 8 bytes
+#include <new>
 
 #include "system/Compression.h"   // ENDGAME B.3.4b SYSTEM (4b)
 #include "system/string_internal.h"   // RtMemAlloc -- the lock-wrapped MemoryAllocator door
 
 // ============================================================================
-// ENDGAME B.3.4b SYSTEM (4b) — THE CLASS IS REAL; THE DOORS DELEGATE.
+// ENDGAME B.3.4b SYSTEM (4b) — THE CLASS IS REAL.
 // ============================================================================
 // `System::Compression` is declared in `src/engine/system/Compression.h`,
 // which carries the "is it a class?" evidence (a `QEAA` ctor, a `QEAA` member
 // and an `SA` static, all class-scoped manglings) and the layout pins. The two
-// codec bodies and the constructor moved onto members VERBATIM; the three
-// registered doors keep their names, their retail addresses and their
-// registration rows and each delegates in one line.
+// codec bodies and the constructor moved onto members VERBATIM.
 //
 // The member bodies are defined at GLOBAL scope with qualified names
 // (`int System::Compression::Compress(...)`) rather than inside a
 // `namespace System { ... }` block — rule B4b-5. There is no POD of this name,
-// but the branch counters, `CompressHash` and the two counter structs are
+// but `g_cbranch`, `CompressHash` and the `CompressBranchCounts` struct are
 // `RtSystem`'s and are reached from the bodies as `RtSystem::X`, which is the
 // arrangement B34_BRIEFS §A.2 established (anonymous-namespace members ARE
 // reachable as `RtSystem::X` from elsewhere in the same translation unit).
@@ -264,8 +205,8 @@ inline void CopyMatchFar(uint8_t* op, size_t dist, uint32_t total) {
 // ============================================================================
 // The bespoke LZ77/LZSS byte codec §2 of this file's banner derives instruction
 // by instruction. `SA`, so no `this` and no instance state is touched — which
-// is exactly why `src/engine/io/compressed_stream_read.cpp` can reach it from
-// two `RT_EXPORT_ONCE` sites with no receiver at all.
+// is exactly why `src/engine/io/compressed_stream_read.cpp` can call it from
+// two sites with no receiver at all.
 //
 // AN EXACT PERF BODY, NOT RETAIL'S SHAPE (issue #13). Retail copies every byte
 // of a literal run and of a match one at a time (§2 note 1). This body makes
@@ -289,9 +230,9 @@ inline void CopyMatchFar(uint8_t* op, size_t dist, uint32_t total) {
 //     op inside the destination buffer and dist <= 8192, op - dist cannot wrap
 //     the address space, so the two tests agree; this form never forms the
 //     out-of-buffer pointer.
-// PRECONDITION, as for retail's loop: src and dst do not overlap. Both callers
-// (CompressedStream::DecompressFromSource, from a stack scratch block, and
-// SetWindow's in-memory arm, from a block buffer) decode into a window buffer.
+// PRECONDITION, as for retail's loop: src and dst do not overlap. CompressedStream's
+// two callers (DecompressFromSource, from a stack scratch block, and SetWindow's
+// in-memory arm, from a block buffer) decode into a window buffer.
 // Pure and reentrant: no state outside the arguments, safe from any thread.
 int System::Compression::Decompress(const void* src, uint32_t srcLen,
                                     void* dst, uint32_t dstCap) {
@@ -415,8 +356,7 @@ namespace {
 //     now "no reason to deviate", not "load-bearing".
 //     The lesson generalises and is why this note survives its own
 //     retraction: a control that corrupts a value NOTHING OBSERVES reports
-//     NOT CAUGHT and reads as an indictment of a sound instrument
-//     (reference_control_must_pick_a_compared_subject.md). Note 5 is the
+//     NOT CAUGHT and reads as an indictment of a sound instrument. Note 5 is the
 //     round-trip-invisible hazard on this body that IS real; that is the one
 //     the effectiveness control uses.
 //
@@ -450,21 +390,15 @@ namespace {
 //     again, so worst case is 2 data + 1 flush control + 1 final control = 4.
 //     Not guarded — the project rule is that a faithful unguarded write stays
 //     faithful, and a guard would change the RETURN VALUE rather than protect
-//     anything. Callers reach this only through CompressedStream, which sizes
-//     its output window at 0x8000 for a 0x8000 input.
+//     anything. Both callers (CompressedStream and ext.async_save_compress) size
+//     the output at 0x8000 for a 0x8000 input.
 //
 // ALSO FAITHFUL AND ALSO UNGUARDED: the two loads at 0x1800c425e/0x1800c4272
 // read src[0] AND src[1] before anything has established srcLen >= 2, so
-// Compress(src, 1, ...) reads one byte past the input. Retail's. The sweep
-// below passes srcLen == 1 on purpose so the behaviour is exercised and
-// compared rather than merely asserted.
+// Compress(src, 1, ...) reads one byte past the input. Retail's.
 
-// BRANCH COVERAGE FOR THE ENCODER. Same reason the decoder above counts its
-// six branches: a codec sweep is exactly where a uniform population hides. A
-// corpus of incompressible bytes drives ONLY the literal path and the two
-// 0x20-flushes, agrees perfectly with retail on every case, and says nothing
-// at all about the match encoder -- which is two thirds of the body. Six
-// counters, printed, with a verdict line that FAILS when any of them is zero.
+// BRANCH COVERAGE FOR THE ENCODER: six counters behind `g_cbranch`. Nothing in
+// the tree points `g_cbranch` at storage, so no call counts.
 struct CompressBranchCounts {
     long long literal      = 0;   // a byte emitted as a literal
     long long literalFlush = 0;   // a run hit 0x20 and flushed its control
@@ -492,8 +426,7 @@ static inline uint32_t CompressHash(uint32_t dv) {
 // `?MemAlloc@MemoryAllocator@System@@SAPEAX_KH@Z` (0x1800c7a50) IS that exact
 // lock/Allocate/unlock sequence — verified by decompiling it, not assumed — so
 // `RtMemAlloc(0x40000, 4)` from string.cpp is the same three instructions plus
-// a call, and it keeps standalone/allocator_lock.cpp's detour on Allocate in
-// the path. Open-coding EnterCriticalSection on `_singleton + 0x640` here
+// a call. Open-coding EnterCriticalSection on `_singleton + 0x640` here
 // would be a second, private opinion about where that lock lives.
 //
 // NOT NULL-CHECKED: retail stores the result and memsets it unconditionally.
@@ -658,13 +591,6 @@ int System::Compression::Compress(const void* src, uint32_t srcLen,
     return static_cast<int>(op - outBase);
 }
 
-// ============================================================================
-// The three registered doors — names, signatures and registration rows all
-// unchanged. Each delegates in one line.
-// ============================================================================
-// `System::Compression` has NO vtable, so none of these needs the qualified
-// non-virtual call B34_BRIEFS §A.1 forces on a polymorphic receiver: a
-// non-virtual member call cannot dispatch back into its own door.
 namespace RtSystem {
 
 }  // namespace RtSystem

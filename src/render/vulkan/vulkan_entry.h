@@ -38,8 +38,8 @@ class Context;
 
 namespace VideoVulkan {
 
-// P4: ContextData::Finish's two halves (device.cpp; dx11 contextdata.cpp PresentFrame /
-// RecoverLostDevice), which ext.render_pipe runs on two threads (integration.cpp).
+// P4: ContextData::Finish's two halves (device.cpp; dx11 render_pipe_finish.cpp FinishPresent /
+// FinishRecover), which ext.render_pipe runs on two threads (integration.cpp).
 // PresentFrame: end the frame, submit, present; VK_ERROR_DEVICE_LOST (as an int) when the device was lost
 // in this frame (submit, acquire, present, a fence wait, or the injected loss), else 0.
 int PresentFrame(::Video::Context& ctx);

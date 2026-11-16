@@ -76,7 +76,7 @@ void MessageDialog::OnNo()     { CloseWithResult(this, 3); }
 // Construction, destruction, reflection
 // ============================================================
 // Original ctor (decompiled @ 0x14006d300): DialogInstance::DialogInstance then
-// the vtable store. No additional fields beyond DialogInstance's.
+// the vtable store. One qword beyond DialogInstance's (+0xb8, never written).
 
 #include "Object/factory_registration.h"
 #include <cstdio>

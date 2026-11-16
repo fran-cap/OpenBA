@@ -1,5 +1,5 @@
 // src/game/Component/tradecomponent_serialize.cpp
-// TradeComponent::Serialize (vtable slot [3], +0x18, retail 0x14005bd50).
+// TradeComponent::Persist (vtable slot [3], +0x18, retail 0x14005bd50).
 //
 // Ghidra names this function "Shutdown" (same off-by-one mislabel family as
 // DiseaseComponent's slot-3/4/6/7 — see that file's header). tradecomponent.cpp
@@ -9,7 +9,7 @@
 // Field table (self is the 0xa8-byte TradeComponent body):
 //   +0x50/+0x58  ComponentRef table, stride 0x10, count @+0x58
 //                elem+0x00 ComponentRef (ExternalPtr<ComponentDescription>,
-//                          Reimpl_ExternalPtr_Serialize_StringTable / retail 0x140002340)
+//                          ::Object::SerializeExternal / retail 0x140002340)
 //                elem+0x08 int   elem+0x0c int
 //                resize (load only) through the member's SetSize (retail 0x14000f090,
 //                the generic 0x10-stride Array<{u64,u64}>::SetSize).
@@ -18,44 +18,36 @@
 //   +0x60        AVL tree {root@+0x00, count@+0x08} keyed by ComponentRef,
 //                value int. See the TradeBst_* block below.
 //   +0x30/+0x38  merchant-order array, stride 0x20, count @+0x38 (the SAME array
-//                TradeMerchantOrders_SetSize in tradecomponent.cpp already
+//                TradeComponent::MerchantOrderArray::SetSize in tradecomponent.cpp
 //                grows/shrinks — reused here, not re-implemented).
-//                elem+0x00 String (g_fn_String_Serialize, retail 0x140151238)
+//                elem+0x00 String (System::String::Serialize, retail 0x140151238)
 //                elem+0x08 int
 //                elem+0x10 ptr-array {ptr,count:i32,cap:i32} of
 //                          ExternalPtr<ComponentDescription>; count is
 //                          elem+0x18, resized (load only) via
-//                          Collection::Array<Ptr8>::SetSize
+//                          TradeMerchantOrder::GoodsList::SetSize
 //                          (retail 0x140001bb0), contents via
-//                          Reimpl_ExternalPtrArray_Serialize (retail 0x1400049c0,
-//                          already ported as Reimpl_ExternalPtrArray_Serialize
-//                          in serialize_externals_array.cpp).
-//   +0x40/+0x48  buy orders, stride 0xc, count @+0x48 (TradeBuyOrders_SetSize,
-//                reused from tradecomponent.cpp).
+//                          ::Object::SerializeExternalArray<ComponentDescription>
+//                          (retail 0x1400049c0, object/External.h).
+//   +0x40/+0x48  buy orders, stride 0xc, count @+0x48
+//                (Collection::Array<TradeBuyOrder>::SetSize, reused from tradecomponent.cpp).
 //                elem+0x00 int resourceId — an ENUM, serialized through the
 //                          serializer's own "encoding" object (ser+8's vtable
 //                          +0x98), the same idiom already ported repeatedly
-//                          elsewhere (see storagedescription.cpp's SerializeEnum).
+//                          elsewhere (see storagedescription.cpp's rawMaterialFlags).
 //                elem+0x08 int   elem+0x04 int   (retail's own field order —
 //                          +0x08 before +0x04, kept faithful)
 //   +0x28        int (plain)
 //   +0x78        Time
 //   +0x71        bool
 //   +0x80        InternalBasePtr, validated against ComponentEntity
-//                (TypeId_ComponentEntity) and nulled on type mismatch —
+//                (ComponentEntity::TypeId()) and nulled on type mismatch —
 //                same SerializeValidatedIBP idiom as animalwave_serialize.cpp.
 //   +0x70        bool
 //
-// Retail also constructs+destructs a throwaway version-0 Serializer right at
+// Retail also constructs+destructs an empty version-0 Serializer right at
 // entry (0x14005bd7d/0x14005bd87) before building the real one used for
-// everything else. Verified from the disassembly to have no effect on the
-// stream (ctor/dtor with nothing serialized in between) — omitted here.
-//
-// ⚠ NOT WIRED into the vtable by this file, matching animalwave_serialize.cpp's
-// deliberate choice: standalone has no save/load driver yet, and slot-3
-// wiring is a repo-wide pass (this session has dedicated wire-ser-* agents
-// for exactly that). The retail address is registered below so the wiring
-// pass can find it the same way it finds every other slot-3 body.
+// everything else. It is not free in the stream, and Persist below opens it too.
 //
 // ---------------------------------------------------------------------------
 // +0x60 AVL tree — node layout (0x30 bytes), verified byte-exact from the
@@ -84,7 +76,7 @@
 #include "system/Value.h"   // ENDGAME B.3.4b System caller batch
 #include "system/MemoryAllocator.h"
 #include "Component/exe_bodies.h"
-#include "Game/exe_bodies.h"        // Reimpl_ExternalPtr_Serialize_StringTable, Reimpl_ExternalPtrArray_Serialize
+#include "Game/exe_bodies.h"
 #include "Component/ComponentDescription.h"   // B8 RT2: ::Object::SerializeExternal<ComponentDescription> (the downcast needs it complete)
 
 namespace {
@@ -400,7 +392,7 @@ void TradeComponent::Persist(IO::Stream& stream) {
         TradeBuyOrder* elem = buyOrders._data;
         for (int32_t i = 0; i < itemCount && elem; ++i, ++elem) {
             // The enum through the UINT door (vtable +0x98), as storagedescription.cpp's
-            // SerializeEnum. Retail's own field order: +0x08 before +0x04.
+            // rawMaterialFlags. Retail's own field order: +0x08 before +0x04.
             ser.Serialize(elem->rawMaterialFlags, nullptr);
             ser.Serialize(elem->amount, nullptr);
             ser.Serialize(elem->categoryIndex, nullptr);

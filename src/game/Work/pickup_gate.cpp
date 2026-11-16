@@ -2,8 +2,8 @@
 // Pickup "does the town want this resource?" gate — faithful 1:1 ports of
 // 0x14008d3c0 + its two helpers 0x14012d990 and 0x14012d560.
 //
-// 0x14008d3c0 is called from Pickup::Execute (0x1400f2f00) BEFORE anything else
-// happens; if it answers false the whole pickup is abandoned ("no work available").
+// 0x14008d3c0 is called from Pickup::Execute (0x1400f2f00) after the status test, the
+// carry-capacity check and the citizen-cell computation; if it answers false Execute returns 1.
 #include "Work/exe_bodies.h"
 // It walks the town manager's storage-location list and asks, for each entry:
 // "does this storage location accept this resource category, and can it physically
@@ -11,12 +11,12 @@
 //
 // Type-id cells (ENDGAME B.3.9 D5: read BY CELL through the class's own TypeId(),
 // names recovered from their RegisterType DATA writes via Ghidra xrefs):
-//   0x1401c7ee8 = StorageLocationComponent    (StorageLocationComponent_RegisterType) -- registered
-//   0x1401c7f20 = StorageLocationDescription  (StorageLocationDescription_Register)  -- UNREGISTERED
-//   0x1401c7e78 = StorageComponent            -- registered
-//   0x1401c7cb8 = RawMaterialDescription      -- registered
+//   0x1401c7ee8 = StorageLocationComponent    (StorageLocationComponent_RegisterType)
+//   0x1401c7f20 = StorageLocationDescription  (StorageLocationDescription_Register)
+//   0x1401c7e78 = StorageComponent
+//   0x1401c7cb8 = RawMaterialDescription
 //
-// Sub-callees (all already registered): 0x140006270 Entity_FindComponent_Storage,
+// Sub-callees (called by name): 0x140006270 Entity_FindComponent_Storage,
 // 0x14012cd80 StorageComponent_impl_cd80 (CanAdd). Plus engine dispatch slots
 // 0x140152a90 IBP ctor / 0x140152a98 IsDerivedFrom.
 //
@@ -93,10 +93,7 @@ RawMaterialDescription* PG_FindRawMaterialDesc(ComponentDescription* descObj) {
 // ============================================================
 int StorageLocationComponent::AcceptMask() {
     Description* obj = _description;
-    // 0x1401c7f20 (StorageLocationDescription's own cell) is UNREGISTERED -- the old
-    // PG_Tid raw-.rdata read always failed and fell through to this same
-    // StorageLocationDescription::TypeId() call, so calling it directly is not a
-    // behaviour change (ENDGAME B.3.9 D5 note).
+    // 0x1401c7f20 is StorageLocationDescription's own cell: StorageLocationDescription::TypeId().
     uint32_t tidDesc = StorageLocationDescription::TypeId();
     StorageLocationDescription* desc =
         obj->IsDerivedFrom(tidDesc) ? static_cast<StorageLocationDescription*>(obj) : nullptr;
@@ -178,7 +175,7 @@ bool CitizenBehavior::HasStorageForFast(ComponentDescription* resource, int amou
         const uint32_t mask = static_cast<uint32_t>(slComp->AcceptMask());
         if ((resCat & mask) == 0) continue;
         StorageComponent* stComp = PG_FindComp<StorageComponent>(arr[i].Get());
-        if (static_cast<char>(stComp->CanAdd(resource, amount)))   // 0x14012cd80; the door read AL
+        if (static_cast<char>(stComp->CanAdd(resource, amount)))   // 0x14012cd80; only AL is read
             return true;
     }
     return false;
@@ -201,7 +198,7 @@ bool CitizenBehavior::HasStorageForRetail(ComponentDescription* resource, int am
         StorageComponent* stComp = PG_FindComp<StorageComponent>(ent);
 
         if (PickupGate_Accepts_12d990(slComp, resource)) {
-            if (static_cast<char>(stComp->CanAdd(resource, amount)))   // 0x14012cd80; the door read AL
+            if (static_cast<char>(stComp->CanAdd(resource, amount)))   // 0x14012cd80; only AL is read
                 return true;
         }
     }

@@ -31,7 +31,7 @@
 #include "Object/factory_registration.h"
 #include <cstdint>
 #include <new>
-#include "Component/exe_bodies.h"   // AmbientExternalPtrSerialize_Reimpl (0x1400019a0)
+#include "Component/exe_bodies.h"
 #include "audio/SoundEffect.h"   // B8 RT2: ::Object::SerializeExternal<Audio::SoundEffect> (the downcast needs it complete)
 #include "audio/Audio.h"         // Audio::Scene::PlayEffect3D (the trigger)
 #include "system/Value.h"        // System::Random::RandFloat, System::Time

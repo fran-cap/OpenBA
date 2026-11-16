@@ -6,7 +6,7 @@
 //     [LoadTime] <stage> t=<ms since process start, 1 decimal> thread=<name>[ <detail>]
 //
 // <name> is "main", "loader", another registered role (diag_threads.h: persist,
-// audio, pathfinder, path, render, cull, thread) or "tid<N>" for an unregistered
+// audio, pathfinder, path, render, cull, parallel, thread) or "tid<N>" for an unregistered
 // thread. A stamp marks the START of the step it names; the step's length is the
 // next stamp's t minus this one (on the same thread). The origin is captured by this
 // file's static initialiser, i.e. before main, within a few ms of process start.

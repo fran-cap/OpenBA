@@ -534,8 +534,8 @@ public:
         _dataSource = nullptr;
     }
 
-    // The dialog deletes its controllers in list order, and this one sits before the MapUI (Attach), so the
-    // MapUI is still whole here: retail's sprite goes back on imageOverlay before ~MapUI deletes the sheets.
+    // The dialog deletes its controllers in list order, and this one sits before the MapUI (AddMapWindowTabs), so
+    // the MapUI is still whole here: retail's sprite goes back on imageOverlay before ~MapUI deletes the sheets.
     ~MapWindowController() override {
         if (_map != nullptr) {
             MapWindowClosed(*_map);

@@ -26,7 +26,7 @@
 //      (townMgr(+0xf0)+0x170 row, cat via 0x140088f90, +0xC field), break.
 //
 // Every branch is wired (branches 2 and 4 since review F-177). Branch 3 is NOT
-// a mesh op — 0x14012c3f0 is StatusIcon_Toggle (statusiconcomponent.cpp) and
+// a mesh op — 0x14012c3f0 is StatusIconComponent::SetFlag (statusiconcomponent.cpp) and
 // 0x140002f90 is the StatusIconComponent finder (Ghidra misnames both as
 // MeshInstance ops). It CLEARS icon bit 6 (no-food) while the house has edible
 // stock and bit 7 (no-firewood / cold) while it has fuel — the SET side lives
@@ -60,7 +60,7 @@
 #include <cstdlib>
 #include <cstring>
 #include "Component/exe_bodies.h"
-#include "Action/exe_bodies.h"      // ActRm_StorageSubtract_d150, ActRm_GetResourceCategory_88f90
+#include "Action/exe_bodies.h"      // ResourceCategory (0x140088f90)
 #include "ext/map_overlays/map_overlays.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/MAPOVERLAYS.md): ext.map_overlays
 
 // ---- exe helpers, by retail address ----------------------------------------
@@ -166,7 +166,7 @@ char ResidenceComponent::HeatTick(const System::Time* dt) {
         if (!stack) continue;   // guard (retail assumes every slot has a stack)
 
         // Find the stack's RawMaterialDescription (GetTypeId via vtable+0x10,
-        // then IsDerivedFrom — same idiom as fn_StorageComponent_QueryCount).
+        // then IsDerivedFrom — same idiom as StorageComponent::QueryCount).
         RawMaterialDescription* mat = nullptr;
         {
             int compCount = stack->_subDescCount;
@@ -208,10 +208,6 @@ char ResidenceComponent::HeatTick(const System::Time* dt) {
                 }
             }
 
-            // One line per burn (one per house per burn-duration — low volume);
-            // uncapped so long soak runs show the full consumption sawtooth.
-            // (PERF 2026-09-05: gated -- 800 houses in winter made this unbuffered stderr
-            // line 1.7% of the EntityList phase in the perf build.)
             return 1;
         }
     }

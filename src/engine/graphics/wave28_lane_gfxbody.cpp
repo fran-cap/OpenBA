@@ -6,9 +6,7 @@
 // Every one of these ten is a CALLEE that WAVE 27 lane GFXBIG's three bodies
 // introduced into the `called` column (WAVE27_LANE_GFXBIG.md §11.1). They were
 // always in the DLL and always unported; porting a body that names them is what
-// made them visible. Each already has a name door in the tree — an
-// `RT_EXPORT_ONCE` inside `wave27_lane_gfxbig.cpp` — so the registrations at
-// the bottom of this file are LIVE the moment they land, not inert.
+// made them visible.
 //
 //   | Export                                        | Retail      | Ord  | Bytes |
 //   |-----------------------------------------------|-------------|------|-------|
@@ -25,10 +23,10 @@
 //
 // ADDRESSES AND ORDINALS: `pefile` over the export directory of the shipped
 // C:\GOG Games\Banished\Runtime-x64.dll, read before a line of this file was
-// written (reference_resolveexport_phantom_names.md).
+// written.
 //
-// EXTENTS: NOT quoted from a single `.pdata` row, which is a LOWER bound
-// (reference_pdata_is_a_lower_bound_on_function_extent.md). Five of these ten
+// EXTENTS: NOT quoted from a single `.pdata` row, which is a LOWER bound.
+// Four of these ten
 // are assembled from CHAINED fragments and the first fragment understates them
 // badly — `UpdateNodes` by 17x (126 bytes of a 2191-byte body). The extents
 // above come from walking `.pdata` forward while `UNW_FLAG_CHAININFO` (0x4) is
@@ -68,8 +66,8 @@
 // lifted: RVA 0x1fe728 lies BEYOND `.data`'s SizeOfRawData, i.e. in the
 // uninitialised tail, so there are no bytes in the file to read and a port that
 // baked in "the constant" would have baked in ZERO (WAVE27_LANE_GFXBIG.md §4).
-// ENDGAME B.3.9 SS1 (B39_RULES D7): the class static now (redirect in SYS's
-// *PortInit); the `engine_funcs.cpp` global this used to read is dropped.
+// ENDGAME B.3.9 SS1 (B39_RULES D7): the class static `System::Timer::_secondsPerTick`
+// (system/timer.cpp).
 
 namespace rtgfxbody28 {
 
@@ -79,8 +77,7 @@ using RtGraphics::MaterialTexture;
 // ---------------------------------------------------------------------------
 // Attendance. Counts the DOOR and, separately, the BRANCH that does the work:
 // `calls=0` and `calls=N with the interesting arm never taken` are different
-// findings and an entry counter cannot tell them apart
-// (reference_calls_zero_can_mean_always_took_the_uncovered_branch.md).
+// findings and an entry counter cannot tell them apart.
 // ---------------------------------------------------------------------------
 void Attend(const char* what, unsigned long long& n) {
     ++n;
@@ -122,7 +119,7 @@ unsigned long long g_cameraAssignCalls = 0;
 // it is passed STRAIGHT THROUGH to the callee — RDX is never written between
 // entry and the call. An `fn_*` typedef that omitted the slot would be a wild
 // write that still returned the right answer, because RAX comes back holding
-// the slot address either way (reference_hidden_retslot_wild_write.md). Both
+// the slot address either way. Both
 // mangled names spell `?AVString@System@@` as the return, so this is read off
 // the EXPORT TABLE, not guessed from a call site.
 //
@@ -152,8 +149,7 @@ namespace {
 
 // `MOV RAX,[RCX+0x28] / MOVSXD RCX,<idx> / MOV RCX,[RAX+RCX*8]` — the pass
 // pointer array. MOVSXD, not a zero extension: Ghidra's C prints a MOVSXD as an
-// unsigned widening and that has cost this project real defects
-// (reference_ghidra_c_output_vs_disassembly.md). A negative pass index indexes
+// unsigned widening and that has cost this project real defects. A negative pass index indexes
 // BACKWARD in retail and does so here too.
 //
 // B.4: `Material::_passes` (+0x28) is `Array<ExternalPtr<Video::VideoProgram>>`
@@ -180,9 +176,9 @@ inline const Video::PixelProgram* PassShaderProgram(const Graphics::Material* ma
 // match does it fall into the second half, an inlined `strcmp`.
 //
 // *** THE LENGTH TEST IS LOAD-BEARING AND IT IS WHAT MAKES THIS SAFE TO PORT. ***
-// reference_uniform_population_is_not_a_verification.md records a ported inline
-// strcmp that returned 0 for every distinct pair sharing a first byte, and a
-// shared BST find then matched everything. The loop below was therefore traced
+// A uniform population cannot tell a wrong port from a right one: a ported inline
+// strcmp that returned 0 for every distinct pair sharing a first byte passed its
+// oracles, and a shared BST find then matched everything. The loop below was therefore traced
 // by hand against the bytes rather than recognised:
 //
 //   180102f9f: MOVZX ECX,BYTE PTR [R8]        ; c = a[0]
@@ -294,13 +290,13 @@ int32_t FindByName(const Element* data, int32_t size, const System::String* quer
 // AnimationState.h, 2026-09-12), +0x58 duration, +0x08 eventCount. This body's
 // `this` reads EVERY ONE OF THOSE SIX at exactly those offsets and uses them in
 // the same roles. Two bodies reached from opposite directions agreeing on six
-// offsets is a far stronger statement than either alone, and it is the reason
-// this file reuses `AnimationClipPrefix` rather than minting a new struct.
+// offsets is a far stronger statement than either alone. The body reads them
+// as `Graphics::Animation`'s own fields (Animation.h).
 //
 // The one field it ADDS is +0x00: lane GFXBIG left it as `_head_00[8]` with "no
 // reader in Update". It is the EVENT ARRAY BASE (`MOV RDX,[R15]` at
 // 0x1800fa9f0), walked with stride 0x10 against the +0x08 count. So +0x00/+0x08
-// are a `Collection::Array<AnimationEventEntry>` data/size pair.
+// are a `Collection::Array<Event>` data/size pair (`Animation::_events`).
 //
 // THE EVENT TIME IS COMPUTED, NOT STORED, and the float association order is
 // retail's exactly:
@@ -347,8 +343,7 @@ int32_t FindByName(const Element* data, int32_t size, const System::String* quer
 // THE DISPATCH IS A VIRTUAL CALL ON SLOT 8 (`CALL QWORD PTR [RAX+0x40]`,
 // 0x1800faa5e) with RCX = the event object and RDX = the Transform& — the
 // SECOND parameter is forwarded and the two System::Time& are NOT. Ghidra's C
-// drops whole arguments at a mistyped vtable call
-// (reference_ghidra_c_output_vs_disassembly.md); this was read off the
+// drops whole arguments at a mistyped vtable call; this was read off the
 // instruction, where RDX is reloaded from R13 (the spilled RDX) immediately
 // before the call and nothing writes R8/R9.
 //
@@ -422,10 +417,9 @@ namespace {
 // AEAA means private, not unexported). It is a plain `SetSizeCore`
 // instantiation of stride 0x1f0 / align 8 whose element assign (0x18001be60)
 // and element destroy (the eh-vector iterator at 0x18007ec98 over `+0x1c0`) are
-// THEMSELVES unexported. array.cpp's Wave 27 `kSpec_DrawGroup1f0` row already
-// opened all three doors (array_internal.h), so ENDGAME B.3.2 step 2 bridges
-// the call below through that row on the real `Collection::Array<
-// RendererDrawGroup>` member instead of resolving 0x1800638e0 by address here.
+// THEMSELVES unexported. array.cpp's `kSpec_DrawGroup1f0` row (array_internal.h)
+// supplies the element assign and destroy, and the grow below runs through that
+// row on the real `Collection::Array<RendererDrawGroup>` member.
 // ----------------------------------------------------------------------------
 namespace {
 
@@ -538,32 +532,29 @@ inline const Graphics::Animation& LayerClip(const Graphics::AnimationState::Laye
 // `Graphics::AnimationState::UpdateRootOnly`, in this file's trailing
 // `namespace Graphics` block — it cannot live here, because everything above is
 // inside `namespace rtgfxbody28` and `Graphics` is its SIBLING, not its child
-// (B34_BRIEFS A.2). Block H1 left the body here because it is wrapped in this
-// lane's attendance counters; the counters stay in the door, where they belong,
-// and the door keeps its name and its registration.
+// (B34_BRIEFS A.2). It counts its blended layers in `rtgfxbody28::g_updateRootLayers`.
 //
 // `AnimationState.h`'s declaration takes `Math::Vector3&` (retail's
 // `AEAVVector3@Math@@`); the body's `out` is that reference's three floats. The
 // three fields the body reads are the real class's: `_layers._size` is the
 // POD's `layerCount` (+0x10) and `_layers._data` its `layers` (+0x08), both
-// welded by AnimationState.h's own `static_assert`s. The LAYER record is still
-// spelled `RtGraphics::AnimationLayer`, because that POD has live users outside
-// this file and B4b-1 keeps it until the last one converts; it is field-for-field
-// `Graphics::AnimationState::Layer` and the header cross-asserts the two.
+// welded by AnimationState.h's own `static_assert`s. The LAYER record is
+// `Graphics::AnimationState::Layer`; it is field-for-field the POD
+// `RtGraphics::AnimationLayer` and the header cross-asserts the two.
 
 // ============================================================================
 // §6.  Camera::operator=  — retail 0x180017c40, ordinal 1060, 460 bytes.
 // ============================================================================
 // NOT ONE OF THIS LANE'S TEN ROWS. It is here because `BeginDrawGroup`'s reuse
 // path is the tree's FIRST caller of it, so porting §4 PUT THIS ROW INTO THE
-// `called` COLUMN (reference_porting_can_grow_the_cutover_surface.md). A lane
+// `called` COLUMN. A lane
 // that opens a gap row and leaves it open has moved work, not done it — and
 // this one is 460 bytes of dword copies.
 //
 // *** THIS IS A MEASURED INSTANCE OF THE PORT-BY-ANALOGY WARNING, AND THE
 // SIBLING IS ALREADY IN OUR TREE. ***
 //
-// `RtGraphics_Camera_CopyCtor` (wave9_lane_gfxd.cpp:184) is the copy CTOR,
+// `RtGraphics_Camera_CopyCtor` (wave9_lane_gfxd.cpp:199) is the copy CTOR,
 // 0x180017a70, and its comment reads "FIFTY-THREE dword copies covering
 // +0x00..+0xd3, then ONE byte at +0xd4". That description is correct FOR THE
 // CTOR. `operator=` is NOT the same body:
@@ -576,15 +567,14 @@ inline const Graphics::Animation& LayerClip(const Graphics::AnimationState::Laye
 //
 // So the CTOR writes `+0x61..+0x63` and `operator=` DOES NOT. +0x60 is the
 // `bool` the default ctor sets with `MOV BYTE PTR [RCX+0x60],1`
-// (wave9_lane_gfxd.cpp:218), and the assignment operator respects its width
+// (wave9_lane_gfxd.cpp:231), and the assignment operator respects its width
 // while the constructor — writing into raw memory, where the padding is
 // meaningless — does not.
 //
 // Writing this body as "the same 53-dword loop as the sibling" would write
 // three bytes retail leaves alone, into a live Camera, every frame. "I checked
 // the sibling" is not a check; the bytes are. THE WRITTEN EXTENT OF A COPY IS A
-// PROPERTY OF THE WRITER, NOT OF THE TYPE
-// (reference_never_written_needs_by_whom.md).
+// PROPERTY OF THE WRITER, NOT OF THE TYPE.
 //
 // The unwritten windows, stated so an oracle does not compare them:
 // `+0x61..+0x63` and `+0xd5..+0xd7` (sizeof is 0xd8; the last store is the byte
@@ -634,8 +624,8 @@ void RtGraphicsWave28GfxbodySummary()  { rtgfxbody28::RtGraphicsWave28GfxbodySum
 
 // ############################################################################
 // ENDGAME B.3.5 step 5, block G — `Graphics::Material`'s and
-// `Graphics::MaterialInstance`'s member bodies, whose live doors are the four
-// functions above. Their own `namespace Graphics { }` block, because a member
+// `Graphics::MaterialInstance`'s member bodies. Their own `namespace Graphics { }`
+// block, because a member
 // definition has to appear in a namespace ENCLOSING the class and `Graphics` /
 // `RtGraphics` are siblings (B34_BRIEFS A.2). The file-local helpers here sit in
 // `rtgfxbody28`'s OWN unnamed namespace, not the global one, so unqualified
@@ -655,9 +645,9 @@ namespace Graphics {
 // object's +0x30 is its pixel `ShaderProgram` (one of the four `ExternalPtr`
 // members `Video::VideoProgram`'s own getters expose, at +0x20/+0x28/+0x30/+0x38).
 //
-// THE CALLER'S RETURN SLOT IS PASSED STRAIGHT THROUGH — `ret` is never written
-// here, only handed on — which is why the member keeps the out-parameter. See
-// the doors' banner above.
+// THE CALLER'S RETURN SLOT IS PASSED STRAIGHT THROUGH — the member returns
+// `System::String` by value and the callee's prvalue is constructed straight into
+// the caller's slot, never copied here.
 //
 // NO NULL CHECK ANYWHERE, and that is not an oversight in retail: the
 // NEIGHBOURING export `?GetConstantCount@Material@Graphics@@` (0x180102880) walks
@@ -665,16 +655,9 @@ namespace Graphics {
 // deliberate in the shipped code and is transcribed rather than "fixed".
 // ---------------------------------------------------------------------------
 // ENDGAME B.3.5 caller batch: both `Video::ShaderProgram::GetConstantName` and
-// `::GetTextureName` are DEFINED members (shader_program_names.cpp:313/326) and
-// both are HIDDEN-RETSLOT doors (B5-12). The conversion is the only shape the
-// brief allows for one — the DOOR BODY MOVED TO THE CALL SITE: exactly one
-// `System::String` is constructed, placement-new'd into the SAME caller storage
-// `ret` that the door pointer used to be handed, from the member's prvalue. That
-// is line for line what `RtVideo_ShaderProgram_GetConstantName` does, minus the
-// indirection, so the refcount arithmetic is unchanged. `ShaderGetNameFn` is gone.
+// `::GetTextureName` are DEFINED members (shader_program_names.cpp:275/288).
 // B.4 acceptance MOD: the member returns by value (retail's signature); the
-// callee's prvalue is constructed straight into the caller's slot, as the
-// placement new into `ret` did.
+// callee's prvalue is constructed straight into the caller's slot.
 System::String Material::GetConstantName(int32_t pass, int32_t index) const {
     return rtgfxbody28::PassShaderProgram(this, pass)
         ->::Video::ShaderProgram::GetConstantName(index);
@@ -695,11 +678,7 @@ System::String Material::GetTextureName(int32_t pass, int32_t index) const {
 // element stride — and `Material.h`'s real class names all of them; the stride is
 // the element type's.
 //
-// `AEBA` is PRIVATE, and this DLL exports its private members
-// (reference_aeaa_is_private_not_unexported.md) — which is also why the two are
-// PUBLIC here for now rather than private: the doors above are `extern "C"` free
-// functions and cannot be friends of the class without a declaration this header
-// does not need.
+// `AEBA` is PRIVATE, and this DLL exports its private members; Material.h declares the two PUBLIC.
 // ---------------------------------------------------------------------------
 int32_t MaterialInstance::FindConstant(const System::String& name) const {
     return rtgfxbody28::FindByName(_constants._data, _constants._size, &name);
@@ -713,7 +692,7 @@ int32_t MaterialInstance::FindTexture(const System::String& name) const {
 // ?UpdateRootOnly@AnimationState@Graphics@@AEAAXMAEAVVector3@Math@@@Z 0x1800fc870
 // ENDGAME B.3.5 block GC. The evidence — the backward loop, the next-layer blend
 // weight, the single-precision delta, and above all "count the stores: Lerp
-// supplies only FOUR of the seven floats" — is in the banner beside the door.
+// supplies only FOUR of the seven floats" — is in the §5 banner above.
 //
 // B.4: on `Layer`'s named fields, the clip through `AnimationGroup::
 // GetAnimation`, the static pose through `AnimationManager::_instances`, and the
@@ -800,7 +779,7 @@ void AnimationState::UpdateRootOnly(float dt, Math::Vector3& rootOffsetOut) {
 // ?BeginDrawGroup@Renderer@Graphics@@  0x180104fd0 -- ENDGAME B.3.5 block GC.
 // The reuse-versus-append split, the `_drawGroupsUsed` cursor (B35_RULES 13
 // item 10, SETTLED by this body) and the hand-derived `kSpec_DrawGroup1f0` bridge
-// are in the banner beside the door.
+// are in the §4 banner above.
 //
 // B.4: on the real Renderer's and RendererDrawGroup's named fields. The append
 // path's stack group is a `RendererDrawGroup`: its implicit constructor is the
@@ -819,8 +798,8 @@ int Renderer::BeginDrawGroup(const Video::RenderBuffer* renderBuffer,
         _drawGroupsUsed = idx + 1;                     // LEA EAX,[RCX+1]
         RendererDrawGroup& g = _drawGroups._data[idx];
         g._renderBuffer = renderBuffer;
-        // ??4Camera@Graphics@@ (0x180017c40): the door body above, by name (it
-        // counts its calls for the [GFXBODY28] line).
+        // ??4Camera@Graphics@@ (0x180017c40): `RtGraphics_Camera_Assign` above, by
+        // name (it counts its calls for the [GFXBODY28] line).
         rtgfxbody28::RtGraphics_Camera_Assign(&g._camera, &drawCamera);
         rtgfxbody28::RtGraphics_Camera_Assign(&g._cullCamera, &cullCamera);
         g._shader            = shader;
@@ -858,7 +837,7 @@ int Renderer::BeginDrawGroup(const Video::RenderBuffer* renderBuffer,
 // ?ApplyEvents@Animation@Graphics@@QEBAXAEBVTransform@Math@@AEBVTime@System@@1@Z
 // retail 0x1800fa9a0 -- ENDGAME B.3.5 block GC. The ordinary and loop-wrap firing
 // windows, the re-read event count and the +0x50 frame-count correction are in the
-// banner beside the door.
+// §3 banner above.
 //
 // B.4: on `Graphics::Animation`'s own fields -- `_events` (+0x00/+0x08),
 // `_startFrame` / `_endFrame` (+0x30/+0x34, the prefix's frameFirst / frameLast),

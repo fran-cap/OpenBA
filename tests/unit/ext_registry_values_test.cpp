@@ -42,7 +42,7 @@ const Ext::ValueKey& K(const char* id) {
 }  // namespace
 
 UNIT_TEST(ext_values_table_shape) {
-    // 25: main's 16, plus show_grid_hue, _saturation, _opacity, _shade and _width (ext_show_grid_test.cpp),
+    // 27: show_grid_hue, _saturation, _opacity, _shade and _width (ext_show_grid_test.cpp),
     // phone_menu_safe_margin (ext_phone_menu_test.cpp), touch_mode_pad_scale / _action_bar_scale /
     // _camera_buttons (ext_touch_mode_test.cpp).
     // better_water_mode (ext_better_water_test.cpp), ao_quality, ao_opacity, foliage_aa_mode and

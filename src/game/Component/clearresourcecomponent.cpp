@@ -5,7 +5,7 @@
 // Handles clearing resources from tiles during construction.
 //
 // Vtable at 0x140162840. Non-trivial override:
-//   Shutdown (0x1401185E0) -- Component_Serialize + two empty serializer blocks
+//   Persist (0x1401185E0) -- Component::Persist + two empty serializer blocks
 //
 // Decompiled from Application-x64.exe using Ghidra.
 

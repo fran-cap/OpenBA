@@ -64,17 +64,17 @@
 // ============================================================
 //   slot 0x1401516b0 Object::Type::Serialize     RtObject_Type_Serialize (object/Type.h)
 //   0x1400f7100 Work::ValidateTask                 Work::ValidateTask (member)
-//   0x1400c5400 task list cleanup                  WorkBase_TaskListCleanup_c5400
-//   0x140002e10 FindComponent (DWORD_1401c80e0)    AttendanceComponent_GetJobHostComponent
+//   0x1400c5400 task list cleanup                  ActionStack::Clear (member)
+//   0x140002e10 FindComponent (DWORD_1401c80e0)    FindComponent<WorkPlaceComponent>
 //   0x14012c3f0 StatusIconComponent::SetFlag       (member)
 //   0x140119470 the weighted recipe pick           PickConsumeRecipe
-//   0x140122e20 InteractComponent node position    InteractNodePosition
+//   0x140122e20 InteractComponent node position    InteractComponent::NodePosition (member)
 //   0x14008d590 / 0x14012d5d0                      PickBestDropTarget / FindBestAdjacentCell
 //   0x140115e60 CitizenComponent::LongTermPlan     (member)
 //   0x14012cf10 StorageComponent::QueryCount       (member)
-//   0x1401193a0 ConsumeProduceAction_helper_93a0   WorkLeaf_ConsumeProduce_93a0
+//   0x1401193a0 ConsumeProduceAction_helper_93a0   ConsumeProduceComponent::CanProduce (member)
 //               (the caller reads the low byte, as retail's AL)
-//   0x14012b310 ConsumeProduceAction_helper_b310   WorkLeaf_ConsumeProduce_b310
+//   0x14012b310 ConsumeProduceAction_helper_b310   ResourceProduceComponent::RequestProduce (member)
 //   0x14009c480 Map::FillZones                     (member)
 //   0x1400bef70 SetupConsumeProduceWorkChain       WorkAct_ConsumeProduceCtor_bef70
 // Object::Internal ctor/dtor (IAT 0x140152768 / 0x140152770) and Work::Serialize
@@ -137,22 +137,9 @@ void ConsumeProduce::Persist(IO::Stream& stream) {
     for (int i = 0; i < ibpCount; i++) {
         ibpArray[i].InternalBasePtr::Serialize(serializer);
 
-        // After deserialize, validate the entity type.
-        //
-        // GUARDED because standalone GENUINELY DIFFERS from retail here, not to paper
-        // over a faithful crash: in retail DAT_1401c7158 is always a live CitizenComponent
-        // type id, but in our build that .rdata slot is registered only when
-        // BANISHED_LIVE_CITIZENAI_CITID is set. That flag GRADUATED 2026-08-26 and is now
-        // default-on (kill-switch =0), so the common case is a live id — but the guard
-        // stays, because the kill-switch still produces a NULL slot and this is
-        // Serialize-side, which autostart never reaches, so a regression here would only
-        // ever surface as a save/load crash. See standalone/reg_citizenai_typeids.cpp.
-        //
-        // When the id is unavailable we KEEP the ref rather than clearing it. Retail's
-        // intent is "drop refs that are not citizen entities"; with no id we cannot tell,
-        // and these refs are citizens in the overwhelming majority, so clearing them would
-        // destroy live state — strictly worse than skipping a check we cannot perform.
-        // Same both-pointer-and-value shape as completetask.cpp's reader.
+        // After deserialize, validate the entity type (CitizenComponent::TypeId()); a ref
+        // that is not a citizen is cleared. Same both-pointer-and-value shape as
+        // completetask.cpp's reader.
         // NOT RETAIL (F-143): null and type tests on the held Internal*, before any
         // downcast to CitizenComponent*; the answer is the same.
         if (!ibpArray[i].IsNull()) {
@@ -191,8 +178,6 @@ void ConsumeProduce::Persist(IO::Stream& stream) {
 // Helpers for Execute
 // ============================================================
 
-// Find a component by type ID on an entity (iterates component list at +0x30/+0x38).
-// Returns the component pointer, or nullptr if not found.
 // Find a DESCRIPTION by type id in an object's child list at +0x28 (count +0x30).
 //
 // This is NOT the same walk as ComponentEntity::FindComponent, and the difference is
@@ -877,7 +862,7 @@ int ConsumeProduce::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
         (void)0;
     }
 
-    // ResetProductionState IS 0x14012b310, and b310 is not a passive "reset": it drives
+    // RequestProduce IS 0x14012b310, and b310 is not a passive "reset": it drives
     // the ResourceProduce state machine 13 -> 14 (PAUSED). State 14's enter calls
     // SetAccepting(wpc, false), which raises the "work is disabled at this location"
     // sign AND evicts the entire worker roster — permanently, because state 14 has no
@@ -1082,7 +1067,7 @@ int ConsumeProduce::Validate() {
 
 // ============================================================
 // GetTarget (0x1400e8fb0) -- vtable slot 10
-// Returns the target position from the entity's position component.
+// Returns the workplace's profession (WorkPlaceComponent +0x48).
 // Hidden return ptr ABI: RCX=self, RDX=retbuf
 // ============================================================
 Profession** ConsumeProduce::GetTarget(Profession** retbuf) {
@@ -1100,14 +1085,15 @@ Profession** ConsumeProduce::GetTarget(Profession** retbuf) {
 }
 
 // Slot11 (+0x58) — retail 0x14002a0f0 is `return 0 < *(int*)(self + 0x60)` (the shared
-// body ClearStorage also uses: tree count at +0x60, not the +0x50 the generic
-// Work_Slot11_HasActiveTasks reads). Was pinned to 0 by Work_SlotRet0 (2026-09-05).
+// body ClearStorage also uses: tree count at +0x60, not the +0x50 the shared GetPriority
+// 0x140029860 reads). Was pinned to 0 by Work_SlotRet0 (2026-09-05).
 int ConsumeProduce::GetPriority() {
     return _slotCitizens._size > 0 ? 1 : 0;
 }
 
-// Slot12 (+0x60) — retail 0x1400e9010, this class's own `RET 0` (every other Work
-// table shares 0x140006b10). The same behaviour; declared so the table matches.
+// Slot12 (+0x60) — retail 0x1400e9010, this class's own `RET 0` (LocationWork and Pickup
+// have their own [12] too; the other Work tables share 0x140006b10). The same behaviour;
+// declared so the table matches.
 void ConsumeProduce::Slot12(int /*version*/) {}
 
 // ============================================================

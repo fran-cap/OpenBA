@@ -23,7 +23,7 @@
 
 // ENDGAME B.3.5 batch K1: the runtime type headers come FIRST — they reach
 // src/engine/volume/Volume.h, whose global-scope `struct Rectangle` is hidden by
-// <wingdi.h>'s `Rectangle()` once <windows.h> has been seen through resolve.h.
+// <wingdi.h>'s `Rectangle()` once <windows.h> has been seen.
 #include "Game/WorldGeometry.h"
 #include "Game/WorldGeometryElements.h"
 #include "graphics/Geometry.h"
@@ -36,7 +36,7 @@
 #include "system/Value.h"
 #include "object/External.h"
 #include "Game/exe_bodies.h"
-#include "Work/exe_bodies.h"      // WorkBase_TreeNodeFree_14c30 (0x140014c30)
+#include "Work/exe_bodies.h"      // WorkBase_TreeNodeFree (0x140014c30)
 #include "math/Math.h"
 #include "volume/Volume.h"        // RtVolume_Frustum_MulTransform3
 #include "volume/frustum_cull.h"  // CULLROUTE: the prepared table (Contains, retail 0x1800f8e80)

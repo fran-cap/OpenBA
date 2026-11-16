@@ -29,7 +29,7 @@ namespace MapOverlays {
 // ---- state (map_overlays_town.cpp) -------------------------------------------------------------------------
 extern bool g_on;                    // the row is active for this game
 
-History& Town();                     // the town's history (saved)
+History& Town();                     // the town's history (saved; save_state.cpp)
 const SaveTail::StateCodec& Codec(); // save_state.cpp
 
 // GameUpdateLoop::Update, once per frame: reads the lock into g_on, the map size and the calendar month

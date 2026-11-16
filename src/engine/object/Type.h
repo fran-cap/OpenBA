@@ -19,11 +19,10 @@
 //   * `??BType@Object@@QEBAIXZ` is its `operator unsigned int` (the
 //     type_system.cpp banner quotes it).
 //
-// Only the layout and the conversion are declared. `Serialize` keeps its
-// registered free-function door in type_system.cpp (the Object owner's file)
-// and is not re-declared as a member here: no caller needs it, and declaring
-// a member nobody defines in a header another block owns is the wrong place
-// to start that class.
+// Only the layout and the conversion are declared. `Serialize` is the free
+// function `RtObject_Type_Serialize` in type_system.cpp (the Object owner's
+// file, declared at the bottom of this header) and is not re-declared as a
+// member here.
 //
 // A VALUE TYPE: trivially copyable and trivially destructible, asserted, so a
 // `Type` in a raw hidden-return slot is written with one dword store exactly
@@ -56,11 +55,10 @@ static_assert(std::is_trivially_destructible<Type>::value, "value type, no teard
 
 }  // namespace Object
 
-// ==== B3R W0-P0c: Runtime bodies reached by retail address ====
-// ENDGAME B.3R (B3R_RULES R5): each body below is registered at the retail
-// address in its trailing comment and read through the registry today. It is
-// declared here, copied from its definition (linkage, namespace, types), so the
-// reader can call it by name. Nothing calls it through this declaration yet.
+// ==== B3R W0-P0c: Runtime bodies called by name ====
+// ENDGAME B.3R (B3R_RULES R5): each body below carries its retail address in its
+// trailing comment. It is declared here, copied from its definition (linkage,
+// namespace, types), so the reader can call it by name.
 
 namespace IO { class Serializer; }
 

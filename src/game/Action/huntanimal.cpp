@@ -21,8 +21,8 @@
 //
 // Field layout (0x40 bytes):
 //   +0x00-0x1F: Action base (vtable, Internal base, entity ptr, status byte)
-//   +0x20: void*    animalEntity   (InternalBasePtr -- the animal being hunted)
-//   +0x28: void*    herdEntity     (InternalBasePtr -- the herd the animal belongs to)
+//   +0x20: void*    _hunt          (InternalBasePtr -- the HuntComponent)
+//   +0x28: void*    _hunter        (InternalBasePtr -- the hunting citizen)
 //   +0x30: void*    corpseEntity   (InternalBasePtr -- unused/zeroed field)
 //   +0x38: uint8_t  huntStarted    (flag: 0=not started, 1=hunt completed)
 //
@@ -31,7 +31,7 @@
 #include "HuntAnimal.h"
 #include "object/TypeInfo.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
-#include "Action/exe_bodies.h"   // HuntIsReady, QueryNearestCharacter, RemoveAnimalActions, HerdStartMigration
+#include "Action/exe_bodies.h"   // RemoveAnimalActions
 #include "Game/Map.h"
 #include "Component/AnimalComponent.h"
 #include "Component/CharacterComponent.h"
@@ -39,8 +39,8 @@
 #include "Component/ModelComponent.h"
 #include "Component/Description.h"
 #include "Entity/ComponentEntity.h"
-#include "Work/exe_bodies.h"     // WorkGrid_FindCell_9ccf0, WorkBase_ValidateCell_a00f0
-#include "Game/exe_bodies.h"     // Reimpl_MapGetTerrainPos
+#include "Work/exe_bodies.h"
+#include "Game/exe_bodies.h"
 #include "Game/exe_constants.h"  // kRdata_*
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch C
 #include "math/Math.h"
@@ -58,20 +58,20 @@
 
 // ============================================================
 // Helpers, called by name (B3R)
-//   0x140122a80 ActHunt_IsAnimalReady_2a80 (HuntAnimal_helper_2a80) -- checks if animal has
+//   0x140122a80 HuntComponent::IsReady -- checks if animal has
 //               been held long enough: entity's time at +0x50 >= description's holdTime * 300.0
-//   0x140092260 Pf_SpatialProximityQuery_92260 -- spatial entity query (finds nearby entity
+//   0x140092260 CharacterGrid::QueryNearestCharacter -- spatial entity query (finds nearby entity
 //               matching criteria): gridPtr, outResult, position, radius, typeId, outIBP
-//   0x140005500 ActHunt_FindComponent_5500 -- get model component from entity
-//   0x14009ccf0 WorkGrid_FindCell_9ccf0 -- find path cost between two grid cells
+//   0x140005500 ComponentEntity::FindComponent<AnimalComponent> -- get the AnimalComponent from entity
+//   0x14009ccf0 Map::FindCell -- find path cost between two grid cells
 //               (mapPtr, fromCell, toCell, flags 0xe1f)
-//   0x1400a00f0 WorkBase_ValidateCell_a00f0 -- check path validity (mapPtr, flags 0xe1f, cell,
+//   0x1400a00f0 Map::ValidateCell -- check path validity (mapPtr, flags 0xe1f, cell,
 //               destCell)
-//   0x14009f3e0 Reimpl_MapGetTerrainPos (CharacterComponent_impl_f3e0) -- grid pos to world pos
-//   0x1400bbea0 Pf_RemoveAnimalCtor_bbea0 (RemoveAnimal_Action_Ctor) -- creates the corpse /
-//               removal action: herdIBP, animIndex(-1), worldPos, fromCell, corpseIBP, descPtr, flags
-//   0x1400227e0 ActHunt_FindComponent_27e0 -- finds HerdComponent from entity's component list
-//   0x140122340 Pf_HerdStartMigration_122340 -- triggers herd migration after kill
+//   0x14009f3e0 Map::GetTerrainPos -- grid pos to world pos
+//   0x1400bbea0 RemoveAnimalActions -- creates the corpse /
+//               removal action: citizenIBP, task(-1), worldPos, fromCell, animal, description, gate
+//   0x1400227e0 ComponentEntity::FindComponent<WildAnimalComponent> -- its herd is the HerdComponent
+//   0x140122340 HerdComponent::StartMigration -- triggers herd migration after kill
 //
 // ENDGAME B.3.9 CB: the two "TypeInfo for slots 1/2" reads that sat here are gone.
 // Retail's only readers of HuntAnimal's record are its own slots -- the type-id cell
@@ -85,8 +85,8 @@
 
 // ============================================================
 // Slot 3: Serialize (0x1400c8260)
-// Serializes: status(+0x18), animal entity(+0x20) with type check,
-//             herd entity(+0x28) with type check, huntStarted flag(+0x38).
+// Serializes: status(+0x18), hunt component(+0x20) with type check,
+//             hunting citizen(+0x28) with type check, huntStarted flag(+0x38).
 // ============================================================
 void HuntAnimal::Persist(IO::Stream& stream) {
     Action::Persist(stream);   // inlined in retail: Serializer(stream, 0), status +0x18
@@ -239,7 +239,7 @@ void HuntAnimal::Enter(ActionStack*, const System::Time*) {
     if (foundCellY >= mapSize) foundCellY = mapSize - 1;
     int fromCell = mapSize * foundCellY + foundCellX;
 
-    // LEFT: 0x14009ccf0 / 0x1400a00f0 are declared in Work/exe_bodies.h (WORK) taking int*.
+    // 0x14009ccf0 / 0x1400a00f0 are Map::FindCell / Map::ValidateCell (Game/Map.h).
     Map* mapGrid = map;
 
     // Check path cost between the two cells

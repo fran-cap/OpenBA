@@ -100,11 +100,11 @@ bool ClimateGenerator::Serialize(IO::Stream& stream) {
     s.Serialize(precipitation, nullptr);
     s.Serialize(windSpeed, nullptr);
 
-    // Serialize climate data block: 0x30 (48) floats = 0xC0 bytes at +0x44 — declared
-    // uint8_t[0xC0]: reinterpret to float* per the float-array door
+    // Serialize climate data block: 0x30 (48) floats = 0xC0 bytes at +0x44
     s.Serialize(0x30, _climateData, nullptr);
 
-    // Serialize float fields at end: field104(+0x104), field108(+0x108), field10C(+0x10C)
+    // Serialize float fields at end: _rainBiasScale(+0x104), _tornadoIntervalYears(+0x108),
+    // _tornadoRarity(+0x10C)
     s.Serialize(_rainBiasScale, nullptr);
     s.Serialize(_tornadoIntervalYears, nullptr);
     s.Serialize(_tornadoRarity, nullptr);

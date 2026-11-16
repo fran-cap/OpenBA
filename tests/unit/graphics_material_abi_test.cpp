@@ -2,10 +2,10 @@
 // tests/unit/graphics_material_abi_test.cpp — ENDGAME B.3 step 5, block G
 //   the four `Graphics` material/mesh resource classes as real C++ classes
 //
-//   Graphics::Material      : Object::External,         abstract, 0x38,  9 slots
-//   Graphics::MaterialInstance : Object::External,       abstract, 0x60,  9 slots
-//   Graphics::GraphicsMesh  : Object::CompiledExternal,  abstract, 0x98,  9 slots
-//   Graphics::EdgeMesh      : Object::External,          abstract, 0x180, 9 slots
+//   Graphics::Material      : Object::External,         concrete, 0x38,  9 slots
+//   Graphics::MaterialInstance : Object::External,       concrete, 0x60,  9 slots
+//   Graphics::GraphicsMesh  : Object::CompiledExternal,  concrete, 0x98,  9 slots
+//   Graphics::EdgeMesh      : Object::External,          concrete, 0x180, 9 slots
 //
 // The sibling of `graphics_animation_abi_test.cpp` (block H1) and
 // `graphics_geometry_abi_test.cpp` (block E), and it is built to the same
@@ -13,8 +13,8 @@
 //
 // PART A — LAYOUT. Every size, alignment and field offset the four headers
 //   claim, measured as well as `static_assert`ed, plus the cross-asserts against
-//   the PODs that still describe the same bytes (`RtGraphics::MaterialInstance`,
-//   `RtGraphics::EdgeMesh`, `RtGraphics::GraphicsMeshView`, `RtGraphics::MeshNode`).
+//   the PODs that still describe the same bytes (`RtGraphics::VideoBufferHeader`,
+//   `RtGraphics::TriangleVertex`, `RtGraphics::EdgeVertex`).
 //   It also pins the one structural fact the conversion rests on: each class's
 //   own fields begin at exactly `sizeof(base)` — no tail-padding reuse, no
 //   second vptr — and that `GraphicsMesh`'s base is `Object::CompiledExternal`
@@ -24,10 +24,7 @@
 //
 // PART B — SLOT ORDER. Probe subclasses declared in retail slot order, whose
 //   GCC vtable is read back by BYTE OFFSET and compared against the member each
-//   index is supposed to name. This is the claim that licenses the conversion to
-//   coexist with the MINTED tables in `standalone/rt_data_mint_tables.inc`: an
-//   object wearing a hand-built `void*[]` at retail byte offsets and one wearing
-//   GCC's table are interchangeable slot for slot, in BOTH directions.
+//   index is supposed to name.
 //
 //   *** SLOT 4 IS THE INTERESTING ONE, AND IT IS SHARED, NOT OVERRIDDEN. ***
 //   All four classes INHERIT `?Compile@External@Object@@` (0x1800066e0) at slot
@@ -47,13 +44,12 @@
 // PART D — THE QUALIFIED CALL (B34_BRIEFS A.1), on the same probe shape the
 //   other two block tests use: a door delegates with
 //   `reinterpret_cast<Ns::C*>(self)->Ns::C::Method(args)` and the `Ns::C::` is
-//   load-bearing, because a live object in this build wears a MINTED table whose
-//   slots resolve back to those very doors.
+//   load-bearing when the object's table routes that slot back to the door
+//   itself, as the hand-built table in the PART D test does.
 //
 // WHAT IS *NOT* PROVEN HERE. Nothing about MSVC and nothing about the ported
 // bodies. `src/engine/graphics/material.cpp`, `graphicsmesh_vtable.cpp`,
-// `edgemesh_vtable.cpp` and `mesh.cpp` all stand on `RegisterRuntimeExport` /
-// `RT_DATA_SLOT` / `ResolveAddr` and cannot link into a host test, so the
+// `edgemesh_vtable.cpp` and `mesh.cpp` are not in `UNIT_TREE_SRCS`, so the
 // classes' out-of-line key-function bodies are defined AS MARKERS at the bottom
 // of this file — which is also what makes GCC emit their vtables in this
 // translation unit so the probes can raw-call every slot. The serializers and
@@ -71,13 +67,9 @@
 
 #include "graphics/Material.h"
 #include "graphics/GraphicsMesh.h"
-// `Mesh.h` is included HERE and not from `GraphicsMesh.h`, so this file can
-// cross-assert the real class against lane E's `RtGraphics::GraphicsMeshView` /
-// `RtGraphics::MeshNode` overlays. `GraphicsMesh.h`'s include banner records why
-// it cannot do that itself: `Mesh.h` and `AnimationState.h` each define
-// `RtGraphics::InterpolatedTransform` with different members, so no translation
-// unit may include both, and `GraphicsMesh.h` has to reach
-// `src/engine/graphics/animationstate.cpp`.
+// `Mesh.h` is included HERE and not from `GraphicsMesh.h`: it declares
+// `Graphics::EdgeMesh` and the `RtGraphics::VideoBufferHeader` / `TriangleVertex` /
+// `EdgeVertex` PODs the EdgeMesh checks below use.
 #include "graphics/Mesh.h"
 
 #include <cstdint>
@@ -296,8 +288,7 @@ UNIT_TEST(graphics_material_qualified_call_does_not_reenter_the_door) {
     MaterialProbe probe;
     void* raw = static_cast<void*>(&probe);
 
-    // A hand-built nine-entry table, the shape `rt_data_mint_tables.inc` stamps,
-    // with slot 3 pointing at the door.
+    // A hand-built nine-entry table with slot 3 pointing at the door.
     const void* minted[10] = {};   // nine retail slots = ten compiler entries
     const void* const* real = VTableOf(raw);
     for (int i = 0; i < 10; ++i) minted[i] = real[i];
@@ -364,11 +355,6 @@ UNIT_TEST(graphics_materialinstance_layout) {
     CHECK((std::is_base_of<Object::External, Graphics::MaterialInstance>::value));
     CHECK((!std::is_base_of<Object::CompiledExternal, Graphics::MaterialInstance>::value));
     CHECK(!std::is_abstract<Graphics::MaterialInstance>::value);   // concrete since B.3.8 RB (exe table copy 0x14015c400)
-
-    // The POD that still describes the same bytes, and has live users outside
-    // block G's file set, so the two must not drift.
-
-    // The four element types the arrays hold, unchanged by block G.
 
     // `RendererDrawItem::material` is this +0x28 handle BY VALUE (B35_RULES
     // section 4), so the handle has to be the eight trivially-copyable bytes an
@@ -527,13 +513,6 @@ UNIT_TEST(graphics_edgemesh_layout) {
     // destructor, since B3X W1 the virtual destructor.
     CHECK(!std::is_abstract<Graphics::EdgeMesh>::value);
 
-    // The four material slots, as retail's four getters name them.
-
-    // The four buffer pairs, as retail's eight `LEA RAX,[RCX+off]` getters name
-    // them. THREE OF THE FOUR WERE NAMED BY GUESS in `RtGraphics::EdgeMesh`
-    // (`_edgeVerts` is the SKIN pair, `_capVerts` is the EDGE pair,
-    // `_extraVerts` is the EDGE-SKIN pair), so the cross-asserts are the point.
-
     // The eight offsets `EdgeMesh::Serialize` dispatches through are each
     // header+0x08 — the `_deviceData` qword. Retail's step 7 order is
     // 0x70, 0x50, 0xb0, 0x90, 0xf0, 0xd0, 0x130, 0x110, i.e. INDEX before VERTEX
@@ -559,8 +538,7 @@ UNIT_TEST(graphics_edgemesh_layout) {
     CHECK(std::is_trivially_copyable<Graphics::EdgeMesh::TriangleVertex>::value);
     CHECK(std::is_trivially_copyable<Graphics::EdgeMesh::EdgeVertex>::value);
 
-    // A write through the CLASS is visible at the bytes every
-    // `reinterpret_cast` in mesh.cpp and edgemesh_vtable.cpp reads.
+    // A write through the CLASS lands at the offsets `Mesh.h` static_asserts.
     EdgeMeshProbe probe;
     probe._triangleLists._size = 9;
     probe._edgeLists._size     = 4;
@@ -690,8 +668,9 @@ UNIT_TEST(b39_gfx_graphicsmesh_concrete_ctor_stores_and_both_slot0_arms) {
 // ############################################################################
 // THE OUT-OF-LINE BODIES THE PROBES NEED AT LINK TIME.
 //
-// See the file banner: `src/engine/graphics/material.cpp` holds the real ones
-// and is NOT in `UNIT_TREE_SRCS`, so there is exactly one definition per binary.
+// See the file banner: the real ones are in `src/engine/graphics/` (material.cpp,
+// graphicsmesh_vtable.cpp, edgemesh_vtable.cpp and others), none of them in
+// `UNIT_TREE_SRCS`, so there is exactly one definition per binary.
 // Every body here is a MARKER, deliberately not a reimplementation — this file
 // tests slot order and layout, not the reflection records or the serializer.
 // `GetFileVersion` returns retail's literal 5 / 4 because PART D reads it back.

@@ -12,8 +12,8 @@
 // differs is spelled out.
 //
 // PART A — LAYOUT. Sizes, alignments, every offset the headers claim, the
-//   abstract / virtual-dtor (B3X W1) / single-inheritance claims, and the
-//   ContainerDescription class-vs-POD agreement (DescriptionsBatch1.h).
+//   concrete / virtual-dtor (B3X W1) / single-inheritance claims, and the
+//   RtUI::ContainerDescription alias of the class (DescriptionsBatch1.h).
 //
 // PART B — SLOT ORDER. A probe subclass of each leaf overrides only slot 0.
 //   Its GCC table is read back by BYTE OFFSET and each slot raw-called; the
@@ -27,9 +27,6 @@
 //   `CreateInstance` on every Description (RULE B6-2 hidden return slot), and
 //   slot 7 `Update` on the three Elements that override it (the by-value
 //   InternalPtr<DialogInstance> arrives as a POINTER to the caller's temporary).
-//
-// PART D — THE QUALIFIED CALL. A door reached through a minted table must
-//   delegate `->UI::X::M(…)` or it re-enters itself.
 // ============================================================================
 #include "unit.h"
 #include "slot_check.h"
@@ -249,8 +246,8 @@ const ::Object::BaseTypeInfo* WhoRecord(int tag) {
 // PART A — LAYOUT
 // ===========================================================================
 UNIT_TEST(ui_c4_classes_are_concrete_single_base_with_a_virtual_dtor) {
-    // ENDGAME B.3.9 UI-B: the converted classes are CONCRETE (their own
-    // test below); the rest stay abstract until their commit.
+    // ENDGAME B.3.9 UI-B: all ten classes are CONCRETE (their own tests
+    // below).
 #define C4_CONCRETE(CLS, BASE)                                              \
     CHECK(B39IsConcreteShape<UI::CLS>());                                   \
     CHECK((std::is_base_of<UI::BASE, UI::CLS>::value));

@@ -10,8 +10,7 @@
 // rebuilds the packfile stack from the enabled mods and then RELOADS exactly
 // those already-loaded resources whose compiled asset has moved to a different
 // packfile — leaving everything else alone. It is the whole of "Ok" in the mods
-// menu, and it runs at boot on any install with mods enabled, which is why it
-// is on the cutover closure's critical path.
+// menu, and it runs at boot on any install with mods enabled.
 //
 // Shape, in five acts:
 //
@@ -36,7 +35,7 @@
 // WHAT THIS PORT NEEDED, AND WHAT IT DID NOT OPEN
 // ---------------------------------------------------------------------------
 // Every callee is ALREADY OURS or is ported in this same commit. Enumerated
-// rather than asserted (reference_porting_can_grow_the_cutover_surface.md):
+// rather than asserted:
 //
 //   0x1800be9d0 FindNext           ported, external.cpp
 //   0x180006250 External::GetPath  ported, external.cpp
@@ -147,12 +146,11 @@
 // list is dirty, and a defect anywhere in it is immediately visible as the
 // wrong packfile stack (wrong assets), a resource that vanished (a wrong
 // ForceUnload), or a crash in act 4 (a wrong factory slot). The
-// `BANISHED_AUTOMENU_BUTTON=7` mods route in CLAUDE.md drives it end to end.
+// `BANISHED_AUTOMENU_BUTTON=7` mods route in the skill `menu-driver` drives it end to end.
 //
 // UNVERIFIED ON AN UNMODDED BOOT: with `_dirty` false the body returns at
 // 0x1800aebdb before doing anything, so a plain autostart run reaches the first
-// instruction and nothing else. `calls=0` is not verification
-// (reference_uncalled_port_is_not_verified.md).
+// instruction and nothing else. `calls=0` is not verification.
 // ============================================================================
 
 #include "platform_file.h"    // Platform::PathAttributes (GetFileAttributesW) — see the banner.
@@ -164,11 +162,7 @@
 
 #include "io/FileSystem.h"
 #include "io/Modification.h"
-// TypeInfo.h MUST come before External.h. External.h:343 includes it from
-// INSIDE `namespace RtObject`, so if it is first seen through that include the
-// guard leaves every name as `RtObject::RtObject::TypeNode`. Including it here
-// at global scope first makes the nested include a no-op and the names come out
-// as `RtObject::TypeNode`.
+// External.h includes TypeInfo.h itself, at file scope.
 #include "object/TypeInfo.h"
 #include "object/External.h"
 #include "system/Filename.h"
@@ -176,7 +170,7 @@
 #include "system/string_internal.h"
 #include "system/MemoryAllocator.h"
 #include "system/WideString.h"
-#include "collection/Collection.h"   // rtpathid::Insert / SubtreeFree, RtColl_ArraySetSizeFill_180028cd0
+#include "collection/Collection.h"   // RtColl_ArraySetSizeFill_180028cd0
 #include "io/Modification.h"         // RtColl_ArrayFilenameDtor_1800098d0
 #include "../collection/set_avl_pathid.h"          // rtpathid::Insert / SubtreeFree, PathIdNode / PathIdSet
 #include "load_time.h"   // [LoadTime] stamps (NOT RETAIL, print-only; block LOADSTAMP)
@@ -197,10 +191,9 @@ namespace {
 using rtpathid::PathIdNode;
 using rtpathid::PathIdSet;
 
-// The reload queue's element is `RtIO::ReloadEntry` (types/io/Modification.h,
-// beside `Mod`): `file` stays the POD -- see the ENDGAME B.3.1 note on the
-// queueing code below, which promotes `entry.file` to the class only for the
-// span where IT constructs and releases it.
+// The reload queue's element is `RtIO::ReloadEntry` (io/Modification.h,
+// beside `Mod`): its `file` is a `System::Filename`, built by the entry's ctor
+// in the queueing code below.
 
 struct ReloadArray {
     ReloadEntry* data;      // [RSP+0x30]
@@ -410,10 +403,6 @@ bool PlatformFileExists(const System::Filename* path) {
 
 }  // namespace
 
-// ============================================================================
-// ?SetupFileSystem@Modification@IO@@QEAAXXZ                 retail 0x1800aebb0
-// ============================================================================
-
 }  // namespace RtIO
 
 // ============================================================================
@@ -450,13 +439,6 @@ void Modification::SetupFileSystem() {
     // (ENDGAME B.3.9 SS1, B39_RULES D7) — read fresh every call, no lazy cache
     // (B9-10).
 
-    // *** `RtIO::` IN FULL, AND THE COMPILER IS WHY. *** This body lives in a
-    // `namespace IO` block (B34_BRIEFS section A.2), and since B.3.4 PACKAGE+FS
-    // commit 4 a bare `FileSystem` there binds to the REAL CLASS
-    // `IO::FileSystem` instead of to the POD the five field reads below use.
-    // That is B34_RULES section 7.2's grep hazard; it presents as a build error
-    // rather than a silent rebind, which is exactly why the rule says to spell
-    // the POD namespace out.
     ::IO::FileSystem* const fsObj = ::IO::FileSystem::_singleton;   // ENDGAME B.3.9 IO (D7): the class static.
     ::Object::ExternalFactory* const extFactory = ::Object::ExternalFactory::_singleton;
     // `Object::Factory::_singleton` is captured HERE, at 0x1800aebef, and used
@@ -465,10 +447,8 @@ void Modification::SetupFileSystem() {
     const ::Object::Factory* const factory = ::Object::Factory::_singleton;
 
     // `?_typeInfo@External@Object@@0VBaseTypeInfo@2@A` + 0x00 — the type id
-    // FindNext filters on. Read through the NAME door so a promotion of the row
-    // is followed rather than the DLL's node being pinned; this is the same
-    // address (0x1801f9b38) `?Type@External@Object@@UEBAIXZ` is two
-    // instructions of.
+    // FindNext filters on, the same address (0x1801f9b38)
+    // `?Type@External@Object@@UEBAIXZ` is two instructions of.
     // ENDGAME B.3.9 OBJ: the class record (the minted one is retired).
     const uint32_t kExternalTypeId = ::Object::External::TypeId();
 
@@ -600,7 +580,7 @@ void Modification::SetupFileSystem() {
                 // 0x180006250 returns into raw3 [RBP-0x79] FIRST, then the
                 // Type() slot (0x1800af052); the entry is built from both
                 // (ReloadEntry's ctor: the copy ctor 0x1800067d0 inlined on
-                // +0x10, _hole04 never written), pushed, and then released in
+                // +0x10, _pad04 never written), pushed, and then released in
                 // reverse declaration order: entry.file (0x1800af0d5), raw3
                 // LAST (0x1800af130). (The tree released raw3 before the push.)
                 const System::Filename raw3 = ext->GetPath();   // 0x1800af044

@@ -5,22 +5,21 @@
 //
 // Faithful ports (Ghidra, Application-x64.exe):
 //   * 0x14012d230 StorageLocationDescription_helper_d230
-//       -> TownRegistry_RegisterStorageLocation(comp)
+//       -> Component::RegisterStorageLocation()
 //       Appends *(comp+0x10) (the owning ENTITY pointer) to the town
 //       storage-location list at townMgr+0x00 (count +0x08, cap +0x0c) via the
-//       grow fn FUN_140003110 (registered). townMgr = *(gameWorld+0xf0).
+//       grow fn FUN_140003110 (SetSizeFill). townMgr = *(gameWorld+0xf0).
 //       NOT an OnAdded vtable slot (an earlier note here claimed that; corrected
 //       2026-07-27). 0x14012d230 appears in NO vtable — its only three xrefs are
 //       the .pdata entry plus StorageLocationDescription_SetupCrossRefs
 //       (0x14014fc70) and its inlined twin impl_d410, both of which register it as
 //       the ENTER handler of StorageLocationComponent state 2. So retail registers
 //       a storage location exactly when that component's state machine ENTERS
-//       state 2, and nowhere else. It is now wired as exactly that (state-2 enter in
-//       storagelocationcomponent.cpp, with helper_d1f0 as the matching state-3 erase),
-//       and the StartTown_WireStorage stand-in stands down when the controller can
-//       beat the resource seeder to it (BANISHED_LIVE_STORAGECTRL + LIVE_SM_ONADDED).
+//       state 2, and nowhere else. It is wired as exactly that (state-2 enter in
+//       storagelocationcomponent.cpp, with helper_d1f0 as the matching state-3 erase);
+//       StartTown_WireStorage (starttown.cpp) runs only the build-complete init.
 //   * 0x140107ff0 BuildDescription_helper_7ff0
-//       -> TownStorage_BuildCompleteInit_7ff0(componentWithEntityAt0x10)
+//       -> Component::BuildCompleteStorageInit() (this = a component with its entity at +0x10)
 //       The BUILD-COMPLETE storage init: finds the entity's StorageComponent,
 //       credits any construction-slot contents to the town stock table
 //       (townMgr+0x170, index via FUN_140088f90), then re-initializes from the
@@ -36,9 +35,9 @@
 //       template live at +0x28 array / +0x30 count, raw pointers).
 //       Phase B: round-robin the matched templates over the storage-location
 //       entities at townMgr+0x00, one unit at a time: accept-check
-//       StorageComponent_impl_cd80 then AddItem FUN_14012d000 (registered),
+//       StorageComponent_impl_cd80 then AddItem FUN_14012d000,
 //       until `count` units placed or no storage accepts.
-//   * 0x1400a1f00 Game_impl_1f00 -> StartTown_SeedStartingResources(startConfig)
+//   * 0x1400a1f00 Game_impl_1f00 -> MapGenerator::SeedStartingResources() (this = startConfig)
 //       Seven Game_SpawnResources calls with masks 0x400/0x800/0x1000/0x200/
 //       0x20/0x40/0x4000 and counts from startConfig+0xfc..+0x114. Verified at
 //       the FUN_1400a3300 call site 0x1400a342b: RCX = RDI = a3300's param_1 =
@@ -47,18 +46,17 @@
 // Row 98 (B7 RES): the private copies of 0x140006270 (FindComponent<StorageComponent>),
 // 0x14012cf10 (StorageComponent::QueryCount), 0x14012c560 and 0x14012cd80 that stood here
 // (their reason -- type ids read from raw .rdata cells resolving null -- went with the
-// cells) are gone: the bodies call ComponentEntity::FindComponent<T>() and StorageCanAdd
+// cells) are gone: the bodies call ComponentEntity::FindComponent<T>() and StorageComponent::CanAdd
 // (0x14012cd80) by name. Every "standalone-inert" skip / bail went with them: retail reads
 // the town manager, the found components, the narrowed descriptions and the template's
 // RawMaterialDescription with no test (0x14012d234-0x14012d250, 0x140107ff0's finds and
 // +0x20 / +0x24 / +0x28 reads, 0x140091660's +0x5c read and its cd80 call, 0x1400a1f0a).
 //
-// Trace: BANISHED_STORAGE_TRACE=1 prints [StorageSeed] lines.
 
 #include <new>
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
-#include "Action/exe_bodies.h"      // ActHunt_DynArraySetCount_3110, ActRm_StorageAdd_d000, ActRm_GetResourceCategory_88f90
-#include "Component/exe_bodies.h"   // StorageComponent_DynArrayResize
+#include "Action/exe_bodies.h"      // ResourceCategory
+#include "Component/exe_bodies.h"
 #include "object/TypeInfo.h"                     // caller batch CB6: Object::Base::Type()
 #include "Game/GameUpdateLoop.h"                // caller batch CB6: the world's named fields
 #include "Component/RawMaterialDescription.h"   // caller batch CB6: TypeId()
@@ -75,7 +73,7 @@
 #include "Component/ComponentDescription.h"
 #include "Component/Description.h"
 #include "Game/MapGenerator.h"             // the start config (GameUpdateLoop::m_mapConfig)
-#include "Game/exe_bodies.h"               // the declarations of this file's bodies
+#include "Game/exe_bodies.h"               // this file's section: forward declarations of Component / MapGenerator
 
 // ============================================================
 // Type-ids: 0x1401c7cb8/7e78/7eb0/79e0 are these four classes' cells (Table 1).
@@ -84,11 +82,11 @@ static uint32_t TidRawMaterialDescription() { return RawMaterialDescription::Typ
 static uint32_t TidStorageDescription()     { return StorageDescription::TypeId(); }
 
 // ============================================================
-// Exe helpers, called by name (all registered in standalone):
-//   0x140003110 ActHunt_DynArraySetCount_3110     (Action/exe_bodies.h)
-//   0x14012d000 ActRm_StorageAdd_d000             (Action/exe_bodies.h)
-//   0x14000f090 StorageComponent_DynArrayResize   (Component/exe_bodies.h)
-//   0x140088f90 ActRm_GetResourceCategory_88f90   (Action/exe_bodies.h)
+// Exe helpers, called by name:
+//   0x140003110 SetSizeFill                       (CitizenBehavior::storageLocations)
+//   0x14012d000 StorageComponent::AddItem         (Component/StorageComponent.h)
+//   0x14000f090 SetSize                           (StorageComponent::storageSlots)
+//   0x140088f90 ResourceCategory                  (Action/exe_bodies.h)
 // ============================================================
 
 static inline CitizenBehavior* TownMgr() {
@@ -123,7 +121,7 @@ static RawMaterialDescription* FindRawMatDescOnTemplate(const ComponentDescripti
 }
 
 // ============================================================
-// 0x14012d230 — TownRegistry_RegisterStorageLocation
+// 0x14012d230 — Component::RegisterStorageLocation
 // ============================================================
 // 1:1: appends the component's owning ENTITY pointer (*(comp+0x10)) to the
 // town storage-location list (townMgr+0x00 base / +0x08 count / +0x0c cap)
@@ -141,7 +139,7 @@ bool Component::RegisterStorageLocation() const {
 }
 
 // ============================================================
-// 0x140107ff0 — TownStorage_BuildCompleteInit_7ff0
+// 0x140107ff0 — Component::BuildCompleteStorageInit
 // ============================================================
 // param = any component whose +0x10 holds the building's entity IBP (retail
 // passes the BuildComponent; the StorageComponent itself works — same layout).
@@ -257,14 +255,14 @@ extern "C" void TownStorage_SpawnResources_91660(CitizenBehavior* townMgr, uint3
 }
 
 // ============================================================
-// 0x1400a1f00 — StartTown_SeedStartingResources(startConfig)
+// 0x1400a1f00 — MapGenerator::SeedStartingResources()
 // ============================================================
 void MapGenerator::SeedStartingResources() {
     CitizenBehavior* townMgr = TownMgr();
     // The seven counts are MapGenerator +0xFC..+0x114.
     const MapGenerator* sc = this;
     // Mask labels corrected 2026-07-19 (binary-verified flag values, see
-    // engine/types/RawMaterialDescription.h): 0x20 = EDIBLE food, 0x40 = FUEL
+    // Component/RawMaterialDescription.h): 0x20 = EDIBLE food, 0x40 = FUEL
     // firewood. The 0x400/0x800/0x1000/0x200/0x4000 class names below are the
     // best current guesses for the remaining start-resource classes
     // (logs/stone/iron/tools/clothing) — amounts and masks are exe-faithful

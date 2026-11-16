@@ -4,7 +4,7 @@
 //
 // Every existing way a panel opens in an unattended run closes it again immediately:
 // panel_staffing_driver.cpp acquires the edit tool, selects the entity, clicks
-// workerCountUp and calls EditTool_CloseInfoDialog on the way out. That is correct for
+// workerCountUp and calls EditTool::CloseInfoDialog on the way out. That is correct for
 // seating, but it means a rendering or layout defect on a panel -- the tavern's squashed
 // barrel icon, say -- can only be seen by a human clicking the building, which an
 // autostart run has nobody to do.
@@ -28,9 +28,7 @@
 //                                           slot 9). Reaches only controllers the
 //                                           DialogInstance itself owns — a controller on
 //                                           an inserted page (the town hall's nomad tab,
-//                                           ImmigrationUI) is NOT found; that one has its
-//                                           own knob, BANISHED_IMMUI_AUTOCLICK (see
-//                                           ui_dialog_stub_factories.cpp). Repeats every
+//                                           ImmigrationUI) is NOT found. Repeats every
 // BANISHED_PANEL_HOLD_CLICK_EVERY=<frames>  (default 300) from the open frame on; a
 //                                           press the controller has nothing to do with
 //                                           is the same no-op as in retail.
@@ -145,9 +143,7 @@ void PanelHoldClick(int frameNum) {
     // NOTE: a controller that lives on an inserted page (the town hall's nomad tab,
     // Dialog/Immigration.rsc -> ImmigrationUI) is not reachable from this walk, and
     // caching its instance across frames is unsafe because the panel re-creates its
-    // controllers (a stale pointer crashed here 2026-09-05). Such a button is pressed
-    // from inside the controller's own update instead: BANISHED_IMMUI_AUTOCLICK in
-    // ui_dialog_stub_factories.cpp.
+    // controllers (a stale pointer crashed here 2026-09-05).
     if (!ctrl) {
         std::fprintf(stderr, "[PanelHold] frame %d: no %s controller on any of %d open dialogs (tid %08x)\n", frameNum, s_ctrl, dialogs, tid);
         std::fflush(stderr);
@@ -285,8 +281,7 @@ Component* FindComp(ComponentEntity* ent, uint32_t tid) {
 
 }  // namespace
 
-// The tool manager (gameupdateloop.cpp hands its `m_toolManager`; its local
-// declaration still spells the parameter void*).
+// The tool manager (gameupdateloop.cpp hands its `m_toolManager`).
 extern "C" void PanelHoldHarness_Tick(PlayerToolManager* entityUI, int frameNum) {
     static int  s_at   = -2;
     static bool s_done = false;
@@ -337,7 +332,7 @@ extern "C" void PanelHoldHarness_Tick(PlayerToolManager* entityUI, int frameNum)
             ComponentEntity* const target = ent;
             entityUI->CenterOnEntity(&dialog, &target);   // 0x140103040
         }
-        // Deliberately NOT calling EditTool_CloseInfoDialog — the whole point is that the
+        // Deliberately NOT calling EditTool::CloseInfoDialog — the whole point is that the
         // panel stays up.
         std::fprintf(stderr, "[PanelHold] frame %d: opened %s panel ent=%p dialog=%p "
                              "(HELD OPEN — capture the window now)\n",

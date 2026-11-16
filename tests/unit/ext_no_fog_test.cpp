@@ -1,9 +1,9 @@
 // ============================================================================
 // tests/unit/ext_no_fog_test.cpp -- ext.no_fog
 // ============================================================================
-// src/ext/no_fog/no_fog.h without the game: the registry row (class A, OFF by default, no lock, the profile
-// keys), a live toggle that is not held by the game's lock, and the fog maximum the seam writes (retail's own
-// value to the last bit with the row off, zero with it on). The seam itself is
+// src/ext/no_fog/no_fog.h without the game: the registry row (class A, ON by default, no lock, the profile
+// keys), a live toggle that is not held by the game's lock, and the fog values the seam writes (retail's own
+// to the last bit with the row off or at fog_distance 0, a fog maximum of zero at 100). The seam itself is
 // WeatherSimulation::BlendLighting (weather_sun.cpp), which needs the running game.
 // ============================================================================
 #include "unit.h"

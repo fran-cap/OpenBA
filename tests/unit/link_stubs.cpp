@@ -104,7 +104,7 @@ int32_t Picking::Scene::Intersect(const Math::Vector3&, const Math::Vector3&, co
 // ============================================================================
 // Review group graphics-anim (tests/unit/review_graphics_anim_test.cpp, F-098 / F-121):
 // src/engine/graphics/animationstate.cpp is linked so the test reads a real
-// AnimationState::Serialize and samples the real Animation::GetPoseAtTime. Three of its
+// AnimationState::Serialize and samples the real Animation::GetPoseAtTime. Four of its
 // neighbours live in files the unit does not link:
 //  * AnimationManager::_singleton (animation.cpp): the class static; the test points it
 //    at a record it builds and restores it after.

@@ -21,8 +21,8 @@
 #include "Component/ComponentDescription.h"
 #include "Entity/ComponentEntity.h"
 #include "object/TypeInfo.h"
-#include "Dialog/exe_bodies.h"      // 0x140101a80 / 0x140102b60
-#include "Tutorial/exe_bodies.h"    // TutWave_SerializeDialogRef (0x140028650), FindDialogByName_Impl
+#include "Dialog/exe_bodies.h"
+#include "Tutorial/exe_bodies.h"    // FindDialogByName_Impl
 #include "Game/PlayerToolManager.h"
 #include <cstdint>
 #include <new>
@@ -162,7 +162,7 @@ void TutorialSetupDialog::Begin() {
             PlayerToolManager* playerController = GameUpdateLoop::_singleton->m_toolManager;
             playerController->ToggleUtilityDialog(entityForFollow);   // 0x140101a80
         } else {
-            // Original: SetEditMode only if IsA(ComponentEntity), but CloseDialog always
+            // Original: SelectTool(nullptr) only if IsA(ComponentEntity), but CloseDialog always
             bool isEntity = basePtr->IsA(ComponentEntity::TypeId());
             if (isEntity) {
                 PlayerToolManager* playerController = GameUpdateLoop::_singleton->m_toolManager;

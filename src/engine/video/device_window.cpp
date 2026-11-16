@@ -7,18 +7,15 @@
 //   SizeWindow, MoveWindow and GetDefaultResolution.
 // ============================================================================
 //
-// PLAN §4.1 decision 1 keeps src/engine/ free of <windows.h> outside a `_win`
-// twin, so these three live here and device_startup.cpp stays portable. The
-// split is not cosmetic: `SizeWindow` and `MoveWindow` are WNDPROC-shaped
+// These three reach the window only through Platform::Window, so this file
+// includes no <windows.h>. `SizeWindow` and `MoveWindow` are WNDPROC-shaped
 // callbacks whose ADDRESSES `PlatformStartup` hands to
 // `Application::RegisterMessageCallback`, so leaving them unported would store
 // a null that `Application::PlatformUpdate` later calls — a crash on the first
 // window resize, long after the code that caused it.
 //
-/// B.4 (R-VIDEO): this TU includes src/engine/video/Device.h AFTER
-// <windows.h> (as buffers_win.cpp does) and the three bodies are the members
-// `Video::Device::SizeWindow` / `MoveWindow` / `GetDefaultResolution` on named
-// fields; the literal offsets and the `extern "C"` C bodies are gone.
+/// B.4 (R-VIDEO): the three bodies are the members `Video::Device::SizeWindow` /
+// `MoveWindow` / `GetDefaultResolution` on named fields.
 // ============================================================================
 
 // Phase D.4 SDL W1: the Win32 calls of all three bodies (GetClientRect, GetWindowPlacement,
@@ -141,8 +138,7 @@ int Video::Device::MoveWindow(void* hwnd, unsigned /*msg*/,
 // The DEVMODEW offsets are confirmed against retail's literals rather than
 // assumed: `dmSize` is written at frame+0x44 (0x1800f7571), `dmPelsWidth` read
 // at frame+0xAC (0x1800f7589) and `dmPelsHeight` at frame+0xB0 (0x1800f7594),
-// and the memset length is 0xDC. All four match the SDK's DEVMODEW exactly, so
-// the real struct is used here instead of a byte blob.
+// and the memset length is 0xDC. All four match the SDK's DEVMODEW exactly.
 //
 // `EnumDisplaySettingsW(nullptr, ENUM_CURRENT_SETTINGS, &dm)` — the -1 at
 // 0x1800f757e is ENUM_CURRENT_SETTINGS. **Its return value is not checked**, so
@@ -155,9 +151,9 @@ int Video::Device::MoveWindow(void* hwnd, unsigned /*msg*/,
 // kept because removing an unreachable branch is how a transcription starts
 // drifting from the thing it transcribes.
 //
-// The stack DisplayMode temp and its `~Array` call (0x1800f75e2) are kept for
-// the reason device_startup.cpp gives for the same pattern in
-// ValidateConfiguration.
+// Retail also builds a stack DisplayMode temp {width, height, empty refresh
+// array} and runs `~Array` on its refresh array at 0x1800f75e2. The array is
+// never filled, so that call frees nothing, and the body here leaves the temp out.
 // ============================================================================
 int Video::Device::GetDefaultResolution(const Adapter& adapter) const {
     // The DEVMODEW set-up, the call and the two reads are Platform::Window's now.

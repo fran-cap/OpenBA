@@ -7,7 +7,7 @@
 // RETAIL (Application-x64.exe, B38_SLOTS.md section 6):
 //   reflected "ScenarioDialog", parent "UI::DialogInstance", ti 0x1401c5558
 //   create 0x140013970 (MemAlloc(0xe8, 8)), createInPlace 0x1400139f0
-//   ctors 0x140078650, 0x1400786b0 (the tree's ScenarioDialog_Ctor), 0x140078750
+//   ctors 0x140078650, 0x1400786b0 (ScenarioDialog::ScenarioDialog), 0x140078750
 //   table 0x14015d2d0, 10 slots:
 //     [0] 0x140013af0 scalar deleting dtor: MemFree(+0xd8), +0xd8/+0xe0 = 0,
 //         ~DialogInstance, MemFree on &1

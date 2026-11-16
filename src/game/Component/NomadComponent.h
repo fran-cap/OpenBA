@@ -4,7 +4,7 @@
 //
 // `NomadComponent` as a real C++ class with a compiler-generated vtable and its
 // state controller as an EMBEDDED MEMBER (B38_RULES.md D1-D6; there is no
-// multiple inheritance). The engine/types POD is a forwarder to this file.
+// multiple inheritance).
 //
 // RETAIL (Application-x64.exe, B38_SLOTS.md §2 and §6, bytes read 2026-09-26):
 //   reflected "NomadComponent", parent "ControllerComponent", ti 0x1401c4640

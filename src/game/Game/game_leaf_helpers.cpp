@@ -1,26 +1,12 @@
 // src/game/Game/game_leaf_helpers.cpp
-// Closure-safe leaf reimplementations for the Game module (Wave: Game gap).
+// Leaf reimplementations for the Game module (Wave: Game gap).
 //
-// These are small, fully closure-safe exe helpers referenced (via guarded
-// ResolveAddr(Module::Exe, ...)) by src/game/Game/{mapgenerator,menuscene,
-// gameupdateloop}.cpp. In standalone the exe is replaced, so each address must
-// resolve to a registered reimpl or the call silently no-ops (leaving arrays
-// unfreed / objects un-destroyed). Each body below is a faithful 1:1 port of the
-// original (decompiled from Application-x64.exe) and depends only on already-
-// resolvable primitives: System::String::~String (Runtime export, fn_String_Dtor),
-// the static MemFree (fn_MemFreeStatic), already-registered tree-free 0x14000e320,
-// and Scene::RemoveGlobalObject (Runtime export).
-//
-// ALL of these run on the shutdown / dtor / teardown path, which the autostart
-// A/B path never reaches — so registering them is purely additive (no world-build
-// regression), it just removes a latent silent-skip.
-//
-// Registered by standalone/reg_game_leaf.cpp.
+// Small exe helpers, each a faithful 1:1 port of the original (decompiled from
+// Application-x64.exe), called by name: Minimap::~Minimap, MenuSceneTreeMap::~MenuSceneTreeMap
+// and WeatherSimulation::Teardown on the shutdown / dtor / teardown path, and
+// Game_TerrainResolveMaterial on the version-0 terrain deserialize path.
 
 // ENDGAME B.3.5 Video/Graphics caller batch: Graphics::Scene is a real class.
-// Ahead of "resolve.h" on purpose — resolve.h pulls <windows.h>, and
-// <wingdi.h>'s global `Rectangle` function hides `Volume::Rectangle`'s class
-// name inside Volume.h's own static_asserts (Geometry.h includes Volume.h).
 #include "graphics/Scene.h"
 #include "object/TypeInfo.h"
 #include "graphics/Camera.h"
@@ -32,16 +18,16 @@
 #include "system/String.h"
 #include "collection/Collection.h"
 #include "object/External.h"   // ENDGAME B.3.3 step 6A
-#include "video/ImageBuffer.h"   // B.3.x W0: Game_ImageCaptureDtor deletes by name
+#include "video/ImageBuffer.h"   // B.3.x W0: Minimap::~Minimap deletes by name
 #include <cstdint>
 #include <initializer_list>
 #include <new>
 #include "Game/exe_bodies.h"
 #include "Game/MapGenerator.h"        // ExternalRef / InitialStructure, the element rows (B4 P2 GAME-1)
-#include "Game/Minimap.h"             // Game_ImageCaptureDtor's class (B.4 GAME-a)
+#include "Game/Minimap.h"             // Minimap::~Minimap's class (B.4 GAME-a)
 #include "Game/MenuScene.h"           // MenuSceneTreeMap (0x14001b860)
-#include "Game/WeatherSimulation.h"   // Game_WeatherDtor's class (B.4 GAME-a)
-#include "Work/exe_bodies.h"   // WorkBase_TreeNodeFree_e320
+#include "Game/WeatherSimulation.h"   // WeatherSimulation::Teardown's class (B.4 GAME-a)
+#include "Work/exe_bodies.h"   // WorkBase_TreeNodeFree (0x14000e320)
 
 // ------------------------------------------------------------------
 // String-array destructors 0x14001b030 (0x18 ExternalRef) / 0x14001b0a0 (0x30
@@ -49,7 +35,7 @@
 // `Collection::Array`s over the rows in mapgenerator.cpp (MapGeneratorRows), so
 // those bodies are the pools' own `~Array`; Game_DestroyStringArray30 and the
 // duplicate rows here had no caller left and are deleted. (0x14000a8a0, the
-// 0x28 event-log entry, is EventLog_EventArray_Destroy in eventlog.cpp.)
+// 0x28 event-log entry, is EventLog::entries' ~Array, over its element row in eventlog.cpp.)
 // ------------------------------------------------------------------
 
 // FUN_14001b030 for BuildingGoal's entry array (~BuildingGoal, 0x140025e80): B4 Y
@@ -57,8 +43,8 @@
 // so the body is that member's own `~Array`; Game_DestroyStringArray18 is deleted.
 
 // FUN_14000a8a0 (gameupdateloop.cpp, EventNotifier_Cleanup) — String at element+8,
-// stride 0x28: EventLog_EventArray_Destroy (eventlog.cpp), called by name; the
-// one-line forwarder Game_EventNotifierCleanup was deleted in B.4 wave X.
+// stride 0x28: the ~Array of EventLog::entries (its row in eventlog.cpp), run by
+// ~EventLog; the one-line forwarder Game_EventNotifierCleanup was deleted in B.4 wave X.
 
 // ------------------------------------------------------------------
 // FUN_140018220 — CharacterGrid::~CharacterGrid (Component/CharacterGrid.h): the five
@@ -121,7 +107,7 @@ void WeatherSimulation::Teardown() {
                 if (scene)
                     scene->RemoveGlobalObject(geom);
                 // Retail: (**(code **)*puVar2)(puVar2, 1) — object -> vtable ->
-                // slot 0. Same one-deref-short bug as Game_ImageCaptureDtor above.
+                // slot 0. Same one-deref-short bug as Minimap::~Minimap above.
                 delete geom;   // slot 0, free
             }
         }
@@ -150,8 +136,7 @@ void WeatherSimulation::Teardown() {
 // Disasm-verified offsets (14001fd10): cmp [RCX+8],factoryGen ; [RBX+0x10]=result
 // ; [RBX+8]=factoryGen. Filename built via the String& ctor (slot 0x140151d68 =
 // fn_Filename_CtorString = ??0Filename@System@@QEAA@AEBVString@1@@Z), Find via
-// ::Object::ExternalFactory::Find. Cascade-safe: if the type slot is unresolved, load
-// without IsDerivedFrom validation rather than dereferencing a null BaseTypeInfo.
+// ::Object::ExternalFactory::Find.
 void Game_TerrainResolveMaterial(MapGenerator::ExternalRef* ref) {
     if (!ref) return;
     if (!::Object::ExternalFactory::_singleton) return;

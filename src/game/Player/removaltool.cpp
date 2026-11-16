@@ -5,8 +5,8 @@
 // Handles building/item removal: selects area, marks entities for removal.
 //
 // Vtable at 0x140161de0 (15 slots). Three are reimplemented here:
-//   Slot0  Dtor     (0x14002e7f0) — scalar deleting destructor
 //   Slot4  Startup  (0x140104bd0) — find RemovalDescription component on entity
+//   Slot8  Draw     (0x140104050) — removal preview overlay
 //   Slot14 CalcCost (0x140103ef0) — calculate removal area dimensions and validate
 //
 // Decompiled from Application-x64.exe.
@@ -160,10 +160,10 @@ static void PushTileEntry(TileArray* arr, const ToolTileRecord* entry) {
 //               Building (tool_base_path.cpp)
 //   0x140101270 PlayerRay_ScreenToCell_101270, 0x1401008c0
 //   PlayerTileRender_DrawOverlay_08c0 (Player/exe_bodies.h)
-//   0x140003050 WorkBase_FindComponent_3050 (Work/exe_bodies.h) -- the parent/owner
-//               entity lookup
-//   0x14012ead0 WorkComponent_CheckWorkSlot (Component/exe_bodies.h) -- the
-//               "marked for destruction" check
+//   0x140003050 FindComponent<WorkComponent> (Entity/ComponentEntity.h) -- the
+//               entity's WorkComponent lookup
+//   0x14012ead0 WorkComponent::IsWorkPosted (Component/WorkComponent.h) -- the
+//               "workId is in the goals tree" check
 // The CanRemove* bodies return uint64_t; the caller reads AL as the bool.
 // ============================================================
 
@@ -328,7 +328,7 @@ void RemovalTool::Draw(Video::Context* ctx, char param3) {
                     }
 
                     if (!canRemove) {
-                        // Check removeBuildings flag (+0x43) and parent entity destruction
+                        // Check the _increasePriority flag (+0x43) and the entity's posted work
                         if (removalDesc && removalDesc->_increasePriority && entity != nullptr) {
                             ComponentEntity* entityForCheck = entity;
 
@@ -377,10 +377,10 @@ void RemovalTool::Draw(Video::Context* ctx, char param3) {
 //     calls RemovalTool_helper_c700 for road validation
 //   - Handles building removal: checks sub_4770/sub_4670, finds parent entities,
 //     checks destruction status via FUN_14012ead0
-//   - Handles crop removal: checks DWORD_1401c8070 component, BST lookup in
-//     GameWorld+0x118 crop tracker, calls CitizenAI_impl_9ad0
-//   - Calls FUN_1400c48a0 (EntityList_RegisterEntity) to register removal markers
-//   - Calls TradeWork_impl_f370 for road count updates
+//   - Handles the +0x43 flag (_increasePriority): finds the WorkComponent, looks its
+//     work id up in the GameUpdateLoop+0x118 WorkScheduler, calls PrioritizeWork
+//   - Calls FUN_1400c48a0 (EntityList::RegisterEntity) to register removal markers
+//   - Calls WorldGeometry::RebuildRoadMesh (0x1400af370) when the road mesh is dirty
 //
 // Original: 0x1401035e0
 // ENDGAME B.3.8 callers: PORTED as RemovalTool::CalcPath in

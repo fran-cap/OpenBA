@@ -40,17 +40,15 @@
 //
 // NOT PORTED HERE, DELIBERATELY: ??0EditElement@UI@@QEAA@XZ (0x1800d0f10), the
 // base-element constructor CreateInstance calls. The *Element constructors
-// belong to the Element files; this one is reached through ResolveAddr, which
-// is registry-first, so it picks up their port the moment it lands.
+// belong to the Element files; this one is EditElement's ctor in EditElement.h.
 //
 // ENDGAME B.3.6 block C3: every slot body is a `UI::NumberEditDescription`
 // member (src/engine/ui/NumberEditDescription.h, the layout above moved out
-// of this file — RULE B6-8). The doors delegate with a QUALIFIED call; the ctor
-// and dtor stay DOOR bodies. CreateInstance writes a real
+// of this file — RULE B6-8). CreateInstance writes a real
 // `UI::NumberEditElement` (EditElement's 0xf8 + `_min`/`_max`).
 // ============================================================================
 
-#include "element_common.h"   // rtuielem::AtomicExport (RULE B6-5), ResolveAddr
+#include "element_common.h"
 #include "ui/NumberEditDescription.h"
 #include "ui/NumberEditElement.h"
 #include "io/Serializer.h"

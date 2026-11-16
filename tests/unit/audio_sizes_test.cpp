@@ -194,8 +194,7 @@ UNIT_TEST(audio_sizes_serializebool_stores_a_valid_bool) {
 // 0x1800e0480) up to and including PlatformSerialize, over a fuzz record. The
 // slot itself is a marker in the unit build (audio_abi_test.cpp); the census and
 // the decode at load that follow it are not reached by these zero formats. The
-// encoding's CreateReader is a stub in the unit build (b39_io_classes_test.cpp),
-// so the Serializer is assembled by hand around a real BinaryReader.
+// Serializer is assembled by hand around a real BinaryReader.
 static void LoadSoundBuffer(Audio::SoundBuffer& buf, ByteStream& s) {
     alignas(8) uint8_t serMem[16] = {};
     IO::Serializer& ser = *reinterpret_cast<IO::Serializer*>(serMem);

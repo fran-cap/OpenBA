@@ -38,15 +38,15 @@
 //   0x14012cf10 StorageComponent_QueryCount        StorageComponent::QueryCount (the member)
 //   0x140115e60 CitizenAI_State_LongTermPlan       CitizenComponent::LongTermPlan
 //   0x140002ed0 Entity_FindComponent_Interact      ComponentEntity::FindComponent<InteractComponent>
-//   0x140122be0 FindWalkablePosition               WorkImpl_WalkablePos_122be0
-//   0x140122b00 FindWalkablePosition (sub)         WorkImpl_WalkablePosRecursive_122b00
+//   0x140122be0 FindWalkablePosition               InteractComponent::FindWalkablePos
+//   0x140122b00 FindWalkablePosition (sub)         InteractComponent::FindWalkablePosRecursive
 //   0x1400bb490 Pathfinding_WalkTowards ctor       CitizenAI_Pathfinding_WalkTowards_bb490
 //               (citizenIBP, priority, position, flag1, fScale, flag2)
 //     ⚠ This read 0x1400f8620 until 2026-08-15 — a DIFFERENT function entirely
 //     (WorkGrid_TryAssignWorkplace). It never fired before because nothing had ever
-//     CONSTRUCTED a LocationWork (see reference_registered_but_never_executed).
+//     CONSTRUCTED a LocationWork.
 //   0x1400f7100 ValidateEntity                     Work::ValidateTask
-//   0x1400c5400 CancelAllWork                      WorkBase_TaskListCleanup_c5400
+//   0x1400c5400 CancelAllWork                      ActionStack::Clear
 //   0x140002e10 FindWorkPlace                      ComponentEntity::FindComponent<WorkPlaceComponent>
 //   0x14017214c g_fUVScale (.rdata, 1.0f)          kRdata_14017214c
 //
@@ -67,7 +67,7 @@ void LocationWork::Persist(IO::Stream& stream) {
     // Create serializer (version=0)
     IO::Serializer serializer(stream, 0);
 
-    // Serialize InternalBasePtr at +0x48 (the member is raw storage, H5: LEFT)
+    // Serialize InternalBasePtr at +0x48
     _assignedCitizen.InternalBasePtr::Serialize(serializer);
 
     // Validate: if _assignedCitizen is non-null, check IsDerivedFrom
@@ -252,8 +252,8 @@ int LocationWork::Validate() {
 
 // ============================================================
 // LocationWork::Slot10 (0x1400efb40) — the entity's (+0x10) WorkPlaceComponent
-// (0x140002e10), its profession (+0x48) into the return slot (void* in Work.h's
-// slot: LEFT). IDENTICAL to HuntWork/PastureWork Slot10.
+// (0x140002e10), its profession (+0x48) into the return slot. IDENTICAL to
+// HuntWork/PastureWork Slot10.
 // ============================================================
 Profession** LocationWork::GetTarget(Profession** outPtr) {
     WorkPlaceComponent* workPlace = _entity->FindComponent<WorkPlaceComponent>();
@@ -266,15 +266,16 @@ Profession** LocationWork::GetTarget(Profession** outPtr) {
 // Slot 5 is Work's (0x1400f7540, `XOR AL,AL; RET`): the old dead
 // LocationWork_Execute_Impl copy of it is gone.
 // ============================================================
-// Slot12 (+0x60) — retail 0x1400efae0, this class's own `RET 0` (every other Work
-// table shares 0x140006b10). The same behaviour; declared so the table matches.
+// Slot12 (+0x60) — retail 0x1400efae0, this class's own `RET 0` (ConsumeProduce and Pickup
+// have their own [12] too; the other Work tables share 0x140006b10). The same behaviour;
+// declared so the table matches.
 void LocationWork::Slot12(int /*version*/) {}
 
 
 // ============================================================
 // LocationWork::Slot11 (0x1400295a0) — checks +0x48 != 0
 // Returns true if target entity reference is non-null.
-// Too small to hook (10 bytes).
+// 10 bytes.
 // ============================================================
 int LocationWork::GetPriority() {
     return _assignedCitizen.Get() != nullptr ? 1 : 0;

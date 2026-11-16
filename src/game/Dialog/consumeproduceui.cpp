@@ -1,9 +1,9 @@
-// engine/src/ui/consumeproduceui.cpp
+// src/game/Dialog/consumeproduceui.cpp
 // Clean reimplementation of ConsumeProduceUI game logic.
 //
 // ConsumeProduceUI (0x40 bytes) — production progress panel.
-// Extends DialogController. data30 = combo element InternalPtr,
-// data38 = progress element InternalPtr.
+// Extends DialogController. +0x30 comboProduct = combo element,
+// +0x38 progressRemaining = progress element.
 //
 // Decompiled from Application-x64.exe.
 
@@ -12,7 +12,7 @@
 #include "object/TypeInfo.h"
 #include "Entity/exe_bodies.h"
 #include "Dialog/exe_bodies.h"
-#include "Action/exe_bodies.h"   // PickConsumeRecipe (0x140119470)
+#include "Action/exe_bodies.h"
 #include "Object/factory_registration.h"
 #include "system/String.h"
 #include <cstdint>
@@ -44,7 +44,7 @@
 // src/game/Dialog/consumeproduceui.cpp were fully ported and wired into NOTHING: the
 // stub vtable left 4/7/9 as no-ops, so the combo was never populated (Slot4), the
 // progress bar never moved (Slot7) and a selection could never be written back to the
-// component (Slot9). Same shape as CemeteryUI directly above.
+// component (Slot9). Same shape as CemeteryUI (cemeteryui.cpp).
 //
 // This is also what kept HappinessComponent's GOODS arm untestable: a tavern with no
 // product makes no ale, IsActive's desc+0x25 arm never finds a matching good, and the

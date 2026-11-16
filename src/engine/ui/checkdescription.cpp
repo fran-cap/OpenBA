@@ -16,23 +16,21 @@
 // plus ??1CheckDescription@UI@@UEAA@XZ (0x180111620).
 //
 // ENDGAME B.3.6 block C1: the bodies are MEMBERS of `UI::CheckDescription`
-// (src/engine/ui/CheckDescription.h); the doors are one-line QUALIFIED
-// delegations.
+// (src/engine/ui/CheckDescription.h).
 //
 // DERIVES FROM UI::ButtonDescription, and the derivation is load-bearing in
 // three places, all of them now MEMBER calls into
 // src/engine/ui/buttondescription.cpp's class — QUALIFIED, because this
 // class's own slot-8 override hides the non-virtual applier and slot 5 would
 // dispatch back here:
-//   Construct/Reconstruct call ??0ButtonDescription (0x180110b10, a door);
+//   Construct/Reconstruct call ??0ButtonDescription (0x180110b10);
 //   Serialize calls ButtonDescription::Serialize (0x1801113e0);
 //   CreateInstance calls ButtonDescription::CreateInstance (0x1801108d0).
 //
-// `??0CheckDescription@UI@@QEAA@XZ` IS exported (0x1801115e0, B36_SLOTS.md
-// section 6) — the old banner here said it was not. Nothing registers it; the
-// kCheckDescription row in src/engine/ui/factory_ui1_tables.inc has
-// `??0ButtonDescription@UI@@QEAA@XZ` as its BASE ctor plus two stores of its
-// own — exactly the two stores `Construct` open-codes below.
+// `??0CheckDescription@UI@@QEAA@XZ` IS exported (0x1801115e0,
+// docs/history/endgame_b/B36_SLOTS.md section 6): `??0ButtonDescription@UI@@QEAA@XZ`
+// as its BASE ctor plus two stores of its own — the real ctor in
+// CheckDescription.h, which `Construct` and `Reconstruct` run below.
 //
 // GetFileVersion is 0x1104, read from this class's own body (0x180111920). Its
 // base returns 0x104. The constant is per class and was read per class.
@@ -56,7 +54,7 @@ namespace UI {
 
 int32_t CheckDescription::GetFileVersion() const { return 0x1104; }
 
-// 0x1800488a0: null test (the DOOR's), base ctor, own two stores, return this.
+// 0x1800488a0: null test, base ctor, own two stores, return this.
 // The two stores are transcribed from 0x1800488c2..0x1800488cc (and
 // identically from 0x180048877..0x180048881 inside Reconstruct); the vtable
 // stamp is retail's own store over the one ??0ButtonDescription just made.

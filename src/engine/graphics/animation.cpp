@@ -17,8 +17,8 @@
 //   | ??1AnimationEvent@Graphics@@UEAA@XZ         | 0x1800a2120 |  526 | PORTED   | structural only |
 //   | ??0AnimationManager@Graphics@@QEAA@XZ       | 0x1800fc430 |   45 | PORTED   | FULL (scratch)  |
 //   | ??1AnimationManager@Graphics@@QEAA@XZ       | 0x1800fc400 |  528 | PORTED   | post-state only |
-//   | ?Update@AnimationManager@Graphics@@...      | 0x1800fc240 | 4473 | HELD BACK | -- see below   |
-//   | ?Serialize@AnimationManager@Graphics@@...   | 0x1800fc190 | 3623 | HELD BACK | -- see below   |
+//   | ?Update@AnimationManager@Graphics@@...      | 0x1800fc240 | 4473 | PORTED   | wave23_lane_gfxbody.cpp |
+//   | ?Serialize@AnimationManager@Graphics@@...   | 0x1800fc190 | 3623 | PORTED   | wave24_lane_gfxmat.cpp |
 //   | ??0Particle@Graphics@@QEAA@XZ               | 0x180103e80 |  298 | PORTED   | FULL (scratch)  |
 //   | ??0ParticleInstance@Graphics@@QEAA@XZ       | 0x180104130 |  300 | PORTED   | FULL (scratch)  |
 //   | ?Update@ParticleInstance@Graphics@@...      | 0x180104180 | 4498 | PORTED   | idempotent replay|
@@ -35,15 +35,15 @@
 // DECISION WAS REVERSED: Wave 23 lane GFXBODY ported and registered all four in
 // src/engine/graphics/wave23_lane_gfxbody.cpp, and vtable batch 6 has since
 // ported the REST of that class's table (slots 1/2/3/5/6/7/8/11) plus its two
-// siblings in src/engine/graphics/imagebuffer_derived.cpp, reaching wave23's
-// ctor through the registry door. The four rows are marked PORTED* here rather
+// siblings in src/engine/graphics/imagebuffer_derived.cpp, which call wave23's
+// ctor directly. The four rows are marked PORTED* here rather
 // than rewritten so that a reader who meets the old claim elsewhere recognises
 // it. The prose below is kept as the HISTORICAL record of why the hold was made
 // and is NOT a current disposition.
 //
 // Every name above was checked against the shipped export directory of
 // C:\GOG Games\Banished\Runtime-x64.dll with pefile BEFORE any body was
-// written (reference_resolveexport_phantom_names.md). All 15 code exports and
+// written. All 15 code exports and
 // both data exports used internally (Object::External::~External, Graphics::
 // Geometry::Geometry/SetBounds) are present; addresses/ordinals above are
 // that query's output, not Ghidra's.
@@ -93,11 +93,11 @@
 // than full visual QA. Serialize is a save-path function serializing the same
 // unpinned AnimationState array -- Wave 5 held back every serializer-
 // constructing function for want of an oracle
-// (reference_slot3_wrapper_must_resolve_first.md: a serializer that consumes
+// (a serializer that consumes
 // the wrong byte count desyncs the stream and surfaces LATER on an innocent
-// record), and this lane applies the same standard. Both stay on the DLL;
-// their exe dispatch slot (0x140152050) and ResolveExport call site
-// (gameupdateloop_serialize.cpp:163) are UNCHANGED by this lane.
+// record), and this lane applies the same standard. Both are ported outside
+// this file: Update in wave23_lane_gfxbody.cpp, Serialize in
+// wave24_lane_gfxmat.cpp.
 //
 // WHAT THIS LEAVES SAFELY PORTABLE
 // ---------------------------------
@@ -121,21 +121,16 @@
 // class), needed because the two non-constructor particle bodies in this file —
 // `ParticleInstance::Update` and `ParticleInstance::IncrementInstanceIndex` —
 // are now its MEMBERS. The header was declared for them by block E and needed no
-// edit. It reaches `Geometry.h` and therefore `Volume.h`, which is safe HERE for
-// the reason this file forward-declares `ResolveAddr` instead of including
-// `standalone/resolve.h`: no `<windows.h>` is in this translation unit, so
+// edit. It reaches `Geometry.h` and therefore `Volume.h`, which is safe HERE:
+// no `<windows.h>` is in this translation unit, so
 // `Volume::Rectangle` does not collide with `<wingdi.h>`'s `Rectangle`.
 #include "graphics/ParticleInstance.h"
 #include "collection/Collection.h"
 #include <new>
 #include "system/MemoryAllocator.h"
 
-// ENDGAME B.3.5 block H1 — the GREP HAZARD this file now lives with. The two
-// `using` lines above bind the PODs at FILE scope, but inside the
-// `namespace Graphics { ... }` block at the bottom of this file a bare
-// `AnimationEvent` / `AnimationManager` binds the REAL CLASS instead. Every POD
-// spelling inside that block is qualified `RtGraphics::` for exactly that
-// reason (B34_BRIEFS section A.7, RULE B4b-5).
+// ENDGAME B.3.5 block H1: the two `using` lines below bind the `RtGraphics`
+// particle records (`ParticleResource`, `ParticleBoundsRecord`) at FILE scope.
 using RtGraphics::ParticleResource;
 using RtGraphics::ParticleBoundsRecord;
 
@@ -152,16 +147,14 @@ namespace {
 
 // ENDGAME B.3.9 block GFX (D7 row A37): `RtFrameIndexSlot` (a lazy
 // function-local ResolveExport cache) is gone -- the cell is the class static
-// `Graphics::ParticleInstance::_frameIndex`, defined at the end of this file
-// and redirected onto the mint's row by RtGraphicsPortInit.
+// `Graphics::ParticleInstance::_frameIndex`, defined at the end of this file.
 
 // Graphics::Geometry::SetBounds(const Volume::Box&) -- retail 0x180015700,
 // ordinal 3836, EXPORTED. Also not this lane's class; called at its own
 // export from ParticleInstance::Update below, exactly as retail does.
 // ENDGAME B.3.5 caller batch: `Graphics::Geometry::SetBounds` is a DEFINED member
-// (scene.cpp:1373), so the `SetBoundsFn` typedef and this wrapper are GONE and
-// `ParticleInstance::Update` calls the member on its own Geometry base. The door
-// stays registered in scene.cpp for callers outside that file.
+// (scene.cpp), so the `SetBoundsFn` typedef and this wrapper are GONE and
+// `ParticleInstance::Update` calls the member on its own Geometry base.
 
 }  // namespace
 
@@ -185,14 +178,6 @@ namespace {
 // `init_genrand` recurrence, and finally publishes `this` into the exported
 // `_singleton`.
 //
-// ORACLE: full, scratch-object -- with one necessary exception. `_time64`
-// advances between the two calls (this port's and the diff run's), so the
-// FIRST rngState word (the raw time seed) and everything the recurrence
-// derives from it will legitimately differ call to call. The oracle
-// therefore reproduces retail's own recurrence bit-for-bit using OUR seed
-// fed into it (not comparing the seed itself), which is the only thing this
-// function actually computes -- the MT recurrence's correctness, independent
-// of what time it happened to run.
 // ============================================================================
 //
 // B.4 wave Y (RT-GFX): the body is the real constructor. Retail's stores:
@@ -229,10 +214,6 @@ extern "C" Graphics::AnimationManager* RtGraphics_AnimationManager_Ctor(Graphics
 // never fires). Called at its own retail address (unexported, Win32-shaped,
 // PLAN §4.1 decision 1) rather than reproduced.
 //
-// ORACLE: post-state only. A second run would renull an already-null
-// singleton and re-run the no-op lock teardown -- harmless, but nothing new
-// to observe, so this checks what retail's body must leave behind instead:
-// `_singleton` cleared.
 // ============================================================================
 //
 // B.4 wave Y (RT-GFX): retail 0x1800fc400 is `MOV [0x1801fe7b0],0` then a tail
@@ -271,11 +252,7 @@ extern "C" void RtGraphics_AnimationManager_Dtor(Graphics::AnimationManager* sel
 // comparison to `[0x24,0x48)` and a follow-up run showed THAT range still
 // diverging -- the cheaper way to find every gap in one pass is to walk the
 // store list once, as above, and exclude every address it skips, rather than
-// re-deriving one gap per run. Fixed the same way scene.cpp's Scene ctor
-// oracle excludes its own two never-written dwords: the comparison below
-// skips both gaps instead of raw-memcmp'ing the whole struct.
-//
-// ORACLE: full, scratch-object, minus the [0x21,0x24) and [0x2c,0x30) gaps.
+// re-deriving one gap per run.
 //
 // ENDGAME B.3.9 block GFX: the DOOR is gone. Its body was already ONE body with
 // the real protected `Particle()` (Particle.h, InitFields); its callers were
@@ -289,26 +266,9 @@ extern "C" void RtGraphics_AnimationManager_Dtor(Graphics::AnimationManager* sel
 // Calls the EXPORTED, pure Geometry::Geometry(this) (see file banner), then
 // stamps its own vtable and zeroes/initialises its three own fields.
 //
-// *** THE GEOMETRY BASE [0x00, 0xc0) IS DELIBERATELY NOT DIFFED. *** It is
-// written by the SAME retail `Geometry::Geometry` export in both "ours" (the
-// real object) and "theirs" (the scratch), so it can never genuinely
-// diverge -- but `Geometry::Geometry`'s own disassembly (0x1800a4270) leaves
-// a real gap at +0x14..+0x17 (a DWORD store to +0x10 followed directly by a
-// QWORD store to +0x18), and a raw memcmp there was MEASURED to report a
-// false divergence on every call: the real object's pre-existing heap bytes
-// there happened to already be zero while this scratch's 0xCD poison filled
-// the same untouched bytes with 0xCD. Comparing that region only measures
-// which memory arena's leftover content survived, not a behavioural
-// difference -- the fix is to not compare bytes neither implementation
-// writes, the same rule Particle's ctor oracle above and scene.cpp's Scene
-// ctor oracle both follow. `+0xd4` (this struct's own trailing alignment
-// pad, after the `_index` dword at +0xd0) is the same kind of gap for OUR
-// added fields and is excluded for the same reason.
-//
-// ORACLE: full over [0xc0, 0xd4) -- the three fields this class actually
-// adds (`_resource`, `_boundsPtr`, `_index`). Geometry::Geometry is proven
-// pure (no external calls in its own disassembly) so building "theirs" on
-// the stack and discarding it remains safe.
+// `Geometry::Geometry`'s own disassembly (0x1800a4270) leaves a gap at
+// +0x14..+0x17 (a DWORD store to +0x10 followed directly by a QWORD store to
+// +0x18).
 // ============================================================================
 //
 // ENDGAME B.3.9 block GFX: the door is RETIRED. Geometry() and the stamp are the
@@ -330,21 +290,6 @@ extern "C" void RtGraphics_AnimationManager_Dtor(Graphics::AnimationManager* sel
 // current frame index and return true (the caller, e.g. tornado.cpp's
 // TornadoInstance::Update, treats this as "needs its own bounds computed").
 //
-// ORACLE: idempotent replay, the same shape scene.cpp uses for SetTransform.
-// `Geometry::SetBounds` is exported, pure and confirmed idempotent by its own
-// decompile (it only writes when the six floats actually differ, and a
-// second call with the SAME record is therefore a true no-op) so replaying
-// retail's body on the REAL object immediately after ours is safe. What is
-// compared is the state BOTH calls must agree on: `_boundsPtr` and the
-// record's frame-tag byte. The one thing this cannot independently confirm
-// is the boolean return on the branch that DOES advance the tag (the very
-// first call in a frame) -- a replay of that call necessarily lands on the
-// "already tagged" branch and returns false, so there is no second
-// observation of "true" to compare against. That branch's condition is the
-// same one the byte-state check exercises on every call, so a clean replay
-// across many calls is strong evidence for it, but it is not a proof, and is
-// stated here rather than implied.
-//
 // FAITHFULLY UNGUARDED, per CLAUDE.md "don't fix a faithful crash with a null
 // check": retail dereferences `_resource->_active` with NO null check on
 // `_resource`, and (on the "needs update" path) writes through `_boundsPtr`
@@ -357,18 +302,8 @@ extern "C" void RtGraphics_AnimationManager_Dtor(Graphics::AnimationManager* sel
 // Graphics::ParticleInstance::IncrementInstanceIndex()
 // retail 0x1800201f0, ordinal 3065
 //
-// One line: `_frameIndex += 1`. Increments the SAME live static the DLL
-// itself reads (RtFrameIndexSlot resolves the export's actual address), so
-// this port and any code still reading the DLL's own `_frameIndex` directly
-// (there is none in our tree today, but the DLL's internal callers might)
-// stay in agreement.
-//
-// ORACLE: full. Reads the pre-state, runs ours, then runs retail's own body
-// AGAIN immediately after (a second incrementing call is not idempotent by
-// itself, but comparing "ours advanced it by exactly 1" against "retail also
-// advances it by exactly 1" from the same starting point is): both are run
-// from independent snapshots restored around the calls so neither call's
-// result depends on the other having run first.
+// One line: `_frameIndex += 1`. Increments the class static
+// `ParticleInstance::_frameIndex` (defined at the end of this file).
 // ============================================================================
 
 // ============================================================================
@@ -380,20 +315,6 @@ extern "C" void RtGraphics_AnimationManager_Dtor(Graphics::AnimationManager* sel
 // field writes) before overwriting the vtable with its own and zeroing one
 // more field -- the same base-ctor-inlining shape seen throughout this file.
 //
-// *** MEASURED FALSE DIVERGENCE, SAME CAUSE AS ParticleInstance's, FIXED THE
-// SAME WAY. *** A run diffing this ctor raw (whole-struct memcmp) reported
-// divergences on every call at +0x14..+0x17 -- inside the Geometry base this
-// class does not own, and the exact gap `Geometry::Geometry` itself leaves
-// unwritten (see ParticleInstance's ctor above). Both implementations call
-// the identical retail `Geometry::Geometry` there, so it can never
-// genuinely diverge; the report was this file's own 0xCD scratch poison
-// disagreeing with the real object's pre-existing (here: zeroed) heap bytes
-// in a region NEITHER writes. Fixed by comparing only the fields this class
-// itself sets, exactly as ParticleInstance's ctor now does.
-//
-// ORACLE: full over [0xc0, 0xd4) (inherited from ParticleInstance) and
-// [0xd8, 0xe0) (this class's own `_f_d8`) -- everything this ctor actually
-// writes, and nothing it, or Geometry::Geometry beneath it, leaves untouched.
 // ============================================================================
 //
 // ENDGAME B.3.9 block GFX: the door is RETIRED. Retail 0x1800a55a0 is
@@ -413,12 +334,8 @@ extern "C" void RtGraphics_AnimationManager_Dtor(Graphics::AnimationManager* sel
 //
 // WHAT MOVED AND WHAT DID NOT, stated plainly rather than implied:
 //
-//  * `TypeName()` / `Type()` are MEMBERS THAT FORWARD, not doors that delegate.
-//    Their bodies are `RtGraphics_AnimationEvent_TypeName` /
-//    `_Type` in `src/engine/graphics/graphics_typeinfo_accessors.cpp`, which is
-//    NOT block H1's file set, so the direction is reversed for these two: the
-//    registered door is untouched and the member calls it. Exactly the split
-//    `src/engine/object/external_class_doors.cpp` documents.
+//  * `TypeName()` / `Type()` are DECLARE_TYPE's bodies over the class's own
+//    record (graphics_type_records.cpp).
 //
 //  * `~AnimationEvent()` IS DUPLICATED, NOT DELEGATED, and the door below is
 //    left exactly as it was. Retail 0x1800a2120 stamps AnimationEvent's own
@@ -442,11 +359,8 @@ extern "C" void RtGraphics_AnimationManager_Dtor(Graphics::AnimationManager* sel
 namespace Graphics {
 
 // `AnimationEvent::TypeName` (slot 1, 0x1800116f0) and `::Type` (slot 2,
-// 0x1800116d0) USED TO BE DEFINED HERE, forwarding INTO the `extern "C"` doors in
-// `graphics_typeinfo_accessors.cpp`. ENDGAME B.3.5 block GC flipped that: the
-// member IS the body now, in that file, beside the byte decode that is its
-// evidence, and its door is the one-line qualified delegation. Nothing moved out
-// of this file except two forwarders.
+// 0x1800116d0) are DECLARE_TYPE's bodies over the class's own record
+// (graphics_type_records.cpp).
 
 // ??1AnimationEvent@Graphics@@UEAA@XZ  retail 0x1800a2120.
 //
@@ -474,18 +388,8 @@ Object::Base* AnimationEvent::CreateInPlaceObject(void* place) { (void)place; re
 //    `SAXXZ`) moved. Both were declared by block E in `ParticleInstance.h`; no
 //    header edit was needed.
 //
-//  * THE FIVE CONSTRUCTORS AND THE THREE VTABLE STAMPS STAY EXACTLY AS THEY ARE
-//    (B4b-2 / ENDGAME section B.1 decision 3). `RtGraphics_Particle_Ctor`,
-//    `_ParticleInstance_Ctor` and `_ParticleSystemInstance_Ctor` are called on
-//    memory that already exists and that the rest of the tree expects to be
-//    wearing the MINTED `??_7` table out of `rt_data_mint_tables.inc`; a member
-//    constructor would stamp GCC's tables instead. The mint rows are not retired
-//    in this step either (B35_RULES section 11). They keep the POD spelling and
-//    their diff oracles' byte ranges unchanged.
-//
 //  * `?_frameIndex@ParticleInstance@Graphics@@1HA` (0x1801fe77c) is the class
-//    static `ParticleInstance::_frameIndex` since ENDGAME B.3.9 block GFX (D7),
-//    redirected onto the mint's row.
+//    static `ParticleInstance::_frameIndex` since ENDGAME B.3.9 block GFX (D7).
 // ############################################################################
 
 // ?Update@ParticleInstance@Graphics@@QEAA_NXZ  retail 0x180104180.
@@ -493,8 +397,8 @@ Object::Base* AnimationEvent::CreateInPlaceObject(void* place) { (void)place; re
 // FAITHFULLY UNGUARDED, per CLAUDE.md "don't fix a faithful crash with a null
 // check": retail dereferences `_resource->_active` with NO null test on
 // `_resource`, and on the "needs update" arm writes through `_boundsPtr` with no
-// test either. Neither guard is added; the full evidence and the oracle's
-// limits are in the banner above the door.
+// test either. Neither guard is added; the full evidence is in the
+// `Graphics::ParticleInstance::Update()` banner above.
 //
 // B.4: `_resource` is the real `Graphics::Particle` and `_boundsPtr` the named
 // `RtGraphics::ParticleBoundsRecord` (ParticleInstance.h).
@@ -570,13 +474,12 @@ void Graphics::Particle::ReleaseFields() {
 
 // ?_singleton@AnimationManager@Graphics@@0PEAV12@EA  retail 0x1801fe7b0 --
 // the class static (ENDGAME B.3.9 block GFX, B39_RULES D7 row A44). Its mint
-// storage row is retired (rt_mint_retired/gfx.txt): every reader is in this
-// block's files.
+// storage row is retired: every reader is in this block's files.
 Graphics::AnimationManager* Graphics::AnimationManager::_singleton = nullptr;
 
 // ?_rng@Particle@Graphics@@1VRandom@System@@A  retail 0x1801fe7f0 -- the class
 // static (ENDGAME B.3.9 block GFX, B39_RULES D7 row A46). Its mint storage row
-// is retired with every reader (rt_mint_retired/gfx.txt).
+// is retired with every reader.
 // ENDGAME B7 (CTOR, D5): retail's CRT initialiser 0x180149650 for it is
 // `System::Random::Random()` (0x1800c7f20) inlined -- mt[0] = (uint32)_time64(NULL)
 // (CALL 0x18007fb9c), then the 623-step recurrence -- so the definition below now
@@ -588,6 +491,5 @@ System::Random Graphics::Particle::_rng;
 
 
 // ?_frameIndex@ParticleInstance@Graphics@@1HA  retail 0x1801fe77c -- the class
-// static (ENDGAME B.3.9 block GFX, B39_RULES D7 row A37), redirected onto the
-// mint's storage row by RtGraphicsPortInit (foreign readers remain).
+// static (ENDGAME B.3.9 block GFX, B39_RULES D7 row A37).
 int Graphics::ParticleInstance::_frameIndex = 0;

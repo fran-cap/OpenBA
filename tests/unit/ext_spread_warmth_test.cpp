@@ -1,5 +1,5 @@
 // tests/unit/ext_spread_warmth_test.cpp -- ext.spread_warmth (class B, HITCH_PFBURST.md):
-//   the registry row (class B, format 1, default off, locked for the game, the pseudo-mod
+//   the registry row (class B, format 1, default on, locked for the game, the pseudo-mod
 //   ext:spread_warmth), and the per-frame budget: off never defers and the meter is inert; on,
 //   the first scan of a frame always runs, later scans run until the frame has charged
 //   kMissBudget searches (the pair-cache ring advance, wrap included) or kCandidateBudget

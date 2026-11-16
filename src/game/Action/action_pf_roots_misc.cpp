@@ -1,11 +1,10 @@
 // src/game/Action/action_pf_roots_misc.cpp
 // PF porter wave 3 — three Cluster-C "root" sub-helpers (large, all sub-callees
-// already registered). Faithful 1:1 ports from the Ghidra decompile, cross-checked
+// called by name). Faithful 1:1 ports from the Ghidra decompile, cross-checked
 // against disassemble_function for the intricate index math.
 //
 // None are exercised on the autostart path, so a wrong port is undetectable silent
-// corruption — strictly worse than leaving the addr unregistered. Transcribed
-// literally; no "improvements". Registration in standalone/reg_pf_roots_misc.cpp.
+// corruption. Transcribed literally; no "improvements".
 #include "Action/exe_bodies.h"
 //
 //   0x14009bd40  FindPlacementCell — expanding Chebyshev-ring spiral cell search
@@ -20,7 +19,7 @@
 #include "object/TypeInfo.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "Game/exe_constants.h"   // kRdata_* (B3R Leftovers: the .rdata constants)
-#include "Game/exe_bodies.h"   // Reimpl_MapGetTerrainPos
+#include "Game/exe_bodies.h"
 #include "math/Math.h"
 #include <cstdint>
 #include <cstdio>
@@ -44,9 +43,9 @@
 namespace {
 
 // ---- exe sub-callees, called by name (B3R) ----
-//   9f3e0 Reimpl_MapGetTerrainPos (f3e0)     18dd0 Pf_QuadtreeInit_18dd0
-//   18880 Pf_QuadtreeSubdivide_18880          053ca0 Pf_PastureTargetPick_53ca0
-//   003110 ActHunt_DynArraySetCount_3110      0c2ea0 ActHunt_MarkEntityRemoval_c2ea0
+//   9f3e0 Map::GetTerrainPos (f3e0)          18dd0 CharacterGridWalker::Init
+//   18880 CharacterGridWalker::Subdivide      053ca0 PopulationComponent::PickTargetCell
+//   003110 removalList.SetSize                0c2ea0 ComponentEntity::MarkForRemoval
 
 // ---- Math / Volume engine exports (Runtime-x64.dll) -------------------------
 // Math::Vector3 ctor(x,y,z) / splat ctor / Dot and Math::Scalar::Abs are now direct
@@ -71,7 +70,7 @@ static inline bool InlBoxIsect(const float* p, const float* q) {
 //   DAT_140172114 = 0x3f000000 = 0.5f       (half-cell offset)
 //   DAT_140172174 = 0x40000000 = 2.0f
 //   DAT_140172280 = 0xbf800000 = -1.0f
-//   g_fUVScale (0x14017214c) = 1.0f         (extern in engine_funcs.h)
+//   g_fUVScale (0x14017214c) = 1.0f         (kRdata_14017214c, Game/exe_constants.h)
 static inline float C_1000() { uint32_t b = 0x447a0000u; float f; __builtin_memcpy(&f,&b,4); return f; }
 static inline float C_097()  { uint32_t b = 0x3f7851ecu; float f; __builtin_memcpy(&f,&b,4); return f; }
 static inline float C_half() { return 0.5f; }
@@ -502,10 +501,3 @@ void HerdComponent::StartMigration() {
         } while ((int)memberIdx < members._size);
     }
 }
-
-// ===========================================================================
-// B4 FORWARD: the C spellings other blocks' files still call, one line each.
-// ===========================================================================
-
-
-// B4 FORWARD: outside callers Component/herdcomponent.cpp, Action/huntanimal.cpp

@@ -4,11 +4,13 @@
 // PlacementTool (0x70 bytes) extends Tool (0x28 bytes) directly (NOT DragTool).
 // Handles building placement: rotation, cost preview, mesh rendering.
 //
-// Vtable at 0x140161d20 (13 slots). Currently reimplemented here:
-//   Slot0  Dtor       (0x14002dc90) — scalar deleting destructor
-//   Slot5  Shutdown   (0x1400fe4e0) — cleanup scene objects + mesh + dialog
-//   Slot6  OnKey      (0x1400fe2a0) — rotation keys + placement input
-//   Slot7  Update     (0x1400fdee0) — placement logic + cost UI update
+// Vtable at 0x140161d20 (13 slots). Reimplemented here:
+//   Slot4  Startup        (0x1400fe580) — find the descriptions, RotationSetting, mesh
+//   Slot5  Shutdown       (0x1400fe4e0) — cleanup scene objects + mesh + dialog
+//   Slot6  OnKey          (0x1400fe2a0) — rotation keys + placement input
+//   Slot7  Update         (0x1400fdee0) — placement logic + cost UI update
+//   Slot8  Draw           (0x1400fdcc0) — the footprint overlay
+//   Slot11 GetSettingType (0x140026920) — the RotationSetting type id
 //
 // Decompiled from Application-x64.exe.
 //
@@ -18,7 +20,7 @@
 
 // The runtime type headers come FIRST: they pull src/engine/volume/Volume.h,
 // whose global-scope `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()`
-// once <windows.h> has been seen through resolve.h.  ENDGAME B.3.5 batch I2.
+// once <windows.h> has been seen.  ENDGAME B.3.5 batch I2.
 #include "graphics/Scene.h"
 #include "Player/edittool_funcs.h"   // PlacementTool_Factory_SA
 #include "graphics/Mesh.h"
@@ -60,18 +62,19 @@
 
 // ============================================================
 // Exe helpers, called by name:
-//   0x1400b0d00 DecalComponent_TerrainDecalRemove (Component/exe_bodies.h) --
+//   0x1400b0d00 WorldGeometry::RemoveDecal (Game/WorldGeometry.h) --
 //               the highlight/overlay removal
 //   0x1400fd960 PlacementTool::FlipVariant, 0x1400fda00 PlacementTool::GetPlacement,
 //   0x1400fd650 PlacementTool::CreateAt (members);
-//   0x14009d580 ToolTile_FootprintValidity_d580, 0x1400ffc60 UpdateToolUI_fc60,
-//   0x140005160 DragTool_FindDescription_5160, 0x1400ffbf0 DragTool_PlayTickSound_ffbf0,
+//   0x14009d580 Map::FootprintValidity, 0x14009f3e0 Map::GetTerrainPos (Game/Map.h);
+//   0x1400ffc60 PlayerToolManager::UpdateCreateBar, 0x1400ffbf0 PlayerToolManager::PlayTickSound,
+//   0x1400ff9e0 PlayerToolManager::OpenToolDialog (Game/PlayerToolManager.h);
+//   0x140005160 ComponentDescription::FindDescription<ToolbarDescription>
+//               (Component/ComponentDescription.h);
+//   0x140055430 RadiusDescription::AddHighlight (Component/RadiusDescription.h);
 //   0x1401000f0 DragTool_PlayPlaceSound_1000f0, 0x140100140 DragTool_PlayErrorSound_100140,
-//   0x1400ff9e0 ToolUI_OpenToolDialog_ff9e0, 0x140055430 Player_HighlightAdd_55430,
 //   0x140101380 PlayerTileRender_BuildRecords_1380 (Player/exe_bodies.h)
-//   0x14009f3e0 Reimpl_MapGetTerrainPos (Game/exe_bodies.h)
-// The bodies' return types are wider than the bool / char the old door typedefs
-// read: each call reads the low byte (AL), as the door did.
+// Map::FootprintValidity returns a uint64_t: the call reads its low byte (AL).
 // ============================================================
 
 // DAT_140172248 (.rdata): the float the tile-validity / tile-render calls pass as
@@ -591,7 +594,7 @@ static void LogStartupTypeIds() {
     if (s_startupTypeIdsLogged) return;
 
     // The four *Description type-ids Startup's findComp uses (D5, ENDGAME B.3.9 CG3):
-    // read BY CELL, never by the (wrong) engine_funcs global names.
+    // each read through its class's TypeId().
     //   +0x28 descComponent   = cell 0x1401c7468 = CreatePlacedDescription (NOT "SizeDescription")
     //   +0x30 mapComponent    = cell 0x1401c7a18 = MapDescription          (NOT "AreaDescription")
     //   +0x38 createComponent = cell 0x1401c7a88 = ModelDescription        (NOT "FenceDescription");
@@ -767,8 +770,8 @@ DEFINE_EXE_TYPE(PlacementTool, "Tool")
 // target) is present, THEN calls the faithful Startup. If Model is absent it
 // logs and bails rather than letting Startup's unguarded createComponent+0x28
 // deref hard-crash — so a wrong descriptionPtr source is diagnosed, not fatal.
-// The harness hands the tool over as `void*` (src/diag/tool_harness.cpp, block
-// STANDALONE): these three entries keep that C signature (B4 FORWARD).
+// The harness (src/diag/tool_harness.cpp) calls these three entries by their
+// extern "C" names.
 // ============================================================
 extern "C" int PlacementTool_HarnessStartupProbe(PlacementTool* self) {
     LogStartupTypeIds();  // logs the 4 type-ids

@@ -20,7 +20,7 @@
 //     PerformWork / AnimateNaturalResource block (that belongs to the c1eb0 sibling).
 //   * the list "append" is INLINED in the disasm for every action except the first
 //     two (CompleteTask + the first ShowTool), which use FUN_1400c54e0. We mirror
-//     the inlined append faithfully via WA_AppendInline (same list-growth logic the
+//     the inlined append faithfully via WAC_AppendInline (same list-growth logic the
 //     out-of-line FUN_1400c54e0 / FUN_1400032e0 perform on character+0x48..+0x60).
 //
 // Instruction-faithful: do NOT "improve" behavior. Every offset / constant below
@@ -51,18 +51,18 @@
 // ============================================================
 // Sub-callees, called by name (B3R)
 // ============================================================
-// Every exe sub-callee is one of our own bodies (Action/, Work/ exe_bodies.h):
-//   0x1400c29a0 Entity_impl_29a0 (heading, XMM0)    ActChild_Entity29a0_c29a0
+// Every exe sub-callee is one of our own bodies (Action/, Entity/ headers):
+//   0x1400c29a0 Entity_impl_29a0 (heading, XMM0)    HeadingToward
 //               (disasm 0x1400c1586: RCX=param_5 worldPos, RDX=&local_res8 entity inner)
-//   0x1400c5400 TaskListCleanup                     WorkBase_TaskListCleanup_c5400
-//   0x1400c54e0 TaskListAppend                      Pf_ActStackPush_54e0
-//   0x1400c3470 Work-target detach                  ActHunt_NotifyEntityChanged_c3470
-//   0x1400012d0 Entity_FindComponent_Family         ActMv_FindComponentFamily_12d0
-//   0x1400cb1d0 SendComponentMessage copy-ctor      Pf_SendComponentMessageCopyCtor_b1d0
-//   0x1400c5da0 CompleteTask copy-ctor              Pf_CompleteTaskCopyCtor_5da0
-//   0x140042890 ShowTool ctor (R8D=toolType)        ActChild_ShowToolCtor_42890
-//   0x1400c9720 PerformWork_Action_Ctor7            Pf_PerformWorkCtor7_9720
-//   0x1400c9170 MoveTo ctor                         Pf_MoveToCtor_9170
+//   0x1400c5400 TaskListCleanup                     ActionStack::Clear
+//   0x1400c54e0 TaskListAppend                      ActionStackPush
+//   0x1400c3470 Work-target detach                  ComponentEntity::RefreshEntityFlags
+//   0x1400012d0 Entity_FindComponent_Family         ComponentEntity::FindComponent<CharacterComponent>
+//   0x1400cb1d0 SendComponentMessage copy-ctor      SendComponentMessage::SendComponentMessage
+//   0x1400c5da0 CompleteTask copy-ctor              CompleteTask::CompleteTask
+//   0x140042890 ShowTool ctor (R8D=toolType)        ShowTool::ShowTool
+//   0x1400c9720 PerformWork_Action_Ctor7            PerformWork::PerformWork
+//   0x1400c9170 MoveTo ctor                         MoveTo::MoveTo
 // Dispatch slots:
 //   0x140152a98 IsDerivedFrom        -> the member Object::Base::IsDerivedFrom
 //   0x140152b60 MemAlloc             -> System::MemoryAllocator::MemAlloc

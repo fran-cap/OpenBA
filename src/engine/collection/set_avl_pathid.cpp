@@ -30,8 +30,7 @@
 //   0x180027970 vs 0x180008340 (the packfile subtree free)   57 of 120 differ
 //
 // THE TWO ROTATIONS ARE BYTE-IDENTICAL TO A BODY WE ALREADY HAVE, and that IS
-// a duplicate, so they are REGISTERED to the existing bodies rather than
-// rewritten:
+// a duplicate, so the existing bodies serve them rather than a rewrite:
 //
 //   0x180028120 vs 0x18000b040 (rtsetavl::RotateLeft)    0 of 299 differ
 //   0x180028250 vs 0x18000b170 (rtsetavl::RotateRight)   0 of 299 differ
@@ -41,9 +40,7 @@
 // that name the rotations above (offsets 142/143, 153/154, 194/195, 205/206).
 // So it is `rtsetavl::Retrace` too, and that is the same reading avl_trees.cpp
 // already makes when it binds 0x180025e10 / 0x180026080 / 0x1800261b0 to those
-// three bodies. Six distinct addresses, three shared bodies; a duplicate
-// REGISTRATION of one address would be the shadow hazard, and this is the
-// opposite case.
+// three bodies. Six distinct addresses, three shared bodies.
 //
 // THE COMPARATOR IS CASE-SENSITIVE `strcmp`, NOT `_stricmp`
 // ---------------------------------------------------------------------------
@@ -113,12 +110,9 @@ using rtsetavl::Set;
 
 namespace {
 
-// The two allocator doors, same shape and same reasoning as avl_trees.cpp:165 —
-// and, since the ENDGAME B.3.2 closing pass, the same ONE door:
-// `rtcoll::DoorAlloc`/`DoorFree` (src/engine/collection/alloc_door.cpp) go
-// through the exe dispatch slots 0x140152b60 / 0x140152b68 with 0x1800c7a50 /
-// 0x1800c7ad0 as the fallback, so this tree's blocks are visible to
-// `BANISHED_REDZONE` like every other allocation in the tree.
+// The two allocator calls, same shape as avl_trees.cpp's MemAlloc / MemFree:
+// System::MemoryAllocator::MemAlloc / MemFree (retail 0x1800c7a50 / 0x1800c7ad0)
+// by name.
 void* MemAlloc(uint64_t bytes, int align) {
     return System::MemoryAllocator::MemAlloc(bytes, align);
 }
@@ -225,8 +219,6 @@ struct PathIdPolicy : Collection::detail::NoCounters {
     static Node* Alloc(decltype(nullptr), const Element* p, Node* parent) {
         return AllocNode(nullptr, p, parent);
     }
-    // 0x1800279f0's own registration is the door, so the address is what runs
-    // and the site's `calls=` counts it.
     static void Retrace(SetT* set, Node** slot) {   // 0x1800279f0: the erased core every 16-byte element shares
         rtsetavl::Retrace(reinterpret_cast<Set*>(set), reinterpret_cast<rtsetavl::Node**>(slot));  // CAST-OK: elem_stride
     }
@@ -269,10 +261,10 @@ PathIdNode** Insert(PathIdSet* set, PathIdNode** outSlot, char* const* key, cons
 //
 // (ignoredThis, node). Frees left, then right, then releases the key, then
 // hands the node to `SetNodeFree` (0x180009c30, the allocator-lock Free
-// wrapper WHOSE FIRST PARAMETER IS IGNORED — registering a one-argument
-// MemFree there would free the ignored `this` and corrupt the free list; it is
-// already registered with src/engine/system/allocator.cpp as the single
-// owner, and reached here through that same shared contract).
+// wrapper WHOSE FIRST PARAMETER IS IGNORED — a one-argument MemFree in its
+// place would free the ignored `this` and corrupt the free list; its port is
+// rtalloc::FreeLockedIgnoringSelf in src/engine/system/allocator.cpp, and this
+// file calls `rtsetavl::SetNodeFree`, which keeps the same two-argument contract).
 //
 // THE SECOND ELEMENT SLOT (+0x08) IS NOT RELEASED, because it is a uint32 and
 // there is nothing to release. Retail releases exactly one slot and so does

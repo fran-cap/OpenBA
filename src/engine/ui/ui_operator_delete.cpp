@@ -28,25 +28,15 @@
 //
 // That is instruction for instruction `?MemFree@MemoryAllocator@System@@SAXPEAX@Z`
 // (0x1800c7ad0), which was disassembled beside them for this file and differs
-// only in where it sits. So the sixty registrations share ONE body, and that
-// body is `rtcoll::MemFree` — the single allocator boundary
-// src/engine/collection/array.cpp owns, so that when the allocator port goes
-// default-on there is still exactly one place to repoint. This is the same
-// argument, and the same conclusion, as the ten `operator delete` copies
-// enumerated in src/engine/object/deleting_dtor.cpp's banner; two of the sixty
-// (`??3GroupDescription@UI@@` 0x1800466f0 and `??3Dialog@UI@@` 0x1800384d0) are
-// already NAMED in that file's prose as byte-identical, but neither was ever
-// registered — the prose was the whole of the port. It is now a port.
+// only in where it sits.
 //
 // The null test is retail's own and it lives INSIDE 0x1800c7ad0 (`TEST RCX,RCX ;
-// JZ ret` is its first instruction), so this file hands `rtcoll::MemFree` a
-// possibly-null pointer exactly as retail's callers do. There is no added guard
-// here and none is wanted.
+// JZ ret` is its first instruction).
 //
 // WHAT IS NOT HERE: `??2<Class>@UI@@SAPEAX_K@Z`, the matching class `operator
 // new`. Only one of those is in this batch (`??2ComboDialog@UI@@`, 0x180074770)
-// and it is ported in src/engine/ui/combodialog.cpp with the rest of that
-// class, beside the constructor that is its only caller.
+// and it is ported in src/engine/ui/combodialog_ctor.cpp beside the ComboDialog
+// constructor; its caller is src/engine/ui/comboelement.cpp.
 // ============================================================================
 
 // B3R W0-A0 (R3): the 60 rows that registered RtUi_ClassOperatorDelete under these

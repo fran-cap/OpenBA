@@ -127,9 +127,6 @@ void ReleaseAll(CopyMap& map) {
     map.clear();
 }
 
-// The registry entry of a rewritten blob (one reference): an equal blob already registered is shared,
-// else it is converted (through the user's derived-data cache: our transform of their own bytecode)
-// and made a module. Null with *why on failure.
 // NATURAL_GROWTH.md: natural growth on (`blob`, `size`) when it matches, into `out`; the caller then reads `out`.
 // `bloom` false: the copy without the blossom (issue #253; NgRewrite::Transform). `kind` (may be null): the match.
 bool Grow(const uint8_t* blob, size_t size, std::vector<uint8_t>* out, const char* tag, int i, bool bloom = true,
@@ -151,6 +148,9 @@ bool Grow(const uint8_t* blob, size_t size, std::vector<uint8_t>* out, const cha
     return true;
 }
 
+// The registry entry of a rewritten blob (one reference): an equal blob already registered is shared,
+// else it is converted (through the user's derived-data cache: our transform of their own bytecode)
+// and made a module. Null with *why on failure.
 ShaderEntry* EntryOf(const std::vector<uint8_t>& dxbc, Shaders::Stage stage, std::string* why) {
     const uint64_t hash = ShaderHash(dxbc.data(), dxbc.size(), stage);
     if (ShaderEntry* e = AcquireShader(hash)) return e;

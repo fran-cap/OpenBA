@@ -5,7 +5,7 @@
 // terrain_late_rules.h.
 // ============================================================================
 
-// The runtime type headers first, as geometry_draw.cpp has them (Volume.h's `struct Box` before
+// The runtime type headers first, as geometry_draw.cpp has them (Volume.h's `struct Rectangle` before
 // anything reaches <windows.h>).
 #include "Game/WorldGeometry.h"
 #include "graphics/Geometry.h"

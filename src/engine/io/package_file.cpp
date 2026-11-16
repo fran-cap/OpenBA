@@ -11,8 +11,9 @@
 // on it yet). Lane PKG allocated the block, resolved the constructor to
 // nothing, and called it.
 //
-// This file ports the constructor and the class's leaf accessors. It does NOT
-// port `?ReadPackfile@` — see §4.
+// This file holds the class's slot bodies, factory pair and leaf accessors. The
+// constructor is `IO::PackageFile`'s own (PackageFile.h); `?ReadPackfile@` is in
+// package_file_read.cpp.
 //
 //   | Export                                        | Retail      | Ord  | Size |
 //   |-----------------------------------------------|-------------|------|------|
@@ -43,9 +44,7 @@
 // decompile and not typed from memory. Lane PKG's header records that its own
 // first draft carried eight hand-reconstructed ordinals and SEVEN WERE WRONG;
 // an ordinal is exactly the kind of detail that reads as evidence and is never
-// checked by the compiler. `tools/export_name_audit.py` re-checks the names.
-//
-// the sweep probe — and leaves every call on the DLL.
+// checked by the compiler.
 //
 // NO NEW WIN32 API AND NO NEW IMPORT LIBRARY.
 //
@@ -53,10 +52,9 @@
 // 1. THE CONSTRUCTOR, INSTRUCTION BY INSTRUCTION
 // ---------------------------------------------------------------------------
 // 0x1800b4440, 48 instructions, and it CALLS NOTHING. It is a straight run of
-// stores into `this` plus `MOV RAX,RDX` (the saved `this`) on the way out. That
-// makes it the rarest thing in this wave: a byte-faithful port with a REAL,
-// CHEAP, NON-DESTRUCTIVE ORACLE — run both bodies onto private scratch and
-// compare all 0xF0 bytes. See §5.
+// stores into `this` plus `MOV RAX,RDX` (the saved `this`) on the way out.
+// `IO::PackageFile`'s constructor (PackageFile.h) makes them in retail's order;
+// the vptrs are the compiler's.
 //
 //   1800b4454  LEA RAX,[0x180154788] / MOV [RCX],RAX   ??_7Base@Object@@6B@
 //   1800b445e  LEA RAX,[0x1801547a0] / MOV [RCX],RAX   ??_7External@Object@@6B@
@@ -78,192 +76,65 @@
 //
 // THE THREE VTABLE STORES. Two of them are dead by inspection: nothing between
 // 0x1800b445b and 0x1800b4486 reads [this+0], and there is no call in the
-// window, so only ??_7PackageFile survives. They are transcribed anyway (MSVC's
-// inlined base constructors; PLAN §6 step 4 says byte-faithful first) and they
-// are transcribed THROUGH THE PORT-AWARE DATA DOOR rather than as literal
-// 0x180154788 / 0x1801547a0. That matters at cutover: a raw VA would be a
-// pointer into a module that is not loaded, and it would be written into every
-// package object in the process.
+// window, so only ??_7PackageFile survives (MSVC's inlined base constructors).
+// The port's vptrs are the compiler's.
 //
 // FIELDS THE CONSTRUCTOR DOES NOT WRITE. +0x78/+0x7C (the icon dimensions,
 // which ?GetIconWidth@/?GetIconHeight@ read), +0x90, +0xAD..+0xAF, +0xC4,
 // +0xD4. The store list jumps 0x70 -> 0x80 and 0x88 -> 0x98; that is retail
-// leaving them to ReadPackfile, not a gap in this transcription. The oracle in
-// §5 is built so those bytes cannot produce a false failure OR a free pass.
+// leaving them to ReadPackfile, not a gap in this transcription.
 //
 // ---------------------------------------------------------------------------
-// 2. WHAT THIS UNBLOCKS, AND WHAT IT DOES NOT
+// 2. WHERE THE REST OF LoadPackages' INNER LOOP LIVES
 // ---------------------------------------------------------------------------
 // LoadPackages' inner loop is `MemAlloc(0xF0) -> ??0PackageFile -> ReadPackfile
-// -> append`. This file closes the middle step of three. The NEXT rung is
+// -> append`. The constructor is PackageFile.h's, and
 // `?ReadPackfile@PackageFile@IO@@QEAA_NAEBVFilename@System@@@Z` (0x1800b46b0,
-// ord 3461, 6,597 BYTES) — the .pkg format parser, which is a lane of its own
-// and is NOT attempted here.
-//
-// So the honest prediction for attempt 15 is: the frame stays in
-// RtIo_FileSystem_LoadPackages and the fault MOVES FORWARD from the constructor
-// call to the ReadPackfile call, with `[RtResolve] MISS "?ReadPackfile@..."`
-// above it. What would falsify it:
-//   * A fault still naming ??0PackageFile means the registration did not take —
-//     check that `[RtPort] IO: N exports registered` moved by 21.
-//   * A fault inside our own constructor body means a minted vtable row is
-//     missing: `RT_DATA_SLOT` returns null for a name the mint does not carry,
-//     and the store would put 0 at [this+0]. §7 is about exactly that.
-//   * A fault naming `?CloseFile@` or `FUN_180008340` would mean the boot got
-//     PAST ReadPackfile somehow and is in ClosePackages' teardown — good news,
-//     and it would mean lane PKG's §4 list is shorter than it looks.
+// ord 3461, 6,597 BYTES) — the .pkg format parser — is in
+// src/engine/io/package_file_read.cpp.
 //
 // ---------------------------------------------------------------------------
 // 3. THE ACCESSORS, AND WHY THEY ARE IN THIS FILE AT ALL
 // ---------------------------------------------------------------------------
 // Twenty of the twenty-one rows are leaves — `MOV EAX,[RCX+off] ; RET`, or the
-// String AddRef idiom, or a constant. On their own they would be the thing this
-// project has been burned by repeatedly: registered ports with no caller,
-// reporting `divergences=0` over code no run ever executed
-// (reference_uncalled_port_is_not_verified.md). Nothing in our tree calls
-// `?GetPriority@` or `?GetCRC@` today, so registering them alone would produce
-// exactly that.
-//
-// They are here because a caller EXISTS and is free: LoadPackages mounts every
-// .pkg and .pkm on the install and leaves the objects hanging off the
-// FileSystem singleton, fully populated by the DLL's own ReadPackfile. That is
-// a large, real, NON-UNIFORM population sitting in memory at the end of a
-// function this tree already owns. §6's sweep probe walks it.
+// String AddRef idiom, or a constant. They are `IO::PackageFile` members
+// (PackageFile.h).
 //
 // ---------------------------------------------------------------------------
-// 4. WHAT THIS FILE DELIBERATELY DOES NOT PORT, AND WHY
+// 4. WHERE THE REST OF THE CLASS IS
 // ---------------------------------------------------------------------------
 //   ?ReadPackfile@PackageFile@IO@@…        0x1800b46b0  ord 3461  6,597 bytes
-//       The .pkg parser. THE NEXT WALL. A lane, not a tail-end.
+//       The .pkg parser: package_file_read.cpp.
 //   ??1PackageFile@IO@@UEAA@XZ             0x1800b4540  ord  639
-//       The destructor. It is not hard, it is BLOCKED ON SIX UNPORTED CALLEES:
-//       0x18000c180 (~FileInfo at +0xc0), 0x1800269a0 (~Array at +0xb0),
-//       0x1800112a0 (+0x98), 0x1800111a0 (+0x80), 0x180010ab0 (+0x30 and
-//       +0x20, twice), and a tail JMP to 0x1800bc950 (~External, which Wave 3
-//       DID port). Five of those six are unported today, so a "port" of the
-//       destructor would be five calls through addresses that are null at
-//       cutover — strictly worse than one named MISS on the destructor itself.
+//       The destructor: package_file_dtor.cpp.
 //   FUN_1800259d0 (the DELETING destructor, vtable slot 0)
-//       Same blocker: it is the MSVC deleting-destructor thunk over
-//       ??1PackageFile. Lane K owns that family. ClosePackages calls it, so it
-//       is needed at cutover — but only once a package has been mounted, which
-//       is downstream of ReadPackfile.
+//       The compiler's deleting destructor over ~PackageFile.
 //   ?Reconstruct@ 0x1800252d0 and ?Destruct@ 0x180025300
-//       Both are two-instruction bodies AND BOTH DRIVE VTABLE SLOT 0, i.e. the
-//       destructor above. Porting them today would put a faithful-looking body
-//       over a call that cannot work, and neither has any oracle — running one
-//       destroys the object being compared. They belong with the destructor
-//       row, not with the leaves, and they are declined for that reason rather
-//       than for cost. (This is the row where the first draft of this file was
-//       wrong: it grouped Reconstruct/Destruct with Construct because all three
-//       are 2-4 instructions. Construct is portable because its only callee is
-//       the constructor this file ports; the other two are not, because their
-//       only callee is the destructor it does not.)
+//       Both drive vtable slot 0; their bodies are below in this file.
 //   ?Serialize@PackageFile@IO@@UEAA_NAEAVStream@2@@Z   0x1800b60a0
-//       ~100 instructions dispatching through the IO::Encoding vtable at
-//       +0x18/+0x20/+0x40/+0x78/+0xa0. It is a SAVE-PATH Serialize, which is
-//       this project's most-cited failure mode, and the retail-vs-profile
-//       Encoding offset trap applies
-//       (reference_encoding_vtable_offsets_differ_between_builds.md). It has a
-//       real oracle available — the write path replays
-//       (reference_write_path_serialize_is_replayable.md) — but only with a
-//       Stream to drive it, which this lane does not have. Deferred, not
-//       dismissed.
-//   ?GetFileInfo@ 0x180025400 — needs the FileInfo copy ctor 0x18000c110.
-//   ?GetIconData@ 0x180025530, ?GetPreviewData@ 0x180025580 — return
-//       Collection::Array copies; the Array copy machinery is lane Q/D2's.
+//       package_file_serialize.cpp.
+//   ?GetFileInfo@ 0x180025400 — filesystem_packages.cpp.
+//   ?GetIconData@ 0x180025530, ?GetPreviewData@ 0x180025580 —
+//       modification_refresh.cpp.
 //   ??0PackageFile@IO@@QEAA@AEBV01@@Z (copy ctor, 0x1800255d0),
 //   ??4PackageFile@IO@@ (operator=, 0x180025790),
 //   ?WritePackfile@ / ?ExtractPackFile@ / ?BuildPackageFile@ /
 //   ?AreResourcesEqual@ / ?BuildFileSet@ / ?ClosePackFile@
 //       The TOOLKIT half of the class — building and writing packages. Nothing
 //       in the game's boot or run path reaches any of them; they are the
-//       resource compiler's side. Not on any cutover path this wave has
-//       measured, and listed so the next lane does not re-derive that.
+//       resource compiler's side, and none is ported.
 //
 // ---------------------------------------------------------------------------
-// 5. THE CONSTRUCTOR'S ORACLE
+// 7. THE VTABLE — ??_7PackageFile@IO@@6B@
 // ---------------------------------------------------------------------------
-// Both bodies run onto PRIVATE 0xF0 scratch buffers prefilled with the SAME
-// byte (0xCD), and all 0xF0 bytes are compared. Prefilling both identically is
-// what makes the comparison sound in both directions:
-//
-//   * A byte NEITHER side writes holds 0xCD on both and compares equal, so the
-//     +0x78/+0x7C/+0x90/+0xC4/+0xD4 holes cannot manufacture a 100%-failure
-//     report (reference_oracle_must_not_compare_unwritten_bytes.md, which cost
-//     Wave 6 four false gaps).
-//   * A byte OURS writes and theirs does not — the mirror defect, and the one a
-//     "compare only the fields we modelled" oracle cannot see at all — reads
-//     0x00 against 0xCD and FAILS. That is the case worth catching: it is what
-//     a transcription with one store too many looks like.
-//
-// EFFECTIVENESS CONTROL (reference_probe_needs_an_effectiveness_control.md).
-// The site's `worked=` column is not `true`; it is "our body changed at least
-// one byte away from the prefill". A body that ran and did nothing would report
-// `calls=N worked=0` with divergences=0, which is the exact shape of a green
-// line over dead code. The count itself is printed on the first call.
-//
-// The vtable stores are part of the compare. While the DLL is loaded,
-// RT_DATA_SLOT hands back the DLL's own tables, so ours and theirs agree
-// exactly — the oracle verifies that we wrote the RIGHT vtable, in the right
-// slot, at the right offset. It cannot verify the MINTED table, because the
-// mint does not exist on a DLL-present run; that is §7's problem and it is
-// stated there rather than implied to be covered here.
-//
-// ---------------------------------------------------------------------------
-// 6. THE ACCESSOR SWEEP PROBE
-// ---------------------------------------------------------------------------
-// `RtIo_PackageFile_SweepProbe()` runs at the end of
-// RtIo_FileSystem_LoadPackages, only when the diff harness is on. At that
-// moment `fs->packfiles[0 .. packfileCount)` holds one fully-populated
-// PackageFile per mounted package, built by the DLL's ReadPackfile. The probe
-// calls every ported accessor on every one of them, and the two index-taking
-// accessors (GetFileSize, GetFileOffset) on EVERY FILE IN EVERY PACKAGE. Each
-// port then runs its own ours-vs-theirs comparison, so the probe's only job is
-// to supply inputs.
-//
-// It also drives ?Construct@ on two cases retail's own callers would not
-// produce together: a fresh 0xF0 scratch block (returns it, constructed) and
-// NULL (returns null without touching anything). Two branches, both covered.
-//
-// WHAT THE POPULATION IS AND IS NOT. `packfileCount` is small — a stock install
-// mounts a handful of .pkg plus one per enabled mod — so the per-package
-// accessors get a handful of calls each. The per-FILE accessors get one call
-// per entry, which is tens of thousands. Both numbers are printed; neither is
-// dressed up as the other.
-//
-// AND THE HOLE THAT LEAVES, stated rather than left for a reader to find. The
-// per-package population is small AND may be near-uniform: every package on a
-// stock install is built by the same tool, so `?GetVersion@`, `?GetPlatform@`
-// and `?CanOverride@` may return the same value on every one of them, and
-// `reference_uniform_population_is_not_a_verification.md` is explicit that a
-// population of identical values is not a verification no matter how many
-// comparisons it makes. What actually pins those three is the disassembly —
-// each is a single MOV at a named offset — and the probe prints the DISTINCT
-// VALUE COUNT per accessor so a reader can see which rows are genuinely
-// exercised and which are one value repeated.
-//
-// ---------------------------------------------------------------------------
-// 7. THE MINT ROW — ??_7PackageFile@IO@@6B@
-// ---------------------------------------------------------------------------
-// The constructor's surviving vtable store needs `??_7PackageFile@IO@@6B@`
-// (0x180155700, ord 1471, EXPORTED) to exist after the DLL is gone. Lane C2's
-// generator decides its own set: `tools/rt_mint_gen.py` shells out to
-// `tools/runtime_census.py` and takes the unported DATA exports our tree
-// REFERENCES, so the RT_DATA_SLOT call below is what puts the row in the table.
-// The generated file is regenerated as part of this commit; it is not hand
-// edited.
-//
-// Nine slots. Lane PKG established the count by READING THE BYTES at
+// 0x180155700, ord 1471, EXPORTED. Nine slots, counted by READING THE BYTES at
 // 0x180155700 rather than trusting the mangled name: nine consecutive qwords
 // are .text addresses (0x1800259d0, 0x180025150, 0x180025130, 0x1800b6080,
 // 0x1800b6090, 0x1800b60a0, 0x1800252d0, 0x180025300, 0x1800252f0) and the
 // tenth is zero, followed by the ASCII "%08lX%04hX%04hX…" of the next .rdata
-// object. This lane ports slots 1, 2, 3, 4 and 8 (TypeName, Type,
-// GetFileVersion, Compile, Construct); slots 0, 5, 6 and 7 (the deleting
-// destructor, Serialize, Reconstruct, Destruct) stay named traps, for the
-// reasons in §4. A trap that fires says which vtable and which slot, which is
-// the whole point of the mint never holding a DLL address.
+// object. Slots 0..8 are the deleting destructor, TypeName, Type,
+// GetFileVersion, Compile, Serialize, Reconstruct, Destruct and Construct, all
+// members of `IO::PackageFile`, and the object wears the compiler's table.
 //
 // ---------------------------------------------------------------------------
 // 8. THE +0x70 CORRECTION
@@ -332,9 +203,7 @@ constexpr size_t kPackageFileSize = 0xF0;
 // the ?Construct@ slot door are gone.
 // ============================================================================
 // ENDGAME B.3.4 PACKAGE+FS commit 3: every body below is a member of the real
-// `IO::PackageFile` (src/engine/io/PackageFile.h). The remaining doors
-// delegate with a QUALIFIED `IO::PackageFile::` call, written so a reader never
-// has to check which members are virtual.
+// `IO::PackageFile` (src/engine/io/PackageFile.h).
 //
 // ENDGAME B.3.9 IO: the seven slot doors (Type, TypeName, GetFileVersion,
 // Compile, Serialize, Reconstruct, Destruct) and Construct's are gone with the
@@ -364,8 +233,7 @@ constexpr size_t kPackageFileSize = 0xF0;
 //   1800254ad  MOV EAX,dword ptr [RAX + R8*0x8 + 0xc]
 //
 // So the address is `entries + index*16 + 0xc`, and the index is SIGN-extended.
-// Ghidra's C prints that MOVSXD as a zero extension
-// (reference_ghidra_c_output_vs_disassembly.md, three Wave 6 defects); it is
+// Ghidra's C prints that MOVSXD as a zero extension (three Wave 6 defects); it is
 // written as int64 here because that is what the instruction says. There is no
 // bounds check in either body, and none is added — the caller bounds it with
 // GetFileCount, and a guard here would skip work rather than restore it.
@@ -511,7 +379,7 @@ int32_t  PackageFile::GetPlatform() const    { return _platform; }     // 0x1800
 int32_t  PackageFile::GetIconWidth() const   { return _iconWidth; }    // 0x180025510 +0x78
 int32_t  PackageFile::GetIconHeight() const  { return _iconHeight; }   // 0x180025520 +0x7c
 uint32_t PackageFile::GetCRC() const         { return _crc; }          // 0x180025500 +0xa8
-int32_t  PackageFile::GetFileCount() const   { return _entries._size; }   // 0x1800254d0 +0xb8
+int32_t  PackageFile::GetFileCount() const   { return _entries._size; }   // 0x180025440 +0xb8
 
 // 0x1800254f0 is `MOVZX EAX,byte ptr [RCX+0xac]` -- a ZERO extension of the
 // byte, not a sign extension and not a dword read. The field is the same one
@@ -528,8 +396,7 @@ bool PackageFile::CanOverride() const {
 //   1800254ad  MOV EAX,dword ptr [RAX + R8*0x8 + 0xc]
 //
 // So the address is `entries + index*16 + 0xc`, and the index is SIGN-extended.
-// Ghidra's C prints that MOVSXD as a zero extension
-// (reference_ghidra_c_output_vs_disassembly.md, three Wave 6 defects); it is
+// Ghidra's C prints that MOVSXD as a zero extension (three Wave 6 defects); it is
 // written as int64 here because that is what the instruction says. There is NO
 // bounds check in either body and none is added -- the caller bounds it with
 // GetFileCount, and a guard here would skip work rather than restore it.

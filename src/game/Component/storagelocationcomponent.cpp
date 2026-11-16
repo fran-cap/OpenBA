@@ -5,11 +5,10 @@
 // additional fields. Registers entity as a storage location in the game world.
 //
 // Vtable at 0x140164880. Two non-trivial overrides:
-//   Shutdown  (0x14012d2a0) — Component_Serialize + two empty Serializer blocks
-//   OnCreate  (0x14012d270) — register entity with game world storage location list.
-//             (Its standalone port StorageLocationComponent_OnCreate had no caller and
-//             was deleted in B3R G-CompD; the live registration is the state-2 enter
-//             below, TownRegistry_RegisterStorageLocation.)
+//   Persist   (0x14012d2a0) — Component_Serialize + two empty Serializer blocks
+//   OnRemove  (0x14012d270) — remove the entity from the town's storage-location list.
+//             (The registration is the state-2 enter below,
+//             Component::RegisterStorageLocation, 0x14012d230.)
 //
 // Decompiled from Application-x64.exe using Ghidra.
 

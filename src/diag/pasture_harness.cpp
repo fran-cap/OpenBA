@@ -1,14 +1,13 @@
 // src/diag/pasture_harness.cpp
-// BANISHED_PASTURE_FILL=<frame> — one-shot pasture stocking for the animal-wave
-// test rig. At the chosen in-game frame (value "1" means the default frame 900,
+// BANISHED_PASTURE_FILL=<frame> — repeating pasture stocking for the animal-wave
+// test rig. From the chosen in-game frame, every kFillRetry frames (value "1" means the default frame 900,
 // ~15s in: long past the pasture controller's state-2 enter, so AUTOTYPE has
 // already assigned a livestock type), calls the ported debug-menu "fill
 // pastures" body (retail 0x140060290: for every pasture in the world list with
 // an assigned type, spawn animals up to capacity, 5 per pasture per call).
 // Retail reaches the same body from DebugUI_Slot9; the retail PLAYER path is
 // trade delivery, which standalone doesn't have yet — this is the stand-in.
-// No-op unless the env var is set AND BANISHED_LIVE_PASTURE is live (the
-// address only resolves when reg_pasture_live.cpp registered it).
+// No-op unless the env var is set.
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "options.h"
 #include "clamped_atoi.h"     // review F-087: checked parse of BANISHED_* text
@@ -20,11 +19,11 @@
 #include <cstdlib>
 
 // BANISHED_PASTURE_TEND=<frame interval> — herder-labor stand-in. Every N
-// frames, sends message 0 to every typed pasture (Pasture_MsgReceive, retail
+// frames, sends message 0 to every typed pasture (PastureComponent::OnMessage, retail
 // slot 15), exactly what a herdsman's completed work cycle does: each message
 // tags one random pastured animal breed-eligible (flag bit 23). Value "1"
 // picks the default interval (300 frames ≈ 5s). Stand-in until the organic
-// chain lands (PastureComponent_Slot14 cmd 2 posts PastureWork -> citizen
+// chain lands (PastureComponent::Command cmd 2 posts PastureWork -> citizen
 // herder claims it -> SendComponentMessage(0)).
 static void PastureTendHarness_Tick(int frameNum) {
     static int s_interval = -2;               // -2 = env unread, -1 = disabled
@@ -68,8 +67,7 @@ static void PastureTendHarness_Tick(int frameNum) {
 // via Slot14 cmd 2 just like any other employer.
 
 // BANISHED_PASTURE_PRODUCE=<frame interval> — production-accumulator stand-in.
-// LivestockComponent::Update is the only writer of pasture+0x44 and it is LIVE (traced
-// arm CREDIT/BELOW_THRESHOLD under BANISHED_PASTURE_TRACE), but its interval is
+// LivestockComponent::Update is the only writer of pasture+0x44 and it is LIVE, but its interval is
 // desc+0x2C * 300s == 9e8 ticks, i.e. tens of minutes of wall clock even at speed 40 —
 // far too slow to exercise the production PANEL. Every N frames this credits each typed
 // pasture with +8, which is what a handful of livestock intervals would have credited.

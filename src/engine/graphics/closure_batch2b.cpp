@@ -8,8 +8,8 @@
 //
 // All three are pure transcriptions with no new struct layout of their own: the
 // Geometry copy constructor writes into the layout src/engine/graphics/
-// Geometry.h already pins (and this file static_asserts against it), and the
-// other two walk arrays whose stride is in their own index arithmetic.
+// Geometry.h already pins, and the other two walk arrays whose stride is in
+// their own index arithmetic.
 // ============================================================================
 
 #include <cstdint>
@@ -29,12 +29,8 @@ namespace {
 // Batch 2 ported it in src/engine/collection/array_destroy.cpp; called by name.
 //
 // ENDGAME B.3.2 step 2 (callers) — NOT converted to `dst->_attached =
-// src->_attached`. `Geometry::_attached` is a real `Collection::Array<
-// Geometry*>`, but the class's `operator=` is presently `=default` (a
-// SHALLOW bitwise copy — Collection.h's Array banner: the deep
-// `ArrayAssignCore` this address runs becomes `operator=` only once the last
-// bitwise copier converts). Rewriting this call as a member assignment would
-// silently swap the deep, allocator-owning assign for a shallow one.
+// src->_attached`, though `Geometry::_attached` is a real `Collection::Array<
+// Geometry*>` whose `operator=` is the deep `Assign` (Collection.h).
 void ArrayGeometryPtrAssign(void* dst, const void* src) {
     rtcoll::RtColl_ArrayAssign_18001b1a0(dst, src);
 }
@@ -47,9 +43,8 @@ void ArrayGeometryPtrAssign(void* dst, const void* src) {
 // 0x18001bece: `Collection::Array<T>::Array(const Array&)`, retail 0x18001c620
 // (`dst[0]=0; dst[1]=0; operator=(dst, src)` — 0x18001cd30).
 //
-// ENDGAME B.3.2 step 2 (callers) — NOT converted. Same reason as
-// `ArrayGeometryPtrAssign` above: `Collection::Array<T>`'s copy CONSTRUCTOR is
-// also `=default` (shallow) today, so there is no member spelling yet that
+// ENDGAME B.3.2 step 2 (callers) — NOT converted: `Collection::Array<T>`'s
+// copy CONSTRUCTOR is `=default` (shallow), so there is no member spelling yet that
 // reproduces this deep zero-then-assign. `T` here is `RendererDrawItem`
 // (Camera.h, 0x38 bytes — array_destroy.cpp's "Array<blob0x38>" names the
 // element WIDTH, not an anonymous type: this is
@@ -127,63 +122,12 @@ Geometry::Geometry(const Geometry& src) {
 // ENDGAME B.3 step 5 (block E) — the real `Graphics::Geometry`'s C++ surface
 // ############################################################################
 //
-// `src/engine/graphics/Geometry.h` now declares the real class. This file is
-// the Geometry file in block E's file set, so it carries the two things the
-// class needs in order to LINK:
+// `src/engine/graphics/Geometry.h` declares the real class. This file carries
+// its copy constructor (above), which RULE B5-10 requires be explicit. The
+// pure slots (1, 2, 3) resolve to `__cxa_pure_virtual`, exactly as retail's
+// resolve to `_purecall`; the destructor (slot 0) and the five non-pure slots
+// (4..8) are DEFINED IN `scene.cpp`.
 //
-//   1. the copy constructor RULE B5-10 requires be explicit (below), and
-//   2. definitions for Geometry's five NON-PURE virtual slots (4..8).
-//
-// (2) is needed because a constructor definition on a polymorphic class emits
-// the vptr store, which makes GCC emit `vtable for Graphics::Geometry` in this
-// translation unit, which needs an address for every non-pure slot. The pure
-// ones (0, 1, 2, 3) resolve to `__cxa_pure_virtual`, exactly as retail's resolve
-// to `_purecall`. AS OF BLOCK F the five non-pure slots are DEFINED IN
-// `scene.cpp`, so the vtable emitted here references them across translation
-// units — which the linker resolves, and which is the normal arrangement for a
-// class whose key function is not in the same file as its constructor.
-//
-// ============================================================================
-// ENDGAME B.3.5 BLOCK F — FIVE OF THE SEVEN INVERTED DELEGATIONS ARE GONE
-// ============================================================================
-// Block E wrote SEVEN `Graphics::Geometry` definitions here — the copy
-// constructor, the destructor and the five non-pure slots — and every one of them
-// delegated INTO a door, the one place in block E where the direction was
-// inverted. The reason was that all seven bodies lived in
-// `src/engine/graphics/scene.cpp`, which block E could not touch because it also
-// holds `Graphics::Scene`, BLOCK F's class.
-//
-// Block F owns `scene.cpp`. The FIVE SLOT BODIES (`UpdateAttached` 4,
-// `GetSubTransform` 5, `GetInstanceTransform` 6, `SetSharedInstanceData` 7,
-// `Clean` 8) have MOVED ONTO THE MEMBERS THERE, their doors are one-line
-// qualified calls, and their definitions here are deleted. Block E's prediction
-// held exactly: no change to `Geometry.h` was needed.
-//
-// *** THE OTHER TWO CANNOT BE FLIPPED, AND THE REASONS ARE STRUCTURAL. *** They
-// stay here, inverted, and this is the record of why rather than a TODO:
-//
-//  1. `??0Geometry@Graphics@@QEAA@AEBV01@@Z` (0x180015b60), the copy constructor.
-//     `Graphics::Geometry` is ABSTRACT — slots 0, 1, 2 and 3 are pure
-//     (B35_RULES §2.2) — so the door, which is handed RAW MEMORY by
-//     `Collection::Array` copies and by the four POD mirrors, cannot
-//     placement-construct one. There is no C++ expression that runs a
-//     constructor of an abstract class on a buffer. The registered body and the
-//     member therefore live in this same file, which is at least one file rather
-//     than two.
-//  2. `??1Geometry@Graphics@@UEAA@XZ` (0x1800a41c0), the destructor. It is
-//     PROTECTED (ENDGAME §B.1 decision 2 makes a base's destructor non-virtual
-//     and protected), so the door — a free function — cannot call it; and its
-//     body's first act is to re-stamp `??_7Geometry@Graphics@@6B@` through a
-//     `_vtable` MEMBER, which only the POD has. `scene.cpp` records both reasons
-//     at the door.
-//
-// Both are in block F's report as debt block F could not discharge either, with
-// the structural reason attached, so a later block does not re-attempt them.
-//
-// No `reinterpret_cast` here crosses a layout boundary: `RtGraphics::Geometry`
-// and `Graphics::Geometry` are asserted field for field and size for size in
-// Geometry.h, which is what licenses the cast (B33_RULES' minted-versus-GCC
-// argument, one level down).
 // ############################################################################
 
 namespace Graphics {
@@ -193,21 +137,11 @@ namespace Graphics {
 // is the reason). Its body is the member defined above (ENDGAME B.3.9 GFX).
 
 // Slots 4, 5, 6, 7 and 8 — `UpdateAttached`, `GetSubTransform`,
-// `GetInstanceTransform`, `SetSharedInstanceData` and `Clean` — USED TO BE
-// DEFINED HERE as reverse delegations. ENDGAME B.3.5 block F moved their bodies
-// onto the members in `src/engine/graphics/scene.cpp` and turned the five doors
-// there into one-line qualified calls, so the definitions are gone from this file
-// and the vtable emitted below references them across translation units. See this
-// file's block-F banner above.
+// `GetInstanceTransform`, `SetSharedInstanceData` and `Clean` — are the members
+// in `src/engine/graphics/scene.cpp`.
 
-// `??1Geometry@Graphics@@UEAA@XZ`, 0x1800a41c0. NON-VIRTUAL (ENDGAME decision
-// 2) and `protected`, so it is not in the vtable and the linker only needs it
-// once a derived destructor is defined. It is defined here anyway, as the same
-// reverse delegation, because it is the one member of this class that a derived
-// class's destructor CANNOT avoid — and a missing definition would surface as an
-// undefined reference in whichever later block defines one, a long way from the
-// cause.
-// ENDGAME B.3.9 GFX: `~Geometry()` is the member in scene.cpp; its door is retired.
+// `??1Geometry@Graphics@@UEAA@XZ`, 0x1800a41c0: VIRTUAL, slot 0 (Geometry.h).
+// `~Geometry()` is the member in scene.cpp.
 
 }  // namespace Graphics
 
@@ -240,7 +174,7 @@ namespace Graphics {
 // dependency at cutover (array_destroy.cpp's J2b row made the same call for the
 // destroy side).
 // ============================================================================
-// B.4: the two element pointers (the door's `void*` signature, declared in
+// B.4: the two element pointers (the element op's `void*` signature, declared in
 // Scene.h and handed raw element storage by the array row) are each viewed
 // once as the `Graphics::RendererDrawGroup` they are.
 extern "C" void* RtGraphics_DrawGroup_CopyCtor(void* dst, const void* src) {
@@ -260,9 +194,8 @@ extern "C" void* RtGraphics_DrawGroup_CopyCtor(void* dst, const void* src) {
 // ============================================================================
 // 0x180014850  SerializeTriangleListArray(SerializeCtx*, int count, void* data)
 //
-// Already named and reached by address from
-// src/engine/graphics/edgemesh_vtable.cpp:259, which listed it as inherited
-// cutover work. This is that row closed.
+// Called by name from src/engine/graphics/edgemesh_vtable.cpp,
+// graphicsmesh_vtable.cpp and batchc_gfx_leaves.cpp.
 //
 // Per element (stride 0x18) it makes SIX identical virtual calls through the
 // encoding's slot +0xa0, one per dword field, re-loading `ctx->encoding`

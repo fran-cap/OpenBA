@@ -33,7 +33,7 @@ inline float Falloff(float dist, float radius) {
     return t * t * (3.0f - 2.0f * t);
 }
 
-// The cells of a disc of `radius` around (col, row), clipped to a size x size grid. Centre first.
+// The cells of a disc of `radius` around (col, row), clipped to a size x size grid.
 inline std::vector<Cell> Disc(int col, int row, float radius, int size) {
     std::vector<Cell> out;
     if (size <= 0) return out;
@@ -85,7 +85,7 @@ constexpr float kFlattenMin      = -0.2f;   // flatten aims inside the buildable
 constexpr float kFlattenMax      = 0.7f;
 // The game's terrain chunks are drawn between heights of -16 and +16 (geometry_draw.cpp), and the ground it
 // generates reaches mountains of that order, so the brush's peaks run from about 7 to 15; the ceiling keeps
-// the noise from pushing a peak out of the chunks' range (kHeightCeiling, below).
+// the noise from pushing a peak out of the chunks' range (kHeightCeiling, above).
 constexpr float kMountainBase      = 5.5f;   // a mountain's peak at strength 0
 // the peak rises this much for each unit of strength (6.7 to 15.1)
 constexpr float kMountainPerStrength = 2.4f;

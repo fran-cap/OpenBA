@@ -11,7 +11,7 @@
 //   createInPlace = the IMPORTED `Object::Internal::CreateInPlaceObject`, whose
 //     body is `XOR EAX,EAX; RET` — retail cannot build a component in place.
 //     The tree's in-place entry DID build one; this class keeps the tree's
-//     behaviour (CreateInPlaceObject below) and B38_RULES §6 records it.
+//     behaviour (CreateInPlaceObject, wellcomponent.cpp) and B38_RULES §6 records it.
 //   ctor 0x14005d060: CALL Component ctor 0x1401188b0; stamp 0x140162b80;
 //     stamp 0x14015ae90; member at +0x28: stamp 0x14015f070, +0x30 = +0x38 = 0,
 //     stamp 0x14015ae40, +0x40 = this; then `_flags |= 2` with the dead notify
@@ -58,7 +58,7 @@ public:
     int           GetDefaultState() const override { return SmId(BuildingState::Built); }  // [16] 0x1400026c0
     Controller*   GetController() override { return &_controller; }  // [17] 0x140004080
 
-    // The controller's state handlers (table 0x14014bc20; RCX = this).
+    // The controller's state handlers (table 0x1401d1d70, built by 0x14014bc20; RCX = this).
     char EnterBuilt();                                            // 0x14005cf20 state 2: register
     char EnterDemolish();                                         // 0x14005cee0 state 3: unregister
 

@@ -15,7 +15,7 @@
 //   2. In RenderDoc's UI, point the launcher at
 //      C:/GOG Games/Banished/OpenBA.exe and Launch.
 //   3. The exe will detect renderdoc.dll, log the API version, and
-//      auto-capture the first menu render frame to RenderDoc's
+//      auto-capture the tenth menu draw (MenuDialogLoopT::Draw) to RenderDoc's
 //      capture folder. Press F12 in RenderDoc to capture another frame.
 //   4. Open the .rdc file in RenderDoc to inspect GPU state, shaders,
 //      bound render targets, etc.

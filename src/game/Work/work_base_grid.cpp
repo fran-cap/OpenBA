@@ -62,8 +62,7 @@ int Map::FindCell(int srcCell, int destCell, PathBits passFlags) {
 // (Work +0x2c) already equals the scheduler's step count (+8), it's a no-op. Otherwise
 // fire Validate [9] and Execute [4](citizen, &scheduler->time); 2 = accepted; 1 =
 // assignable -> when `flag`, fire Validate then Slot5; on success return low-byte 1,
-// else stamp the step count. RCX is the WorkScheduler (a member of it; its header is
-// GAME-a's, so this stays free).
+// else stamp the step count. RCX is the WorkScheduler (a member of it).
 // RCX = the WorkScheduler, RDX = the citizen reference (an InternalPtr<CitizenComponent>
 // slot: 0x1400f86b9 `MOV RAX,[R14]` copies it into the Execute argument), R8D = the cell id, R9B = flag.
 uint64_t WorkScheduler::TryAssignWorkplace(CitizenComponent** citizenRef, int cellId, char flag) {

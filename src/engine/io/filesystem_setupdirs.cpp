@@ -17,7 +17,7 @@
 // FileSystem::Exists that MSVC inlined into it. They are
 // Platform::ExecutablePath / PathAttributes now (platform_file.h). Both live in
 // KERNEL32, which every link of this project already pulls in — **this lane
-// adds NO new import library**; SA_LIBS is untouched.
+// adds NO new import library**.
 //
 // ---------------------------------------------------------------------------
 // WHAT SetupDirectories ACTUALLY IS
@@ -48,11 +48,8 @@
 // ---------------------------------------------------------------------------
 // THE THREE ARMS THAT ARE WRITTEN OUT BUT ARE **NOT REACHED** ON THIS BOOT
 // ---------------------------------------------------------------------------
-// The triage rule says a port only CLOSES a row if every callee it needs is
-// satisfied. Nine of SetupDirectories' thirteen callees were unported when
-// this lane started. Five are ported by this lane; the other four are NOT, and
-// each is behind a branch that is provably not taken here. Stating that
-// precisely is the whole reason this row can close at all:
+// Each of the three arms below is written out in full and sits behind a
+// branch that is provably not taken here:
 //
 //  1. `?ExistsInPackfile@FileSystem@IO@@QEBA_N...` (0x1800ab180, ord 2322).
 //     Guarded by `this->existsInPackfileGate` (+0x18). The FileSystem
@@ -73,39 +70,20 @@
 //     (0x1800c5300, ord 2495) — four call sites, every one behind a
 //     `Map_Find(Configuration::_map, <key>)`. Lane ENG established that
 //     `SetCommandLine` is handed "" by src/app/main.cpp and returns before
-//     its parse loop, so the map is EMPTY and all four finds miss. **Pass a
-//     command line and this becomes the next unresolved symbol** — the same
-//     condition lane ENG attached to the SetCommandLine row, inherited here.
+//     its parse loop, so the map is EMPTY and all four finds miss.
 //
 // ---------------------------------------------------------------------------
 // THE ONE PLACE THIS DIFFERS FROM RETAIL, AND WHY
 // ---------------------------------------------------------------------------
 // Retail loads `Configuration::_singleton` with an unguarded
-// `MOV R13,[0x1801fc6f8]` and later does `LEA RCX,[R13+0x10]`. With the DLL
-// absent that variable does not exist unless the mint provides it, and
-// `?_singleton@Configuration@System@@0PEAV12@EA` (ord 4803) was NOT in
-// standalone/rt_data_mint_tables.inc when this lane started — lane ENG's
-// attempt-08 prediction Q5 named it. This lane regenerates the mint (the
-// generator picks the symbol up from the source scan now that two files spell
-// it as a literal), which is the real fix; the `if (cfg)` guards below are the
-// belt to that braces, and they exist ONLY because our standalone can be
-// missing a variable retail always has. Every DEREFERENCE retail makes of a
-// pointer it believes non-null stays unguarded.
+// `MOV R13,[0x1801fc6f8]` and later does `LEA RCX,[R13+0x10]`. That cell is the
+// class static `::System::Configuration::_singleton`, and the map finds and
+// SetCommandLine dereference it unguarded, as retail does. The two `cfg ?`
+// reads of the platform and build enums below are the one guard left.
 //
-// It costs nothing on the boot path even if the mint row were still missing:
 // `GetPlatformName` and `GetBuildName` never read `this` at all (checked in
-// the disassembly — RCX is not dereferenced in either body), and the four
-// Map_Find calls would simply miss, which is the answer they give anyway on an
-// empty command line.
+// the disassembly — RCX is not dereferenced in either body).
 //
-// ---------------------------------------------------------------------------
-// ---------------------------------------------------------------------------
-//   the old DLL-era switch   removes THIS ENTIRE LANE — SetupDirectories,
-//                          GetRootDirectory, Filename::GetPathDirectory,
-//                          Configuration::GetPlatformName/GetBuildName and all
-//                          four System::WideString rows — in one variable, so
-//                          the integrator can A/B the wall in one run instead
-//                          of bisecting five files.
 // ============================================================================
 
 #include "platform_file.h"   // Platform::ExecutablePath / PathAttributes
@@ -114,8 +92,8 @@
 #include <cstddef>
 #include <cstring>
 #include <cstdio>
-#include <new>        // placement new into the retail hidden return slot
-#include <utility>    // std::move -- the pointer steal out of a POD out-param
+#include <new>
+#include <utility>
 
 #include "io/FileSystem.h"
 #include "system/String.h"
@@ -159,8 +137,7 @@ namespace {
 
 // `?_singleton@Configuration@System@@0PEAV12@EA`, ord 4803, retail 0x1801fc6f8.
 // ENDGAME B.3.9 SS1 (B39_RULES D7): the class static `::System::Configuration::_singleton`
-// IS this cell now (name door, address door and this member are the same eight
-// bytes) -- read fresh, no lazy cache, exactly as filesystem_startup.cpp reads it.
+// IS this cell -- read fresh, no lazy cache, exactly as filesystem_startup.cpp reads it.
 ::System::Configuration* ConfigurationSingleton() {
     return ::System::Configuration::_singleton;
 }
@@ -242,7 +219,7 @@ void ApplyPathOverride(::System::Configuration* cfg, const char* key, System::Fi
 //
 // NOTHING IN EITHER BODY CHANGED but the spelling of the receiver: same
 // callees, same order, same branches, same destructor order in the epilogue,
-// the same `if (cfg)` belt the file header explains and every dereference
+// the same two `cfg ?` enum reads the file header names, and every dereference
 // retail makes unguarded still unguarded.
 namespace IO {
 
@@ -265,16 +242,12 @@ System::Filename FileSystem::GetRootDirectory() {
     System::Filename f(utf8);
 
     // The by-value result. GetPathDirectory (0x1800c6880) returns a prvalue,
-    // which C++17 materialises directly in the caller's slot — the DOOR's
-    // placement-new above is retail's hidden-return-slot construction, and this
-    // is still exactly one AddRef.
+    // which C++17 materialises directly in `out`, and this is still exactly one
+    // AddRef.
     System::Filename out(f.GetPathDirectory());
 
     // ~f, ~utf8, ~ws: the destructors, reverse declaration order.
 
-    // Safe to replay: reads no FileSystem state and allocates a fresh buffer
-    // every call, so ours and theirs never share a pointer and only the TEXT
-    // can be compared — the same shape as GetSaveDirectory's oracle.
     return out;
 }
 
@@ -404,34 +377,8 @@ void FileSystem::SetupDirectories() {
     // --- 0x1800ac5f0-0x1800ac6b4: the epilogue, in retail's order ----------
     // Retail releases build, platform, sub, cmdPath, root here. Those five are
     // the five destructors now, and C++ runs them in exactly that order:
-    // reverse of declaration, with the two moved-from PODs already null.
+    // reverse of declaration.
 
-    // ---------------------------------------------------------------------
-    // ORACLE
-    // ---------------------------------------------------------------------
-    // The shipped body is replayed onto a SCRATCH FileSystem carrying the same
-    // two gate bytes, never onto `self`: it would otherwise overwrite the three
-    // fields we just built and, on the cmd.txt arm, call SetCommandLine a
-    // second time. Retail reads only +0x18/+0x19 out of `this` and writes only
-    // +0x00/+0x08/+0x10, so a scratch object is a complete stand-in.
-    //
-    // THE PART THAT IS EASY TO GET WRONG, AND WAS. Retail's body dereferences
-    // `[0x1801fc6f8]` — the DLL's OWN copy of Configuration::_singleton —
-    // directly. That symbol IS minted (rt_data_mint_tables.inc:1561), so our
-    // ported constructor writes OUR storage and the DLL's copy stays NULL
-    // forever. A replay guarded on "is our slot populated" would therefore
-    // always say yes and always fault INSIDE THE ORACLE, reading as a port
-    // defect; a replay guarded on "is the DLL's copy populated" would be safe
-    // but would NEVER FIRE, which is the same as having no oracle while
-    // looking like having one (reference_recheck_must_match_its_own_proof.md).
-    //
-    // So the guard reads the DLL's slot RAW, and then LENDS it our pointer for
-    // the duration of the replay and puts it back. That is a write into the
-    // DLL's .data and it is deliberate and bounded: retail's SetupDirectories
-    // only ever READS that pointer (a map find and two enum dwords), this
-    // function runs exactly once per process on the single-threaded boot path
-    // at Engine::Startup step 3, and the slot is restored on every exit from
-    // the block. It is the difference between an oracle and a decoration.
 }
 
 }  // namespace IO

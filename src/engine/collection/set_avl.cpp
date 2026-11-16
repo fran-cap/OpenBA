@@ -8,14 +8,14 @@
 // -------------------------------------
 // `?PlatformStartup@Device@Video@@AEAA_NXZ` is the next boot wall after the IO
 // chain: our ported `Engine::Startup` calls it at
-// src/engine/engine/engine_lifecycle.cpp:719 and a null there returns 0 with
+// src/engine/engine/engine_lifecycle.cpp and a failure there returns 0 with
 // `g_startupFailAt == 11`. Its last act is to register two USER32 message
 // callbacks, and `PlatformShutdown` opens by removing them again. Both are AVL
 // operations on the `Collection::Set` rooted at `Application+0x18`, and the
 // five helpers underneath were the whole of lane VID2's recorded blocker.
 //
 // Four of them are here. The fifth — `0x180009c30`, the allocator-lock Free
-// wrapper — is already registered (see "THE FIFTH HELPER" below).
+// wrapper — is `rtalloc::FreeLockedIgnoringSelf` (see "THE FIFTH HELPER" below).
 //
 // THESE FOUR ARE ELEMENT-TYPE-AGNOSTIC, WHICH IS WHY THEY ARE HERE AND NOT IN
 // src/engine/application/. They read `_parent` at +0x10, `_left` at +0x18,
@@ -48,53 +48,30 @@
 //   doors before this file: 4 unregistered, reached by nothing (no caller yet)
 //   doors after:            0 unregistered, reached by the message-callback port
 //
-// THE FIFTH HELPER — 0x180009c30, AND WHY IT IS NOT REGISTERED HERE
-// ------------------------------------------------------------------
-// It is the allocator-lock Free wrapper and it is **already registered**, with
-// a trap worth restating: it takes TWO parameters and IGNORES THE FIRST, so
-// registering a one-argument `MemFree` there would free the ignored `this` and
-// corrupt the free list. `src/engine/system/allocator.cpp` registers
-// `FreeLockedIgnoringSelf` for exactly that reason.
+// THE FIFTH HELPER — 0x180009c30
+// -------------------------------
+// It is the allocator-lock Free wrapper, `rtalloc::FreeLockedIgnoringSelf` in
+// src/engine/system/allocator.cpp, with a trap worth restating: it takes TWO
+// parameters and IGNORES THE FIRST, so a one-argument `MemFree` in its place
+// would free the ignored `this` and corrupt the free list.
 //
-// ⚠ THIS LANE FOUND IT REGISTERED THREE TIMES — and that is now FIXED.
-// `allocator.cpp`, `src/engine/collection/linkedlist.cpp` and
-// `src/engine/io/modification.cpp` each called
-// `RegisterRuntimeAddr(0x180009c30, …)` with a different body. The registry's
-// last binding wins, so two of the three were dead code and which one survived
-// depended on init order — the SHADOWED-registration hazard
-// `tools/dispatch_slot_map.py --check` reports for the exe's import table,
-// occurring here in the runtime registry where nothing checks for it. All three
-// bodies are "Free with an ignored first argument", so nothing was broken; the
-// hazard was that a future edit to any one of them would have taken effect, or
-// not, depending on link order, silently.
-//
-// RESOLVED by the integrator: `src/engine/system/allocator.cpp` is the SINGLE
-// owner (the body is an allocator wrapper) and registers it UNCONDITIONALLY from
-// `RtSystemPortInit`, outside every wave switch — unconditional because the two
-// registrations it replaced were unconditional, and because the door has live
-// callers on the DLL-present path as well as at cutover. The other two files
-// keep their bodies for their own direct calls and register nothing.
-//
-// This file relies only on the SHARED contract (ignore arg 1, free arg 2), so it
-// was correct before the fix and is correct after it.
+// This file relies only on that contract (ignore arg 1, free arg 2).
 //
 // ORACLE
 // ------
 // None of these four can be verified by an ours-then-theirs replay at a live
 // call site: every one of them mutates the shared tree, and running the second
 // implementation starts from the state the first one left — a different
-// experiment whose first product is a corrupted tree. So they are verified by
-// the LOCKSTEP SYNTHETIC-SUBJECT PROBE in set_avl_probe.cpp: two private Sets,
-// the same script, ours through these bodies and theirs through the shipped
-// ones reached via `ResolveRuntimeRaw`, compared **after every step** rather
-// than once at the end.
+// experiment whose first product is a corrupted tree. So they are verified in
+// tests/unit/set_ported_test.cpp: random insert / remove / find sequences with
+// an invariant walk (order, parent links, height, balance) after every
+// operation, and the same sequence into a Set over the generic core compared by
+// tree shape after every operation rather than once at the end.
 //
 // Comparing only at the end is not good enough here and the reason is specific:
 // AVL defects CANCEL. A rotation that is wrong in one direction and wrong again
 // in the other leaves a tree that is differently shaped in the middle and
-// identical at the end, and a single final comparison reports green. The probe
-// walks the whole tree in key order after every operation and compares shape,
-// balance, height and parent linkage.
+// identical at the end, and a single final comparison reports green.
 // ============================================================================
 
 #include <cstddef>
@@ -297,7 +274,7 @@ void Retrace(Set* set, Node** slot) {
 // Reading case 3 as a successor splice would be wrong in a way no balanced
 // input reveals: it produces a valid AVL tree with the same key set and a
 // DIFFERENT SHAPE, so a probe that only checked the key sequence would pass.
-// The probe compares shape.
+// tests/unit/set_ported_test.cpp compares shape.
 //
 // The retrace start point differs per case and is chosen by a CMOV at
 // 0x18000ad64 (`CMOVZ RDX,RAX` on `TEST RDI,RDI`), so it is written as the same
@@ -380,27 +357,18 @@ void Erase(Set* set, Node* z) {
 }
 
 // ---------------------------------------------------------------------------
-// The 0x180009c30 boundary. Cache a hit, RETRY a miss — the RtResolveCached
-// contract. Freezing a null here would leak every erased node for the life of
-// the process if anything ran before the allocator armed its address door,
-// which is the ordering defect attempt 14 fixed for `rtcoll::MemAlloc`.
+// The 0x180009c30 boundary.
 //
 // TWO PARAMETERS. The first is ignored by the callee and retail passes junk in
 // it (in case 1 whatever RCX last held, in case 3 the splice node `s`). The set
 // pointer is passed here because that is what retail's register happens to hold
 // most often; it is not read.
 // ---------------------------------------------------------------------------
-// ENDGAME B.3.2 closing pass: the node goes back through `rtcoll::DoorFree`
-// (src/engine/collection/alloc_door.cpp) instead of through a cached
-// resolution of 0x180009c30. The two are the same free — 0x180009c30's own
-// registered body (`FreeLockedIgnoringSelf`, src/engine/system/allocator.cpp)
-// drops the ignored argument and calls 0x1800c7ad0, which is what the door
-// resolves to — but the door is the exe dispatch slot 0x140152b68, so a Set
-// node freed here is visible to `BANISHED_REDZONE`, and the tree's allocs and
-// frees stay on ONE channel. A half-shimmed heap is worse than an unshimmed
-// one (src/diag/win/redzone_alloc.cpp's `ShimAllocStatic` banner: it reports
-// phantom overflows). The ignored first parameter stays in the SIGNATURE: every
-// caller in the tree declares this door with two arguments.
+// The node goes back through `System::MemoryAllocator::MemFree`. It is the same
+// free as 0x180009c30's own body (`FreeLockedIgnoringSelf`,
+// src/engine/system/allocator.cpp), which drops the ignored argument and calls
+// 0x1800c7ad0. The ignored first parameter stays in the SIGNATURE: set_avl.h
+// declares it with two arguments.
 void SetNodeFree(void* ignored, void* node) {
     (void)ignored;
     System::MemoryAllocator::MemFree(node);   // the null test is inside ?MemFree@, as before

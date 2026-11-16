@@ -20,12 +20,12 @@
 //
 // NOT HERE: `?ComputeLineLayout@Font@UI@@` (0x180116c70) and
 // `?AddFont@SpriteContext@UI@@` (0x18011ccb0), both on the UI non-slot callee
-// list; reached by address.
+// list; called as members.
 //
 // ENDGAME B.3.6 block C3: the five slot bodies and CacheText are
 // `UI::NumberElement` members. ENDGAME B.3.9 UI-A: the class is concrete (the
 // real ctor ??0 0x180118c70 is in the header and calls CacheText itself); the
-// slot and ctor/dtor doors are retired, CacheText's door stays. Font /
+// slot and ctor/dtor doors are retired. Font /
 // SpriteContext calls are direct.
 // ============================================================================
 
@@ -44,7 +44,7 @@ namespace {
 void MemFree(void* p) { System::MemoryAllocator::MemFree(p); }
 
 // The inlined String::operator= and the two releases, retail's asymmetric
-// shape (see widget_common.h, which these mirror).
+// shape.
 void AssignString(char*& field, char* nv) {
     char* old = field;
     if (old == nv) return;

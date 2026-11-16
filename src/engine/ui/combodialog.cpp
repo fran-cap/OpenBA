@@ -3,8 +3,7 @@
 //   UI::ComboDialog, 6 of 10 vtable slots (0, 1, 2, 6, 7, 8). Slots 3-5 and 9
 //   (Persist/OnOpened/OnClosed/OnSerializeSettings, all inherited
 //   DialogInstance bodies) are already ported elsewhere; the ctor at
-//   0x180111d00 belongs to the UI-text agent (v5) per the batch brief and is
-//   NOT in this file.
+//   0x180111d00 is in src/engine/ui/combodialog_ctor.cpp.
 // ============================================================================
 //
 // ??_7ComboDialog@UI@@6B@ (retail 0x1801590e0), 10 slots:
@@ -26,92 +25,77 @@
 // LAYOUT. `DialogInstance` is 0xb8 bytes (src/engine/ui/DialogInstance.h);
 // this class adds THREE pointers, to 0xd0 (the deleting destructor's own
 // `MOV EDX,0xd0`):
-//   +0xb8  ComboDescription*  _description   (read by OnElementEvent's +0xd8)
-//   +0xc0  DialogController*  _controller    (read by OnElementEvent)
-//   +0xc8  ComboElement*      _comboElement  (this+200 in the decompile)
+//   +0xb8  ListElement*       _list          (OnElementEvent reads its +0xd8 _selectedIndex)
+//   +0xc0  InternalPtr<DialogInstance> _parentDialog (read by OnElementEvent)
+//   +0xc8  ComboElement*      _combo         (this+200 in the decompile)
 //
 // EVERY NON-SLOT HELPER THESE THREE BODIES REACH IS ALREADY PORTED:
 //   ?SetUpperLeft@DialogInstance@UI@@       0x180114a60  src/engine/ui/dialog.cpp
 //   ?SetCurrentItem@ComboElement@UI@@       0x180112540  src/engine/ui/widgets_input.cpp
 //   ?Play@UserInterface@UI@@                0x1801223d0  src/engine/ui/userinterface.cpp
 //   ?CloseDialog@UserInterface@UI@@         0x180120f20  src/engine/ui/userinterface_close.cpp
-// so this file, like external_list.cpp and compressedcopyfilestream.cpp in
-// this same batch, is composition only.
+// so this file is composition only.
 //
 // ---------------------------------------------------------------------------
 // ?OnUpdateLayout@ComboDialog@UI@@UEAAXXZ   0x180111cb0
 // ---------------------------------------------------------------------------
-// A pure tail jump: `SetUpperLeft(this, this->_root->+0x68, this->_root->+0x74,
-// false)`, where `this->_root` (DialogInstance +0x50) is read straight off
-// the disassembly — R9D(centered)=0 is set BEFORE R8D/RDX, and RDX/R8D come
-// from the SAME object, +0x68 first:
-//     MOV RAX,[this+0xc8]          ; the same object OnElementEvent reads,
-//                                    though unused by name here -- see below
+// A pure tail jump: `SetUpperLeft(this, this->_combo->+0x68, this->_combo->+0x74,
+// false)`, read straight off the disassembly — R9D(centered)=0 is set BEFORE
+// R8D/RDX, and RDX/R8D come from the SAME object, +0x68 first:
+//     MOV RAX,[this+0xc8]          ; `_combo`, the same object OnElementEvent reads
 //     XOR R9D,R9D
 //     MOV R8D,[RAX+0x74]
 //     MOV EDX,[RAX+0x68]
 //     JMP SetUpperLeft
-// *** CORRECTION AGAINST THE DECOMPILE, READ OFF THE RAW BYTES ***: Ghidra's C
-// prints `*(this+200)` (i.e. +0xc8, `_comboElement`) as the object read here,
+// Ghidra's C prints `*(this+200)` (i.e. +0xc8, `_combo`) as the object read here,
 // matching the disassembly's `[RCX+0xc8]` exactly -- so OnUpdateLayout reads
-// the SAME `_comboElement` pointer OnElementEvent does, not `_root`. Recorded
-// because the header comment for `_root` (+0x50) does not apply to this call.
+// the SAME `_combo` pointer OnElementEvent does, not `_root` (+0x50).
 //
 // ---------------------------------------------------------------------------
 // ?OnUpdate@ComboDialog@UI@@UEAAXAEBVTime@System@@@Z   0x180111bd0
 // ---------------------------------------------------------------------------
 // The `Time&` argument is never read (retail computes everything from the
-// Input::Device singleton and DialogInstance's own `_root`).
+// Input::Device singleton, `_ui` and DialogInstance's own `_root`).
 //
-//   mx = (int)((float)(int16)Input::Device::_singleton[0x109c] * _root->+0xdc)
-//   my = (int)((float)(int16)Input::Device::_singleton[0x10b4] * _root->+0xdc)
+//   mx = (int)((float)(int16)Input::Device::_singleton[0x109c] * _ui->+0xdc)
+//   my = (int)((float)(int16)Input::Device::_singleton[0x10b4] * _ui->+0xdc)
 //   if (no mouse button down at 0x10fe/0x1116/0x112e) return;
 //   flags = this->_flags (+0x20)
 //   if (!(flags & 4)) {
-//       if (flags & 8) { if (this->_comboElement->vt[0x48]()) return; }
-//       else { rect = this->_comboElement;
+//       if (flags & 8) { if (this->_root->vt[0x48](mx, my, _ui)) return; }
+//       else { rect = this->_root;
 //              if (mx in [rect->+0x68, rect->+0x70] &&
 //                  my in [rect->+0x6c, rect->+0x74]) return; }
 //   }
-//   if (this->_controller->+0x120 != 0) this->_controller->+0x120 = 0;
+//   if (this->_combo->+0x120 != 0) this->_combo->+0x120 = 0;
 //   CloseDialog(this->_ui, &this)
 //
-// *** SAME CORRECTION AS ABOVE ***: the rect/vtable-call subject is
-// `this->_comboElement` (+0xc8 via `MOV R9,[RBX+0x10]` for the scale factor
-// only; the rect/Contains subject is `[RBX+0x50]`). Both offsets are read
-// verbatim below with their own citation.
+// The rect / Contains subject is `_root` (`[RBX+0x50]`); `[RBX+0x10]` is `_ui`,
+// read for the scale factor and passed to Contains.
 //
 // ---------------------------------------------------------------------------
 // ?OnElementEvent@ComboDialog@UI@@UEAAXV?$InternalPtr@VElement@UI@@@Object@@HHHHHPEAX@Z
 // 0x180111af0
 // ---------------------------------------------------------------------------
 // Ghidra drops the InternalPtr<Element> argument (arg2, unused by the body)
-// and the trailing two ints + void* (also unused) entirely --
-// reference_ghidra_dropped_args.md again. Read off the disassembly, the
+// and the trailing two ints + void* (also unused) entirely. Read off the disassembly, the
 // live 5-argument shape is `(this, elem/*unused*/, evt, stage, value)`, with
 // two more unused ints and an unused void* past `value`:
 //
 //   if (evt != 0x14 || stage != 0) return;
-//   combo = this->_comboElement (+0xc8)
+//   combo = this->_combo (+0xc8)
 //   ComboElement::SetCurrentItem(combo, value)
 //   UserInterface::Play(this->_ui, 5)
-//   ComboElement::SetCurrentItem(combo, this->_description->+0xd8)
-//   controller = this->_controller (+0xc0)
-//   local = this->_comboElement (+0xc8)     // re-read, same value
-//   controller->vt[0x40](controller, &local, 0x14, local->+0x88, value, 0, 0,
-//                         <uninitialised>)
-//   *** SLOT 0x40, NOT 0x48. *** src/engine/ui/DialogInstance.h's own
-//   `kControllerVtblOnElementEvent = 0x48` is DialogInstance's iteration loop
-//   calling through a GENERIC DialogController; the disassembly here
-//   (`CALL qword ptr [RAX+0x40]`, confirmed against `?OnElementEvent@
-//   DialogInstance@UI@@`'s own dispatch at 0x180114f5e which uses 0x48) shows
-//   ComboDialog calling its OWN controller's slot 0x40 (`kControllerVtblOnUpdate`)
-//   with this OnElementEvent-shaped argument list instead. Transcribed exactly
-//   as shipped -- the concrete controller subclass ComboDialog drives is free
-//   to put a different signature at that slot than the generic base class
-//   documents, and nothing in this lane's scope needs to resolve which
-//   subclass that is.
-//   if (this->_comboElement->+0x120 != 0) this->_comboElement->+0x120 = 0;
+//   ComboElement::SetCurrentItem(combo, this->_list->+0xd8)
+//   parent = this->_parentDialog (+0xc0)
+//   local = this->_combo (+0xc8)     // re-read, same value
+//   parent->vt[0x40](parent, &local, 0x14, local->+0x88, value, 0, 0,
+//                    <uninitialised>)
+//   *** SLOT 0x40, NOT 0x48. *** src/engine/ui/DialogInstance.h's
+//   `kControllerVtblOnElementEvent = 0x48` is a DialogController slot; +0xc0 is
+//   the parent DIALOG (`InternalPtr<DialogInstance>`, ComboDialog.h), and its
+//   slot 0x40 is DialogInstance slot 8, OnElementEvent.
+//   if (this->_combo->+0x120 != 0) this->_combo->+0x120 = 0;
 //   CloseDialog(this->_ui, &this)
 // ============================================================================
 
@@ -171,8 +155,8 @@ void ComboDialog::OnUpdateLayout() {
 // takes (x, y, UserInterface*). 0x180111c50 `CALL [RAX+0x48]` is reached with
 // EDX = mx (0x180111c0d), R8D = my (0x180111c1c) and R9 = `_ui`
 // (0x180111bee) still live; the port passed `this` only and let three
-// registers of garbage through — the register-passthrough arg drop
-// (feedback_ghidra_dropped_args.md). Now passed, as UI::DialogInstance::
+// registers of garbage through — the decompiler drops register args at
+// indirect calls such as this vtable slot. Now passed, as UI::DialogInstance::
 // Contains passes them. ***
 //
 // Input::Device +0x109c / +0x10b4 are `_mouse[0].value` / `_mouse[1].value`

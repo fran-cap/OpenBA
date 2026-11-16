@@ -14,9 +14,9 @@
 // The SaveLoad object is a zeroed raw buffer: LoadMetaData reads and writes `_embeddedState`
 // only. The image is allocated with the engine allocator because LoadMetaData MemFree's it.
 //
-// Build (WSL): ~/fz.sh is not used for the link because the archive's host stubs
-// (tests/unit/io_stream_abi_stubs.cpp) define the stream bodies this target needs for real; see
-// the scratchpad build script save_meta_build.sh.
+// Build: fuzz_save_meta in the fuzz build (CMakeLists.txt, tests/fuzz/README.md), linked against the
+// unit suite's tree sources, which carry saveload_loadmeta.cpp and the real stream bodies
+// (tests/unit/sources.cmake).
 //
 // MASKS (build flags in the scratchpad build.sh, not in this file, so the body under test is unchanged):
 //   F-002  compression.cpp is rebuilt with -fno-sanitize=pointer-overflow: the known match-copy

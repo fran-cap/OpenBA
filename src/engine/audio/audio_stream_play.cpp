@@ -3,8 +3,8 @@
 //   Audio::Stream::Play(int,int)                     retail 0x1800a0d10  ord 3417
 // ============================================================================
 //
-// `?Play@Stream@Audio@@QEAAXHH@Z`. The last body `Audio::Device::PlayPlatform`
-// (audio_play_platform.cpp, this same batch) reaches by ADDRESS, and it is
+// `?Play@Stream@Audio@@QEAAXHH@Z`. `Audio::Device::PlayPlatform`
+// (audio_play_platform.cpp) calls it as a member, and it is
 // the caller that names this file's two int parameters: `Stream::Play(slot,
 // bytePosition)`.
 //
@@ -13,15 +13,14 @@
 // already said so; re-checked rather than trusted):
 //     0x1800a0d10  ord 3417  ?Play@Stream@Audio@@QEAAXHH@Z
 //
-// Its own `_win.cpp`, separate from `audio_stream.cpp` (the ctor/dtor),
-// for the same reason that file gives: it needs SetEvent / ResetEvent /
-// WaitForSingleObject, and PLAN.md §4.1 decision 1 keeps <windows.h> out of
-// audio.cpp.
+// Its own .cpp, separate from `audio_stream.cpp` (the ctor/dtor); its
+// SetEvent / ResetEvent / WaitForSingleObject are platform_sync.h's
+// Platform::EventSet / EventReset / EventWait, the platform seam of PLAN.md
+// §4.1 decision 1, so it includes no OS header.
 //
 // ---------------------------------------------------------------------------
 // THE BODY, FROM THE DISASSEMBLY (Ghidra's decompile folds two of these
-// KERNEL32 imports into names that read fine but were re-derived here anyway
-// -- reference_ghidra_c_output_vs_disassembly.md)
+// KERNEL32 imports into names that read fine but were re-derived here anyway)
 // ---------------------------------------------------------------------------
 //   1800a0d1f  TEST byte [RCX+0x8],1           ; System::Thread::runFlags bit0
 //   1800a0d2b  JZ -> 1800a0d4b
@@ -59,19 +58,17 @@
 // hFinished, and wake the worker again via hStart to begin the new track.
 //
 // ---------------------------------------------------------------------------
-// FUN_18000c300 IS OUT OF THIS BATCH'S SCOPE, AND REACHED BY ADDRESS
+// FUN_18000c300 IS AN ARRAY RESIZE, CALLED BY NAME
 // ---------------------------------------------------------------------------
-// Decompiled to check what it does (not to port it): it is a
+// Decompiled to check what it does: it is a
 // `Collection::Array<T>::SetSize(4)`-shaped resize of the 3-word header at
 // self+0x30 to hold exactly 4 elements of 0x8ba0 bytes each, allocated through
 // `System::MemoryAllocator::MemAlloc`/`Free` under `MemoryAllocator::_singleton
 // +0x640`'s critical section, with an SSE-unrolled element copy when both old
-// and new buffers are 16-byte aligned. It is NOT one of this batch's five
-// worklist rows (docs/history/runtime_port/closure/WORKLIST.md), so it stays
-// unregistered here and this call reaches it through `ResolveAddr`, which
-// consults the port registry first and falls back to the DLL -- exactly the
-// door `audio_stream.cpp`'s `ReleaseField30Buffer` already opens onto
-// 0x18000c4a0 for the same reason.
+// and new buffers are 16-byte aligned. It is not one of the worklist rows of
+// docs/history/runtime_port/closure/WORKLIST.md; its body is
+// `rtcoll::RtColl_ArraySetSize_18000c300` (kSpec_Blob8ba0,
+// src/engine/collection/array.cpp), called by name from Play.
 //
 // ---------------------------------------------------------------------------
 // ORACLE -- NONE, and the reason is the same class the ctor/dtor gave
@@ -81,11 +78,7 @@
 // (hStart, and conditionally its own +0x40 event). A replay would wake the
 // worker and grow/replace the buffer table a second time, which is a second
 // side effect, not a comparison -- audio_stream.cpp's ctor/dtor face
-// exactly this and settle for a self-check; this body cannot even offer that
-// much, because unlike a ctor's field layout there is no static
-// post-condition here that a wrong port would reliably break (the two int
-// fields legitimately vary by caller, and the buffer-growth call is opaque
-// from here). Attendance only.
+// exactly this and keep attendance counters as well. Attendance only.
 // ============================================================================
 
 // ENDGAME B.3.7 block B4: `Audio::Stream::Play` is a member of the real class
@@ -104,7 +97,7 @@
 // OS header and moved from src/platform/win/audio_stream_play_win.cpp.
 
 // 0x18000c300 — `Collection::Array<Block>::SetSize(4)` (kSpec_Blob8ba0,
-// src/engine/collection/array.cpp), the body registered at that address.
+// src/engine/collection/array.cpp).
 namespace rtcoll { void RtColl_ArraySetSize_18000c300(void* a); }
 
 namespace {

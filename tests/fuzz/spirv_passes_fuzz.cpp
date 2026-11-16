@@ -54,10 +54,9 @@ void RunPasses(const std::vector<uint32_t>& module, uint8_t mode, uint8_t widthB
         uint32_t changed = 0;
         (void)LowerBitFieldInsert(&m, &changed, &why);
     }
-    // MASK (findings: CombineImageSamplers reads w[1] of an OpTypeSampler (spirv_combine.cpp:118),
-    // w[2] of an OpLoad (:363) and words 0..2 of an OpEntryPoint (:343) without checking the
-    // instruction is that long, past the module's end when it is the last one). Recorded once; such
-    // modules skip the pass so the campaign reaches the rest of it.
+    // MASK: an OpTypeSampler shorter than 2 words, or an OpLoad or OpEntryPoint shorter than 4, skips
+    // CombineImageSamplers here; the pass refuses such instructions itself in its index step
+    // (spirv_combine.cpp, review F-089 / F-090 / F-091).
     for (size_t at = 5; at < module.size();) {
         const uint32_t words = module[at] >> 16;
         const uint32_t op = module[at] & 0xFFFFu;

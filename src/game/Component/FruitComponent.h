@@ -3,8 +3,7 @@
 // src/game/Component/FruitComponent.h — ENDGAME B.3.8 block CIT
 //
 // `FruitComponent` (orchard-tree ripening) as a real C++ class with a
-// compiler-generated vtable (B38_RULES.md D1-D4). The engine/types POD is a
-// forwarder to this file.
+// compiler-generated vtable (B38_RULES.md D1-D4).
 //
 // RETAIL (Application-x64.exe, B38_SLOTS.md §6):
 //   reflected "FruitComponent", parent "Component", ti 0x1401c4250

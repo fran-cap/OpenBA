@@ -9,8 +9,8 @@
 // PARENT `UI::ButtonElement` — READ (B36_SLOTS.md section 3), an INTERMEDIATE
 // leaf (RULE B6-9: ButtonElement converts first):
 //     ?_ParentTypeName@CheckElement@UI@@CAPEBDXZ  @0x180048a50 -> "ButtonElement"
-// RULE B5-15 / B6-7 — RECORDED, NOT USED (`?_typeInfo@CheckElement@UI@@…`
-// 0x1801fa9a8 stays the minted record slots 1/2 read):
+// RULE B5-15 / B6-7 — DEFINE_TYPE (checkelement.cpp) defines both, and the class's own
+// `_typeInfo` record slots 1/2 read (retail `?_typeInfo@CheckElement@UI@@…` 0x1801fa9a8):
 //     ?_TypeName@CheckElement@UI@@CAPEBDXZ        @0x180048a40 -> "CheckElement"
 //     ?_ParentTypeName@CheckElement@UI@@CAPEBDXZ  @0x180048a50 -> "ButtonElement"
 //
@@ -39,7 +39,7 @@
 // (stamp ??_7ButtonElement, +0xc0 = -1, +0xc4 = 0 — B36_SLOTS.md section 7's
 // stamp chain), stamps its own table and clears +0xd8 with a BYTE store — the
 // same `MOV byte [..+0xd8],0` the two inlined copies carry
-// (`?CreateInPlaceObject@CheckElement@` 0x180048bff, factory_ui1_tables.inc;
+// (`?CreateInPlaceObject@CheckElement@` 0x180048bff;
 // CheckDescription::CreateInstance 0x180111a60). It is the only store past
 // 0xd8: +0xd9..+0xdf are written by nothing (tail padding to alignment 8).
 //

@@ -93,7 +93,6 @@ inline void StoreFlags(UI::Element* self, uint32_t newFlags) {
 //     iVar2 = *(int*)(idx*0x38 + 0x1c + *(longlong*)(*(longlong*)(this+0xc0)+0x20))
 // A NEGATIVE index yields 0 AND DOES NOT TOUCH THE SHEET POINTER — retail
 // tests the index first, so a sprite with index -1 and a null sheet is legal.
-// LEFT: UI::Sprite::spriteSheet is `void*` (Sprite.h, block R-UI-b).
 // ---------------------------------------------------------------------------
 inline int SpriteW(const UI::Sprite& sprite) {
     const int32_t idx = sprite.spriteIndex;

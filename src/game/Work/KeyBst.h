@@ -12,7 +12,7 @@
 // and its dword count (+0x08): each caller instantiates them on its own node type.
 //
 // The retrace (0x14001a8c0) and its two rotations (0x140014c70 / 0x140014da0) are templates
-// here too: the insert 0x140021a30 (Work/work_base_bst.cpp) stands on the same retrace.
+// here too: the insert 0x140021a30 (WorkBST_RegisterWork_1a30, below) stands on the same retrace.
 //
 // Retail takes the header in RCX and the node (remove) or the key's address (find-remove) in
 // RDX. The node is freed with MemFree; its element is NOT destroyed (retail has no element

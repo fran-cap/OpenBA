@@ -37,7 +37,7 @@
 
 // The runtime type headers come FIRST: they pull src/engine/volume/Volume.h,
 // whose global-scope `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()`
-// once <windows.h> has been seen through resolve.h.  ENDGAME B.3.5 batch I2.
+// once <windows.h> has been seen.  ENDGAME B.3.5 batch I2.
 #include "graphics/Geometry.h"
 #include <new>
 #include "graphics/Camera.h"
@@ -69,11 +69,11 @@
 #include "picking/Scene.h"     // ENDGAME B.3.7 callers (K2)
 
 // ---- exe deps, called by name ------------------------------------------------
-//   0x1400c3720 ComponentEntity_CtorFromDescription, 0x1400c48a0
-//   EntityList_RegisterEntity_Impl (Entity/componententity_funcs.h)
-//   0x140003110 ActHunt_DynArraySetCount_3110 (Action/exe_bodies.h) -- IBP append
-//   0x1401018d0 DragPlacementTool_ClearPathEntities_1018d0, 0x1400dbf90
-//   PlayerEdit_FencedAnchorCalc_dbf90 (Player/exe_bodies.h)
+//   0x1400c3720 ComponentEntity(ComponentDescription*) (Entity/ComponentEntity.h), 0x1400c48a0
+//   EntityList::RegisterEntity (Entity/EntityList.h)
+//   0x140003110 MultiObjectComponent::children.SetSizeFill -- IBP append
+//   0x1401018d0 DragPlacementTool_ClearPathEntities_1018d0 (Player/exe_bodies.h), 0x1400dbf90
+//   FencedTool::CalcAnchor (FencedTool.h)
 //   the finder leaves: 0x140004680 FindComponent<MapComponent>, 0x140003f60
 //   FindComponent<ModelComponent>, 0x140026a30 FindComponent<PickingComponent>,
 //   0x140004740 FindComponent<MultiObjectComponent>

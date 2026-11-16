@@ -8,23 +8,12 @@
 //   | ?Run@MainLoop@Engine@@QEAAXPEAVUpdateLoop@2@@Z   | 0x1800dd3c0 | 3601 |
 //   | ?Update@MainLoop@Engine@@QEAA_NAEBVTime@System@@@Z| 0x1800dd070 | 4496 |
 //
-// `Run` is the single most consequential address door in the wave: it is THE
-// main loop, and `src/game/Game/game_main.cpp:176` reaches it BY ADDRESS.
-// An unregistered address door prints no [RtUnresolved] line and no
-// [RtResolve] MISS — at cutover it is simply a call through null with no
-// diagnosis, which is why this one survived nineteen boot attempts while the
-// name-door residue got enumerated.
+// `Run` is THE main loop; `src/game/Game/game_main.cpp` calls it as a member.
 //
 // Both names were verified against the shipped export directory with pefile.
 //
-// A CORRECTION TO src/engine/engine/MainLoop.h, WHICH THIS FILE RELIES ON:
-// that header files `Update` (0x1800dd070) and `Frame` (0x1800dd100) under
-// "Internal, NOT exported". Both ARE exported — ordinals 4496 and 2377
-// respectively, read out of the export directory. The layout facts in that
-// header are excellent and are what made this port cheap; only the
-// exported/internal classification of those two lines is wrong. It matters
-// because it decides whether the residue this port leaves behind is a NAMED
-// door the scanners can see or a SILENT one they cannot.
+// `Update` (0x1800dd070) and `Frame` (0x1800dd100) are both exported — ordinals
+// 4496 and 2377 respectively, read out of the export directory.
 //
 // ---------------------------------------------------------------------------
 // 1. THE VTABLE SLOTS ARE READ OUT OF THE BINARY, NOT INFERRED
@@ -33,8 +22,7 @@
 // would call `Draw` where `Update` belongs. The slots were confirmed by dumping
 // ??_7DialogLoopT@Engine@@6B@ (0x1801579a0) — the derived table, because the
 // base table's own slots are all the same `_purecall` thunk and prove nothing
-// (reference_uniform_population_is_not_a_verification.md is the same trap one
-// level over):
+// (a uniform population cannot tell a wrong reading from a right one):
 //
 //     slot 0  +0x00  0x18004d8b0  (deleting dtor)
 //     slot 1  +0x08  ?Startup@DialogLoopT@Engine@@UEAAXXZ
@@ -43,7 +31,7 @@
 //     slot 4  +0x20  ?Draw@DialogLoopT@Engine@@UEAAXM@Z
 //
 // ---------------------------------------------------------------------------
-// 2. THE CLOCK: WHY THIS READS THE GLOBALS AND DOES **NOT** CALL OUR OWN TIMER
+// 2. THE CLOCK: THE TIMER CLASS STATICS, READ THROUGH ONE SHARED HELPER
 // ---------------------------------------------------------------------------
 // Retail inlines System::Timer::CurrentTimeTicks three times in `Run`:
 //
@@ -52,60 +40,29 @@
 //     1800dd3ef  IMUL RAX,[0x1801fe720]          ; _ticksPerSecond  (1000000)
 //     1800dd3f9  IDIV qword ptr [0x1801fe730]    ; _systemTicksPerSecond (QPF)
 //
-// `src/engine/system/timer.cpp` already ports that expression as
-// `RtSystem_Timer_CurrentTimeTicks()`, and calling it here would be the
-// obvious move. IT WOULD ALSO BE A BUG, and timer.cpp's own banner is the one
-// that names the hazard: our Timer keeps its OWN `_systemInitialTick`, sampled
-// by OUR PlatformStartup, while the DLL's `MainLoop::Frame` and `MainLoop::Draw`
-// — which this port still calls — read the DLL's globals directly. The two
-// epochs differ by the interval between the two PlatformStartup calls. Mixing
-// them would put `_startTicks` and `_frameStartTicks` on one epoch and
-// everything Frame computes from them on another.
-//
-// timer.cpp says that hazard is bounded because "no file names CurrentTimeTicks
-// at all". THIS FILE IS THE FIRST FUNCTION THAT WOULD HAVE MADE IT OBSERVABLE.
-// So the globals are read through `ResolveAddr(Module::Runtime, ...)`, exactly
-// as retail reads them and exactly as `engine/funcs/engine_funcs.cpp:1545-1548`
-// already does: with the DLL present that is the DLL's storage (one epoch,
-// shared with Frame/Draw); with the mint armed at cutover it is the mint's
-// storage, which our own PlatformStartup writes. Either way there is one epoch.
+// `src/engine/system/timer.cpp` ports that expression as
+// `System::Timer::CurrentTimeTicks()`, from the same Timer class statics. This
+// file reads them through `rtmainloop::CurrentTimeTicksViaGlobals()`
+// (mainloop_internal.h, defined in mainloop_frame.cpp), the one helper `Frame`
+// also uses, so `_startTicks`, `_frameStartTicks` and everything Frame computes
+// from them share one epoch.
 //
 // `QueryPerformanceCounter` is called DIRECTLY rather than through the DLL's
 // import slot at 0x18014b1a8 — that slot is Runtime-x64.dll's own IAT and does
 // not exist once the DLL is gone.
 //
 // ---------------------------------------------------------------------------
-// 3. DOOR ARITHMETIC — THIS PORT MAKES THE COUNTED SURFACE GO **UP**
+// 3. RUN'S FIVE INTERNAL CALLEES
 // ---------------------------------------------------------------------------
-// Stated plainly because a lane that closes 3 doors and opens 4 has gone
-// backwards, and this one does open more than it closes. `Run`'s five internal
-// callees:
-//
-//   0x1800de520  Audio::Device::Update        PORTED  audio_device.cpp:283-284
-//   0x18009fdf0  Application::PlatformUpdate  PORTED  rt_application_port.cpp:36-37
-//   0x1800e1490  Input::Device::Update        PORTED input_device_update.cpp (member call below, K5)
-//   0x1800dd070  MainLoop::Update             PORTED HERE
-//   0x1800dd100  MainLoop::Frame              PORTED (W25 BODY) mainloop_frame.cpp
+//   0x1800de520  Audio::Device::Update        audio_device.cpp
+//   0x18009fdf0  Application::PlatformUpdate  application_platform.cpp
+//   0x1800e1490  Input::Device::Update        input_device_update.cpp
+//   0x1800dd070  MainLoop::Update             this file
+//   0x1800dd100  MainLoop::Frame              mainloop_frame.cpp
 //                                                and it is 684 bytes, not 683 —
 //                                                .pdata's entry fragment reads 123.
 //
-// So: closes 1 ADDRESS door (0x1800dd3c0) and opens 2 NAME doors
-// (Input::Device::Update ord 4482, MainLoop::Frame ord 2377). That exchange is
-// still worth making, and this is the reason: an unregistered ADDRESS door
-// fails SILENTLY at cutover, while a name door prints `[RtUnresolved]` and is
-// counted by `unsatisfied_export_scan.py`. The port converts one undiagnosable
-// null call into two diagnosable ones. `called` is not a denominator counting
-// down to zero (reference_porting_can_grow_the_cutover_surface.md).
-//
-// The two ALREADY-PORTED callees are reached by ADDRESS, not by name, and that
-// is deliberate. `ResolveAddr(Module::Runtime, addr)` consults the PORT
-// REGISTRY FIRST, so it finds our port; `ResolveExport` FALLS THROUGH to the
-// shipped implementation for anything not registered under that exact name,
-// which would silently bypass the port we already have
-// (reference_bypassed_port_needs_a_source_checker.md,
-// reference_resolveaddr_consults_port_registry_first.md). Both happen to be
-// registered under both doors today, but relying on that is relying on another
-// lane's registration style.
+// All five are direct member calls.
 //
 // ---------------------------------------------------------------------------
 // 4. VERIFICATION — WHAT IS AND IS NOT ESTABLISHED
@@ -114,37 +71,12 @@
 // returns until the game quits, and it mutates the entire world through the
 // loop objects. There is nothing to replay and nothing to compare against. This
 // is a genuine "no oracle", not a missing one — unlike the four Serialize
-// cases reference_write_path_serialize_is_replayable.md corrected.
+// cases on the write path, which replay into two separate sinks.
 //
-// `Update` gets a SELF-CONSISTENCY shadow, and it is labelled as such rather
-// than dressed up as an oracle: it checks the post-conditions the body itself
-// establishes (after a transition `_nextLoop` is null and `_currentLoop` is
-// what `_nextLoop` was). That is NOT a comparison against retail. It would
-// catch a botched transition; it would not catch a wrong-but-consistent one.
-//
-// The real test for both is a BOOT: with the DLL present, `game_main.cpp:176`
-// resolves 0x1800dd3c0 through the registry, finds this body, and it drives the
-// actual game. MEASURED, 2026-09-08, DLL present, the diff oracle armed,
-// BANISHED_AUTOSTART=1 through menu -> New Game -> Start -> in-game -> quit:
-//
-//     Engine::MainLoop::Run     calls=0  worked=1  divergences=0
-//     Engine::MainLoop::Update  calls=1  worked=1  divergences=0
-//
-// READ `calls=0` ON `Run` CORRECTLY — it is not a dead port
-// (reference_uncalled_port_is_not_verified.md is about the opposite case).
-// `calls` counts COMPARISONS, and `Run` makes none because it has no oracle.
-// `worked=1` is the evidence that matters: this body executed, once, and drove
-// the whole session — boot, menu, the new-game transition, gameplay and a clean
-// shutdown. A `worked=0` here would have meant the registry never handed
-// game_main.cpp:176 this function.
-//
-// `Update`'s `worked=1` is ONE transition, and that is the honest number: our
-// `Update` is reached only from our `Run`, before the frame loop. Inside the
-// loop it is the DLL's `Frame` that ticks, and `Frame` calls the DLL's `Update`
-// by a direct internal call the registry cannot redirect. So this port is
-// exercised on exactly the real menu -> game transition and nowhere else, until
-// `Frame` is ported too. Thin, but real, and not to be reported as broad
-// coverage.
+// `Update` has no check of its own: `clearedOk` in the transition is computed
+// and discarded. The real test for both is a BOOT: game_main.cpp calls `Run`,
+// which drives the whole session, and `Update` is called from `Run` and from
+// `Frame` (mainloop_frame.cpp).
 // ============================================================================
 
 #include <cstdint>
@@ -163,7 +95,7 @@
 
 
 // src/diag/win/boot_state_watchdog.cpp -- the frozen-exe heartbeat. Declared
-// here rather than including a standalone/ header so runtime/ keeps no
+// here rather than including a src/diag/ header so src/engine/ keeps no
 // dependency on the harness's include path.
 extern "C" void BootState_MarkFrame();
 // src/app/boot_window.cpp -- the deferred window reveal (NOT RETAIL, boot_window.h).
@@ -173,9 +105,7 @@ using RtEngine::MainLoop;
 
 namespace {
 
-// UpdateLoop vtable slots — see §1. The object is opaque here on purpose: this
-// file needs the vtable pointer at +0x00 and nothing else about it, and
-// RtEngine::UpdateLoop is a different lane's type.
+// UpdateLoop vtable slots — see §1.
 // ENDGAME B.3.7: the hand-inlined `LoopVtable(loop)[N]` slot calls this file
 // used to carry (slots 0 DeletingDtor, 1 Startup, 2 Shutdown, 3 Update) are
 // ordinary virtual calls on `Engine::UpdateLoop` now; its slot order is
@@ -238,19 +168,10 @@ bool Engine::MainLoop::Update(const System::Time& time) {
     _nextLoop = nullptr;                                 // 0x1800dd0c8
     _currentLoop = next;
 
-    // THE SHADOW'S POST-CONDITION IS SAMPLED **HERE**, NOT AT THE END, AND THE
-    // FIRST VERSION OF THIS GOT IT WRONG. It asserted `_nextLoop == nullptr`
-    // after the whole body and fired on the very first real transition
-    // (menu -> new game) with `next=0000...84dc0`. The PORT was right and the
-    // PREDICATE was wrong: retail clears `_nextLoop` BEFORE calling `Startup`
-    // (0x1800dd0c8 precedes 0x1800dd0d7) precisely so that `Startup` is free to
-    // queue the following loop, and the menu -> game chain DOES exactly that.
-    // Asserting the field is still null at the end of the body outlaws the
-    // engine's normal loop chaining.
-    //
-    // Sampling here checks what the transition step itself actually guarantees.
-    // Recorded rather than quietly relaxed, because a shadow that is loosened
-    // until it stops complaining verifies nothing.
+    // `clearedOk` is computed and discarded: nothing reads it. Retail clears
+    // `_nextLoop` BEFORE calling `Startup` (0x1800dd0c8 precedes 0x1800dd0d7)
+    // precisely so that `Startup` is free to queue the following loop, and the
+    // menu -> game chain DOES exactly that.
     const bool clearedOk = (_nextLoop == nullptr) && (_currentLoop == next);
     (void)clearedOk;
 
@@ -261,9 +182,6 @@ bool Engine::MainLoop::Update(const System::Time& time) {
     _currentLoop->Update(time);                                     // slot 3, fresh read
     _contextDirty = 1;                                   // 0x1800dd0e7
 
-    // SELF-CONSISTENCY SHADOW, not an oracle (§4). These are post-conditions
-    // this body itself establishes; a green row here means the transition was
-    // internally coherent, NOT that it matched retail.
     return true;
 }
 
@@ -337,6 +255,4 @@ void Engine::MainLoop::Run(UpdateLoop* loop) {
     if (UpdateLoop* toDelete = _currentLoop)
         delete toDelete;                                       // slot 0
 
-    // No oracle is possible here (§4); the site is registered so that its call
-    // count is still visible in the diff report.
 }

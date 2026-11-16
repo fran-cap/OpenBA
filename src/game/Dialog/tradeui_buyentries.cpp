@@ -31,13 +31,12 @@
 // disassembly shows. The dependency list this leaf was handed off with named
 // `fn_Sprite_IsValid`; that came from the bad label and no sprite is involved.
 //
-// ── The merchant record (M = *(tradeDesc+0x48) + tradeState[+0x2c] * 0x48) ────
+// ── The merchant record (M = *(tradeDesc+0x48) + tradeId[+0x2c] * 0x48) ───────
 //   M + 0x10  uint32  resource-category mask for the raw-material match
 //   M + 0x20  void**  the merchant's own goods list      | count at M + 0x28
 //   M + 0x30  int32*  the merchant's select-type id list | count at M + 0x38
-// The +0x20/+0x28 and +0x30/+0x38 pairs are independently corroborated by the
-// existing dump in standalone/trade_probe.cpp, which prints them as "goods" and
-// "ints" respectively.
+// The +0x20/+0x28 and +0x30/+0x38 pairs are TradeMerchant::goods / goodsCount and
+// naturalResources / naturalResourceCount (Component/TradeDescription.h).
 //
 // ── Three ways an entity gets into the buy list ──────────────────────────────
 //   1. It is in the merchant's own goods list          (unconditional)
@@ -64,7 +63,7 @@
 #include "Component/TradeComponent.h"
 #include <cstdint>
 #include "Dialog/exe_bodies.h"
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
 
 namespace {
 
@@ -134,7 +133,7 @@ Description* FindComp(const ComponentDescription* entity, uint32_t typeId) {
 } // namespace
 
 void TradeComponent::GetBuyEntries(void* outArray) const {
-    PtrArray* out = static_cast<PtrArray*>(outArray);   // the one body of 0x140059670 serves two 8-byte-stride out arrays (TradeUI::_purchaseItems, an Array<PurchaseItem>; tradecomponent_dock.cpp:273, a StackArray<ComponentDescription*>): the erased core views its out array  // CAST-OK: elem_stride
+    PtrArray* out = static_cast<PtrArray*>(outArray);   // the one body of 0x140059670 serves two 8-byte-stride out arrays (TradeUI::_purchaseItems, an Array<PurchaseItem>; tradecomponent_dock.cpp:281, a StackArray<ComponentDescription*>): the erased core views its out array  // CAST-OK: elem_stride
     if (!out) return;
 
     // Retail opens with FUN_140001bb0(out, 0) — the stride-8 resize-to-zero. Its only

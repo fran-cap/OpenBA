@@ -8,11 +8,8 @@
 //                                                   rejecting names in the db reject list
 //        -> FUN_1400a4880(db, rng, 3, 10, buf)   -- 4-gram Markov walk over the .ndb
 //
-// The whole retail init is guarded off in standalone (it dereferences housing /
-// animation sub-objects that are NULL), so founding colonists never get a name and
-// the CitizenUI dialog's textName is skipped (CitUI_OkString rejects the garbage
-// String at +0x28). This reproduces just the name-generation slice and constructs a
-// real System::String directly at the citizen's +0x28, so the dialog shows a name.
+// CitizenComponent::Initialize (Component/citizencomponent_lifecycle.cpp) calls
+// GenerateCitizenName below and assigns the result to the name String at +0x28.
 //
 // The .ndb name database is an Object::External. Field layout (from FUN_1400a4880 /
 // FUN_1400a4b30 disassembly):
@@ -199,9 +196,8 @@ static NameDatabase* LoadNameDb(const char* path) {
         return nullptr;
 
     System::Filename fname(path);
-    // ENDGAME B.3.3 step 6A: member call on the real Object::ExternalFactory.
-    // The singleton is still read through the EXISTING door, so the guard
-    // above still gates the same cell and the same registered body still runs.
+    // ENDGAME B.3.3 step 6A: member call on the real Object::ExternalFactory
+    // (the singleton null-tested above).
     // (retail's IsDerivedFrom on the result is skipped, as before: see above)
     return ::Object::ExternalFactory::_singleton
         ->FindOrLoadAs<NameDatabase>(fname);
@@ -220,8 +216,7 @@ extern "C" bool GenerateCitizenName(System::Random* rng, bool female, char* out,
 
 
 // ---- NameDatabase::GenerateName (exe 0x1400a4b30) ---------------------------
-// The retail entry point, registered at its exe address so every caller reaches
-// this port through ResolveAddr instead of a NULL function pointer. Retail
+// The retail entry point, declared in Game/exe_bodies.h and called by name. Retail
 // signature: String* GenerateName(String* retStr, NameDatabase* db, Random*,
 // int minLen, int maxLen) -- constructs the result String in `retStr` (caller
 // owns and destructs it).
@@ -246,15 +241,10 @@ extern "C" System::String* NameDB_GenerateName(System::String* retStr, const Nam
 // Retail: String* fn(String* retStr, Random* rng, char female) -- picks
 // "Game/Names/Female.ndb" or "Game/Names/Male.ndb" by the flag, FindOrLoad's it,
 // then tail-calls 0x1400a4b30 (NameDB_GenerateName) with minLen=3 / maxLen=10.
-// Same body as GenerateCitizenName above, but with retail's String return so the
-// address can be registered and reached through ResolveAddr.
+// Same body as GenerateCitizenName above, but with retail's String return.
 //
-// Registering this matters: TradeComponent::Setup (tradecomponent.cpp:326)
-// resolves 0x1400a4c60 and, while it was null, left its 8-byte String scratch
-// zeroed and assigned an EMPTY name into every merchant slot -- so every trader
-// rendered blank in the trade UI. reg_namedb.cpp used to say this address needed
-// no registration because "nothing resolves them by address"; that stopped being
-// true when the trade lane added the resolve.
+// Caller: TradeComponent::Setup (tradecomponent.cpp), which names every merchant
+// slot with it.
 extern "C" System::String* NameDB_PickAndGenerate(System::String* retStr, System::Random* rng, char female) {
     char buf[0x100];
     buf[0] = 0;

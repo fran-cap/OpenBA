@@ -10,7 +10,7 @@
 //   +0x28: int32 cameraY       — cell Y offset within chunk
 //   +0x2C: int32 cameraChunkCol — chunk column index
 //
-// Slot8 (Apply) computes absolute camera position:
+// Slot8 (Begin) computes absolute camera position:
 //   absX = cameraChunkRow * mapCellSize + cameraX
 //   absY = cameraChunkCol * mapCellSize + cameraY
 // Then writes to the camera object at GameWorld+0x120.

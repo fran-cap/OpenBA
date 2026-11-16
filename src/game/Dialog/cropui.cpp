@@ -1,4 +1,4 @@
-// engine/src/ui/cropui.cpp
+// src/game/Dialog/cropui.cpp
 // Clean reimplementation of CropUI game logic.
 //
 // CropUI (0x60 bytes) — crop selection panel.
@@ -53,10 +53,10 @@
 // 0x140078be0, as OrchardUI and PastureUI do (B4 DLG-a, behaviour commit).
 
 // ============================================================
-// CropUI::Slot7 (vtable +0x38) — Update handler
+// SelectResourceUI::Slot7 (vtable +0x38) — Update handler
 // ============================================================
 // Enables or disables the selectResource combo based on whether
-// it has any items. Uses virtual call at vtable+0x40 (SetEnabled).
+// it has any items. Uses virtual call at vtable+0x40 (Enable).
 //
 // Original: 0x140078CB0.
 

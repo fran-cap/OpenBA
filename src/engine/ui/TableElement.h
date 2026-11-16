@@ -51,14 +51,14 @@ constexpr uint32_t kDirtyBit = UI::kElementFlagNeedsSizeCalc;
 // PARENT `UI::Element` — READ, not inferred:
 //     ?_ParentTypeName@TableElement@UI@@CAPEBDXZ @0x1800792a0 -> "Element"
 //
-// RULE B5-15 / B6-7 — THE TWO NAME LITERALS, RECORDED, NOT USED (slots 1/2 keep
-// reading the minted `?_typeInfo@TableElement@UI@@…`, 0x1801fae78):
+// RULE B5-15 / B6-7 — THE TWO NAME LITERALS, RECORDED (the class's own record is
+// DEFINE_TYPE in tableelement.cpp):
 //     ?_TypeName@TableElement@UI@@CAPEBDXZ       @0x180079290 -> "TableElement"
 //     ?_ParentTypeName@TableElement@UI@@CAPEBDXZ @0x1800792a0 -> "Element"
 //
 // `??_7TableElement@UI@@6B@` @ 0x180159260, TWELVE slots (B36_SLOTS.md
 // section 1; sizeof from `MOV EDX,0xf0` in slot 0 0x180079600):
-//   [0] 0x180079600 deleting dtor (row)  [1] 0x1800792d0 TypeName
+//   [0] 0x180079600 deleting dtor        [1] 0x1800792d0 TypeName
 //   [2] 0x1800792b0 Type                 [3] Element::Persist INHERITED
 //   [4] 0x18011df60 ComputeSize          [5] 0x18011dd10 ComputeLayout
 //   [6] 0x18011dc20 Draw                 [7] Element::Update INHERITED
@@ -69,8 +69,7 @@ constexpr uint32_t kDirtyBit = UI::kElementFlagNeedsSizeCalc;
 // own slot 0 (the vector deleting dtor), a virtual ~TableElement holding
 // the retired ??1 door's body, and the factory pair as the class's own statics;
 // every live one wears the COMPILER's table. The minted `??_7TableElement@UI@@6B@`,
-// its RT_DELDTOR row 0x180079600 and the ctor / dtor / slot doors are retired
-// (tools/rt_mint_retired/ui-b.txt).
+// its RT_DELDTOR row 0x180079600 and the ctor / dtor / slot doors are retired.
 // ABSTRACT (slot 0 pure), no real ctor: every live one is built by the
 // `??0TableElement` DOOR (tableelement.cpp) and wears the MINTED table.
 //

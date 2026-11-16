@@ -1,18 +1,15 @@
 // src/game/Player/tool_base_ray.cpp
 // Player tool terrain-raycast / mouse-ray / screen->cell / placement-position chain.
 //
-// These exe sub-helpers are resolved via ResolveAddr(Module::Exe, 0xADDR) from the
-// per-tool Player .cpp files (placementtool.cpp etc.). They resolve to 0 (silently
-// skipped) unless registered. This file provides faithful 1:1 reimplementations and a
-// single registration point (RegisterPlayerRayBatch in standalone/reg_player_ray.cpp) so
-// the shared call sites fire real logic in the standalone exe.
+// These exe sub-helpers are called by name from the per-tool Player .cpp files
+// (dragtool.cpp, roadtool.cpp etc.). This file provides faithful 1:1 reimplementations.
 //
 // Wave 5 (Player) round 2 — ray/screen-to-cell sub-batch. Each function is a 1:1 port
 // of the decompiled exe helper; do not "improve" behavior.
 
 // The runtime type headers come FIRST: they pull src/engine/volume/Volume.h,
 // whose global-scope `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()`
-// once <windows.h> has been seen through resolve.h.  ENDGAME B.3.5 batch I2.
+// once <windows.h> has been seen.  ENDGAME B.3.5 batch I2.
 #include "graphics/Camera.h"
 #include <new>
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
@@ -39,13 +36,10 @@
 #include "ext/touch_pointer/touch_pointer.h"   // EXT SEAM (NOT RETAIL, docs/android/P11B_POINTER.md): ToolCursor
 
 // ============================================================
-// Locally-resolved dispatch-slot helpers (Runtime exports behind exe .rdata slots)
+// Runtime functions behind exe .rdata dispatch slots
 // ============================================================
 // 1005a0 (GetMouseRay) calls four Math/Volume member functions through exe dispatch
-// slots that are NOT registered project-wide. They are pure Runtime exports, so we
-// resolve them locally by their mangled names (read from the exe's slot name table)
-// and register them as dispatch slots in reg_player_ray.cpp. The bodies here resolve
-// them via ResolveExport so they work whether or not the slot is filled.
+// slots in retail; here each is a plain call by name.
 //
 // All four are member functions returning Math::Vector3 by value (12 bytes > 8 -> the
 // MS x64 ABI uses a hidden return buffer: RCX=this, RDX=&retbuf, R8/XMM2.. = args).
@@ -54,11 +48,11 @@
 //   ?GetScreenDirection@Frustum@Volume@@QEBA?AVVector3@Math@@MM@Z  GetScreenDirection(float,float) slot 0x140152918
 //   ?Rotate@Transform3@Math@@QEBA?AVVector3@2@AEBV32@@Z  Transform3::Rotate(Vector3)  slot 0x140151860
 // GetScreenDirection is called by name: RtVolume_Frustum_GetScreenDirection
-// (src/engine/volume/Volume.h), the retslot passed explicitly as the door did.
+// (src/engine/volume/Volume.h), the retslot passed explicitly.
 
 
 // CharacterComponent_impl_f3e0 (0x14009f3e0) = grid->world conversion:
-// Reimpl_MapGetTerrainPos (Game/exe_bodies.h), called by name.
+// Map::GetTerrainPos (Game/Map.h), called by name.
 
 // ============================================================
 // FUN_1400aa530 — QuarryComponent_impl_a530 (terrain DDA grid ray-march)
@@ -166,8 +160,8 @@ uint8_t WorldGeometry::TerrainMarch(float* param_2,
     for (;;) {
         int axis = (tMax[1] <= tMax[0]) ? 1 : 0;   // SETBE: S[3] <= S[2]
         if (cell[0] >= 0 && cell[0] < width && cell[1] >= 0 && cell[1] < width) {
-            // 0x1400aaa20 QuarryComponent_helper_aa20 = Pf_CellQuadRay_aa20 (Action/exe_bodies.h);
-            // it returns int, the door read AL as the bool.
+            // 0x1400aaa20 QuarryComponent_helper_aa20 = WorldGeometry::CellQuadRay (Game/WorldGeometry.h);
+            // it returns int, read as the bool through its low byte (AL).
             bool hit = static_cast<uint8_t>(CellQuadRay(cell[0], cell[1], param_3, param_2, param_4,
                 param_5, param_6, nullptr)) != 0;
             if (hit) return 1;

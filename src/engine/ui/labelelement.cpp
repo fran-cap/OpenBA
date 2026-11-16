@@ -46,8 +46,8 @@
 //
 // ENDGAME B.3.6 block C3: the six slot bodies are `UI::LabelElement` members
 // (src/engine/ui/LabelElement.h — the layout above, now asserted; the
-// TextElement fields are TextElement's). The registered doors delegate with a
-// QUALIFIED call. Font / SpriteContext / Sprite calls are direct member calls.
+// TextElement fields are TextElement's). Font / SpriteContext / Sprite calls
+// are direct member calls.
 // ============================================================================
 
 #include "element_common.h"

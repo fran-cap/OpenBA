@@ -58,10 +58,7 @@
 // 2 Times) of every Tornado.rsc body unread, so the load fails and stores null.
 
 // ENDGAME B.3.5 Video/Graphics caller batch: Graphics::ParticleInstance (and its
-// Graphics::Geometry base) are real classes. FIRST in the block on purpose —
-// "resolve.h" pulls <windows.h>, whose <wingdi.h> declares a global `Rectangle`
-// FUNCTION that hides `Volume::Rectangle`'s class name inside Volume.h's own
-// static_asserts (Geometry.h includes Volume.h).
+// Graphics::Geometry base) are real classes.
 #include "graphics/ParticleInstance.h"
 #include "Game/Tornado.h"
 #include "object/Internal.h"   // Object::detail::InternalMemAlloc / InternalMemFree
@@ -297,7 +294,7 @@ void TornadoInstance::Update(const System::Time& time) {
     // Retail: `cmovne rbx,rsi` -- rsi is the resource only when IsDerivedFrom(Tornado)
     // holds, else 0, and every later read (`divss 0x5c(%rsi)`) would fault on it. In
     // retail that branch is unreachable because slot 2 GetTypeId reports Tornado. In
-    // standalone it is reachable if our vtable copy ever loses the slot-2 override, so
+    // standalone it is reachable if `resource` is null or fails IsDerivedFrom(Tornado::TypeId()), so
     // this is a DELIBERATE deviation: bail loudly instead of faulting on a null we
     // manufactured ourselves.
     const uint32_t tornadoTid = Tornado::TypeId();

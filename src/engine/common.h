@@ -1,6 +1,6 @@
 #pragma once
 // Forward declarations for Runtime-x64.dll types.
-// Shared by both engine/src/ (exe reimpl) and src/engine/ (DLL reimpl).
+// Included by src/engine/engine/Engine.h.
 // Binary layouts defined in individual headers under src/engine/<namespace>/.
 
 #include <cstdint>

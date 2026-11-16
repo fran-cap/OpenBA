@@ -19,7 +19,7 @@
 //   ctors: the default one (the tree built it with Work_GenericCtor: base init, leaf
 //   fields zeroed — kept) and the site ctor 0x1400ec710 (entity-seeded, sizes the two
 //   arrays from the site's BuildDescription; gatherrawmaterials_ctor.cpp), which
-//   BuildComponent's state 1 (buildcomponent_state1.cpp) calls BY ADDRESS / name.
+//   BuildComponent's state 1 (buildcomponent_state1.cpp) calls by name.
 //   Nothing outside this block stamps 0x140161420.
 // ============================================================================
 
@@ -60,7 +60,7 @@ public:
     // +0x60 as four qwords and the set's root (qword) and count (dword) under an EH state;
     // the dtor 0x1400ec650 clears the set FIRST, then frees +0x58 (data = 0, +0x60 = 0 qword),
     // then +0x48 (data = 0, +0x50 = 0 qword): the reverse of this declaration order. The
-    // Set's ctor also zeroes its +0x0c pad (+0x74), which retail's leaves (row 640).
+    // Set's ctor leaves its +0x0c pad (+0x74) as found, as retail's does (row 640).
     using CitizenSet     = Collection::Set<CitizenComponent*>;
     using AssignmentNode = CitizenSet::Node;
     Collection::Array<int32_t> _present;    // +0x48: per material, the amount present

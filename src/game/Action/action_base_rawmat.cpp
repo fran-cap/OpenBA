@@ -4,36 +4,32 @@
 // Shared exe sub-helpers called by name (Action/exe_bodies.h, B3R) from
 // src/game/Action/{consumerawmaterial,pickuprawmaterial,pickupstoredrawmaterial,
 // createrawmaterial}.cpp. This file provides faithful 1:1 ports of the six that are *leaf*
-// (pure array ops, MemAlloc/MemFree, or engine_funcs export-resolved pointers) — i.e.
-// whose entire sub-callee closure is already satisfiable. The registration point is
-// RegisterActionRawMatBatch() in standalone/reg_action_rawmat.cpp.
+// (pure array ops, MemAlloc/MemFree, or engine calls) — i.e. whose entire sub-callee
+// closure is already satisfiable.
 #include "Action/exe_bodies.h"
 //
-// TAIL LANDED (this file): 0x140129760 PositionEntity and 0x140088ef0 RegisterRawMaterial
-// — the prior "deferred" note for both was STALE. PositionEntity's getters (0x140004680,
-// 0x140003f60 = Entity_ClearPathQueue) were already registered (component-nature / CNR
-// waves), so its closure was already satisfied; it just needed the port. RegisterRawMaterial's
-// deps are now provided here: 0x140013320 (FindComp), 0x140058fd0 (ArrayUpsert), 0x14000d9d0
-// (VectorClone), plus the already-registered 0x140088f90 (GetResourceCategory).
+// Also in this file: 0x140129760 Component::PositionRawMaterial and 0x140088ef0
+// CitizenBehavior::CountProducedMaterial. PositionRawMaterial's getters 0x140004680 /
+// 0x140003f60 are ComponentEntity::FindComponent<MapComponent> / <ModelComponent>.
+// CountProducedMaterial's deps: 0x140013320 (ComponentEntity::FindComponent<TrackerComponent>),
+// and, in this file, 0x140058fd0 (TrackerComponent::Upsert), 0x14000d9d0
+// (ActRm_VectorClone_d9d0) and 0x140088f90 (ResourceCategory).
 //
-// DEFERRED (still NOT registered):
-//   0x14009bd40 CreateRawMaterial FindPlacementCell — 260-instruction expanding-ring spiral
-//     with heavy decompiler variable-aliasing, on an UNEXERCISED citizen-action path (a wrong
-//     port would be undetectable latent corruption). Only dep 0x14009f3e0 is registered, so it
-//     is unblockable-but-deferred to its own careful pass with in-game validation.
+// 0x14009bd40 CreateRawMaterial FindPlacementCell is Map::FindPlacementCell, in
+// action_pf_roots_misc.cpp.
 //
 // Each function is a 1:1 port of the decompiled exe helper (Ghidra). Do NOT "improve".
 
 // The runtime type headers come FIRST: they pull src/engine/volume/Volume.h,
 // whose global-scope `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()`
-// once <windows.h> has been seen through resolve.h.  ENDGAME B.3.5 batch I2.
+// once <windows.h> has been seen.  ENDGAME B.3.5 batch I2.
 #include "graphics/Geometry.h"
 #include <new>
 #include "object/TypeInfo.h"
 #include "graphics/Camera.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
-#include "Component/exe_bodies.h"     // FloorComponent_FindResData
-#include "Game/exe_bodies.h"          // Reimpl_MapGetTerrainPos
+#include "Component/exe_bodies.h"
+#include "Game/exe_bodies.h"
 #include "Game/exe_constants.h"       // kRdata_140172114
 #include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
 #include "math/Math.h"
@@ -56,12 +52,10 @@
 #include "Game/Map.h"
 #include "Action/PathSearch.h"   // RawArray
 
-// Exe sub-helpers / engine constants used by the PositionEntity port below, called by
+// Exe sub-helpers / engine constants used by the PositionRawMaterial port below, called by
 // name (B3R):
-//   0x140004680 FloorComponent_FindResData / 0x140003f60 ActCNR_FindComponent_3f60 --
-//               member-ABI FindComponent (self, outIBP) -> outIBP.
-//   0x14009f3e0 Reimpl_MapGetTerrainPos -- GridToWorld (mapGrid, outVec3, inVec2, char flag,
-//               void* ptr).
+//   0x140004680 / 0x140003f60 ComponentEntity::FindComponent<MapComponent> / <ModelComponent>.
+//   0x14009f3e0 Map::GetTerrainPos -- GridToWorld (outVec3, inVec2, char flag, float* outTri).
 //   DAT_140172114 = 0.5f cell-centre offset (kRdata_140172114).
 // (The slope threshold 0x14017213c and height-diff tolerance 0x140172248 this file also
 // resolved had no reader here -- FindPlacementCell lives in action_pf_roots_misc.cpp.)
@@ -385,7 +379,7 @@ void CitizenBehavior::CountProducedMaterial(ComponentEntity* const* source,
 // FUN_140129760 (CreateRawMaterial_helper_9760) — place a raw-material entity.
 // ============================================================
 // Place the component's entity at cell `cellIndex` with `rotation`: its MapComponent gets
-// the tile (col/row), a 1x1 footprint and the rotation normalized to [0,360); its
+// the tile (col/row), a 1x1 footprint and the rotation (360 added while negative); its
 // ModelComponent gets the Transform built from (yaw=rotation, pitch=0, offset=worldPos),
 // the raw rotation as yaw, then its MeshInstance's SetTransform. worldPos comes from
 // GridToWorld (f3e0). Instruction-verified against the disassembly.

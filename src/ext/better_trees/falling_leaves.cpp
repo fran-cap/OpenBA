@@ -331,7 +331,7 @@ void LeavesFrame(GameUpdateLoop& game) {
     // finish long before month 6.0, so the tree list the autumn reads is the one it read before.
     if (months >= kScanFrom && months <= 9.5f) ScanSlice(game.m_game);
     else if (game.m_game != g.map) ScanSlice(game.m_game);   // a new map still clears the old one's trees
-    // nothing to do outside the autumn (the first tree starts at fallStart - autumnSpread * 0.8): the
+    // nothing to do outside the autumn (the first tree starts at fallStart - autumnSpread): the
     // geometry leaves the scene, so the rest of the year draws exactly as without the part
     if (months < 6.0f || months > 9.5f) {
         LeaveScene();

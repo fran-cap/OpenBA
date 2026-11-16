@@ -106,9 +106,7 @@ namespace Graphics {
 // the wrong way round and the mistake is silent. Slot 2 keeps the retail
 // spelling `Draw` because `Geometry` introduces it and six other classes
 // override it; slot 10, which enters the hierarchy HERE, is spelled
-// **`DrawLight`**. Both mangled names stay exactly as they are in every
-// registration and every mint row — the rename is a C++ spelling, not a
-// symbol change.
+// **`DrawLight`**. The rename is a C++ spelling, not a symbol change.
 // ============================================================================
 class Light : public Geometry {
 public:
@@ -142,7 +140,7 @@ static_assert(alignof(Light) == 8, "qword aligned (the vptr)");
 // Graphics::AmbientLight : Graphics::Light — 0xd8, eleven slots.
 //
 // `??_7AmbientLight@Graphics@@6B@` @ 0x180158cd0:
-//   [0] 0x180059080  (unexported) vector deleting dtor  (deleting_dtor.cpp row)
+//   [0] 0x180059080  (unexported) vector deleting dtor
 //   [1] 0x1800fa7a0  ?Update@…            — `RET`, empty in the shipped build
 //   [2] 0x1800fa790  ?Draw@…MHHH@Z        — `RET`
 //   [3] 0x1800fa890  ?AddDrawItems@…
@@ -162,13 +160,13 @@ static_assert(alignof(Light) == 8, "qword aligned (the vptr)");
 // `??1AmbientLight@Graphics@@UEAA@XZ` (0x180058f30) IS A FIVE-INSTRUCTION
 // THUNK that tail-jumps `??1Geometry@Graphics@@UEAA@XZ` (0x1800a41c0) — the
 // linker folded the two because AmbientLight adds no destructible member. Its
-// door is registered at the thunk address AND by name; see lights_vtable.cpp.
+// body is in lights_vtable.cpp.
 // ============================================================================
 // ENDGAME B.3 step 9 (block GFX, B39_RULES D1): CONCRETE. The real ctor below
 // is retail's ??0 body, its own slot 0 is the vector deleting dtor, ~AmbientLight
 // is public and virtual. The ??0 / ??1 / slot doors, the minted
-// `??_7AmbientLight@Graphics@@6B@` and its RT_DELDTOR row are retired
-// (tools/rt_mint_retired/gfx.txt): nothing in retail or the tree builds one
+// `??_7AmbientLight@Graphics@@6B@` and its RT_DELDTOR row are retired:
+// nothing in retail or the tree builds one
 // (no caller of ??0AmbientLight by any binding), so no route changes.
 // ============================================================================
 class AmbientLight : public Light {
@@ -273,8 +271,8 @@ static_assert(offsetof(AmbientLight, _padD4)     == 0xd4, "AmbientLight tail pad
 // them through their own vtable slot 0 / their exported members.
 // ============================================================================
 // ENDGAME B.3 step 9 (block GFX, B39_RULES D1): CONCRETE, like AmbientLight
-// above -- real ctor (retail's ??0 body), own vector slot 0, protected
-// non-virtual ~SpotLight holding the retired ??1 door's body. No builder of a
+// above -- real ctor (retail's ??0 body), own vector slot 0, public
+// virtual ~SpotLight holding the retired ??1 door's body. No builder of a
 // SpotLight exists in retail or the tree.
 // ============================================================================
 class SpotLight : public Light {
@@ -325,17 +323,15 @@ public:
     // because `Graphics::Camera` was still a POD; the class exists now
     // (Camera.h), this header includes it, and the declaration is the real one.
     // NON-VIRTUAL, so the by-value return is correct C++ (the member is never
-    // reached through a slot); whoever ports it writes a door with retail's
-    // `(this, ret, renderer)` order, exactly as `sun_camera.cpp` does for
-    // `SunLight::GetSunCamera`.
+    // reached through a slot), as it is for `SunLight::GetSunCamera` in
+    // `sun_camera.cpp`.
     Camera GetSpotCamera(Renderer& renderer) const;  // 0x180105fb0  not ported
     //
     // `?CreateTargets@SpotLight@Graphics@@AEAAXXZ` @ 0x180106050 is PRIVATE
-    // (`AEAA`) and this DLL exports its private members
-    // (reference_aeaa_is_private_not_unexported.md). It is PORTED, in
-    // `src/engine/graphics/batchc_gfx_leaves.cpp` — NOT this block's file —
-    // so its body stays where it is and its door keeps working.
-    void CreateTargets();                            // 0x180106050  door in batchc_gfx_leaves.cpp
+    // (`AEAA`) and this DLL exports its private members. It is PORTED, in
+    // `src/engine/graphics/batchc_gfx_leaves.cpp` — NOT this block's file — as
+    // a member.
+    void CreateTargets();                            // 0x180106050  batchc_gfx_leaves.cpp
 
 public:
     ::Frustum _frustum;        // +0xc0 .. +0x123

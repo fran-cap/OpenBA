@@ -5,10 +5,10 @@
 // Extends Object::External (0x20 bytes base).
 //
 // Fields:
-//   +0x20: void* setup       — ExternalPtr to TutorialSetup
+//   +0x20: void* setup       — ExternalPtr to ComponentDescription
 //   +0x28: void* steps       — array of ExternalPtr to TutorialStep
 //   +0x30: int64  stepCount  — number of steps (count + capacity packed)
-//   +0x38: int32  currentStep — current step index (-1 = none)
+//   +0x38: int32  currentStep — index of the scenario to load next (-1 = none)
 //
 // Decompiled from Application-x64.exe using Ghidra.
 
@@ -27,10 +27,10 @@
 #include "Tutorial/TutorialStep.h"   // B8 RT2: ::Object::SerializeExternalArray<TutorialStep> (the downcast needs it complete)
 
 // ============================================================
-// Exe helpers, called by name: 0x140001bb0 DynArray resize (Reimpl_Array_Resize_Stride08)
-// and 0x140002340 ExternalPtr serialize (Reimpl_ExternalPtr_Serialize_StringTable, the
-// body registered there), Game/exe_bodies.h; 0x140026fb0 TutBase_SerializeStepArray,
-// Tutorial/exe_bodies.h.
+// Exe helpers, called by name: 0x140001bb0 DynArray resize (Reimpl_Array_Resize_Stride08,
+// Game/exe_bodies.h); 0x140026fb0 and 0x140002340, the ExternalPtr serializers, are
+// ::Object::SerializeExternalArray<TutorialStep> and ::Object::SerializeExternal<ComponentDescription>
+// (object/External.h).
 // ============================================================
 
 // ============================================================

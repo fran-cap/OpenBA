@@ -5,16 +5,14 @@
 //   ?CacheText@TextElement@UI@@AEAAXXZ           retail 0x18011ec10  (ord 1680)
 //
 // Both are `AEAA` — PRIVATE, and this DLL exports its private members, so
-// "private" was never the reason they were not ported
-// (reference_aeaa_is_private_not_unexported.md).
+// "private" was never the reason they were not ported.
 // ============================================================================
 //
 // WHY THIS FILE EXISTS AND WHAT THE RECORDED BLOCKER TURNED OUT TO BE
 // -------------------------------------------------------------------
 // The UI census carries `?CacheText@TextElement@UI@@AEAAXXZ` as "not replayable,
 // needs the predictive oracle", parked behind the allocator NO-GO. Both halves
-// of that were re-checked from scratch rather than inherited
-// (reference_holdback_blockers_are_stale_check_them_first.md):
+// of that were re-checked from scratch rather than inherited:
 //
 //  * NOT REPLAYABLE — STILL TRUE, and it is the SAME defect Wave 9 lane M
 //    found on `NumberElement::SetValue`. This body swaps a refcounted
@@ -23,11 +21,10 @@
 //    freed. WAVE9.md finding (1). A prefix replay here is not a weak oracle,
 //    it is a use-after-free.
 //
-//  * The body is written against the live sink (src/engine/rt_sink.h).
 //
 //  * THE ALLOCATOR "NO-GO" IS NOT LOad-BEARING FOR THIS ROW. This body does not
 //    contain an allocator: every allocation and every free it performs is a
-//    CALL into a function that is already ported and registered —
+//    CALL into a function that is already ported —
 //    `String::FormatParamList` (Wave 9 lane B3), `MemoryAllocator::MemFree`
 //    (Wave 2), `UI::String::operator System::String` (Wave 7 lane F) and, as of
 //    this commit, `Collection::Array<System::String>::SetSize` (0x180029a80).
@@ -39,8 +36,8 @@
 //    was an unported, unexported `Array<System::String>::SetSize`. Wave 9's
 //    array_destroy.cpp predicted this exact arrival — "It will get a SECOND
 //    caller the day 0x180029a80 … lands" — so 0x180029a80 is ported in
-//    src/engine/collection/array.cpp as `kSpec_StringRefZ` in this commit and
-//    is reached through the registry, not by a private second body.
+//    src/engine/collection/array.cpp as `kSpec_StringRefZ` and
+//    is called through that row, not by a private second body.
 //
 // LAYOUT (all offsets read from the two disassemblies, not from decompiled C)
 // --------------------------------------------------------------------------
@@ -59,12 +56,7 @@
 //   retail produce the IDENTICAL POINTER. This branch is exactly comparable.
 //
 // `_size != 0`  -> `String::FormatParamList` builds a FRESH allocation. Ours and
-//   retail allocate different blocks, so the pointer at +0xF8 is NOT comparable
-//   and predicting it would fail 100% of calls — the shape
-//   reference_oracle_must_not_compare_unwritten_bytes.md warns about, one step
-//   over. On this branch the pointer prediction is declared with `Exclude()`,
-//   which makes the round record it in the `unverifiable=` column instead of
-//   comparing it. The hole is counted, never silent.
+//   retail allocate different blocks, so the pointer at +0xF8 is NOT comparable.
 //
 // ENDGAME B.3.6 block C3: both bodies are `UI::TextElement` members now. The
 // RtSink indirection is gone with the predict mode it served (the sink only
@@ -157,8 +149,7 @@ void TextElement::CacheText() {
     } else {
         if (tmp._data) { param0._data = tmp._data; ++RtSystem::StringRefCount(tmp._data); }  // 0x18011ecb3
         // The params pointer is the parameter Array's DATA pointer, not the
-        // Array header — Ghidra's decompiled C drops this third argument
-        // (reference_ghidra_c_output_vs_disassembly.md).
+        // Array header — Ghidra's decompiled C drops this third argument.
         result = System::String::FormatParamList(param0, _params._data);
         src = &result;                                        // 0x18011ecd1: R14 = &result
     }

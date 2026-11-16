@@ -348,11 +348,11 @@ const GUID kIID_ID3D11Texture2D =
 // drives the NOTIFY-AND-RECREATE half of the path, which is the half PLAN 5.5
 // is about and the half MainLoop::OnVideoError / OnVideoRestart live on.
 //
-// Off unless the env var is set, and `getenv` is process-cached
-// (src/app/options.h), so the read costs nothing per frame.
+// Off unless the env var is set. It is read once at boot into Options (src/app/options.h,
+// Opt().forceDeviceLost) and cached here on the first call, so the read costs nothing per frame.
 // ============================================================
 
-// Returns true exactly once, on the Nth ContextData::Finish call.
+// Returns true exactly once: on the Nth ContextData::Finish call, or (bgsave) on the first one after a request.
 bool ForceDeviceLostThisFrame() {
     // A DeviceLostDrive::Wanted mode, or > 0: the Present # to inject on.
     static int  wanted = static_cast<int>(DeviceLostDrive::Wanted::NotRead);

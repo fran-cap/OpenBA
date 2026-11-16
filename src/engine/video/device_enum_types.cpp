@@ -4,19 +4,9 @@
 //   types), plus the two Device methods that build and read them.
 // ============================================================================
 //
-// WHY THIS FILE EXISTS: these are the six functions the cutover boot gate has
-// died on since attempt 23. `VideoDX11`'s `DeviceData::EnumerateInterfaces`
-// resolves a 40-entry Runtime import table at src/render/dx11/devicedata.cpp:216-277;
-// nine of those entries are the symbols below, `GetImports()` sets `g_imOk =
-// false` if ANY entry is null, and the null-import path forwards to
-// `Orig<...>(1)` — which with the shipped DLL absent is a null pointer.
-// That is the VCALL-of-0. Filling these nine names is what makes GetImports
-// succeed. (docs/history/runtime_port/WAVE16_BOOTGATE.md)
-//
-// `Dx11ResolveRuntimeImport` (src/render/dx11/dx11_backend_access.cpp:9) tries
-// `ResolveExport(mangled)` FIRST, so registration BY NAME is the registration
-// that unblocks the wall. Registration by address is done too, for the 13 live
-// sites that reach Runtime symbols through `ResolveAddr(Module::Runtime, …)`.
+// WHY THIS FILE EXISTS: src/render/dx11/devicedata.cpp calls these bodies by
+// name (`rec.FindOrAddMode`, `dev->GetDisplayMode`).
+// (History: docs/history/runtime_port/WAVE16_BOOTGATE.md)
 //
 //   | Export                                        | Retail      |
 //   |-----------------------------------------------|-------------|
@@ -73,7 +63,7 @@
 // None of the five is exported (checked against the export directory, not
 // assumed from the mangling — `AEAA` means private, not unexported, and this
 // DLL does export its private members). They are template instantiations with
-// no name of their own, so they can only be registered by address.
+// no name of their own.
 //
 // PORTABILITY: no <windows.h> here, per PLAN §4.1 decision 1.
 // ============================================================================
@@ -241,8 +231,7 @@ void RtVideo_ArrayModeDtor(DisplayMode*& data, int32_t& size, int32_t& capacity)
 // the ZF comes from the ADD, so the element is skipped when `data + offset`
 // is zero. With a null `data` and a non-zero size — which the growth rule can
 // produce if MemAlloc fails — that skips element 0 only and copies through null
-// for the rest. Retail's; reproduced rather than "fixed", because a guard here
-// would change which of the two implementations faults first.
+// for the rest. Retail's; reproduced rather than "fixed".
 //
 // Retail's self-assignment test compares the two ARRAY objects; an array here
 // is its `data` field and the two after it, so the test compares those fields'
@@ -365,7 +354,7 @@ void RtVideo_ArrayAdapterElemDestroy(Adapter* data, int32_t count) {
         e->modeCapacity = 0;
 
         // +0x00 System::String — retail's inlined "spelling B" release, which
-        // is the String member's destructor (see STRING SPELLING B below).
+        // is the String member's destructor (see STRING SPELLING B above).
         e->name.~String();
 
         ++e;
@@ -421,9 +410,8 @@ void RtVideo_ArrayAdapterDtor(Adapter*& data, int32_t& size, int32_t& capacity) 
 // the ZF comes from the ADD, so the element is skipped when `data + offset` is
 // zero — which with a null `data` (a failed MemAlloc) skips element 0 only and
 // copies through null for the rest. Retail's, and reproduced rather than
-// guarded: a guard here would change which of the two implementations faults
-// first, and the fault is the signal. Same shape as
-// device_startup.cpp:RtVideo_ArrayRefreshAssign.
+// guarded: the fault is the signal. Same shape as RtVideo_ArrayRefreshAssign
+// above.
 // ============================================================================
 void RtVideo_ArrayAdapterAssign(Adapter*& data, int32_t& size, int32_t& capacity,
                                 Adapter* const& srcData, const int32_t& srcSize) {
@@ -588,7 +576,7 @@ Video::Device::GraphicsInterface::~GraphicsInterface() {
 //
 // Zeroes +0x00..+0x27 (five qwords), stores -1 as a QWORD over +0x28..+0x2f and
 // -1 as a DWORD at +0x30, returns `this`. +0x34 is NOT written — the ctor
-// leaves it, so this port leaves it too (`field34` has no initialiser). The
+// leaves it, so this port leaves it too (`pad34` has no initialiser). The
 // qword stores are written as the named fields they cover, in address order.
 //
 // This is the body the brief asked to be confirmed as not-a-thunk. It is not;
@@ -708,11 +696,9 @@ void Video::Device::Adapter::FindOrAddMode(const DisplayMode& mode,
 // ?GetDisplayMode@Device@Video@@QEBA?AVDisplayMode@12@H@Z   retail 0x18000d3e0
 //
 // Returns a DisplayMode BY VALUE, which on this ABI means a HIDDEN RETURN SLOT
-// in RDX and the index in R8 — the signature below has three parameters for a
-// one-parameter method, and that is not a mistake. A typedef that omits the
-// hidden slot writes the return value through whatever was in RDX and still
-// hands the caller a plausible answer, which is a wild write that verifies
-// green.
+// in RDX and the index in R8. A typedef that omits the hidden slot writes the
+// return value through whatever was in RDX and still hands the caller a
+// plausible answer, which is a wild write that verifies green.
 //
 // The returned mode is a DEEP copy: the embedded Array<RefreshRate> is zeroed
 // and then assigned, so the caller owns its own refresh list and must destroy
@@ -721,10 +707,7 @@ void Video::Device::Adapter::FindOrAddMode(const DisplayMode& mode,
 // ENDGAME B.3.5 block D2, RULE B5-12: the MEMBER returns the `DisplayMode` BY
 // VALUE, which is what retail's `?AVDisplayMode@12@` mangling says, and GCC's
 // Microsoft-ABI lowering gives it the same hidden slot in RDX and the same RAX
-// return. The DOOR keeps the explicit three-parameter shape its two registry rows
-// have always had, placement-constructs the member's prvalue into the caller's
-// slot (C++17 guarantees that is built in place, not copied) and returns the slot
-// pointer — `MOV RAX,RDI` at 0x18000d42e.
+// return (`MOV RAX,RDI` at 0x18000d42e).
 Video::Device::DisplayMode Video::Device::GetDisplayMode(int index) const {
     const DisplayMode* m = modeData + index;
 

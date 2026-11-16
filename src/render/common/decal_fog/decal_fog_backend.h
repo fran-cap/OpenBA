@@ -32,8 +32,9 @@ bool Supported();
 BANISHED_RENDER_IMPL_END
 
 // A pixel permutation's corrected copy: true with `out` filled when the row is on and the program is
-// one of the decal programs the rewrite matches; false (retail's bytes are used) otherwise. Logs the
-// first few rewrites and every refusal of a program that carries the underwater tint (load time only).
+// one of the decal programs the rewrite matches; false (retail's bytes are used) otherwise. Logs, under
+// one shared cap, the rewrites, their failures and the refusals of a program that carries the underwater
+// tint and does not already tint first (load time only).
 bool FixedCopy(const uint8_t* blob, size_t size, std::vector<uint8_t>* out);
 
 }  // namespace DecalFogBackend

@@ -20,19 +20,14 @@
 // The walk after the load is exactly Object::Base::IsDerivedFrom (type_system.cpp),
 // including the unguarded FindNode result, so the port calls that body rather
 // than transcribing the walk a third time. T's typeId is the first dword of its
-// `?_typeInfo@` node, read through the name door so it follows a mint promotion.
+// `?_typeInfo@` node; the caller passes it as `T::TypeId()`.
 // ============================================================================
 #include <cstdint>
 #include <cstdio>
 
 #include "object/Internal.h"
 
-// Both are C++-linkage bodies in namespace RtObject (internal.cpp, type_system.cpp).
-// B.3.4 block 3: the serializer parameter is the REAL `IO::Serializer`; it was
-// `RtObject::SerializerLite`, which died with this block. Spelled `::IO::` in
-// full so the declaration cannot drift from internal.cpp's definition — a
-// mismatch here would be a link error, not a silent one, but naming it exactly
-// is cheaper than proving that each time.
+// A C++-linkage body in namespace RtObject (type_system.cpp).
 namespace RtObject {
 bool RtObject_Base_IsDerivedFrom(const ::Object::Base* self, uint32_t typeId);
 }
@@ -42,13 +37,12 @@ bool RtObject_Base_IsDerivedFrom(const ::Object::Base* self, uint32_t typeId);
 // `Object::InternalPtr<T>::SerializeArray` (src/engine/object/Internal.h),
 // one template body for both instantiations — re-verified 2026-09-13,
 // function-size-bounded, at identical=55 / position-only=2 / REAL=1, the one
-// REAL instruction being the `_typeInfo` load. `T`'s type id is still supplied
-// by the caller through the mangled-name door, because none of the two `T`s is
-// a C++ class in this tree yet.
+// REAL instruction being the `_typeInfo` load. `T`'s type id is supplied by
+// the caller as `T::TypeId()`.
 //
-// The `IsDerivedFrom` customization point the class declares: `Object::Base` is
-// unconverted (SMARTPTR_INVENTORY.md §4), so it stays reached through the same
-// ported body the C form called.
+// The `IsDerivedFrom` customization point the class declares: it is reached
+// through `RtObject::RtObject_Base_IsDerivedFrom` (type_system.cpp), which calls
+// `Object::Base::IsDerivedFrom`.
 // ---------------------------------------------------------------------------
 namespace Object {
 bool InternalPtrIsDerivedFrom(const Internal* obj, uint32_t typeId) {

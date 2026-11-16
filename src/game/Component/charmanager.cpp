@@ -32,13 +32,12 @@
 // index g = levelBase[L]+morton, (g-1)>>2 = levelBase[L-1] + (morton>>2) — the parent walk
 // in 8c40/8d00 is consistent with the per-level morton indexing in sub_8660.
 //
-// Faithful 1:1 ports (extern "C", INT-width returns where the original reads EAX). My
-// reimpls call each other directly by name; reg_charmanager.cpp registers each exe addr so
-// external callers (OnAdd, the move-tick, the radius queries) route here via ResolveAddr.
+// Faithful 1:1 ports (CharacterGrid members, INT-width returns where the original reads EAX).
+// They call each other directly by name, and their callers call them as plain C++ calls.
 //
-// Inlined trivial ops (mathematically exact; avoids resolving 5 extra Runtime exports —
-// flagged for lead review): Volume::Rectangle::Center/Size (rect = {min.xy,max.xy}),
-// Math::Vector2::operator+=/operator*= (component-wise), Math::Scalar::Max.
+// Inlined trivial ops (mathematically exact): Volume::Rectangle::Center/Size
+// (rect = {min.xy,max.xy}), Math::Vector2::operator+=/operator*= (component-wise),
+// Math::Scalar::Max.
 //
 
 
@@ -171,7 +170,7 @@ void CharacterGrid::Place(int idx) {
     // a reused index never matches; Release also resets the cell to -1 on free)
     // and return early while it is unchanged AND the slot is still registered (cell >= 0).
     // Identical registration, no divides/Morton/relink for a standing citizen.
-    // [PREFETCHCOV] the memo is CharacterGrid::s_rectMemo (file scope below, was a
+    // [PREFETCHCOV] the memo is CharacterGrid::s_rectMemo (file scope above, was a
     // function-local static here).
     {
         std::vector<RectMemo>& s_memo = s_rectMemo;

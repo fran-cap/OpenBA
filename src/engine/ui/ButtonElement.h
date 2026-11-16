@@ -10,9 +10,8 @@
 //
 // PARENT `UI::Element` — READ, not inferred (B36_SLOTS.md section 3):
 //     ?_ParentTypeName@ButtonElement@UI@@CAPEBDXZ  @0x180048230 -> "Element"
-// RULE B5-15 / B6-7 — the two literals, RECORDED, NOT USED (no DEFINE_TYPE in
-// step 6; slots 1/2 keep reading the minted `?_typeInfo@ButtonElement@UI@@…`,
-// 0x1801fa938):
+// RULE B5-15 / B6-7 — the two literals, which the class's DEFINE_TYPE
+// (buttonelement.cpp) returns:
 //     ?_TypeName@ButtonElement@UI@@CAPEBDXZ        @0x180048220 -> "ButtonElement"
 //     ?_ParentTypeName@ButtonElement@UI@@CAPEBDXZ  @0x180048230 -> "Element"
 //

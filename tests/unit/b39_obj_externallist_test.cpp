@@ -5,7 +5,7 @@
 // The class's KEY FUNCTION is `GetFileVersion` (its constructor and slot 0 are inline
 // in External.h), so GCC emits its vtable in whichever translation unit defines
 // the out-of-line members. In production that is external_class_doors.cpp,
-// which stands on the port registry and cannot link into the unit build (`tools/build.sh unit`); here THIS
+// which does not link into the unit build (`tools/build.sh unit`); here THIS
 // file defines them as RECORDING stubs — exactly the shape
 // tests/unit/pathfinding_picking_abi_test.cpp uses for Picking::PickingMesh —
 // so the REAL header's inline constructor and the compiler's destructor pair
@@ -40,7 +40,7 @@ const void* ElVTableOf(const void* o) { return *reinterpret_cast<const void* con
 
 // ---- the recording out-of-line members (see the banner) --------------------
 namespace Object {
-// The factory pair lives in external_list.cpp (registry-side); the class
+// The factory pair lives in external_list.cpp (not linked here); the class
 // record (DEFINE_TYPE, external_class.cpp) names it, so the unit link needs a
 // definition. Slots 1/2 are DECLARE_TYPE's own over that record.
 Base*             ExternalList::CreateNewObject()        { return nullptr; }

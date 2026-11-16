@@ -23,7 +23,7 @@
 // an in-game modal nobody is there to answer. Every unattended caller then burns its
 // whole ten-minute timeout before anyone notices. So the state now carries a HEARTBEAT:
 // a counter the main loop bumps once per frame (BootState_MarkFrame, called from
-// RtEngine_MainLoop_Run) and the number of seconds since it last moved. A stalled
+// Engine::MainLoop::Run) and the number of seconds since it last moved. A stalled
 // counter is what "frozen" means, and it costs ~30s to find instead of ~10min.
 //
 // WHAT IT DOES
@@ -74,10 +74,10 @@
 //     step takes a loader lock: RtlLookupFunctionEntry and GetModuleHandleExA wait on locks a
 //     suspended thread, or a main thread hung inside DllMain, can hold for good.
 //     Thread ids are printed and the main thread is marked;
-//  3. on an UNATTENDED run only, TerminateProcess(self, 3).
+//  3. on an UNATTENDED run only, TerminateProcess(self, 4).
 //
-// EXIT CODE 3 IS SHARED WITH THE CRASH HANDLER (crash_handler_win.cpp's CrashHandler ends in
-// ExitProcess(3)). The artifact is what discriminates: a hang leaves standalone_hang.log and
+// EXIT CODE 4 IS SHARED WITH THE PURE-VIRTUAL HANDLER (crash_handler_win.cpp's LogPureVirtualCall
+// ends in ExitProcess(4)). The artifact is what discriminates: a hang leaves standalone_hang.log and
 // NO standalone_crash.log. (A failed Engine::Startup is neither: since Phase D.4 GAPS, row
 // 1273, GameMain shows retail's fatal box and returns -1 = exit 255 after the click.)
 
@@ -415,7 +415,7 @@ void Stop() {
 }  // namespace BootState
 
 // One interlocked increment per rendered frame. Cheap enough to sit in the main
-// loop unconditionally; there is no flag for it (DIRECTION.md: a verified
+// loop unconditionally; there is no flag for it (AGENTS.md §3: a verified
 // feature is unconditional code).
 extern "C" void BootState_MarkFrame() {
     InterlockedIncrement(&BootState::g_frames);

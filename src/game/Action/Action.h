@@ -4,7 +4,7 @@
 //
 // `Action`, the exe's citizen action-stack node base, as a REAL C++ class whose
 // vtable the compiler generates. Global namespace, as in retail (reflected name
-// "Action", parent literal "Object::Internal"; the record is DEFINE_EXE_TYPE in
+// "Action", parent literal "Object::Internal"; the record is DEFINE_EXE_ABSTRACT_TYPE in
 // action.cpp with retail's abstract factory, ENDGAME B.3.9 RF).
 //
 // RETAIL (Application-x64.exe, B38_SLOTS.md §1/§6, bytes read 2026-09-26):
@@ -28,7 +28,7 @@
 //
 // SLOT NAMES 4-9 are the tree's (the exe has no symbols; B38 B8-6). The argument
 // list of 8 is the tree's C body's (B38_RULES §6 NOT VERIFIED); 4, 5 and 7 are
-// the executor's (citizenai_executor.cpp:82-100, asm 0x1400c4ced / 0x1400c4d57 /
+// the executor's (citizenai_executor.cpp CallPre / CallMain / CallExit, asm 0x1400c4ced / 0x1400c4d57 /
 // 0x1400c4ddc); 6 is 0x1400c4f80's (B3X W0, below).
 //
 // LAYOUT: Object::Internal (0x10) + InternalBasePtr +0x10 + bool +0x18 = 0x20.
@@ -75,7 +75,7 @@ public:
 
 
     // ---- the 0x10 bytes Action adds, retail order ---------------------------
-    // PUBLIC while unconverted bodies (the executor) read them at raw offsets.
+    // PUBLIC: the executor (citizenai_executor.cpp) and the stack walk read them by name.
     // +0x10 is the next node of the stack entry's chain (B.4 ACT-a: the walk
     // 0x1400c4f10 advances through it, the dtor releases it; the tree called it
     // `_entity`).

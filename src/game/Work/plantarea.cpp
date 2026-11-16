@@ -92,8 +92,8 @@ static int SettledSlots(const CropFieldComponent* crop) {
     return n;
 }
 
-// LEFT (every slot below): the set bodies 0x140029a40 / 0x14001ca60 / 0x140029de0
-// keep their C signature (outside callers): the set as uintptr_t*.
+// LEFT (every slot below): the set bodies 0x140029a40 / 0x140029de0 keep their C signature
+// (outside callers): the set as uintptr_t*; 0x14001ca60 is the template in Work/CellBst.h.
 
 
 // ============================================================
@@ -144,7 +144,7 @@ int PlantArea::Execute(CitizenComponent** citizenRef, System::Time* /*context*/)
 
     // Step 4: Iterate field cells
     int fieldCellCount = _unplantedCells._size;
-    bool anyUnplanted = true;  // tracks if we found any cell with validity flag set
+    bool anyUnplanted = true;  // stays true until a flagged cell not in the set is found
 
     if (fieldCellCount > 0) {
         for (int i = 0; i < fieldCellCount; i++) {
@@ -202,7 +202,7 @@ int PlantArea::Execute(CitizenComponent** citizenRef, System::Time* /*context*/)
                 continue;
             }
 
-            bool canPath = static_cast<uint8_t>(mapGrid->ValidateCell(PathBits::Walk, citizenGridCell, nearestCell));   // the door read AL
+            bool canPath = static_cast<uint8_t>(mapGrid->ValidateCell(PathBits::Walk, citizenGridCell, nearestCell));   // only AL is read
             if (!canPath) {
                 continue;
             }
@@ -614,7 +614,7 @@ void PlantArea::Persist(IO::Stream& stream) {
         _unplantedCells.SetSize(cellCountBuf[0]);
     }
 
-    // Serialize validity array through the BOOL-ARRAY door.
+    // Serialize validity array through the bool-array overload.
     //
     // ENDGAME B.3.4a closing — SETTLED FROM RETAIL, not from the alias, exactly
     // as batch H settled the identical bug in harvestarea.cpp. Retail
@@ -624,9 +624,8 @@ void PlantArea::Persist(IO::Stream& stream) {
     //     1400f45b8  MOV EDX,dword ptr [RSP + 0x50] ; the count
     //     1400f45bc  LEA RCX,[RSP + 0x28]           ; the Serializer
     //     1400f45c1  CALL qword ptr [0x140151458]
-    // 0x140151458 is `?Serialize@Serializer@IO@@QEAAXHPEA_NPEBD@Z`
-    // (address_registry.cpp:1163), the FOUR-parameter (int n, bool*, const char*)
-    // array door at rw_vtbl::kArrayBool.
+    // 0x140151458 is `?Serialize@Serializer@IO@@QEAAXHPEA_NPEBD@Z`, the FOUR-parameter
+    // (int n, bool*, const char*) array overload at rw_vtbl::kArrayBool.
     //
     // `s_fn_Serializer_SerializeBoolArray` was ALIASED onto 0x140152ac8 (that alias
     // and its door are gone with the B.3.4a closing sweep), which is the

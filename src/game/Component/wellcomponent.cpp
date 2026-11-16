@@ -1,7 +1,8 @@
 // src/game/Component/wellcomponent.cpp
 // Clean reimplementation of WellComponent lifecycle methods from Application-x64.exe.
 //
-// WellComponent (0x48 bytes) extends ControllerComponent. No additional fields.
+// WellComponent (0x48 bytes) extends ControllerComponent; its one field is the embedded
+// controller at +0x28.
 // Vtable at 0x14015ae90, read from the BYTES:
 //   [ 3] 0x14005cfa0  Shutdown/Serialize — two empty serializer blocks
 //   [ 7] 0x14005cf60  OnRemove           — UNregister the water source
@@ -13,7 +14,7 @@
 // ⚠ SLOT 7 IS OnRemove, NOT OnCreate. It calls 0x140091ba0, which SCANS FOR AND
 // CLEARS the entity from the water-source array — a removal, not a registration.
 // This file used to call it OnCreate (the standing Ghidra OnCreate/OnRemove
-// off-by-one, see reference_ghidra_oncreate_onremove_mislabel), which is part of why
+// off-by-one), which is part of why
 // the missing REGISTER half went unnoticed for so long: the file looked complete.
 //
 
@@ -152,7 +153,7 @@ void CitizenBehavior::UnregisterWell(Object::InternalPtr<WellComponent>* well) {
 // the town has.
 // ============================================================
 void CitizenBehavior::AddCellEntry(int x, int y, int value) {
-    // This helper is shared: CitizenList_PostLoad_8f580 (0x14008f580) calls it for
+    // This helper is shared: CitizenBehavior::PostLoad (0x14008f580) calls it for
     // every residence cell on a LOAD, long before any well reaches its state-2 enter.
     // The singleton read unguarded, as retail 0x140088a95 ([0x1401c3dd8] +0xf8):
     // every caller runs inside a game (row 1310; the port's `if (!world) return;`

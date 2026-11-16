@@ -40,7 +40,7 @@
 #include "Component/find_components3.h"   // PERF: Execute's three component scans in one walk
 
 // Sub-functions, called by name (B3R): 0x140025520 WorkBST_BSTFindRemove_25520,
-// 0x1400c5400 WorkBase_TaskListCleanup_c5400, 0x140014c30 WorkBase_TreeNodeFree_14c30.
+// 0x1400c5400 ActionStack::Clear; 0x140014c30 is retail's node free inside the dtor's ~Set (below).
 
 // ============================================================
 // Helper: Clamp int to [0, max-1]
@@ -251,7 +251,7 @@ int ClearStorage::Execute(CitizenComponent** citizenAI, System::Time* time) {
             citizenPtr->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
         }
 
-        // Register work with citizen AI (the tree helpers take the root as uintptr_t*)
+        // Register work with citizen AI
         WorkCitizenSetNode* inserted;   // the out-node slot (retail reuses entityRefOut's)
         WorkBST_RegisterWork_1a30(&_citizens, &inserted, citizenAI);
         return 2;
@@ -265,16 +265,13 @@ int ClearStorage::Execute(CitizenComponent** citizenAI, System::Time* time) {
 // Original: 0x1400e69f0
 // ============================================================
 // Traverses the BST at self+0x58, checking each stored task via
-// Work::CanStartWork. Invalid tasks are collected into a temporary
+// Work::ValidateTask. Invalid tasks are collected into a temporary
 // array and then removed from the BST.
 //
-// Returns: true (1) if no entries remain (all cleared), false (0) otherwise.
-//
-// NOTE: Hook is DISABLED due to bug class 3 (MOV RAX,RSP in prologue).
-// This clean implementation exists for documentation and future standalone exe.
+// Returns: 1 when the pass removes no entry, 0 otherwise.
 int ClearStorage::Validate() {
 
-    // Phase 1: In-order traverse BST, collect entries that fail CanStartWork
+    // Phase 1: In-order traverse BST, collect entries that fail ValidateTask
     AssignmentNode** removeList = nullptr;
     int removeCount = 0;
     int removeCapacity = 0;
@@ -374,7 +371,7 @@ phase2:
                     searchNode = searchNode->left;
                 } else {
                     if (key <= nodeKey) {
-                        // Found it, remove (the tree helpers take the root as uintptr_t*: LEFT)
+                        // Found it, remove
                         WorkBST_BSTRemove_a6e0(&_citizens, searchNode);
                         break;
                     }
@@ -394,7 +391,7 @@ phase2:
 // root's +0x10 / +0x18 children, MemFree [0x140152b68] of the root, root = 0 qword, count =
 // 0 dword); MemFree +0x48, +0x48 = 0, +0x50 = 0 (qwords); stamp Work 0x140161a80 and
 // tail-jump ~Internal. That is the compiler's chain over the two members in reverse
-// declaration order: ~Set (Clear), then ~Array (_field48).
+// declaration order: ~Set (Clear), then ~Array (_unreadArray).
 ClearStorage::~ClearStorage() = default;
 
 // ============================================================
@@ -431,19 +428,19 @@ int ClearStorage::OnCancel(CitizenComponent** param2, ComponentEntity** /*arg2*/
 // ============================================================
 // Retail: `return 0 < *(int*)(self + 0x60)`. ClearStorage keeps its citizen tree at
 // +0x58 with the count at +0x60 (one qword later than the +0x48/+0x50 layout the
-// shared Work_Slot11_HasActiveTasks reads), so it needs its own body. Was pinned to
+// shared GetPriority 0x140029860 reads), so it needs its own body. Was pinned to
 // Work_SlotRet0, i.e. permanently "nobody is working this".
 int ClearStorage::GetPriority() {
     return (int)_citizens._count > 0 ? 1 : 0;   // retail's signed compare of the dword
 }
 
 // ============================================================
-// ClearStorage::CancelAll (Slot8, vtable +0x40, 0x1400e72a0)
+// ClearStorage::Cleanup (Slot8, vtable +0x40, 0x1400e72a0)
 // ============================================================
 // Iterates the BST at self+0x58 by finding the leftmost node
 // each iteration. For each node, resolves the citizen entity,
-// navigates to its state machine component (+0x278), and cancels
-// the pending work action via TaskCancel on its action list (+0x48).
+// navigates to its CharacterComponent (+0x278), and clears
+// its action stack (+0x48).
 // Repeats until the BST is empty (count at self+0x60 drops to 0).
 int ClearStorage::Cleanup() {
 
@@ -504,8 +501,8 @@ Profession** ClearStorage::GetTarget(Profession** retbuf) {
 //
 // Identical in shape to FireWork::Serialize (0x1400e9a50, firework.cpp) minus the
 // trailing capacity int — FireWork's BST is at +0x50, ClearStorage's at +0x58
-// (LEA RCX,[RDI+0x58] at 0x1400e7381). Both sub-calls are already ported and
-// registered (reg_work_base.cpp / reg_work_bst.cpp), so this is a transcription.
+// (LEA RCX,[RDI+0x58] at 0x1400e7381). Both sub-calls are ported (Work::Persist,
+// work_base_reimpl.cpp; WorkBST_BST_Serialize_296b0, Work/KeyBst.h), so this is a transcription.
 // ENDGAME B.3.8: the two function-local lazy pointer caches are gone — the base call
 // is the qualified Work::Persist, the BST body is called by name (B38 D7).
 void ClearStorage::Persist(IO::Stream& stream) {
@@ -514,7 +511,7 @@ void ClearStorage::Persist(IO::Stream& stream) {
     Work::Persist(stream);
 
     IO::Serializer ser(stream, 0);
-    WorkBST_BST_Serialize_296b0(&_citizens, &ser);   // 0x1400296b0 (work_base_bst.cpp)
+    WorkBST_BST_Serialize_296b0(&_citizens, &ser);   // 0x1400296b0 (Work/KeyBst.h)
 }
 
 // ============================================================

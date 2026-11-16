@@ -91,8 +91,8 @@ std::string WideToUtf8(const wchar_t* w, size_t len) {
     return out;
 }
 
-// A path in the file primitives' unit (Platform::PathChar: wchar_t today; ABI C.5
-// flips it to char16_t, and nothing below changes with it). std:: only: no engine
+// A path in the file primitives' unit (Platform::PathChar: char16_t, platform_file.h,
+// the same 16-bit unit as wchar_t on Windows). std:: only: no engine
 // allocator (the banner).
 using PathString = std::basic_string<Platform::PathChar>;
 

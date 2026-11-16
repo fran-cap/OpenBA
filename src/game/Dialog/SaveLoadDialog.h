@@ -7,7 +7,7 @@
 // RETAIL (Application-x64.exe, B38_SLOTS.md section 6):
 //   reflected "SaveLoadDialog", parent "UI::DialogInstance", ti 0x1401c5cc8
 //   create 0x140021160 (MemAlloc(0x160, 8)), createInPlace 0x1400211a0
-//   ctors 0x1400b80f0, 0x1400b81c0, 0x1400b8270 (the door the tree registers)
+//   ctors 0x1400b80f0, 0x1400b81c0, 0x1400b8270 (the one the tree ports)
 //   table 0x14015f900, 10 slots:
 //     [0] 0x1400211b0 scalar deleting dtor  [1] TypeName  [2] Type
 //     [3] DialogInstance::Persist (import)  [4] 0x1400b7d00 OnOpened

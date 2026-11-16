@@ -5,52 +5,10 @@
 //   0x180120f20   ordinal 1725
 // ============================================================================
 //
-// WHAT THIS ROW WAS BLOCKED ON, AND WHAT IT IS ACTUALLY BLOCKED ON
-//
-// Recorded blocker through Waves 7-9: "allocator NO-GO". Lane UI1 retired that
-// (docs/history/runtime_port/WAVE10_LANE_UI1.md §1b): the NO-GO is a verdict on
-// REPLACING the allocator arena, not on a ported body CALLING the shipped one,
-// and this function's allocator use is two inlined `MemFree`s plus a
-// `DynArrayPush`, all of which have exported doors.
-//
-// The blocker UI1 said would survive is ORACLE COVERAGE, and it does survive,
-// but it is SMALLER than UI1 predicted. UI1 wrote:
-//
-//     "a predictive round over CloseDialog would compare a handful of scalars
-//      on `this` (+0x38/+0x40 tooltip clear, +0x30 array shrink) against a very
-//      large Exclude set."
-//
-// Two of the five effects UI1 listed as unreachable are in fact FULLY
-// PREDICTABLE and are compared here:
-//
-//   * **the unlinks in another object's list** (UI1's item 4). `parent+0x38`,
-//     `parent+0x40` and `parent+0x48`, plus the two neighbour-node fixups
-//     `prev->next` and `next->prev`, are computed from pointers this body can
-//     read and are left in memory retail does not free. UI1 called this "a
-//     graph whose extent must be enumerated before Watch can see it" — so this
-//     body ENUMERATES IT, by calling `Watch` from inside itself once it has
-//     walked to the node. That is sound precisely because a predicting body
-//     writes nothing: the snapshot is still taken before the DLL runs.
-//
-//   * **the `_addDialogs` compaction** — the shift loop at 0x180121337 writes
-//     the array's own storage, which is not inside `this` at all. It is watched
-//     and compared element by element.
-//
-// The three that genuinely are not expressible, each declared with `Exclude`
-// naming the callee that owns it:
-//
-//   1. the two `MemFree(node)` calls — the node's post-state belongs to the
-//      allocator, so the `node->prev = 0` / `node->next = 0` stores retail
-//      makes just before freeing are recorded for read-back and NOT compared
-//      (they land in an Exclude region and count as `unverifiable`);
-//   2. the `DynArrayPush` onto `_removedDialogs` (+0x18/+0x20) — the pushed
-//      element lands at an address the allocator chose;
-//   3. the `OnClosed` vtable release, `EndDragDrop`, `UpdateEvents` and
-//      `Array<UI::Event>::SetSize` — four suppressed calls whose footprints on
-//      `this` are `_events` (+0x48) and the drag-drop block (+0x60).
+// docs/history/runtime_port/WAVE10_LANE_UI1.md §5 has this row's blocker record.
 //
 // ---------------------------------------------------------------------------
-// THE ARMING PREDICATE, AND WHY A ROUND THAT IS NOT ARMED IS COUNTED
+// THE RECURSION
 // ---------------------------------------------------------------------------
 // `CloseDialog` recurses into itself twice — once per child dialog
 // (0x180120f6b) and once for the tooltip (0x180120fa6). The child loop's
@@ -58,22 +16,10 @@
 //
 //     while (*(int*)(dlg + 0x48) > 0) { ... CloseDialog(child) ... }
 //
-// In predict mode a suppressed call decrements nothing, so that loop would spin
-// forever. So the round is ARMED only on calls where neither recursion is
-// entered — `dlg` has no children and the tooltip arm's condition is false.
-// Everything else is handed straight to the DLL and COUNTED.
-//
-// The count is printed at exit as `indeterminate=N`. It has to be, or the
-// coverage claim is a lie by omission: a green board over the armable subset,
-// reported without the size of the unarmed subset, is exactly the
-// partial-oracle-reading-as-full failure this project keeps hitting. `rounds=`
-// alone cannot express it — an unarmed call never constructs a round.
-//
 // ---------------------------------------------------------------------------
 // FACTS THE DECOMPILED C DROPS OR GETS WRONG
 // ---------------------------------------------------------------------------
-// Read off 0x180120f20..0x1801213b6, not off Ghidra's C
-// (reference_ghidra_c_output_vs_disassembly.md):
+// Read off 0x180120f20..0x1801213b6, not off Ghidra's C:
 //
 //  1. **A dead compare with a LIVE load**, 0x180120f8a:
 //         MOV RAX,[RCX+0x30] ; CMP RAX,RAX ; JNZ
@@ -93,8 +39,7 @@
 //         MOV [RCX],RBP        ; RBP is 0
 //         MOV RAX,[RCX+8] ; MOV [RCX],RAX
 //     The slot is zeroed and then immediately overwritten with its successor.
-//     Both stores are reproduced; the predictor supersedes the first on range
-//     overlap (UI1's `RangesOverlap` fix) and compares only the second.
+//     Both stores are reproduced.
 //
 //  4. **`TEST RCX,RCX` on `base + i*8`**, 0x180121346 — a null test on an
 //     address that can only be null if the array base is exactly `-i*8`. Dead,
@@ -104,7 +49,7 @@
 //     is `_sounds[1]` (the array starts at +0x98), then reproduces
 //     `?Play@UserInterface@UI@@QEAAXH@Z` (0x1801223d0) instruction for
 //     instruction — including `0.0 / _secondsPerTick`, which is NOT folded to
-//     zero here for the reason userinterface.cpp gives at the real `Play`: were
+//     zero here, nor at the real `Play` in userinterface.cpp: were
 //     that slot ever 0.0, retail computes NaN and `CVTTSD2SI` yields INT64_MIN.
 //     Reached ONLY from the `_dialogs` path; the `_addDialogs` path returns
 //     without it (0x1801213a7).
@@ -114,8 +59,8 @@
 //     the array index and never reaches the tail, so there is no conflict.
 //
 //  7. **The vtable slot is `+0x28` = index 5 = `?OnClosed@DialogInstance@UI@@`**
-//     (0x180115330), read out of `standalone/rt_data_mint_tables.inc`'s minted
-//     copy of `??_7DialogInstance@UI@@6B@` rather than guessed from the name.
+//     (0x180115330), as DialogInstance.h's table of `??_7DialogInstance@UI@@6B@`
+//     lists it, rather than guessed from the name.
 //     It is the mirror of `AddDialog`'s slot 4 `OnOpened`. It is NOT a refcount
 //     release, so the dialog is still alive when this body reads `d+0x28`
 //     afterwards.
@@ -125,15 +70,6 @@
 //     once here as `UnlinkFromParent`. Ghidra's C rotated the first one into a
 //     `while` with the loop head below the return, which is why it reads as two
 //     unrelated fragments.
-//
-// ---------------------------------------------------------------------------
-// FIELD NAMES NEAR THIS CLASS
-// ---------------------------------------------------------------------------
-// `src/engine/ui/Dialog.h` names `DialogControllerConfigEntry`'s two
-// `ExternalPtr` fields BACKWARDS and its own warning comment carries the error.
-// Nothing in this file touches that struct, and every offset below is written
-// as a raw byte offset with the retail address that proves it, deliberately —
-// pin to addresses, never to field names, anywhere near this class.
 //
 // ============================================================================
 
@@ -148,11 +84,6 @@
 #include "ui/ToolTipDialog.h"
 #include "ui/ComboDialog.h"   // review S-035: ForgetClosingComboDialog
 #include "audio/Audio.h"
-// ENDGAME B.3.6 block E: element_common.h carries the file-scope `Module` /
-// `ResolveAddr` declaration this file used to spell (the address door lives in
-// standalone/, and pulling its header into a runtime/src file would invert the
-// dependency the whole tree is arranged around), and the RULE B6-5 atomic
-// door caches `rtuielem::AtomicExport` / `AtomicAddr`.
 #include "element_common.h"
 #include "system/Timer.h"   // ENDGAME B.3.9 SS1: Timer::_secondsPerTick
 #include "collection/Collection.h"
@@ -211,7 +142,7 @@ void UnlinkFromParent(UI::DialogInstance* dlg) {
         // LeaveCriticalSection here (0x1801210d2..0x180121108). That sequence is
         // byte-for-byte the body of the exported static `MemFree`, which is why
         // calling it reproduces the lock discipline exactly with no windows.h in
-        // a runtime/src file. Lane UI1 §1b decompiled and compared the two.
+        // a src/engine file. Lane UI1 §1b decompiled and compared the two.
         System::MemoryAllocator::MemFree(n);
         return;
     }
@@ -262,7 +193,6 @@ void UI::UserInterface::CloseDialog(Object::InternalPtr<DialogInstance>* dialog)
     while (dlg->_children._count > 0) {                         // +0x48
         Object::InternalPtr<DialogInstance> tmp(                // the by-value InternalPtr
             dlg->_children._head->element);                     // +0x38, node[0]
-        // B.4 LEFT: `DialogInstance::_ui` (+0x10) is `void*` (R-UI-a).
         dlg->_ui->CloseDialog(&tmp);
     }
 
@@ -350,13 +280,11 @@ void UI::UserInterface::CloseDialog(Object::InternalPtr<DialogInstance>* dialog)
         // `Play(1)` inlined: `_sounds[1]` (+0xa0).
         Audio::SoundEffect* sound = _sounds[1];
         if (!sound) return;
-        // B.4 LEFT: `_audioScene` (+0x90) stays `void*` (code/Game assigns it a
-        // `void*`: gameupdateloop.cpp:1652, menudialogloopt.cpp:1158).
         Audio::Scene* const scene = _audioScene;
         if (!scene) return;
         Audio::Scene::Channel* const table = scene->channels._data;       // +0x10
 
-        // NOT folded to zero — see fact 5 and the same note at the real `Play`.
+        // NOT folded to zero — see fact 5.
         const double  secondsPerTick = *TimerSecondsPerTick();
         const int64_t ticks = static_cast<int64_t>(0.0 / secondsPerTick);
 

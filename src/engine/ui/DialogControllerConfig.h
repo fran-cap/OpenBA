@@ -25,7 +25,7 @@
 // sizeof 0x20 = sizeof(Object::External): the deleting dtor's `MOV EDX,0x20`,
 // and the four exe subclasses (ControlUIConfig, ResourceLimitUIConfig,
 // StatusIconUIConfig, UpgradeUIConfig — EXE_SUBCLASSES.md 1C) place their own
-// fields at +0x20 and build their bases through `fn_External_External`.
+// fields at +0x20 and derive from this class.
 //
 // ABSTRACT (slots 3/5/6/7 are pure in retail; its factory pair is
 // `xor eax,eax ; ret`). ENDGAME B.3 step 9 (block UI-D, B39_RULES D1/D2): slot 0
@@ -63,7 +63,7 @@ public:
     // ---- exported, NOT PORTED, no caller: declared, deliberately undefined --
     DialogControllerConfig(const DialogControllerConfig& other);            // 0x18003b520
     DialogControllerConfig& operator=(const DialogControllerConfig& other); // 0x18003b590
-    // 0x18003b460 — the minted record's type id (dialogcontrollerconfig.cpp).
+    // 0x18003b460 — the type id of the class's own record (dialogcontrollerconfig.cpp).
     // Retail's factory pair (B39_RULES D2): both are `XOR EAX,EAX ; RET` (the
     // class is abstract). Defined and registered in dialogcontrollerconfig.cpp.
 
@@ -72,8 +72,8 @@ protected:
     // constructor (ENDGAME B.3.8 block RB, RULE B8-1). Retail's body is
     // `??0External` + its own vptr store and NOTHING else (the class adds no
     // field), so the compiler-emitted chain IS the whole port and the body is
-    // empty. No ctor door exists to share it with (the four exe configs build
-    // their base through `fn_External_External`, EXE_SUBCLASSES.md 1C).
+    // empty. The four exe configs run it as their base constructor (the subclass
+    // inventory: docs/history/endgame_b/b36_session/EXE_SUBCLASSES.md 1C).
     DialogControllerConfig() {}
 
     // RULE B5-15 / B6-7, COPIED from B36_SLOTS section 3:

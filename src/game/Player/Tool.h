@@ -25,10 +25,11 @@
 //   [12] 0x140105860 `MOV EAX,1; RET`
 //
 // SLOT NAMES 4-12 have no retail symbol. They are named from the tree's
-// callers: Toolbar_ShowGroup_Impl (toolbardialog.cpp: [4] start, [5] close,
+// callers: PlayerToolManager::SelectTool (toolbardialog.cpp: [4] start, [5] close,
 // [11] setting type), PlayerToolManager::Update 0x1401026a0 / UpdateHotkeys 0x1400ff6e0
-// (Dialog/entityui.cpp, Game/camera_input.cpp: [6] key, [7] update, [8] draw, [9] cancel,
-// [12] cursor), EditTool/PathTool's [10] "is this my selected entity".
+// (Dialog/entityui.cpp, Game/camera_input.cpp: [6] key, [7] update, [9] cancel,
+// [12] cursor), GameUpdateLoop::Draw ([8] draw), EditTool/PathTool's [10] "is this my
+// selected entity".
 // Argument lists are those callers' (a `char` flag is a byte in AL/CL/DL/R8B
 // exactly as retail passes it).
 //
@@ -82,7 +83,7 @@ public:
     // built from slot 11 and IsDerivedFrom(ToolSetting) 0x140102d89),
     // 0x140102dc6 `MOV [tool+0x20],RAX` (the manager's +0x20 tool group)).
     // The +0x10 NAME is the tree's: it is the owning manager, whose +0x00 is the
-    // open tool dialog's InternalBasePtr (known_port_issues 14f row 70).
+    // open tool dialog's InternalBasePtr (known_port_issues 14f row 73).
     PlayerToolManager*    dialogPtr;        // +0x10 the owning tool manager
     ToolSetting*          toolSetting;      // +0x18 InternalPtr<ToolSetting> (ctor zeroes it)
     ComponentDescription* descriptionPtr;   // +0x20 the tool group description (ctor zeroes it)

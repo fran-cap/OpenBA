@@ -1,31 +1,22 @@
 // src/game/Game/gameupdateloop_load.cpp
 // GameUpdateLoop::Load (exe 0x140096b00) — the in-game WORLD BUILD (M5).
 //
-// This is the Stage-C cliff from project_newgame_path_roadmap: the loader chain
+// This is the first world build on the New Game path: the loader chain
 // reaches GameUpdateLoop::Load on "New Game → OK", and this function constructs
 // the ~28 in-game subsystems that GameUpdateLoop::{Startup,Update,Draw} operate on.
 // Until it ran, m_game (+0xF8) was null and those methods held behind a guard.
 //
-// FIRST SLICE (milestone 5a): build every subsystem object so m_game is non-null
-// and the loop runs. DEFERRED to later slices:
-//   - the Object::ExternalList::Find resource loads (Material/Environment/MusicList/
-//     SkyMesh/StringTables) — left null; consumers guarded. (exe-typed ones are
-//     factory-cascade landmines; Runtime-typed ones are cheap to re-add once the
-//     skeleton is proven.) See project_gameupdateloop_load_map.
-//     NO LONGER deferred: Diseases (step 1, +0xA8), Profession (step 2, +0xB0),
-//     HelpTopics (step 4, +0xA0) — each behind its own env gate.
-//   - the SkyMesh MeshInstance (+0x108, step 28) — needs vtable 0x14015e240 registered.
-//   - the deep worldgen (step 31): FUN_1400b0230 / CreateNaturalResource_impl_ef20 /
-//     FUN_1400a3300 — real terrain + citizens; milestone 5b.
+// It builds every subsystem object so m_game is non-null and the loop runs. The
+// resource loads (Diseases, Profession, UI material, HelpTopics, Environment,
+// MusicTracks, the sky mesh, the event StringTables) go through
+// ExternalFactory::FindOrLoad. On a new game the worldgen and the start town run
+// (step 31); a load runs SaveRestore.
 //
 // All subsystem ctor bodies below were verified against Ghidra disassembly
 // (m5-load-ctor-drafts workflow, 2026-05-30) — exact field offsets in comments.
 
 // ENDGAME B.3.5 Video/Graphics caller batch: Graphics::{Camera,Scene,Geometry,
-// MeshInstance,SunLight} are real classes. These go AHEAD of "resolve.h" and the
-// explicit <windows.h> below — <wingdi.h> declares a global `Rectangle` FUNCTION
-// that hides `Volume::Rectangle`'s class name inside Volume.h's own
-// static_asserts (Camera.h and Geometry.h include Volume.h).
+// MeshInstance,SunLight} are real classes.
 #include "graphics/Camera.h"
 #include "Component/still_terrain.h"   // STILLTERRAIN: StillTerrain::Bump (the terrain epoch)
 #include "graphics/Scene.h"
@@ -97,7 +88,7 @@
 #include "load_time.h"   // [LoadTime] stamps (NOT RETAIL, print-only; block LOADSTAMP)
 
 // ============================================================
-// Externs from sibling reimpl TUs (already registered/defined)
+// Externs from sibling reimpl TUs (defined there)
 // ============================================================
 extern "C" void  WorldGen_BuildTerrain(WorldGeometry* wg, TerrainGenerator* gen, int sizeIdx, uint32_t seed); // worldgen.cpp (M5 5b)
 extern "C" void  MapTileGrid_Build(Map* game, int dim);  // maptilegrid.cpp (M5 5c — tile grid Game+0x80)
@@ -108,7 +99,7 @@ extern "C" void  StartTown_ComputeCamera(MapGenerator* startConfig, Map* game, f
 extern "C" void  StartTown_SpawnEntities(MapGenerator* startConfig, GameUpdateLoop* world);                  // starttown.cpp (M5 5c — ECS spawn)
 
 // ============================================================
-// Load-specific Runtime resolves not yet in engine_funcs.h
+// Load-specific Runtime calls (by name) and sibling-TU externs
 // ============================================================
 
 // --- Step 32 (AchievementInstance) -----------------------------------------
@@ -132,7 +123,7 @@ extern "C" void GameUpdateLoop_SaveRoundtripCheck(GameUpdateLoop* self, Save::Sa
 extern "C" void EventLog_OnAchievementAwarded(int achievementId);
 
 // ============================================================
-// Step 2 — ProfessionList load (WaveH2; env BANISHED_LIVE_PROFESSIONLIST)
+// Step 2 — ProfessionList load (WaveH2)
 // ============================================================
 // The original GameUpdateLoop::Load (step 2, @0x140096baa) loads the ProfessionList
 // from "Game/Profession/Profession.rsc" via Object::ExternalList::Find and stores it
@@ -198,7 +189,7 @@ static void LoadProfessionList_Step2(GameUpdateLoop* self) {
 // ============================================================
 // Retail step 3 FindOrLoads the no-blend UI material and stores the
 // ExternalPtr<Material> at gw+0xB8. It was the last deferred step 1-4 Find.
-// Sole consumer today is GUL::Draw step 8 — SaveLoad::Draw(ctx, material) —
+// Its consumers are GUL::Draw step 8 and ext.render_pipe's copy of it — SaveLoad::Draw(ctx, material) —
 // which only runs while a save/load operation is active; with the slot null,
 // SaveLoad::Draw crashed in SpriteContext::Flush -> MaterialInstance::Setup
 // (read of 0+0x28) the frame after an autosave started (2026-08-27).
@@ -260,10 +251,10 @@ static void LoadHelpTopics_Step4(GameUpdateLoop* self) {
 // "Game/Disease/Diseases.rsc", ExternalList typeId) and stores the result at +0xA8.
 // The string is in the exe at 0x14015e428. That store was deferred with the rest of
 // the step 1-4 Finds, and it is the SINGLE reason no citizen can ever fall ill:
-// CitizenComponent::CatchDisease (0x140112620, citizen_updatehealth.cpp:378-379)
+// CitizenComponent::CatchDisease (0x140112620, citizen_updatehealth.cpp:467-468)
 // reads gw+0xA8 and returns immediately when it is null. Everything downstream —
 // CatchDisease -> Infect -> SpreadDisease -> FindCareBuilding -> RecoverOrDie — is
-// already ported, registered and wired; it has simply never had a disease to draw.
+// already ported and wired; it has simply never had a disease to draw.
 // DebugUI's citizen-plague trigger (0x14005ff30) reads the same slot.
 //
 // Modelled on LoadHelpTopics_Step4 rather than LoadProfessionList_Step2: gw+0xA8 is
@@ -306,7 +297,7 @@ static void LoadDiseaseList_Step1(GameUpdateLoop* self) {
     // Per-entry tuning dump. Disease+0x40 is the RECIPROCAL mortality — RecoverOrDie
     // computes (1/x)/careMult, so a zero here is an infinite death chance (every sick
     // citizen dies the instant the illness runs out). The factory default IS 0
-    // (disease.cpp:82), so an entry reading 0 means the .rsc never wrote the field.
+    // (disease.cpp:46), so an entry reading 0 means the .rsc never wrote the field.
     // Report it; do not clamp it — that would hide a real load failure.
     if (isList && count > 0) {
         ::Object::External** arr = self->m_diseaseList->_resources;   // list+0x20
@@ -509,7 +500,7 @@ void WeatherSimulation::Bind(EnvironmentDescription* env, ClimateGenerator* clim
 // FUN_1400182b0 - CharacterGrid ctor (+0x88, 0x60). A loose Morton (Z-order)
 // quadtree over characters, NOT a SkyMesh transform (that older name came from a
 // wrong plate comment on retail Load; corrected 2026-08-30 - see
-// engine/types/GameUpdateLoop.h +0x88).
+// src/game/Game/GameUpdateLoop.h +0x88).
 // Retail zeroes +0x04..+0x5F with qword stores (the five Arrays' ctors and the centre
 // pair), then stores worldSize, levels = 8 and the centre (param2 * 0.5).
 CharacterGrid::CharacterGrid(float param2)
@@ -623,10 +614,10 @@ static inline T* AllocSub(uint64_t size, int align) {
 // RT blue mean ~0.18 vs retail ~0.68), so the water — whose shader is
 // sky-reflection-dominated on the tilted camera — renders dark navy. Adding the
 // sky as a Scene global object (step-33 tail) feeds the reflection pass for
-// free, exactly like retail. Opt out for A/B with BANISHED_NO_SKYMESH=1.
+// free, exactly like retail.
 // LOADER THREAD: no function-local resolve cache (B6-5) — the ctor is the
-// class's, and Time(float) is engine_funcs' boot-resolved fn_Time_Ctor_Float
-// (the same export, `??0Time@System@@QEAA@M@Z`).
+// class's, and Time(float) is RtSystem_Time_Ctor (system/Value.h, the port of
+// `??0Time@System@@QEAA@M@Z`).
 static void BuildSkyMesh_Step28(GameUpdateLoop* self) {
     void* mem = AllocSub<void>(0x120, 8);
     if (!mem) {
@@ -677,7 +668,7 @@ static void BuildSkyMesh_Step28(GameUpdateLoop* self) {
 // ============================================================
 
 // World-build completion signal. GameUpdateLoop::Load runs on the Runtime
-// Engine::Loader thread spawned inside fn_DialogLoaderLoopT_Startup -- the
+// Engine::Loader thread spawned inside Engine::DialogLoaderLoopT::Startup -- the
 // only dispatcher there is (see the guard below). The loading-screen loop
 // (splash_loop_stubs.cpp) polls GameUpdateLoop_IsWorldBuilt(next) to hold the
 // loading screen up until the build genuinely finishes, so GameUpdateLoop::Draw
@@ -755,14 +746,13 @@ void GameUpdateLoop::Load() {
     Ext::FastPaths::SelectForGame();
     Ext::PathWorkers::SelectForGame();   // ext.path_workers (class B), the same rule
 
-    // Steps 1-4: resource Finds (Diseases/Profession/Material/Help). Only step 3
-    // (UI material) is still DEFERRED (left null; consumers guarded).
-    //   step 1 Diseases    → +0xA8, opt-in BANISHED_LIVE_DISEASELIST (unblocks citizen illness)
-    //   step 2 Professions  → +0xB0, the citizen-economy keystone (BANISHED_LIVE_PROFESSIONLIST)
+    // Steps 1-4: resource Finds (Diseases/Profession/Material/Help).
+    //   step 1 Diseases    → +0xA8 (unblocks citizen illness)
+    //   step 2 Professions  → +0xB0, the citizen-economy keystone
     //   step 4 HelpTopics   → +0xA0, consumed only by the help dialog
     LoadTime::Stamp("gul.resources");   // NOT RETAIL: print-only (steps 1-4: the resource Finds)
-    LoadDiseaseList_Step1(this);       // step 1 → +0xA8 (diseases); env-gated, else null
-    LoadProfessionList_Step2(this);    // step 2 → +0xB0 (professions); env-gated, else null
+    LoadDiseaseList_Step1(this);       // step 1 → +0xA8 (diseases)
+    LoadProfessionList_Step2(this);    // step 2 → +0xB0 (professions)
     LoadUIMaterial_Step3(this);        // step 3 → +0xB8 (UI material — SaveLoad::Draw overlay)
     LoadHelpTopics_Step4(this);        // step 4 → +0xA0 (help topics)
     LoadTime::Stamp("gul.subsystems");   // NOT RETAIL: print-only (steps 5-27: the subsystem objects)
@@ -770,10 +760,10 @@ void GameUpdateLoop::Load() {
     // Step 5 — the gameplay Random (+0xD8, 0x9c4) seeded from gameLoop+0x30.
     //
     // ⚠ CORRECTED 2026-07-31: this said "seeded with mapSizeIndex (+0x30)". WRONG, and it
-    // cost real time. `+0x30` is THE MAP SEED — `newgamedialog.cpp:718` writes the seed
-    // there and `:719` writes terrainSize to `+0x34`. So the full chain is
-    //   BANISHED_SEED -> seed UI element (newgamedialog.cpp:229-236)
-    //                 -> gameLoop+0x30   (newgamedialog.cpp:718)
+    // cost real time. `+0x30` is THE MAP SEED — `newgamedialog.cpp:696` passes the seed to
+    // the GameUpdateLoop ctor, which stores it there and terrainSize at `+0x34`. So the full chain is
+    //   BANISHED_SEED -> seed UI element (newgamedialog.cpp:234-238)
+    //                 -> gameLoop+0x30   (newgamedialog.cpp:696, the ctor's m_seed)
     //                 -> Random(seed) at gw+0xD8   (here)
     // The gameplay RNG IS seeded. Do NOT "fix" this by pinning gw+0xD8 — it is already
     // pinned, and an investigation was launched on the belief that it wasn't.
@@ -1037,7 +1027,7 @@ void GameUpdateLoop::Load() {
     // +0x08 = seasons. AddEvent (FUN_140095580) formats every event's text from
     // these tables, so leaving them null yields empty event text AND risks a
     // null-deref in the season/date formatter (FUN_140095230 dereferences +0x08).
-    // Load via ExternalFactory::FindOrLoad (m_resourceList is empty in standalone),
+    // Load via ExternalFactory::FindOrLoad,
     // mirroring the Environment/SkyMesh finds above. The ":events"/":seasons"
     // suffix selects the named sub-resource within Dialog/StringTable.rsc.
     {
@@ -1077,20 +1067,13 @@ void GameUpdateLoop::Load() {
 
     // Step 30 — AchievementManager::SetEventHandler (retail 0x14009752e).
     //
-    // The old note here said the singleton slot 0x1401514f0 was "not yet registered in
-    // standalone, so g_ppAchievementManager is null → skip cleanly". That has not been
-    // true since the slot was wired (engine_funcs.cpp) — the Achievements dialog reads
-    // the same manager through it. The handler retail installs is exe 0x140096960, the
-    // award TOAST (it formats the achievement title into an event-log entry, type 0x19).
-    // PORTED 2026-09-06 (exe close-out lane C): src/game/Game/eventlog_achievement.cpp,
-    // registered by standalone/reg_closeout_lane_c.cpp. Until then the handler was left
-    // null, which cost only the on-screen announcement — Runtime's award bookkeeping and
-    // the "Ach" registry value never depended on it.
+    // The handler retail installs is exe 0x140096960, the award TOAST (it formats the
+    // achievement title into an event-log entry, type 0x19), ported in
+    // src/game/Game/eventlog_achievement.cpp.
     //
     // Retail: RAX = *0x1401514f0 (AchievementManager::_singleton storage);
     //         RCX = *RAX; RDX = 0x140096960; CALL SetEventHandler.
-    // We call our port directly rather than through ResolveAddr — the address IS
-    // registered for any retail-shaped caller, but this is the only call site.
+    // We call our port directly; this is the only call site.
     {
         Achievement::AchievementManager* achMgr = ::Achievement::AchievementManager::_singleton;
         if (achMgr) {
@@ -1111,13 +1094,11 @@ void GameUpdateLoop::Load() {
     // with whatever the .sav held — the id the SCENARIO DIALOG chose has to survive.
     const int achievementId = m_scenarioIndex;
 
-    // Step 31 — worldgen (new-game branch, savedState==0). M5 5b first-light:
-    // build the terrain mesh (base perlin island) + the gameplay tile-grid map
-    // arrays + the TownManager coarse cell index (0x1400975c7). DEFERRED to later 5b slices:
-    // CreateNaturalResource (trees/stone — spawns worker threads), and
-    // FUN_1400a3300 start-town + initial-citizen spawn (which also sets the
-    // camera position — until then the camera stays at the ctor default, framing
-    // the map centre at the origin). See src/game/Game/worldgen.cpp.
+    // Step 31 — worldgen (new-game branch, savedState==0): the terrain mesh
+    // (WorldGen_BuildTerrain), the TownManager coarse cell index (0x1400975c7), the
+    // gameplay tile-grid map arrays, the map create (MapTileGrid_Build), then the
+    // start-town camera (StartTown_ComputeCamera) and its FUN_1400a3300 spawn
+    // (StartTown_SpawnEntities). See src/game/Game/worldgen.cpp and src/game/Game/starttown.cpp.
     // Step 30b — AchievementManager::Reset (retail 0x14009757d), the ELSE arm of the
     // same `if (self+0x58)` branch worldgen sits in: a NEW GAME resets the manager, a
     // load-from-save restores it through AchievementManager::Persist instead
@@ -1219,14 +1200,14 @@ void GameUpdateLoop::Load() {
             // CharacterComponent::OnAdd allocates each citizen's char-index out of this; that
             // index (CharacterComponent+0x40 >= 0) is what un-gates the move-tick transform
             // tail. Reads GW/map itself, so no args. Runs before the citizen ECS spawn below,
-            // so each citizen's Startup-time OnAdd finds a live manager. Same env gate.
+            // so each citizen's Startup-time OnAdd finds a live manager.
             CharManager_Seed();
 
             // M5 5c — camera: spiral-search the buildable tile grid for the
             // start-town spawn tile and frame it. Writes the look-at target to
             // PlayerController+0x1c/+0x20/+0x24, exactly as Load does after
-            // FUN_1400a3300 (call site 0x14009761d). The ECS spawn at the same
-            // tile is deferred. See src/game/Game/starttown.cpp.
+            // FUN_1400a3300 (call site 0x14009761d), then the ECS spawn at the same
+            // tile. See src/game/Game/starttown.cpp.
             {
                 MapGenerator* startCfg = m_mapConfig;   // mapGen
                 PlayerController* playerCtrl = m_playerController;
@@ -1266,10 +1247,9 @@ void GameUpdateLoop::Load() {
                 }
             }
 
-            // [M5 5c DIAG] Start-town (FUN_1400a3300) prerequisite probe. Dumps the
-            // state of startConfig (mapGen = loop+0x40), the Game tile grid (Game+0x80),
-            // and the camera target, WITHOUT calling FUN_1400a3300 yet. Remove once
-            // start-town is implemented. See project_newgame_path_roadmap / task #6/#7.
+            // [M5 5c DIAG] Start-town (FUN_1400a3300) state probe, after the spawn above.
+            // Dumps startConfig (mapGen = loop+0x40), the Game tile grid (Game+0x80),
+            // the WorldGeometry grid size and a few terrain heights.
             {
                 MapGenerator* mapGen = m_mapConfig;   // startConfig (MapGenerator rsc)
                 Map* game       = m_game;
@@ -1309,7 +1289,7 @@ void GameUpdateLoop::Load() {
                 }
                 if (wgeom)
                     fprintf(stderr, "[startTown::DIAG]   worldGeom+0xc0(dim)=%d\n", wgeom->_gridSize);
-                // Keystone sanity: sample terrain height via Reimpl_MapGetTerrainPos
+                // Keystone sanity: sample terrain height via Map::GetTerrainPos
                 // (FUN_14009f3e0) at map centre + a few offsets. Banished valley => centre
                 // should be low/buildable, edges higher.
                 {
@@ -1408,8 +1388,7 @@ void GameUpdateLoop::Load() {
     // the comment "SKIPPED on new game (achievementId == -1)" — true of a new game, but
     // it skipped unconditionally, so the scenario/tutorial path got no instance either.
     //
-    // The block is inert on a new game (id == -1), which is why it is default-on;
-    // BANISHED_LIVE_SCENARIO_GOALS=0 is the kill switch for an A/B run.
+    // The block is inert on a new game (id == -1).
     m_scenarioInstance = nullptr;
     if (achievementId >= 0) {
         const uint32_t achTypeId = Achievement::Achievement::TypeId();
@@ -1482,10 +1461,9 @@ void GameUpdateLoop::Load() {
             // M5 5b lighting: add the SunLight so the directional light + ambient
             // light the terrain in the main render pass (Renderer::Draw dispatches the
             // light's vtable+0x50 SunLight::Draw → Context::SetLight + DrawItemList).
-            // The crashing shadow pass (SunLight::DrawShadowMap, vtable+0x48) is gated by
-            // renderer+0x3c, which GameUpdateLoop::Draw step 6 forces to 0 in standalone
-            // ("Shadows: Off") — the shadow draw never runs, so the terrain renders lit
-            // without the unwired shadow shader/render-target. Verified against the
+            // The shadow pass (SunLight::DrawShadowMap, vtable+0x48) is gated by
+            // renderer+0x3c, which GameUpdateLoop::Draw step 6 copies from
+            // Video::Configuration::shaderDetail (+0x30) each frame. Verified against the
             // proven menu path (which adds its SunLight the same way) + the Runtime
             // decompiles (Renderer::Draw 0x180104bb0, SunLight::Draw 0x1801067b0,
             // DrawShadowMap 0x180106bc0, AddScene 0x180105700).

@@ -2,7 +2,7 @@
 // tests/unit/ext_texture_quality_test.cpp -- ext.texture_quality (block TEXQUALITY)
 // ============================================================================
 // The registry row (class A, default OFF, off under /profile:faithful, never a pseudo-mod) and its
-// valued key ext.texture_quality_drop (1..2, default 1); the backend-neutral rule
+// valued key ext.texture_quality_drop (0..1, default 0); the backend-neutral rule
 // (src/render/common/texture_quality/texture_quality.h): which images qualify, and the pitch
 // rebasing -- the subresources ImageBufferData::Create's faithful loop builds for every level, with
 // the dropped ones taken off the front by DropLeading, are exactly the subresources the same loop

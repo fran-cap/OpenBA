@@ -7,19 +7,19 @@
 //   0x14001a450  tree+array destructor (+0x78 of Game)
 //   0x14001a5f0  free-list + node-chain destructor (the +0xa8 / a8570+0xc8 pool)
 //   0x14001ced0  cell-BST clear (recycles nodes onto the free list, frees the slab chain)
-//   0x14001dac0  array-free (stride 0x18; frees element[0] of each, then the block)
-//   0x14001e3a0  array-free (stride 0x20; frees element[0] of each, then the block)
+//   0x14001dac0  array-free (stride 0x18; frees each element's +0x08 array, then the block)
+//   0x14001e3a0  array-free (stride 0x20; frees each element's +0x10 array, then the block)
 //
 // This runs ONLY at shutdown, which the autostart A/B path never reaches — so a wrong
 // transcription is undetectable silent corruption. Every offset / branch / arg below is
 // cross-checked against BOTH the Ghidra decompile AND the disassembly. Do NOT "improve"
 // or simplify.
 //
-// Already-registered sub-callees this cluster reuses (NOT re-ported here):
-//   0x140014c30  WorkBase_TreeNodeFree_14c30  (reg_work_base; children +0x10/+0x18)
-//   0x14000e320  WorkBase_TreeNodeFree_e320   (reg_work_base; children +0x18/+0x20)
-//   0x14001d400  Pf_BstFreeRecursive_d400     (reg_pf_pools; recursive cell-BST node free)
-//   0x14001e490  Pf_FreeArray30_e490          (reg_pf_pools; array-free stride 0x30)
+// Sub-callees this cluster reuses (NOT re-ported here):
+//   0x140014c30  WorkBase_TreeNodeFree        (Work/exe_bodies.h; children +0x10/+0x18)
+//   0x14000e320  WorkBase_TreeNodeFree        (Work/exe_bodies.h; children +0x18/+0x20)
+//   0x14001d400  PathOpenSet::FreeSubtree     (Action/PathSearch.h; recursive cell-BST node free)
+//   0x14001e490  RegionNodesFree              (Action/PathSearch.h; array-free stride 0x30)
 //
 // Runtime-DLL exports used (called by name since B3R; the import name table behind
 // exe IAT dispatch slots 0x14015252x/253x/255x/256x):
@@ -42,8 +42,6 @@
 // It starts the thread (if not already running, flag bit0 @+0x08) so the worker can
 // process the queue. In standalone the Runtime Thread infra is real, so this drains
 // normally; but it is shutdown-only and not autostart-exercised. See FINAL REPORT.
-//
-// Registered by standalone/reg_keystone_a_gamedtor.cpp.
 
 // ENDGAME B.3.2 step 2 (COLL-GAME sweep): every `MemFree(data); data = 0; one
 // qword over size+capacity = 0` triple below was a hand-inlined
@@ -62,8 +60,7 @@
 // PathfinderThread::~PathfinderThread (0x1400a6720) / DrainQueue (0x1400a6690),
 // Map::~Map (0x14009ed60); 0x14001a450 / 0x14001dac0 / 0x14001e3a0 are inlined
 // into their one caller each, on the named arrays. Map::pickingScene is a real member
-// (B4 wave Y); so is the PathfinderThread lock (B6 row 50). LEFT: Map::regionPairCache is int64_t* (gameupdateloop.cpp hands it to
-// a body taking int64_t*).
+// (B4 wave Y); so is the PathfinderThread lock (B6 row 50).
 #include "Game/PathfinderThread.h"
 #include "Game/Map.h"
 #include "Action/PathSearch.h"

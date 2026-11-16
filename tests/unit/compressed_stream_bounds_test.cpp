@@ -318,7 +318,7 @@ UNIT_TEST(cs_bounds_read_past_short_block_end_negative_chunk) {
     CHECK(!o.cs.Read(1, out));
 }
 
-// F-075 (also): pos + n overflows int32 for a huge count (41 + INT32_MAX).
+// F-075 (also): pos + n overflows int32 for a huge count (1 + INT32_MAX).
 UNIT_TEST(cs_bounds_read_position_plus_count_overflow) {
     Opened o(Hex(kShortBlock));
     CHECK(o.ok);

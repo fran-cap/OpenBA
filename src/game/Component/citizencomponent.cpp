@@ -5,7 +5,7 @@
 // (health, happiness, inventory, mesh, etc). Contains a MeshInstance sub-object
 // at +0xB8 (0x120 bytes).
 //
-// Two reimplemented functions:
+// Among the reimplemented functions:
 //   Update (0x140112e70) — main lifecycle tick (711 instructions!)
 //   ShouldSwitchWorkplace (0x1401109E0) — workplace switch decision
 //
@@ -14,7 +14,7 @@
 
 // graphics/*.h FIRST: they pull src/engine/volume/Volume.h, whose global-scope
 // `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()` once <windows.h> has
-// been seen through resolve.h.  ENDGAME B.3.5 caller batch I2.
+// been seen.  ENDGAME B.3.5 caller batch I2.
 // EXT SEAM (NOT RETAIL, docs/extensions/handins/FAMILYTREE.md): ext.family_tree (class C)
 #include "ext/family_tree/family_tree.h"
 #include "graphics/Scene.h"
@@ -80,67 +80,62 @@
 #include "Game/exe_constants.h"
 #include "Work/exe_bodies.h"
 #include "Action/exe_bodies.h"
-#include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "system/MemoryAllocator.h"   // B3R: System::MemoryAllocator
 
 // ============================================================
-// Resolved helpers for Update
+// Helpers Update calls
 // ============================================================
 
 // CitizenComponent_TryEnrolInSchool(self, outIBP) -> char (bool)
 // At 0x140111840. Ghidra called it TryFindPartner for months; it is school enrolment
 // (desc+0x20 -> AttendanceComponent queue -> citizen+0x208). Renamed in Ghidra and here
-// 2026-08-15 — the misnomer had already propagated into four files. The resolve site
-// below is the authority on the address; the old "0x14010fe40" note here was a different
-// function entirely (helper_fe40).
+// 2026-08-15 — the misnomer had already propagated into four files. The old
+// "0x14010fe40" note here was a different function entirely (helper_fe40).
 
 // CitizenComponent_PostLifeEvent(self, eventType, severity, strParam)
 // At 0x140113af0 — posts a life-event message to the event log (gw+0x138).
 // Formerly misnamed "AssignState" (it assigns nothing). Ported in
-// citizen_lifeevent.cpp, registered by reg_eventlog_citizen.cpp.
+// citizen_lifeevent.cpp.
 
 // CitizenComponent_HandleLifeEvent(self, eventType, strParam) -> char (bool)
-// At 0x140112450
+// At 0x140116dd0 (citizen_lifeevent_handler.cpp)
 
-// CitizenComponent_UpdateHealth(self, pTime) -> char (bool: 0=dead, nonzero=alive)
-// At 0x140111b90
+// CitizenComponent::UpdateDisease(pTime) -> char (bool: 0=dead, nonzero=alive)
+// At 0x1401127d0 (tree: "UpdateHealth"; citizen_updatehealth.cpp)
 
-// CitizenComponent_ConsumeFood(self)
-// At 0x140111890
+// CitizenComponent::UpdateHealth() (tree and Ghidra: "ConsumeFood")
+// At 0x140112990
 
-// CitizenComponent_ConsumeFuel(self)
-// At 0x140111a70
+// CitizenComponent::UpdateHappiness() (tree and Ghidra: "ConsumeFuel")
+// At 0x140112ae0
 
 // CitizenComponent_FindCareBuilding(self) — the SICK citizen's hospital finder
 // (desc+0x30 -> citizen+0x228), gated on the disease pointer citizen+0x68. Not a
-// workplace finder despite the old name; see the resolve site below for the address.
+// workplace finder despite the old name; at 0x140111590.
 
 // CitizenComponent_FindStorage(self)
-// At 0x140115770
+// At 0x1401116f0
 
 
-// CitizenComponent_AssignWorkplace(self, workplaceIBP, slotIndex)
-// At 0x140114ca0
+// CitizenComponent::SetHome(home, slotIndex) (tree and Ghidra: "AssignWorkplace")
+// At 0x1401163d0 (citizen_assignworkplace.cpp)
 
-// CitizenComponent_AssignHousing(self, housingPtr)
-// At 0x140111ee0 (writes citizen+0x248). The address in this comment used to read
-// 0x140114f80, which never matched the binding 12 lines below or the three other files
-// that resolve this function (citizencomponent_lifecycle.cpp, citizen_assign_citizens.cpp
-// x2) — all four agree on 0x140111ee0. Corrected 2026-08-15: a stale ADDRESS in a comment
-// is the same trap as a wrong binding, just slower-acting.
+// CitizenComponent::SetWorkplace(workplace) (tree and Ghidra: "AssignHousing")
+// At 0x140111ee0 (writes citizen+0x248, the workplace).
 
-// CitizenComponent_sub_ffc0 — find unassigned housing
+// CitizenComponent::FindWorkplace — find a workplace (profession not ranked)
 // At 0x14010ffc0
 
-// CitizenComponent_sub_0470 — find assigned housing
+// CitizenComponent::FindRankedWorkplace — find the best workplace for a profession
 // At 0x140110470
 
 // CitizenComponent_helper_ff80 — find new workplace (after ShouldSwitch)
 // At 0x14010ff80
 
-// CitizenComponent_Update_sub_0e70 — find work (workplace search)
+// CitizenComponent::FindHome — find a home (a residence household slot)
 // At 0x140110e70
 
-// CitizenComponent_sub_1fa0 — release current workplace assignment
+// CitizenComponent::SetParent — leave the current parent's children ring, join the new one's
 // At 0x140111fa0
 
 // CitizenComponent_helper_fe40 — find partner
@@ -151,18 +146,17 @@
 // that scan only BIASES THE NEWBORN'S GENDER toward the scarcer sex; the body then
 // allocates the child entity. Update calls it on the COMMON branch of the delivery roll
 // (see the LAB_140113873 block) — the rare branch is death in childbirth.
-// NOT UpdateHealth — UpdateHealth is 0x1401127d0, ported in citizen_updatehealth.cpp
+// NOT UpdateDisease — UpdateDisease is 0x1401127d0, ported in citizen_updatehealth.cpp
 // (disambiguated 2026-07-19; branch semantics corrected 2026-07-26).
 
-// CitizenComponent_helper_a4f0 — check storage has capacity for item type
+// ResidenceComponent::IsFamilyFull — is the household full
 // At 0x14012a4f0
 
 // Entity_FindComponent_Storage(entity, outIBP) -> InternalBasePtr*
 // At 0x140008090 (or 0x140006270 depending on which variant)
 
-// UI::StringTable::GetText — use the typedef from engine_funcs.h
+// UI::StringTable::GetText — called as the member (stringTable->GetText(0) below)
 // Signature: (self, retval, textIndex) -> void
-// We use the engine_funcs.h extern directly: fn_StringTable_GetText
 
 // (removed: UIString_ToSysString — handled inline via dispatch slot)
 
@@ -187,10 +181,6 @@ static inline float RdataF(uint32_t bits) {
 // Parameters: RCX = this (CitizenComponent*), RDX = Time* (pointer to Time).
 // RDX is a pointer to the elapsed System::Time (EntityList bucket tick 0x1400c42af).
 //
-// Phase 3 / Keystone D — CitizenComponent UPDATE live-wiring (work/economy loop).
-// The per-tick lifecycle Update drives the world-state that gates the citizen Work
-// state: a citizen only gets Work (id 5) as a candidate once it is HOUSED and/or
-// EMPLOYED — both assigned here.
 // B6 row 171: retail tests none of the description, the entity or the singleton
 // (0x140112ea3 reads [0x1401c3dd8]+0x130, 0x140112ebe [RDI+0x288]).
 void CitizenComponent::Update(const System::Time* timeArg) {
@@ -235,11 +225,11 @@ void CitizenComponent::Update(const System::Time* timeArg) {
         clothingTimer._ticks = 0;
     }
 
-    // --- Adult transition: post became-adult event (10 = found partner, 9 = alone) ---
+    // --- Adult transition: post became-adult event (10 = enrolled in a school, 9 = not) ---
     if (!isAdult && adultAge <= newAge && school == nullptr) {
         int eventType;
         if (!hasBeenSchooled) {
-            // Not yet had partner — try to find one
+            // Not yet schooled — try to enrol in a school
             char found = TryEnrolInSchool(nullptr);
             eventType = 10;
             if (found == 0) {
@@ -304,10 +294,7 @@ void CitizenComponent::Update(const System::Time* timeArg) {
             profRef->stringTool);
         // UI::String -> System::String, then HandleLifeEvent(7, str). The original
         // converts via dispatch slot [0x140151308] (UI::String::operator System::String,
-        // CALL @1401130ab). [WRONG-SLOT FIX] the previous port read slot 0x140152878,
-        // which is Achievement::GoalList::AreGoalsMetExcept — unregistered in
-        // standalone, so the conversion silently no-opped and localRes8 stayed
-        // empty. Use the resolved engine export directly (retval into localRes8).
+        // CALL @1401130ab); retval into localRes8.
         System::String localRes8;
         ::new (&localRes8) System::String(
             uiName->operator System::String());
@@ -331,7 +318,7 @@ void CitizenComponent::Update(const System::Time* timeArg) {
         }
     }
 
-    // --- Thirst cap: clamp and check death ---
+    // --- Coldness cap: clamp and check death ---
     float thirstCap = desc->maxColdness;
     if (thirstCap <= coldness) {
         coldness = desc->maxColdness;
@@ -505,7 +492,7 @@ void CitizenComponent::Update(const System::Time* timeArg) {
     // --- Adult section: housing, workplace, partner ---
     // NOTE: skipped for children — start-town citizens currently spawn with age=0
     // (< adultAge), so this whole assignment section no-ops until they age up or are
-    // spawned as adults. See project_economy_loop memory.
+    // spawned as adults.
     // The life-planning section (housing, workplace, partner) is gated on THREE things,
     // and the census can only see two of them. The third is the AI action index at
     // character+0x60: retail runs the whole section only while it is -1 (no action in
@@ -816,8 +803,8 @@ static Work* LookupRegionByID(const WorkScheduler* areaMap, int32_t regionId) {
 // ============================================================
 // CitizenComponent_HasVacancy (0x140017050) — the WorkPlaceComponent's roster (+0x60) <
 // the seat capacity (its entity's WorkComponent +0x30, lazily CalcMaxWorkers'd).
-// Byte-faithful to 0x140017050 (FUN_140003050 = fn_FindComponent_Work, FUN_14012e5c0 =
-// fn_StorageCountQuery), plus one SA safety guard the original lacks: a null
+// Byte-faithful to 0x140017050 (FUN_140003050 = FindComponent<WorkComponent>, FUN_14012e5c0 =
+// WorkComponent::CalcMaxWorkers), plus one SA safety guard the original lacks: a null
 // WorkComponent -> "no vacancy" rather than dereferencing null+0x30. (Moved from
 // Component/exe_bodies.h, where it was an inline body: this file is its only caller.)
 // ============================================================
@@ -855,7 +842,7 @@ bool CitizenComponent::ShouldSwitchWorkplace() {
         // Check if another workplace in a lower-priority region has vacancy.
         const WorkScheduler* areaMap = gameWorld->m_tutorial;
 
-        // Get current workplace IBP and find StorageLocationComponent
+        // Get current workplace IBP and find its WorkComponent
         WorkComponent* storageLocComp = workplace->FindComponent<WorkComponent>();
         int32_t regionId = storageLocComp->workId;
 
@@ -973,23 +960,10 @@ bool CitizenComponent::ShouldSwitchWorkplace() {
 // ============================================================
 // Callee reimpls (Component reg wave, batch "people")
 // Faithful ports of the CitizenComponent exe helpers the Update reimpl above
-// resolves+calls. Sub-deps + exe-internal globals resolved via guarded
-// ResolveAddr (same pattern as the rest of code/Game). Registered in
-// reg_component_people.cpp. Bodies are non-static for extern registration.
+// calls by name.
 // ============================================================
 
 // --- exe-internal globals / sub-functions used by the reimpls below ---
-// ENDGAME B.3.9 C1 (B39_RULES.md D5): the eight cells below are registered type-id
-// cells (INVENTORY_C Table 1), read BY CELL as the class's static TypeId(). Two of
-// the old local names lied about the class at their cell: 0x1401c8070 is
-// WorkComponent (not "StorageLocationComponent") and 0x1401c7158 is CitizenComponent
-// (not "CitizenAIComponent") -- both already converted below.
-
-// Arg 5 is the citizen AGE and is a FLOAT in retail (stored to citizen+0x3c, a float
-// field). It was declared `int` here until 2026-07-26 — harmless only because the birth
-// path passes literal 0 (bit-identical to 0.0f). Stack slot 5 is typed the same either
-// way in the MS x64 ABI, so the fix is representational, but every new caller (the
-// founding spawn port) must pass a real float.
 // Callees for the citizen-lifecycle cascade (AssignHousing / sub_1930 / sub_40f0 / Find*):
 // 0x140003110 was Collection::Array<void*>::SetSize(n, fill) monomorphised
 // into the exe (ENDGAME B.3.2 step 2) — converted at its call sites below.
@@ -1052,9 +1026,8 @@ void CitizenComponent::SetParent(CitizenComponent* parent) {
 // find the best workplace for the citizen's profession (one whose transient is clear),
 // choosing the one with the most free worker slots that the citizen can reach; scans
 // the town manager's profession tree keyed by the citizen's profession (+0x1f0).
-// The tree hangs off GameUpdateLoop::m_citizenList (CitizenBehavior::workplacesByProfession, a
-// void* root whose 0x38-byte nodes have no struct yet: read raw, LEFT for ENT); each
-// entry is a ComponentEntity.
+// The tree hangs off GameUpdateLoop::m_citizenList (CitizenBehavior::workplacesByProfession,
+// 0x38-byte ProfessionBucket nodes, CitizenBehavior.h); each entry is a ComponentEntity.
 ComponentEntity* CitizenComponent::FindWorkplace() {
     GameUpdateLoop* gw = GameUpdateLoop::_singleton;
     ComponentEntity* best = nullptr;
@@ -1260,9 +1233,6 @@ char CitizenComponent::CanFindHousing() {
     return grid->cells.GetData()[cell].influenceCounts[6] != '\0';   // +0x22
 }
 
-// The standalone type-name -> CRC registry lookup (also declared further down, next to
-// the storage finder that uses it). Needed here for the newborn-component fallback.
-
 // CitizenComponent::GiveBirth (0x140111b90):
 // procreation — count unmarried citizens within the description's age window to bias
 // the child's gender, allocate a new ComponentEntity copy of this citizen's entity
@@ -1304,17 +1274,7 @@ void CitizenComponent::GiveBirth() {
     }
 
     // Find the newborn's CitizenComponent — retail reads the type id from DAT_1401c7158,
-    // which is BaseTypeInfo("CitizenComponent"), NOT CitizenAIComponent (see the corrected
-    // note in standalone/reg_citizenai_typeids.cpp).
-    //
-    // [STANDALONE GAP → CRASH FIX] That .rdata global used to be filled only behind the
-    // opt-in BANISHED_LIVE_CITIZENAI_CITID gate (GRADUATED 2026-08-26 — now default-on,
-    // kill-switch =0). With the kill-switch set it still reads 0, the find
-    // matches nothing, and the deferred init below was called with a NULL component:
-    // ACCESS_VIOLATION reading 0x10 inside the deferred init's first `*(self+0x10)`
-    // (observed on the very first in-game birth, ~frame 5000, release build 2026-07-25).
-    // ENDGAME B.3.9 C1: 0x1401c7158 IS CitizenComponent (INVENTORY_C Table 1, not
-    // "CitizenAIComponent" as the old local name said).
+    // which is BaseTypeInfo("CitizenComponent"), NOT CitizenAIComponent.
     CitizenComponent* newborn = child->FindComponent<CitizenComponent>();
     if (newborn == nullptr) {
         // Never true in retail (the newborn is a copy of a citizen template, so it always
@@ -1463,8 +1423,7 @@ void CitizenComponent::EatFrom(ComponentEntity* target) {
 
         // find the RawMaterialDescription (DAT_1401c7cb8) on the work entity, OR its
         // capability bits into the citizen's +0x54 state mask.
-        // Typeid via the registered storage (filled from GetTypeIdByName after
-        // Engine::Startup in standalone); skip the scan while it is unfilled
+        // Typeid via RawMaterialDescription::TypeId(); skip the scan while it is unfilled
         // (0 / 0xFFFFFFFF) so a zero id can't false-match an inert stub component.
         RawMaterialDescription* mat = nullptr;
         uint32_t matTid = RawMaterialDescription::TypeId();
@@ -1713,8 +1672,9 @@ char CitizenComponent::CanReach(ComponentEntity* target) {
 // Reimpl of Entity_impl_ef40 (0x14008ef40):
 // pick a free production "slot" of category param_4 (0..4) from the storage component's
 // task list. Two-pass: pass 1 counts eligible slots (those whose RawMaterialDescription
-// capability bit for the category is set AND that have remaining demand); if any, roll a
-// random index over them; pass 2 walks the list again returning the chosen slot's IBP.
+// capability bit for the category is set AND that have remaining demand); if any, take the
+// last `_preferred` one, else roll a random index over them; pass 2 walks the list again
+// returning the chosen slot's IBP.
 // The category selects which bit of the material's +0x5c flags word gates a slot:
 //   0->bit5, 1->bit6, 2->bit9, 3->bit13, 4->bit14.
 ComponentDescription** CitizenComp_Entity_impl_ef40(const void* param_1, ComponentDescription** param_2,
@@ -1778,7 +1738,7 @@ ComponentDescription** CitizenComp_Entity_impl_ef40(const void* param_1, Compone
         }
     }
 
-    // Pass 1: count eligible slots; remember the last eligible index in `chosen`.
+    // Pass 1: count eligible slots; remember the last eligible `_preferred` index in `chosen`.
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/RESTRICTEDFOODS.md): ext.restricted_foods (class C):
     // tested once here, above both passes; only the eating category.
     const bool restrictFoods = param_4 == 0 && Ext::RestrictedFoods::g_on;
@@ -1888,7 +1848,7 @@ void CitizenComponent::UpdateHealth() {
 // recompute the citizen's happiness (+0x80) from this tick's +0x88 flag bits, then
 // drive it toward a target derived from the home tile (the map's cells, GameUpdateLoop
 // m_game, via Entity_impl_7fb0's anchor cell) and the home's household count.
-// Closure-safe: callees 0x140087fb0/0x140008090 registered.
+// Callees: EntityAnchorCell (0x140087fb0), FindComponent<ResidenceComponent> (0x140008090).
 void CitizenComponent::UpdateHappiness() {
     GameUpdateLoop* gw = GameUpdateLoop::_singleton;
     float uv   = kRdata_14017214c;
@@ -1989,16 +1949,15 @@ void CitizenComponent::SetWorkplace(ComponentEntity* newWorkplace) {
 }
 
 // Reimpl of CitizenComponent_sub_40f0 (0x1400440f0):
-// test whether a candidate building (param_1) has a free worker slot AND is reachable
-// from the citizen's (param_2) home tile. Returns true iff reachable. Closure-safe:
-// callees 002ed0/122e20/002e10/0a00f0 all registered.
+// test whether a candidate building (param_1) has a free attendee slot, at least one worker
+// AND is reachable from the citizen's (param_2) position. Returns true iff all three hold.
 // [Plague] sub_40f0 exit reporter. The finder's counters proved the DoctorHouse matches
 // the healer key and is then rejected HERE, but this function has three independent
 // rejections -- a full attendee roster, an unstaffed building, and a failed reachability
 // test -- and they need different fixes. g_sub40f0_exit records which one fired:
 //   1 = roster full / AttendanceDescription cast failed (cap 0)
 //   2 = building has no worker (+0x60 == 0)
-//   3 = the 0x140a00f0 path test said unreachable
+//   3 = the 0x1400a00f0 path test said unreachable
 //   0 = accepted
 int g_sub40f0_exit = 0, g_sub40f0_count = 0, g_sub40f0_cap = 0, g_sub40f0_attTid = 0;
 
@@ -2046,9 +2005,9 @@ bool CitizenComp_sub_40f0(AttendanceComponent* att, CitizenComponent* citizen) {
 
 // Reimpl of CitizenComponent_sub_1930 (0x140111930):
 // scan the world building list (gameWorld+0xf0 -> +0x60/+0x68) for the closest building
-// whose WorkplaceComponent's job key (+0x48) matches param_4 and that is reachable
-// (sub_40f0). Returns the best building's IBP via param_2. Closure-safe: sub_40f0 +
-// 0x140087fb0 + 0x140008830 all registered.
+// whose WorkplaceComponent's job key (+0x48) matches `key` and that is reachable
+// (sub_40f0), skipping `exclude`. Returns the best building's AttendanceComponent, or null.
+// Callees: CitizenComp_sub_40f0, EntityAnchorCell (0x140087fb0), Map::CalcDistance (0x140008830).
 // [Plague] sub_1930 outcome counters. FindCareBuilding's "noMatchingBuilding" message
 // covers TWO different causes -- no candidate whose WorkPlaceComponent+0x48 equals the
 // key, AND a candidate that matched the key but was rejected by sub_40f0 -- because both
@@ -2128,12 +2087,10 @@ AttendanceComponent* CitizenComponent::FindAttendance(AttendanceComponent* exclu
 // The sibling FindStorage (0x1401116f0, keyed by description+0x28 -> slot +0x230) is the
 // other attendance link. Both resolve through FindAttendance, which matches a candidate
 // by `WorkPlaceComponent+0x48 == key`. The SCHOOL key is the THIRD ref, +0x20, consumed
-// by TryEnrolInSchool (0x140111840). See [[project_wpc_first_seat_and_attendance_keys]].
+// by TryEnrolInSchool (0x140111840).
 // [Plague] soak trace — same kill-switch as citizen_updatehealth.cpp's tag.
 // Default OFF; BANISHED_PLAGUE_TRACE=1 enables. Diagnostic only: the NOT-LINKED lines
 // print on every update of a sick citizen with no care building.
-// AttendanceComponent::field30 (the queue count, int32) is declared void* in its
-// header (COMP-a's): read at its retail width through the field's address (LEFT).
 static bool CareTraceOn() {
     static int en = -1;
     if (en < 0) {
@@ -2223,13 +2180,14 @@ void CitizenComponent::FindStorage() {
 //     schoolhouse's own WorkPlaceComponent+0x48, while +0x28 (FindStorage) and +0x30
 //     (the disease-gated hospital finder) match no building in town.
 //
-// Its ONLY caller is the child->adult transition in Update (`!isAdult && adultAge <=
+// Its callers are the child->adult transition in Update (`!isAdult && adultAge <=
 // newAge && +0x208 == 0`), which is Banished's "at coming of age, become a student if a
-// school will take you, else a laborer" fork — hence the 10-vs-9 life event there.
+// school will take you, else a laborer" fork — hence the 10-vs-9 life event there — and
+// LeaveSchool's re-roll (0x140115a50).
 // CONSEQUENCE for testing: a founder spawned already at adult age has isAdult == true on
 // its first tick and NEVER crosses that edge, so it can never enrol. An empty school in a
 // short soak is therefore CORRECT, not a defect — you need a citizen that actually grows
-// up while a staffed school exists. See [[project_wpc_first_seat_and_attendance_keys]].
+// up while a staffed school exists.
 char CitizenComponent::TryEnrolInSchool(AttendanceComponent* exclude) {
     CitizenDescription* desc = description;
     AttendanceComponent* found = FindAttendance(exclude, desc->_professions[0]);
@@ -2251,29 +2209,9 @@ char CitizenComponent::TryEnrolInSchool(AttendanceComponent* exclude) {
 #include <cstdlib>
 #include <cstring>
 
-// ------------------------------------------------------------------
-// Phase 3 / Keystone D — CitizenComponent Startup-only live-wiring (Brick 2).
-//
-// CitizenComponent's per-tick Update is the 711-instruction lifecycle monster
-// (hunger/thirst/aging/workplace/housing/partner) with ~25 sub-calls — NOT yet
-// safe to run live in standalone. But the sibling CitizenAIComponent (Brick 1)
-// bails until this component's BODY is populated (its CitizenDescription at +0x288
-// + the Family/Health component at +0x278). That population happens in
-// CitizenComponent::Startup (slot +0x20, 0x140114050), NOT its Update.
-//
-// So this brick brings ONLY the Startup slot live (COMPONENT_LIVE_FACTORY_STARTUP)
-// to populate the body at spawn, leaving the heavy Update an inert no-op. That
-// lets the CitizenAIComponent decision loop actually RUN (read citizen needs)
-// instead of guard-bailing — without the risk of the full citizen lifecycle tick.
-// Default (env off) => inert => byte-unchanged.
-// ------------------------------------------------------------------
-
-// Self-contained sibling-component find by registered type name (the real-CRC
-// source the inert/live factories use for vtable+0x10). Avoids the exe finders
-// (Family 0x1400012d0 / MeshInstance 0x140002f90), which key off the .rdata
-// type-id globals (DAT_1401c7078 CharacterComponent / DWORD_1401c7e08
-// StatusIconComponent) — those are 0xFFFFFFFF in standalone and filling them
-// would un-dormant ~30 unrelated readers (same reasoning as CitizenAI's find).
+// Self-contained sibling-component find by the class's TypeId(): the first component whose
+// Type() matches, if it IsDerivedFrom that id; null for a 0 / 0xFFFFFFFF id or no match.
+// Stands in for the exe finders (Family 0x1400012d0 / MeshInstance 0x140002f90).
 static Component* CitizenComp_FindSiblingByTypeId(ComponentEntity* ownerEntity, uint32_t want) {
     if (!ownerEntity) return nullptr;
     if (want == 0 || want == 0xFFFFFFFF) return nullptr;
@@ -2338,21 +2276,19 @@ CitizenComponent::CitizenComponent()
 
 
 // [4] 0x140114050.
-// Faithful port of CitizenComponent::Startup (0x140114050) + the ctor scalar init
-// (0x140114770) the inert factory zeroed. The two sibling finds are done
-// self-contained (see above) instead of via the global-keyed exe finders.
+// Faithful port of CitizenComponent::Startup (0x140114050). The two sibling finds are done
+// self-contained (see above) instead of via the exe finders.
 void CitizenComponent::Startup() {
-    // ctor scalars moved to CitizenComponent_CtorScalars — see the note there.
 
 
     ComponentEntity* owner = _entity.Get();   // retail never tests +0x10 (0x140114067)
 
     // +0x278 = CharacterComponent IBP ("Family" finder; CitizenAI reads its +0x60
-    // char-index as the alive flag: index>=0 alive, -1 dead).
+    // action-stack index: >= 0 an action is running, -1 none).
     character = static_cast<CharacterComponent*>(
         CitizenComp_FindSiblingByTypeId(owner, CharacterComponent::TypeId()));
-    // +0x280 = StatusIconComponent IBP ("MeshInstance" finder; used by the heavy
-    // Update only — not by CitizenAI — so a null here is harmless for Brick 2).
+    // +0x280 = StatusIconComponent IBP ("MeshInstance" finder; Update sets its status
+    // flags through it, unguarded).
     statusIcon = static_cast<StatusIconComponent*>(
         CitizenComp_FindSiblingByTypeId(owner, StatusIconComponent::TypeId()));
 
@@ -2381,11 +2317,6 @@ void CitizenComponent::Startup() {
 }
 
 DEFINE_EXE_TYPE(CitizenComponent, "Component")
-
-// ============================================================
-// B4 FORWARD: the C spellings of the members above that callers outside this block
-// still use (B4_RULES W1 "Callers outside your files"); each takes the old signature.
-// ============================================================
 
 
 // B4 X3-COMP: CitizenComp_sub_ffc0 (0x14010ffc0) and CitizenComp_sub_0470 (0x140110470):

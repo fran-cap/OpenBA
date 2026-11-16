@@ -26,24 +26,21 @@
 // Note what the HMODULE word is used for: nothing but a non-zero test, plus a
 // FreeLibrary on the GetProcAddress-failed path. It is never called through.
 //
-// Why a detour rather than writing the fields directly
-// ----------------------------------------------------
-// The Device singleton does not exist before Engine::Startup — Runtime
-// 0x1801fe7a8 still reads null when the address registry is being built — and
-// InitializeInterfaces runs inside Startup. There is no window. So we
-// fill slot 1 from inside InitializeInterfaces itself, which then skips DX11
-// and handles DX9/GL exactly as before. Our ported
-// ?InitializeInterfaces@Device@Video@@QEAAXXZ (0x1800f79f0,
+// Why the fill runs inside InitializeInterfaces
+// ---------------------------------------------
+// The Device singleton (Runtime 0x1801fe7a8) does not exist before
+// Engine::Startup, and InitializeInterfaces runs inside Startup. There is no
+// window. So we fill slot 1 from inside InitializeInterfaces itself, which
+// then skips DX11; its loop loads no plugin, and slot 0 gets the placeholder.
+// Our ported ?InitializeInterfaces@Device@Video@@QEAAXXZ (0x1800f79f0,
 // src/platform/win/video_interfaces_win.cpp) calls VideoInterfaceFillDx11Slot
-// as its first statement; the old byte-patch detour on the DLL's own body went
-// with the DLL (ENDGAME.md A.1/A.3).
+// as its first statement (ENDGAME.md A.1).
 
 // ENDGAME B.3.5 caller batch — INCLUDE ORDER IS LOAD-BEARING HERE. The runtime
-// type headers come FIRST, before `resolve.h`: resolve.h pulls in <windows.h>,
-// and <wingdi.h>'s global `Rectangle()` FUNCTION then hides `Volume.h`'s global
-// `struct Rectangle`, which breaks any runtime/types header that reaches Volume.h
-// (batch I3 hit exactly this in main.cpp and perfx.cpp). Do not
-// reorder these two blocks.
+// type headers come FIRST, before <windows.h>: <wingdi.h>'s global `Rectangle()`
+// FUNCTION hides `Volume.h`'s global `struct Rectangle`, which breaks any runtime
+// type header that reaches Volume.h (batch I3 hit exactly this in main.cpp and
+// perfx.cpp). Do not move <windows.h> above them.
 #include "video/Device.h"    // Video::Device, Video::Device::InterfaceSlot
 
 // B5 DEV-A: the two DLL exports (src/render/dx11/exports.cpp) and the cutover-only DX9
@@ -109,19 +106,15 @@ void FillDx11Slot(Video::Device* device);
 
 }  // namespace
 
-// Wave 9 lane ENGIO. The slot fill, reachable WITHOUT the detour.
-//
-// See the correction on InstallVideoInterfacePrefill below: at cutover the
-// detour is the ONLY path that reaches this, and the detour cannot exist. Whoever
-// ports Video::Device::InitializeInterfaces (0x1800F79F0) must call this from
-// the ported body -- that is what turns the pre-fill from a DLL-present hack
-// into the real thing.
+// Wave 9 lane ENGIO. The slot fill. The ported Video::Device::InitializeInterfaces
+// (0x1800F79F0; src/platform/win/video_interfaces_win.cpp and
+// src/platform/posix/video_interfaces_posix.cpp) calls this as its first statement.
 void VideoInterfaceFillDx11Slot(Video::Device* device) { FillDx11Slot(device); }
 
-// Cutover only: slot 0 (DX9) with the placeholder plugin, so the Device's
+// Fills slot 0 (DX9) with the placeholder plugin, so the Device's
 // interface array keeps one entry per slot exactly as it does on a retail
-// machine. Called by the ported InitializeInterfaces after its LoadLibraryW of
-// VideoDX9-x64.dll failed, and only with the Runtime DLL absent.
+// machine. Called by the ported InitializeInterfaces when slot 0 is still
+// empty after its loop, which loads no plugin.
 void VideoInterfaceFillDx9Placeholder(Video::Device* device) {
     // B5 DEV-A: the Device arrives typed and both entry points already have the
     // slot's exact types (render_backend.h), so the three dx11_seam casts that
@@ -158,5 +151,5 @@ void FillDx11Slot(Video::Device* device) {
 
 }  // namespace
 
-// True once our pointers are actually on the Device. Reported by DumpVideoState.
+// True once our pointers are actually on the Device.
 bool VideoInterfacePrefilled() { return g_filled; }

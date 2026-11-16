@@ -5,10 +5,11 @@
 // docs/extensions/DESIGN.md §3 "Menu". Lists every fix and extension of the
 // registry (src/ext/registry.h) with its kind and class letter, its lock
 // state ("live" / "locked for this game"), a toggle and its description, in
-// two tabs: Optional (the entries with defaultOn false, where the player adds
-// extras; the tab shown first) and Default (defaultOn true: every fix and the
-// default-on extensions, where one is switched off). Presentation only: the
-// toggles, the keys and the lock are the same for both halves.
+// three tabs: Optional (the entries with defaultOn false, where the player adds
+// extras; the tab shown first), Default (defaultOn true: every fix and the
+// default-on extensions, where one is switched off) and Experimental
+// (Ext::Experimental entries, whatever their default). Presentation only: the
+// toggles, the keys and the lock are the same for all three.
 //
 // THE RESOURCES ARE OURS, COMPILED. The shipped loader reads COMPILED
 // resources only (Object::External::Load, external_load.cpp: a
@@ -19,9 +20,11 @@
 // template `entryRow`, its tables `tableOptional` / `tableDefault`; the menu button
 // `buttonExtensions`, MainMenu.rsc:buttonMod with our label, icon and
 // tooltip), ExtensionsStringTable.rsc, ExtensionsSprites.rsc (the button icon,
-// the per-tier row glyphs). tools/ext_resources.sh compiles them with the mod
-// kit's Tools-x64.exe; `tools/build.sh deploy` copies the .crs files loose
-// into the game's WinData/Dialog/ (docs/extensions/handins/EXTRSC.md). A row's
+// the per-tier row glyphs). They are built inside the exe and handed out by
+// Ext::Resources::Provide (src/ext/resources/) when a load finds neither a loose
+// .crs nor a package entry (docs/extensions/KITFREE.md); nothing is deployed loose.
+// tools/ext_resources.sh compiles them with the mod kit's Tools-x64.exe only as a
+// cross-check (docs/extensions/handins/EXTRSC.md). A row's
 // name and description are the registry's texts through the general table's
 // "Parameter" (@0); its kind, lock state and glyph come from our table/sheet.
 //

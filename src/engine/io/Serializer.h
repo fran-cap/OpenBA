@@ -7,15 +7,13 @@
 // Every offset below is pinned by a named instruction in RETAIL
 // Runtime-x64.dll (image base 0x180000000), read out of the shipped binary on
 // 2026-09-06. Nothing here was taken from Runtime-x64-profile.dll: the profile
-// build's ReaderWriter vtable OFFSETS differ from retail's
-// (reference_encoding_vtable_offsets_differ_between_builds.md), so it is a
+// build's ReaderWriter vtable OFFSETS differ from retail's, so it is a
 // source of NAMES only, never of numbers.
 //
 // ----------------------------------------------------------------------------
 // THE FOUR CLASSES, AND THE ONE THAT WAS CONFLATED
 // ----------------------------------------------------------------------------
-// engine/types/io_serializer.h calls BOTH `serializer+0x08` and `stream+0x10`
-// an `Encoding*`, and describes the second as "the encoding factory". They are
+// `serializer+0x08` and `stream+0x10` are not both an `Encoding*`: they are
 // two DIFFERENT classes, and the export table says so:
 //
 //   IO::Encoding      — stream+0x10. Installed by ?SetEncoding@Stream@IO@@,
@@ -75,11 +73,10 @@
 //   BinaryReader::~BinaryReader (0x1800a82f0) reads a further 4 bytes.
 //
 // So `IO::Serializer s(stream, v);` is NOT a cheap wrapper construction: it
-// consumes or emits a 12-byte header. Running the DLL's ctor a second time as
-// a differential oracle would consume/emit a SECOND header and desync the
-// stream from that point on — the exact failure mode of
-// reference_slot3_wrapper_must_resolve_first.md. The ctor and dtor therefore
-// have NO runnable oracle, and lane A does not pretend otherwise.
+// consumes or emits a 12-byte header. Constructing a second Serializer on the
+// same stream consumes or emits a SECOND header and desyncs the stream from
+// that point on (tests/unit/io_vtable_abi_test.cpp,
+// `constructing_a_Serializer_twice_consumes_two_headers`).
 // ============================================================================
 
 #include <cstdint>
@@ -304,8 +301,8 @@ static_assert(sizeof(Serializer) == 0x10, "Serializer is 0x10 bytes");
 // build-clean, link-clean corruption of every save. The destructor here is
 // protected and NON-virtual, which is safe because nothing virtual-deletes an
 // Encoding: `IO::Stream`'s destructor frees `_encoding` with a direct
-// `MemoryAllocator::MemFree` (src/engine/io/Stream.h:83-101).
-// `encoding_factory_slots_sit_at_0x18_and_0x20_with_arity_three` in
+// `MemoryAllocator::MemFree` (`Stream::~Stream`, src/engine/io/Stream.h).
+// `the_real_Encoding_declares_its_5_slots_in_retail_order` in
 // tests/unit/io_vtable_abi_test.cpp is the regression guard for all of this.
 //
 // THE CLASS NAMES ARE ATTESTED, NOT INVENTED
@@ -436,8 +433,7 @@ static_assert(sizeof(BinaryEncoding) == 8, "no Encoding subclass adds a field");
 static_assert(sizeof(TextEncoding) == 8, "no Encoding subclass adds a field");
 static_assert(sizeof(VisitorEncoding) == 8, "no Encoding subclass adds a field");
 
-// The two factory slots keep the byte offsets the 15 registered address doors
-// and every raw caller already use.
+// The two factory slots keep retail's byte offsets, +0x18 and +0x20.
 static_assert(rt::io::encoding_vtbl::kCreateReader == 0x18, "Encoding slot 3");
 static_assert(rt::io::encoding_vtbl::kCreateWriter == 0x20, "Encoding slot 4");
 
@@ -447,7 +443,7 @@ static_assert(rt::io::encoding_vtbl::kCreateWriter == 0x20, "Encoding slot 4");
 //
 // Design: B34_RULES.md §1.2. 26 slots, confirmed FOUR independent ways:
 //   (a) `??_7ReaderWriter@IO@@6B@` @ 0x1801553b0 is slot 0 = 0x180023bd0 (the
-//       deleting dtor, also RT_DELDTOR(..., "IO::ReaderWriter")) followed by
+//       deleting dtor) followed by
 //       twenty-five `_purecall` (0x18007ec28);
 //   (b) the three concrete tables are adjacent and each is exactly 0xd0 bytes:
 //       0x180155210 + 0xd0 == 0x1801552e0 + 0xd0 == 0x1801553b0;
@@ -725,8 +721,8 @@ static_assert(sizeof(BinaryWriter) == sizeof(rt::io::BinaryCodec), "POD agrees")
 static_assert(sizeof(Visitor)      == sizeof(rt::io::VisitorCodec), "POD agrees");
 
 // Every field pinned against the same retail instruction the POD is pinned
-// against. `-Wno-invalid-offsetof` has been in SA_CXXFLAGS and UNIT_CXXFLAGS
-// since B.3.3 (Makefile:59, :120), which is what lets a polymorphic type keep
+// against. `-Wno-invalid-offsetof` is in BANISHED_CXX_FLAGS and the unit target's
+// compile options (CMakeLists.txt), which is what lets a polymorphic type keep
 // decision 1's layout pins.
 static_assert(offsetof(ReaderWriter, allowCustomSerialize) == 0x08, "ReaderWriter+0x08");
 static_assert(offsetof(ReaderWriter, serializer)           == 0x10, "ReaderWriter+0x10");
@@ -747,17 +743,14 @@ static_assert(offsetof(Visitor, version) == 0x20,
 // ===========================================================================
 //
 // Design: B34_RULES.md §1.2 rule 2, §3.1, §4.3, §7.3. Bodies:
-// src/engine/io/serializer_class.cpp (registry-free). Doors + registration:
-// src/engine/io/serializer.cpp.
+// src/engine/io/serializer_class.cpp.
 //
 // *** IT HAS NO VTABLE AND MUST NEVER GET ONE. ***
 // -----------------------------------------------
 // All 22 exported members are `QEAA`/`QEBA` — non-virtual — and each one
 // tail-jumps into the ReaderWriter's table. A vptr here would make the class
-// 0x18 bytes instead of 0x10 and every one of the 861 `g_fn_Serializer_*`
-// caller sites would write through the wrong offsets. The `static_assert`s
-// below and `Serializer_is_layout_identical_to_both_legacy_spellings` in
-// tests/unit/io_vtable_abi_test.cpp are the guards.
+// 0x18 bytes instead of 0x10 and move `_stream` / `_readerWriter` off retail's
+// offsets. The `static_assert`s below are the guards.
 //
 // Being non-polymorphic is also what lets this ONE class convert its
 // constructor while every stream class must not (§4.3): converting a ctor is
@@ -803,8 +796,9 @@ static_assert(offsetof(Visitor, version) == 0x20,
 //
 // THE PUBLIC NON-VIRTUAL DESTRUCTOR is deliberate and is not decision 2's
 // protected-base shape: nothing derives from `Serializer`, callers own one by
-// value or in a raw buffer, and `src/engine/object/internal_class.cpp`
-// destroys one explicitly at the exact retail position.
+// value or in a raw buffer, and a raw-buffer holder
+// (src/game/Component/citizencomponent_serialize.cpp) destroys one explicitly
+// at the exact retail position.
 //
 // THE 22 MEMBERS CALL THE READERWRITER BY NAME (B3X W0). B.3.4 §3.1 kept raw
 // `rw_vtbl::k*` slot calls here while a Serializer could be handed a
@@ -830,7 +824,7 @@ public:
     Serializer(const Serializer&) = delete;
     Serializer& operator=(const Serializer&) = delete;
 
-    // ---- the 17 ported `Serialize` OVERLOADS -------------------------------
+    // ---- the 18 ported `Serialize` OVERLOADS -------------------------------
     // ONE name, real C++ overloads, because retail's are (§1.2 rule 2) and
     // because that is what makes the 861 caller sites mechanical: overload
     // resolution picks the width from the reference's type. The 22 VIRTUALS
@@ -849,9 +843,8 @@ public:
     // through this exact member. Until B.3.4b SYSTEM (5) it hand-inlined the
     // ReaderWriter's +0x90 slot, because this declaration did not exist and
     // routing eight bytes through the four-byte `int&` door would have been a
-    // save-format change. It is a real, live, exercised call site — 32 CALL
-    // sites reach `g_fn_Time_Serialize` through `engine_funcs.h` plus five that
-    // bypass the cache — so the port is verified rather than merely compiled.
+    // save-format change. It is a real, live, exercised call site, so the port is
+    // verified rather than merely compiled.
     // The other four stay out until they can say the same.
     void Serialize(int64_t&       v, const char* name);   // 0x180035000  +0x90
     void Serialize(bool&          v, const char* name);   // 0x1800061e0  +0x78
@@ -977,12 +970,13 @@ static_assert(std::is_standard_layout<Serializer>::value,
 // down, frees `this - 8` on `flags & 1` and returns it; otherwise the dtor,
 // then MemFree(this) on `flags & 1`. The free is 0x180006a10, byte-identical to
 // the exported ?MemFree@MemoryAllocator@System@@ (binary_writer history), which
-// `RtSystem::RtMemFree` resolves. No producer passes `flags & 2`.
+// `RtSystem::RtMemFree` calls. No producer passes `flags & 2`.
 }  // namespace IO
 
 namespace RtSystem {
-// src/engine/system/string.cpp: the exported ?MemAlloc@/?MemFree@
-// MemoryAllocator doors (a malloc seam under make unit).
+// src/engine/system/string.cpp (RtMemFree is header-inline in String.h outside
+// the unit test): System::MemoryAllocator's MemAlloc / MemFree (malloc / free in
+// the unit test).
 void* RtMemAlloc(uint64_t size, int align);
 void  RtMemFree(void* p);
 }
@@ -1056,11 +1050,10 @@ inline Visitor::Visitor(Serializer& ser, int ver) : ReaderWriter(ser), version(v
 
 } // namespace IO
 
-// ==== B3R W0-P0c: Runtime bodies reached by retail address ====
-// ENDGAME B.3R (B3R_RULES R5): each body below is registered at the retail
-// address in its trailing comment and read through the registry today. It is
-// declared here, copied from its definition (linkage, namespace, types), so the
-// reader can call it by name. Nothing calls it through this declaration yet.
+// ==== B3R W0-P0c: Runtime bodies called by name ====
+// ENDGAME B.3R (B3R_RULES R5): each body below is declared here, copied from its
+// definition (linkage, namespace, types), so its callers call it by name. The
+// trailing comment is its retail address.
 
 // ---- io/text_codec.cpp
 namespace System { class String; }
