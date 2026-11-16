@@ -512,6 +512,9 @@ uint32_t Factory::GetChildType(uint32_t typeId, int32_t index) const {
 // field, which is a FILE EXTENSION and not an "abstract" flag. Types that
 // register a null extension (every Component/Description in the exe) are
 // skipped; the ones that pass a real string are the Externals loaded from disk.
+// NOT RETAIL (docs/known_port_issues.md row 1420): the null-extension return and
+// the null test of `info` below. Retail reads info->fileExtension unguarded
+// (0x1800c04f3 / 0x1800c04f7) and hands the caller's string to _stricmp untested.
 uint32_t Factory::GetTypeIdForFileExtension(const char* extension) const {
     if (!extension) return 0u;
     for (TypeSet::Iterator it = _types.Begin(); it != _types.End(); ++it) {

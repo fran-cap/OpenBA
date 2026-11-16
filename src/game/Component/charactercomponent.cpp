@@ -198,6 +198,8 @@ void CharacterComponent::Startup() {
     actionStack.current = -1;
 
     // Startup (0x140109a30): find sibling components + adopt the description.
+    // NOT RETAIL (docs/known_port_issues.md row 1424): the null-owner return below
+    // (retail calls the finders on +0x10 untested, 0x140109a3d..0x140109a6f).
     ComponentEntity* owner = _entity.Get();
     if (!owner) return;
 
@@ -205,7 +207,9 @@ void CharacterComponent::Startup() {
     modelComponent = static_cast<ModelComponent*>(CharComp_FindSiblingByTypeId(owner, ModelComponent::TypeId()));
     // +0x70 = PickingComponent.
     pickingComponent = static_cast<PickingComponent*>(CharComp_FindSiblingByTypeId(owner, PickingComponent::TypeId()));
-    // +0x78 = CharacterDescription (trust comp+0x18).
+    // +0x78 = the description. NOT RETAIL (row 1424): retail keeps it only when
+    // IsDerivedFrom(CharacterDescription, cell 0x1401c70b0) holds and stores null
+    // otherwise (0x140109a7b..0x140109a9b); this stores it untested.
     Description* description = _description;
     characterDescription = static_cast<CharacterDescription*>(description);
 }

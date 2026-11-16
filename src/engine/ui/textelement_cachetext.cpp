@@ -161,9 +161,11 @@ void TextElement::CacheText() {
     // chose.
     _cachedText = *src;
 
-    // Retail releases `result` and `param0` here (0x18011ed1d, 0x18011ed46) and
-    // `tmp` last (0x18011ed66) — which is exactly reverse declaration order,
-    // so the three destructors at the end of this scope are that sequence.
+    // Retail releases `result` (0x18011ed1d), then `param0` (0x18011ed46), then
+    // `tmp` (0x18011ed66). NOT RETAIL: the three destructors at the end of this
+    // scope run in reverse declaration order, `param0` before `result`
+    // (docs/known_port_issues.md row 1421). Only the order of two refcount
+    // decrements differs.
 }
 
 }  // namespace UI

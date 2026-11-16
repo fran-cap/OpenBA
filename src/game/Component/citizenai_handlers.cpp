@@ -121,10 +121,9 @@ static void CitizenAI_PlayAnimationActionCtor5(CitizenComponent* const* param_1,
     if (mmem) {
         CharacterComponent* familyOut = citizen->_entity.Get()->FindComponent<CharacterComponent>();   // 0x1400012d0 (the InternalPtr the finder writes)
         if (familyOut == nullptr) {
-            // Standalone: the CharacterComponent type-id global (DAT_1401c7078) read by
-            // Entity_FindComponent_Family is unfilled, so the list-scan returns null. The
-            // "family" component IS the citizen's own CharacterComponent,
-            // populated by Brick 2/4a — use it directly (Brick self-contained pattern).
+            // NOT RETAIL (docs/known_port_issues.md row 1425): retail hands the finder's
+            // holder to the MoveTo ctor with no null test (0x1400c28c3..0x1400c28f4).
+            // The fallback is the citizen's own CharacterComponent.
             familyOut = character;
         }
         float speed = kRdata_140172280;

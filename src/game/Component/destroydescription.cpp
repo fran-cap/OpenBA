@@ -9,7 +9,7 @@
 //   +0x20: void* _replaceEntity   ExternalPtr<ComponentDescription> (default 0)
 //   +0x28: int32 _damagedSkin     (ctor default 1)  rubble MATERIAL-SET index
 //   +0x2c: int32 _damagedDecal    (ctor default 1)  rubble DECAL state
-//   +0x30: int32 _minDamageLevel  (NO ctor default) rubble MESH-VARIANT floor
+//   +0x30: int32 _minDamageLevel  (no retail ctor default; the tree writes 0) rubble MESH-VARIANT floor
 // Consumed by the state-6 collapse — see destroycomponent_state6.cpp.
 //
 // Serialize (FUN_14011de70) stream order:
@@ -55,7 +55,8 @@
 
 // ctor (inlined into create 0x140033c30 / createInPlace 0x140033ca0):
 // `??0External@Object@@` (Description()), the stamps (the compiler's), then
-// the defaults.
+// the defaults. NOT RETAIL: the 0 for _minDamageLevel; retail leaves +0x30
+// unwritten (docs/known_port_issues.md row 1427). Serialize always reads it.
 DestroyDescription::DestroyDescription()
     : Description(),
       _replaceEntity(nullptr),
