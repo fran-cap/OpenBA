@@ -156,6 +156,7 @@ struct BackendTable {
     // ---- src/ext/render_pipe/finish_split.h ----------------------------------------------------
     int32_t (*renderPipeFinishPresent)(::Video::Context& ctx);
     void (*renderPipeFinishRecover)(::Video::Device& device, int32_t hr);
+    bool (*renderPipeGpuFrameUs)(int64_t* us);
 
     // ---- src/engine/graphics/renderer_ext_ao.h -------------------------------------------------
     void (*extAoAfterOpaque)(::Video::Context& context, const ::Graphics::ExtAoFrame& frame,

@@ -79,6 +79,8 @@ struct Counters {
     uint64_t replayStopped = 0;   // claims whose replays ended on a lost device or a refused begin
     uint64_t replayYielded = 0;   // claims whose replays ended because a step waited for the device lock
     uint64_t replayTool    = 0;   // real frames whose record carries the tool's overlay
+    int64_t  gpuFrameUs    = -1;  // the GPU's time for the last completed frame, us (-1: the backend does not measure it)
+    int64_t  gpuFrameMaxUs = -1;  // the largest one a replayed frame was planned with this window (-1: none)
 };
 
 // True while the packet runs on the render thread (installed, >= 3 physical cores).

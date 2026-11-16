@@ -42,6 +42,13 @@ int32_t FinishPresent(Video::Context& ctx);
 // (the Context itself is destroyed by the notify).
 void FinishRecover(Video::Device& device, int32_t hr);
 
+// SMOOTHREPLAY: the GPU's time for the last frame that completed, us (the replayed frames are planned
+// with it: render_pipe.cpp, gpu_plan.h). Vulkan: two timestamp queries a frame; Metal: the command
+// buffer's GPU start and end times. False: the backend does not measure it ("not supported": DirectX
+// 11, whose stamps span the frame's recording too; a Vulkan queue without timestamps), or no frame
+// completed yet.
+bool GpuFrameUs(int64_t* us);
+
 BANISHED_RENDER_IMPL_END
 }  // namespace RenderPipe
 }  // namespace Ext

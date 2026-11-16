@@ -1,7 +1,7 @@
 // ============================================================================
 // src/ext/render_pipe/replay_params.h -- SMOOTHREPLAY: the replayed frames' tunables
 // ============================================================================
-// NOT RETAIL. ext.render_pipe, value key render_pipe_replay
+// NOT RETAIL. ext.render_pipe, its row render_pipe_replay
 // (docs/extensions/handins/SMOOTHREPLAY.md section 2). The defaults are what ships; the
 // debug tweak overlay moves a copy (Ext::Tweak::ReplayValues, docs/reference/tweak_overlay.md).
 // ============================================================================

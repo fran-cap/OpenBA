@@ -45,5 +45,8 @@ namespace VideoVulkan {
 int PresentFrame(::Video::Context& ctx);
 // The device-lost recovery: OnVideoError, the device rebuilt, OnVideoRestart (or the error text).
 void RecoverLostDevice(::Video::Device& device, int result);
+// The GPU's time for the last completed frame, us (two timestamp queries a frame: device.cpp). False:
+// the graphics queue has no timestamps, or no frame completed yet.
+bool GpuFrameTime(int64_t* us);
 
 }  // namespace VideoVulkan

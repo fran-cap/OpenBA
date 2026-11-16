@@ -78,6 +78,11 @@ namespace VideoVulkan {
     X(vkDestroyFence)                                    \
     X(vkWaitForFences)                                   \
     X(vkResetFences)                                     \
+    X(vkCreateQueryPool)                                 \
+    X(vkDestroyQueryPool)                                \
+    X(vkGetQueryPoolResults)                             \
+    X(vkCmdResetQueryPool)                               \
+    X(vkCmdWriteTimestamp)                               \
     X(vkCreateSemaphore)                                 \
     X(vkDestroySemaphore)                                \
     X(vkGetFenceStatus)                                  \

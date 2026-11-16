@@ -157,6 +157,15 @@ void FinishRecover(Video::Device& device, int32_t hrIn) {
     std::fflush(stderr);
 }
 
+// Not supported. D3D11 timestamp queries run when they are issued, so a frame's two stamps span its
+// recording on this thread as well as the GPU's work: measured 2026-11-15 (stress town, 50x) they read
+// 2 to 3.8 ms where Vulkan's GPU-side stamps read 1.9, and planning with them took the replayed frames
+// from 4.5 a step to under 0.5. The replayed frames are planned by their submission time here.
+bool GpuFrameUs(int64_t* us) {
+    (void)us;
+    return false;
+}
+
 BANISHED_RENDER_IMPL_END
 }  // namespace RenderPipe
 }  // namespace Ext

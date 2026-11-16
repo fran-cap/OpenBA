@@ -27,4 +27,9 @@ bool Enumerate(::Video::Device* device, const char* interfaceName);
 // to the ASSAO pass (src/render/metal/passes/assao_pass.mm).
 bool AssaoReady();
 
+// The GPU's time for the last presented frame that completed, us (the frame's command buffer's
+// GPUStartTime .. GPUEndTime, backend.mm). False: none completed yet. For ext.render_pipe's replayed
+// frames (finish_split.h GpuFrameUs).
+bool GpuFrameTime(long long* us);
+
 }  // namespace VideoMetal

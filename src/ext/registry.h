@@ -173,6 +173,10 @@ struct Extensions {
     bool drain_split = false; // class B: src/ext/drain_split/ (docs/extensions/handins/HITCH_DRAINSPLIT.md)
     bool background_save = false; // class A: src/ext/background_save/ (docs/extensions/handins/HITCH_SAVESNAP.md)
     bool terrain_batch = false; // class A: src/ext/terrain_batch/, seam WorldGeometry::_extTerrainBatch (docs/extensions/handins/TERRAINBATCH.md)
+    // class A, live: src/ext/render_pipe/ (docs/extensions/handins/SMOOTHREPLAY.md). While a long sim step
+    // runs, ext.render_pipe's render thread presents the frozen frame again at a later blend (replayed
+    // frames) and every frame's motion runs 8 ms behind. Does nothing without the render_pipe row's thread.
+    bool render_pipe_replay = false;
     bool terrain_late = false; // class A, live: src/ext/terrain_late/, seams Graphics::Renderer::_extOpaqueOrder + WorldGeometry::_extTerrainLate (docs/extensions/handins/TERRAINLATE.md)
     bool decode_ahead = false; // class A, next start: src/ext/decode_ahead/, seam IO::CompressedStream::_extDecodeAhead (docs/extensions/handins/DECODEAHEAD.md)
     bool load_progress = false; // class A, next start: src/ext/load_progress/, seams LoaderLoop::_extFrame + UpdateLoop::_extLoadProgress (docs/extensions/handins/LOADPROGRESS.md)
@@ -255,10 +259,6 @@ struct Values {
     int32_t camera_tilt = 50;   // ext.camera_tilt 0..100 (owner camera_angle): the far pitch pair, 50 = retail's, 90 = the near pair (steady), 100 = 10 % flatter (camera_angle.h)
     int32_t fog_distance = 0;   // ext.fog_distance 0..100 (owner no_fog): how far back the fog goes while the row is on: 0 = retail's fog (the default), 1..99 fog near / far x 100 / (100 - d), 100 = no fog (no_fog.h, NOFOG.md)
     int32_t better_water_mode = 1; // ext.better_water_mode 1..2 (owner better_water): 1 Plain (the shore pass), 2 Fancy (+ the shore strip on the bank side); Plain until Fancy is verified (BETTERWATER.md section 7)
-    // ext.render_pipe_replay 0..1 (owner render_pipe): 1 = while a long sim step runs, the render thread
-    // presents the frozen frame again at a later blend (replayed frames) and every frame's motion runs
-    // 8 ms behind; 0 (the default until the look is ruled) = one present per frame (SMOOTHREPLAY.md)
-    int32_t render_pipe_replay = 0;
 };
 
 // All three together: what the tables' `slot` accessors index.

@@ -125,9 +125,11 @@ UNIT_TEST(ext_registry_experimental_rows) {
         CHECK(e.tier == Ext::Tier::Extension);
         CHECK(std::strcmp(e.id, "touch_mode") == 0 || std::strcmp(e.id, "touch_pointer") == 0 ||
               std::strcmp(e.id, "phone_menu") == 0 || std::strcmp(e.id, "staggered_passes") == 0 ||
-              std::strcmp(e.id, "leaf_lod") == 0 || std::strcmp(e.id, "terrain_late") == 0);
+              std::strcmp(e.id, "leaf_lod") == 0 || std::strcmp(e.id, "terrain_late") == 0 ||
+              std::strcmp(e.id, "render_pipe_replay") == 0);   // SMOOTHREPLAY: off, while Vulkan and the phone are looked at
     }
-    CHECK(n == 6);
+    CHECK(n == 7);
+    CHECK(!Ext::FindEntry("render_pipe_replay")->defaultOn);
     CHECK(!Ext::Experimental(*Ext::FindEntry("camera_angle")));
     CHECK(!Ext::Experimental(*Ext::FindEntry("fps_cap")));
 }

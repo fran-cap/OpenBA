@@ -73,6 +73,10 @@ void FinishRecover(Video::Device& device, int32_t state) {
     VideoVulkan::RecoverLostDevice(device, state);
 }
 
+bool GpuFrameUs(int64_t* us) {
+    return VideoVulkan::GpuFrameTime(us);
+}
+
 BANISHED_RENDER_IMPL_END
 }  // namespace RenderPipe
 }  // namespace Ext

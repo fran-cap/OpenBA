@@ -442,6 +442,14 @@ const Entry kEntries[] = {
       "Renders on a second thread. Higher fps, one frame more latency.",
       0, [](State& s) -> bool& { return s.ext.render_pipe; } },
 
+    // SMOOTHREPLAY (docs/extensions/handins/SMOOTHREPLAY.md): the render thread's replayed frames
+    // during a long sim step, with the display clock. Its own row (Experimental tab, off) by the
+    // user's ruling of 2026-11-15; read at each Frame tail, inert without the render_pipe thread.
+    { "render_pipe_replay", Tier::Extension, Class::A, false,
+      "Smooth fast speed",
+      "Smoother motion at high game speed. Needs Render thread.",
+      0, [](State& s) -> bool& { return s.ext.render_pipe_replay; } },
+
     // CULLPAR (docs/extensions/handins/CULLPAR.md): the draw gather's walk split over helper
     // threads; the helper count is Cpu::CullHelpers (src/platform/common/cpu/roster.h), 0 on 4 cores.
     { "gather_threads", Tier::Extension, Class::A, true,
@@ -1142,10 +1150,6 @@ const ValueKey kValueKeys[] = {
       [](State& s) -> int32_t& { return s.val.staggered_passes_shadow; }, kStaggerShadowEvery, 4 },
     { "staggered_passes_reflection", "staggered_passes", 1, 8, 2,
       [](State& s) -> int32_t& { return s.val.staggered_passes_reflection; }, kStaggerReflectionEvery, 4 },
-    // SMOOTHREPLAY.md: the render thread's replayed frames during a long sim step, with the display
-    // clock (0 = off, the default until the look is ruled; settings.cfg only). Read at each Frame tail.
-    { "render_pipe_replay", "render_pipe", 0, 1, 0,
-      [](State& s) -> int32_t& { return s.val.render_pipe_replay; }, nullptr, 0 },
 };
 
 constexpr int kValueKeyCount = static_cast<int>(sizeof(kValueKeys) / sizeof(kValueKeys[0]));
@@ -1476,7 +1480,7 @@ int PseudoModLoadStatus(const char* path, int32_t savedFormatVersion) {
 // The Extensions dialog's Experimental tab (registry.h Experimental).
 bool Experimental(const Entry& e) {
     static const char* const kExperimental[] = { "touch_mode", "touch_pointer", "phone_menu", "staggered_passes",
-                                                         "leaf_lod", "terrain_late" };
+                                                         "leaf_lod", "terrain_late", "render_pipe_replay" };
     for (const char* id : kExperimental)
         if (std::strcmp(e.id, id) == 0) return true;
     return false;

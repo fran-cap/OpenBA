@@ -572,6 +572,9 @@ int32_t FinishPresent(Video::Context& ctx) {
 void FinishRecover(Video::Device& device, int32_t hr) {
     Render::Active().renderPipeFinishRecover(device, hr);
 }
+bool GpuFrameUs(int64_t* us) {
+    return Render::Active().renderPipeGpuFrameUs(us);
+}
 }  // namespace RenderPipe
 }  // namespace Ext
 
