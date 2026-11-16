@@ -3,10 +3,16 @@
 #
 # usage: perf/pgo/train.sh [--build] [--keep]
 #   1. builds the release flavour INSTRUMENTED (BANISHED_PGO=generate) into build/cmake-release-pgogen
-#   2. empties perf/pgo/profile/ and runs the two training towns on the instrumented exe
-#      (tools/stress_run.sh, ~9x slower than the plain exe, ~2 + 4 minutes):
-#        10x, 3000 frames, a storage barn's panel held open from frame 1200
-#        50x, 3000 frames, a market's panel held open from frame 1500
+#   2. empties perf/pgo/profile/ and runs the four training towns on the instrumented exe
+#      (tools/stress_run.sh, ~9x slower than the plain exe, about 15 minutes in all):
+#        faithful profile (DirectX 11, every fix and extension off):
+#          10x, 3000 frames, a storage barn's panel held open from frame 1200
+#          50x, 3000 frames, a market's panel held open from frame 1500
+#        the registry's default rows on Vulkan, a user dir of its own (build/pgo_userdir):
+#          10x, 3000 frames, the storage barn's panel
+#          50x, 3000 frames, the market's panel, plus the replayed frames (ext.render_pipe_replay)
+#      A set trained on the faithful runs alone measured slower than a stale one where extensions
+#      are on (perf/pgo/README.md, "Why the extension runs").
 #      both end through the pause menu (Quit Game), a clean exit, which is when GCC writes
 #      the counters. The mix is what makes the profile general: trained on 50x alone it gave
 #      -4% at 10x; with this mix -10% at 10x and -12% at 50x (perf/pgo/README.md).
@@ -64,10 +70,34 @@ if [ "$KEEP" = 0 ]; then
     rm -f "$PROFILE"/*.gcda
 fi
 cp -f "$GEN/OpenBA.exe" "$GAME_DIR/OpenBA.exe" || { echo "deploy failed (exe busy?)" >&2; exit 1; }
+# 2a. The faithful profile (every fix and extension off, DirectX 11): the retail paths.
 BANISHED_PANEL_HOLD=StorageComponent BANISHED_PANEL_HOLD_FRAME=1200 \
     tools/stress_run.sh --no-build --label pgo_train_10x --frames 3000 --timeout 580 --baseline none || exit 1
 BANISHED_PANEL_HOLD=MarketComponent BANISHED_PANEL_HOLD_FRAME=1500 \
     tools/stress_run.sh --no-build --label pgo_train_50x --speed 50 --frames 3000 --timeout 580 --baseline none || exit 1
+# 2b. What a player runs: the registry's defaults (every default-on row, the Vulkan renderer), then the
+# same with the Experimental tab's replayed frames. A user dir of its own, so the rows are the registry's
+# and not this machine's settings.cfg: the real file's lines less every `ext.` / `fix.` one (the video
+# settings stay), under build/ (BANISHED_USER_DIR, src/app/options.h).
+TRAIN_USER="$ROOT/build/pgo_userdir"
+REAL_CFG="${USERPROFILE:-$HOME}/Documents/Banished/settings.cfg"
+rm -rf "$TRAIN_USER"
+mkdir -p "$TRAIN_USER"
+if [ -f "$REAL_CFG" ]; then
+    grep -av '^ext\.\|^fix\.' "$REAL_CFG" > "$TRAIN_USER/settings.cfg"
+fi
+BANISHED_USER_DIR="$(cygpath -m "$TRAIN_USER")" STRESS_PROFILE=per-entry \
+BANISHED_PANEL_HOLD=StorageComponent BANISHED_PANEL_HOLD_FRAME=1200 \
+    tools/stress_run.sh --no-build --label pgo_train_ext_10x --frames 3000 --timeout 580 --baseline none || exit 1
+# The game wrote every row's line at its exit: the replayed frames' row is set in place, or added.
+if grep -aq '^ext\.render_pipe_replay=' "$TRAIN_USER/settings.cfg"; then
+    sed -i 's/^ext\.render_pipe_replay=.*/ext.render_pipe_replay=1/' "$TRAIN_USER/settings.cfg"
+else
+    printf 'ext.render_pipe_replay=1\n' >> "$TRAIN_USER/settings.cfg"
+fi
+BANISHED_USER_DIR="$(cygpath -m "$TRAIN_USER")" STRESS_PROFILE=per-entry \
+BANISHED_PANEL_HOLD=MarketComponent BANISHED_PANEL_HOLD_FRAME=1500 \
+    tools/stress_run.sh --no-build --label pgo_train_ext_50x --speed 50 --frames 3000 --timeout 580 --baseline none || exit 1
 n="$(ls "$PROFILE"/*.gcda 2>/dev/null | wc -l)"
 echo "== profile set: $n .gcda files in perf/pgo/profile"
 [ "$n" -gt 0 ] || { echo "no profile written: did the runs exit cleanly?" >&2; exit 1; }
