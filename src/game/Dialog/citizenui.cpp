@@ -601,21 +601,17 @@ void CitizenUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, UI
 }
 
 // ============================================================
-// STANDALONE promotion — real CitizenUI controller vtable
+// CitizenUI controller vtable
 // ============================================================
-// Clicking a citizen (now pickable via the Picking::Scene) opens a dialog whose
-// controller is CitizenUI. In standalone this type was a StubNop (all slots no-op)
-// so the panel opened blank. CitizenUI is a real class now (table 0x14015ba00):
+// Clicking a citizen (pickable via the Picking::Scene) opens a dialog whose
+// controller is CitizenUI (table 0x14015ba00):
 //   +0x20 (idx4) OnCreated, +0x30 (idx6) OnClosed, +0x38 (idx7) OnUpdateLayout,
-//   +0x40 (idx8) OnUpdate — retail inherits the base (a no-op); the framework
-//   dispatches ONLY +0x40 each frame (Runtime 0x180115400), so the tree drives
-//   OnUpdateLayout from it (standalone deviation), +0x48 (idx9) OnElementEvent.
-
-// [8] STANDALONE DEVIATION (retail inherits the base slot) — the tree's wiring, kept.
-void CitizenUI::OnUpdate(const System::Time& /*time*/) {
-    CitizenUI::OnUpdateLayout();
-}
-
+//   +0x48 (idx9) OnElementEvent. +0x40 (idx8) OnUpdate is 0x14003a96c, the import
+//   thunk to DialogController::OnUpdate (a RET): inherited, not declared here.
+// OnUpdateLayout runs once per frame through slot 7: UserInterface::Update
+// (Runtime 0x1801213c0) calls DialogInstance::ComputeLayout (0x180113d90, call at
+// 0x180121610) for every open dialog, which calls its own +0x30 OnUpdateLayout
+// (0x1801153a0), which calls each controller's +0x38 (0x1801153cb).
 
 // create 0x140010f80: MemAlloc(0xe8, 8), then the ctor (DialogController ->
 // Internal: AddObject, the compiler's stamps, the field initialisers).
