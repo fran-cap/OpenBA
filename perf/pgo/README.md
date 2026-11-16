@@ -40,7 +40,7 @@ aliases (`DEFINE_EXE_VTABLE`, a vtable named by its assembler symbol); they were
 2026-10-26 (`Object::ClassVptr`, `src/engine/object/class_vptr.h`), and every TU is LTO.
 
 ## Files
-- `train.sh` -- the recipe: instrumented release build, two training runs, optional release build.
+- `train.sh` -- the recipe: instrumented release build, four training runs, optional release build.
 - `profile/` -- the profile set (`*.gcda`, one per object, about 3 MB), committed with each release.
   Keyed on the object's path relative to the build directory (`-fprofile-prefix-path`), so the set
   written here is read by CI's `build/cmake-release`.
@@ -70,10 +70,43 @@ aliases (`DEFINE_EXE_VTABLE`, a vtable named by its assembler symbol); they were
 `train.sh` runs the instrumented exe (about 9x slower than plain) on:
 1. the default 10x stress town, 3000 frames, a storage barn's panel held open from frame 1200
    (`BANISHED_PANEL_HOLD=StorageComponent`), ending through the pause menu;
-2. the 50x town, 3000 frames, a market's panel held open from frame 1500.
+2. the 50x town, 3000 frames, a market's panel held open from frame 1500;
 
-The counters of both runs are summed (GCC merges on exit). Trained on the 50x run alone the
+3. the 10x town with the registry's default rows on the Vulkan renderer (what a player runs), 3000
+   frames, the storage barn's panel;
+4. the 50x town with the same rows plus the Experimental tab's replayed frames
+   (`ext.render_pipe_replay`), 3000 frames, the market's panel.
+
+Runs 1 and 2 use the faithful profile (every fix and extension off, DirectX 11). Runs 3 and 4 use a
+user dir of their own (`build/pgo_userdir`, `BANISHED_USER_DIR`): this machine's `settings.cfg` less
+every `ext.` / `fix.` line, so the rows are the registry's defaults and not the trainer's own.
+
+The counters of all runs are summed (GCC merges on exit). Trained on the 50x run alone the
 profile gave only -4% at 10x; the mix gives -10% at 10x with nothing lost at 50x.
+
+### Why the extension runs (2026-11-15)
+Until this date the set was trained on runs 1 and 2 only. A retrain on that recipe measured SLOWER
+than the stale 1.0.3 set where extensions were on (release exe, Vulkan stress town at 50x, the
+trainer's own settings with the replayed frames on, order old / new / new / old): sim 0.115 and 0.099
+ms / iteration on the old set against 0.128 and 0.129 on the retrained one, draw 2.75 and 2.51 ms
+against 3.06 and 3.10. The likely reason, not proven: a fresh faithful-only set records the extension
+and Vulkan code as never run, and GCC optimises it as cold; the stale set no longer matched that code,
+which was then compiled without a profile.
+
+The four-run set against the stale 1.0.3 set (release exes, 50x, 6000 frames, order old / wide / wide /
+old, `perf/results/20261115_*_pgow_*`, nothing else running):
+
+| scene | set | sim ms / iteration | draw ms | fps |
+|---|---|---|---|---|
+| faithful, DirectX 11 | 1.0.3 | 0.144, 0.139 | 0.90, 0.93 | 620, 614 |
+| faithful, DirectX 11 | four runs | 0.132, 0.156 | 0.78, 0.80 | 736, 651 |
+| default rows, Vulkan | 1.0.3 | 0.107, 0.101 | 0.99, 1.01 | 622, 643 |
+| default rows, Vulkan | four runs | 0.105, 0.108 | 1.02, 1.02 | 628, 627 |
+
+Read: no loss in either scene; faithful draw about 14% faster; the sim figures are inside the
+run-to-run spread (two runs of one exe differ by up to 18%). Not measured: a release exe without any
+profile in the default-rows scene, so what PGO is worth there is open (the 1.0.3 set logged about
+38,000 profile-mismatch warnings in that build and performed the same as the fresh set).
 
 ## Other platforms
 The recipe ports, the files do not. **Android** has its own (`perf/pgo/android/README.md`, P12): the
