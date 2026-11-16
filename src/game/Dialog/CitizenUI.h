@@ -10,7 +10,7 @@
 //   [4] 0x1400651a0  OnCreated
 //   [6] 0x140065130  OnClosed
 //   [7] 0x140064ae0  OnUpdateLayout
-//   [8] retail inherits the base; the tree overrides it (STANDALONE DEVIATION)
+//   [8] 0x14003a96c  inherits DialogController::OnUpdate (the import thunk, a RET)
 //   [9] 0x1400650f0  OnElementEvent
 //   every other slot is UI::DialogController's (inherited, not declared).
 // ============================================================================
@@ -36,9 +36,9 @@ public:
     ~CitizenUI() override = default;                              // [0] 0x140010fd0
     void OnCreated() override;   // [4] 0x1400651a0
     void OnClosed() override;   // [6] 0x140065130
-    void OnUpdateLayout() override;   // [7] 0x140064ae0
-    // [8] STANDALONE DEVIATION: retail inherits DialogController::OnUpdate (RET); the tree drives this panel's per-frame refresh here.
-    void OnUpdate(const System::Time& time) override;
+    // [7] 0x140064ae0, run once per frame by DialogInstance::ComputeLayout 0x180113d90
+    void OnUpdateLayout() override;
+    // [8] OnUpdate: DialogController's (retail's slot is the base thunk 0x14003a96c)
     void OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId a, int32_t b,
                         int32_t c, int32_t d, int32_t e, void* userData) override;   // [9] 0x1400650f0
 

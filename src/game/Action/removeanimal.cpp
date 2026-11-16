@@ -83,10 +83,8 @@ int  RemoveAnimal::AbstractImpl(ActionStack* actionStack) {
     (void)actionStack;
     ComponentEntity* entityRef = _animal.Get();
 
-    // ~310 kills produced ZERO component dumps below, and the dump sits inside the
-    // `entityRef != nullptr` arm — so "RemoveAnimal never ran" and "RemoveAnimal ran with
-    // no animal" look identical from there. Count at the TOP, before any branch, and
-    // report both arms.
+    // NOT RETAIL (docs/known_port_issues.md row 1423): two call counters that nothing
+    // reads. 0x1400ca7f0 has no counters.
     {
         static long long s_calls = 0, s_null = 0;
         ++s_calls;

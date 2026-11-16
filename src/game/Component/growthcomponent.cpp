@@ -294,12 +294,13 @@ GrowthComponent::GrowthComponent()
 //   resource@+0x28 = first sibling component of the natural-resource type
 //                    (FUN_1400052c0, by type id DAT_1401c7b30).
 //   +0x30          = sibling of type DAT_1401c7a50 (FUN_140003f60).
-//   config@+0x38   = the GrowthDescription (comp+0x18). The original validates
-//                    IsDerivedFrom(desc, GrowthDescription typeId 0x1401c77e8);
-//                    in standalone the factory tree is incomplete so IsDerivedFrom
-//                    is unreliable (see ComponentEntity_CtorFromDescription's
-//                    IsDerivedFromOrTrust note) — trust comp+0x18, which the
-//                    copy-ctor set to this component's own GrowthDescription.
+//   config@+0x38   = the GrowthDescription (comp+0x18). Retail keeps it only when
+//                    IsDerivedFrom(desc, GrowthDescription typeId 0x1401c77e8)
+//                    holds and stores null otherwise (0x140120760..0x140120771).
+//                    NOT RETAIL (docs/known_port_issues.md row 1428): the body
+//                    stores comp+0x18 untested, and its null-owner return, fallback
+//                    ModelComponent scan, null-config test and null-world test
+//                    have no retail counterpart.
 //   growthScale@+0x4c = config+0x20 <= 0 ? -1.0 (never harvest)
 //                       : RandFloatTol(rng) * config+0x24 + config+0x20.
 void GrowthComponent::Startup() {

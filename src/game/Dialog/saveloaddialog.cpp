@@ -238,15 +238,16 @@ void SaveLoadDialog::PopulateFileList() {
 
             const ::Object::External* matResource = nullptr;
             if (matExternal) {
-                // IsDerivedFrom check for Material type
+                // A type test whose result nothing reads (the note below)
                 if (::Object::IsDerivedFromNullSafe(matExternal, UI::TextElement::TypeId())) {
                     matResource = matExternal;
                 }
             }
-            // Note: the IsDerivedFrom check in the original uses the same _typeInfo_exref
-            // for all checks, but here we need the Material type. Since the original code
-            // works correctly, the ExternalFactory::FindOrLoad result is passed directly.
-            // The IsDerivedFrom is checking MaterialExternal type.
+            // NOT RETAIL (docs/known_port_issues.md row 1431): retail tests the result
+            // against Graphics::Material's type info (0x1400b7273..0x1400b727f) and hands
+            // SetMaterial the pointer only when the test passes. The test above is
+            // against UI::TextElement and its result is unused, so SetMaterial gets the
+            // FindOrLoad result as it is.
             matInstFinal->SetMaterial(
                 Object::ExternalPtr<Graphics::Material>(
                     static_cast<Graphics::Material*>(matExternal)));

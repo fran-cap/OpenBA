@@ -513,11 +513,12 @@ void TornadoComponent::DamageTick(const System::Time* dt) {
         // so 0x140092990 read its +0x50 node-count table as garbage and faulted on null.
         // citizen_updatehealth.cpp calls this the same way (gw->m_characterGrid).
         //
-        // The null test is a DELIBERATE standalone-only deviation, not a papered-over
-        // fault: retail always has this manager, but ours is built by CharManager_Seed
-        // (charmanager_seed.cpp), which early-returns unless MoveTickEnabled(). With
-        // that gate off gw+0x88 is legitimately null here, so skip the query rather
-        // than fault. Every other deref in this function stays unguarded.
+        // NOT RETAIL (docs/known_port_issues.md row 1429): the null test below. Retail
+        // passes gw+0x88 to 0x140092990 untested (0x14005825c / 0x140058263).
+        // CharManager_Seed (charmanager_seed.cpp) builds the grid before characters
+        // exist, so it is null here only if that seed returned early; no
+        // MoveTickEnabled gate exists, whatever the string below says. Every other
+        // deref in this function stays unguarded.
         CharacterGrid* quadtree = gw->m_characterGrid;
         if (quadtree)
             quadtree->RadiusQuery(&scratch, pos, &radius, 0, &found);

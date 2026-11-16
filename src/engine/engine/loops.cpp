@@ -314,12 +314,10 @@ void Engine::DialogLoopT::ReleaseFields()       { RtUi_UserInterface_Dtor(&_ui);
 void Engine::DialogLoaderLoopT::ReleaseFields() { RtUi_UserInterface_Dtor(&_ui); }
 
 // ---- ?IsRunning@UpdateLoop@Engine@@QEBA_NXZ  0x1800dd7b0 ord 3160 -----------
-// The one genuinely const, side-effect-free function in the lane, so it gets a
-// full replay oracle. Note it is a member that tests its own `this` for null:
-// retail really does `TEST RCX,RCX / JZ`, so the guard is FAITHFUL, not one we
-// added (CLAUDE.md's rule cuts the other way here — removing it would diverge).
-// ENDGAME B.3.7: the body is the member; the door keeps retail's null-`this`
-// test (`TEST RCX,RCX / JZ`), which a member cannot express.
+// Retail tests its own `this` for null first (`TEST RCX,RCX / JZ` -> false) and
+// only then reads the singleton. NOT RETAIL: this member has no such test, so a
+// null `this` reads the singleton and compares (docs/known_port_issues.md row
+// 1418). The one caller tests its loop for null before the call.
 bool Engine::UpdateLoop::IsRunning() const {
     // _currentLoop (+0x20) is the loop MainLoop::Run is driving right now.
     // Retail dereferences the singleton unguarded; so do we — CLAUDE.md's
@@ -649,8 +647,12 @@ Application::Application* ApplicationSingleton() {
 }
 
 // `mov 0x1801fc678,%rcx ; mov $0xe,%edx ; call Application::SleepThread` — the
-// identical three instructions open BOTH Update bodies below, unconditionally
-// and before anything is read off `this`. ENDGAME B.3.7: a direct member call
+// identical three instructions in BOTH Update bodies below, unconditional: they
+// open LoaderLoop::Update (0x1800dc2ad) and follow the UI update call in
+// DialogLoaderLoopT::Update (0x1800daf67); SleepThread never reads `this`. NOT
+// RETAIL: the null test of the Application singleton below, and the null tests
+// of the loader and of the MainLoop singleton in LoaderLoopAdvance
+// (docs/known_port_issues.md row 1419). ENDGAME B.3.7: a direct member call
 // (it was a `static` ResolveExport cache of the export).
 void SleepFourteen() {
     if (Application::Application* app = ApplicationSingleton()) app->SleepThread(14);

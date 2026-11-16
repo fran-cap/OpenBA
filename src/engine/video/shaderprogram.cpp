@@ -129,9 +129,8 @@ using ShaderParameter = Video::ShaderProgram::Parameter;
 int32_t ActiveInterface() {
     Video::Device* device = Video::Device::_singleton;
     // Retail derefs the singleton unguarded here (MOV RAX,[0x1801fe7a8] then
-    // CMP dword [RAX+0xF8]); the null test exists only because RT_DATA_SLOT could
-    // hand back a slot that the mint had not filled yet, which retail's own
-    // static could not be.
+    // CMP dword [RAX+0xF8]). NOT RETAIL: the null test below
+    // (docs/known_port_issues.md row 1422).
     if (!device) return -1;
     return device->activeInterface;
 }

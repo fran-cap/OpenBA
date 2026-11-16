@@ -134,6 +134,11 @@ void wg_f390_coastline(TerrainHeightfield* hf);   // 0x1400cd090 coastline ring 
 void wg_f390_ranges(TerrainHeightfield* hf);      // 0x1400cd150 mountain ranges -> stamps
 void wg_f390_paths(TerrainHeightfield* hf);       // 0x1400ccf60 secondary paths -> paths
 void wg_f390_rivers(TerrainHeightfield* hf);      // 0x1400cd460 river network -> riverPoints
+// cd460's labeling (0x1400cd73b..0x1400cde06) and connect pass (0x1400cde0c..0x1400ce4f1,
+// the teardown to 0x1400ce563), called by wg_f390_rivers after the scatter
+// (worldgen_f390_rivers.cpp). labels holds count ints; count >= 1.
+void wg_RiverClusterLabels(const TerrainStamp* points, int count, int32_t* labels);
+void wg_RiverConnectClusters(TerrainHeightfield* hf, const int32_t* labels, int count);
 void wg_f390_stamp(TerrainHeightfield* hf);       // 0x1400ce910 feature stamp (carves height)
 void wg_f390_erosion(TerrainHeightfield* hf);     // 0x1400cc080 droplet erosion
 void wg_f390_carve(TerrainHeightfield* hf);       // 0x1400cec50 feature stamp finalize

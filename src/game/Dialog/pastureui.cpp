@@ -88,7 +88,8 @@ static void Trace(const char* what, void* self) {
 //
 // Original: 0x1400B5090.
 
-// [4] 0x1400b5090
+// [4] 0x1400b5090. NOT RETAIL (docs/known_port_issues.md row 1430): the `_dialog`
+// null return below; retail goes straight to the base OnCreated (0x1400b50a7).
 void PastureUI::OnCreated() {
     if (!_dialog) {
         pastureui_sa::Trace("Slot4 SKIP (no DialogInstance)", this);
@@ -104,7 +105,9 @@ void PastureUI::OnCreated() {
 
     UI::Element* rawElem = _container->FindElement(nameBuf).Get();
 
-    // Store slider element at +0x38 (skip IsDerivedFrom, null check only)
+    // Store the element at +0x38. NOT RETAIL (docs/known_port_issues.md row 1430):
+    // retail keeps it only when IsDerivedFrom(SliderElement) holds and stores null
+    // otherwise (0x1400b50ec..0x1400b5116); this stores it untested.
     slider = static_cast<UI::SliderElement*>(rawElem);
 
     // Set slider element ID to 501 (0x1f5)

@@ -176,7 +176,7 @@ UNIT_TEST(pnl_CitizenUI_layout_and_slots) {
     CHECK_SLOT(CitizenUI, OnCreated,      0x20/8);   // 0x1400651a0
     CHECK_SLOT(CitizenUI, OnClosed,       0x30/8);   // 0x140065130
     CHECK_SLOT(CitizenUI, OnUpdateLayout, 0x38/8);   // 0x140064ae0
-    CHECK_SLOT(CitizenUI, OnUpdate,       0x40/8);   // standalone deviation
+    CHECK_SLOT(CitizenUI, OnUpdate,       0x40/8);   // 0x14003a96c: inherited DialogController::OnUpdate
     CHECK_SLOT(CitizenUI, OnElementEvent, 0x48/8);   // 0x1400650f0
 }
 

@@ -295,7 +295,10 @@ void CitizenComponent::Initialize(const Math::Vector3* pos, uint32_t gender, cha
 // few idle-on-that-tick citizens self-heal and the busy majority keep the
 // MeshInstance ctor default, drifting back one at a time as they go idle.
 //
-// Byte-faithful to retail, including the unguarded +0x288 description deref.
+// As retail 0x1401140f0 except for three things: the null test of the +0x288 description
+// below (NOT RETAIL: 0x1401140f6 / 0x140114105 read it unguarded), the arm a NaN age
+// takes (both in docs/known_port_issues.md row 1426), and the tool re-show left out at
+// the end (the KNOWN DEVIATION note below).
 void CitizenComponent::Slot11() {
     CitizenDescription* desc = description;
     const float   thresh = desc ? desc->adultAge : 0.0f;

@@ -194,11 +194,12 @@ enum : int {
 // ============================================================
 struct DialogTimer {
     int64_t _duration;    // +0x00  System::Time — StartTimer writes the same
-                          //        value into both; nothing else reads it
+                          //        value into both; ?Update@ reloads +0x08
+                          //        from it on expiry (0x180113b6a)
     int64_t _remaining;   // +0x08  System::Time — the LIVE countdown: ?Update@
                           //        (0x180113980) subtracts the frame time here
-                          //        and fires event 0x13 at <= 0 (B4 H3: the
-                          //        tree had +0x00 / +0x08 named the other way)
+                          //        and fires event 0x13 at <= 0, then reloads
+                          //        it from +0x00, so a timer repeats
     int32_t _id;          // +0x10
     int32_t _pad14;       // +0x14  never read or written by either method
 };
