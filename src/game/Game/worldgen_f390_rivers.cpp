@@ -39,11 +39,11 @@
 //     own copy, wg_eee0_radial_brush (worldgen_f390_erosion.cpp).
 //   * FUN_1400245d0 (0xC-stride {x,y,w} vector append) @0x1400245d0 — shared by
 //     cd150/ccf60/cd460. static here.
-//   * sub_7640 + helper_f9e0 (vector<vector<int>> resize) @0x140007640 — cd460's
+//   * sub_17640 + helper_f9e0 (vector<vector<int>> resize) @0x140017640 — cd460's
 //     cluster-member buckets. static here.
-//   * AVL helpers (rotate-left FUN_140014c70, rotate-right FUN_140014da0, BST free
-//     FUN_140014c30) — declared extern; the std AVL used by cd460's connected-
-//     component labeling.
+//   * cd460's two int sets (AVL trees grown with 0x140014c70 / 0x140014da0, freed
+//     with 0x140014c30) decide only membership and ascending order; the port keeps
+//     them as plain arrays (wg_RiverClusterLabels / wg_RiverConnectClusters).
 //
 // All field offsets verified against Ghidra disassembly (blueprint §1.1).
 
@@ -55,6 +55,7 @@
 #include <cstdint>
 #include <cstring>
 #include <cmath>
+#include <vector>
 #include "system/Value.h"      // ENDGAME B.3.4b System caller batch (Random/Time/Color)
 #include "Game/worldgen_brush_curve.h"   // [WGPAR] the exact falloff memo of the eee0 brush
 #include "crt/msvc_libm.h"               // MsvcLibm::Powf (wg_powf below)
@@ -75,12 +76,14 @@ static constexpr float kInf        = 1000000.0f; // 0x140172268 = 0x49742400  ne
 static constexpr float kRiverExp   = 1.75f;      // 0x140172164 = 0x3fe00000  e910 river-point powf exponent
 static constexpr float kSatExp     = 2.25f;      // 0x14017217c = 0x40100000  e910 satellite powf exponent
 static constexpr float kSatStr     = 2.0f;       // 0x140172174 = 0x40000000  e910 satellite strength
+static constexpr float kConnectStep   = 2.0f;    // 0x140172174 = 0x40000000  cd460 connect spacing
+static constexpr float kConnectRadius = 10.0f;   // 0x1400ce395 imm 0x41200000 cd460 connect point radius
 static constexpr float kRadiusThr  = 0.99f;      // 0x140172144 = 0x3f7d70a4  eee0 radius-growth threshold
 static constexpr float kOne        = 1.0f;       // 0x14017214c = 0x3f800000  g_fUVScale (brush numerator)
 static constexpr uint32_t kSignBit = 0x80000000u;// 0x1401722c0               float-negate XOR mask
 
-// kJoinThresh is used in the cd460 labeling below; kInf belongs to the connect pass,
-// which this body does not run.
+// kJoinThresh is the cd460 labeling's join factor; kInf, kConnectStep and kConnectRadius
+// belong to its connect pass.
 
 // ============================================================
 // Engine helpers used by these stages, called by name: System::MemoryAllocator::MemAlloc /
@@ -101,12 +104,6 @@ static inline float wg_bitNegate(float v) {
     uint32_t u; std::memcpy(&u, &v, 4); u ^= kSignBit; float r; std::memcpy(&r, &u, 4); return r;
 }
 
-// AVL helpers (std AVL in the exe; declared for the cd460 labeling pass).
-extern "C" {
-void FUN_140014c70(void** root, long long node);  // AVL rotate-left
-void FUN_140014da0(void** root, long long node);  // AVL rotate-right
-void FUN_140014c30(void** root, void* node);      // recursive subtree free
-}
 extern "C" void TradeComponent_helper_f9e0(RawArray<int32_t>* dst, const RawArray<int32_t>* src);  // deep-copy of a {data,count,cap} bucket
 
 // ============================================================
@@ -134,7 +131,7 @@ static void wg_VecPush0xC(WgVec3Array* hdr, int newCount, const TerrainStamp& re
 }
 
 // ============================================================
-// sub_7640 + helper_f9e0  @0x140007640 — resize a vector<vector<int>> to N empty
+// sub_17640 + helper_f9e0  @0x140017640 — resize a vector<vector<int>> to N empty
 // {int* data,int count,int cap} buckets. cd460 uses one bucket per cluster label.
 // HEIGHT EFFECT: none.
 // ============================================================
@@ -239,10 +236,9 @@ static void wg_StampBrush_eee0(const TerrainHeightfield* hf, const float* center
 // ============================================================
 // wg_f390_rivers  == FUN_1400cd460  @0x1400cd460 — GENERATE RIVER NETWORK.
 //
-// PURPOSE: scatter river-mouth / source points along the map edges, then build a
-// connected river graph by (a) labeling points into clusters via spatial joins
-// (AVL-keyed proximity) and (b) connecting clusters by their mutually-nearest
-// pair. OUTPUT is the river-point vector listB (hf+0x28) of {x,y,radius} records
+// PURPOSE: scatter river points, then (a) label them into clusters of touching
+// points and (b) join every other cluster to cluster 0 with a line of extra points.
+// OUTPUT is the river-point vector listB (hf+0x28) of {x,y,radius} records
 // consumed later by e910's river-carve pass.
 //
 // ALGORITHM (faithful to the decomp):
@@ -256,18 +252,20 @@ static void wg_StampBrush_eee0(const TerrainHeightfield* hf, const float* center
 //     for count2 points: same construction, but REJECT if the new point lies
 //     within sqrt(Dot(d,d)) + e of any scratch point (Vector2::Dot then sqrtf vs
 //     that point's radius). Accepted points are appended to listB (hf+0x28).
-//   LABELING: int label[count] (= -1); AVL-keyed proximity join with threshold
-//     sqrt(dot)*1.2 < radius_i + radius_j (kJoinThresh); bucket members into a
-//     vector<vector<int>> (sub_7640).
-//   CONNECT: per adjacent cluster pair pick a random member of each
-//     (Random::Rand), find mutually-nearest endpoints (Vector2::Length, kInf
-//     init), Normalize the connecting direction, append connecting segment points
-//     into the cluster member lists.
-//   Frees label array, AVL trees, bucket vectors, scratch list.
+//   LABELING (wg_RiverClusterLabels): one label per point; touching points
+//     (sqrt(dot)*1.2 < radius_i + radius_j, kJoinThresh) share the lowest label of
+//     every cluster they touch.
+//   CONNECT (wg_RiverConnectClusters): one bucket of point indices per distinct
+//     label; for each cluster c >= 1, two Random::Rand draws from hf->random pick a
+//     member of c and a start for the nearest-member search in cluster 0, then
+//     {x, y, 10.0} points every 2.0 units from that member toward its nearest
+//     cluster-0 member are appended to listB, and c is merged into cluster 0.
+//   Frees the buckets, the label set, the label array, the scratch list.
 //
-// HEIGHT EFFECT: **NONE.** cd460 never reads or writes hf+0x08 (the heightmap). It
-// only populates listB (hf+0x28) with {x,y,radius} river points. The actual height
-// change happens in e910 (below), which reads listB and carves those cells down.
+// HEIGHT EFFECT: cd460 never reads or writes hf+0x08 (the heightmap). It populates
+// listB (hf+0x28) with {x,y,radius} river points, the connect points included; e910
+// (below) reads listB and carves those cells down. Its connect draws advance
+// hf->random, which cc080's droplets draw from next.
 // ============================================================
 void wg_f390_rivers(TerrainHeightfield* hfp) {
     System::Random* rng = &hfp->random;
@@ -327,56 +325,193 @@ void wg_f390_rivers(TerrainHeightfield* hfp) {
         }
     }
 
-    // -----------------------------------------------------------------
-    // LABELING + CONNECT. The original uses two int-keyed AVL trees (rotations via
-    // FUN_140014c70/da0, free via FUN_140014c30) and a vector<vector<int>> of
-    // cluster members. The precise rotation/label order is COSMETIC (blueprint
-    // risk #9): the partition and the resulting river segments are the same
-    // regardless of tree shape. We emulate the partition directly. The heightmap
-    // is untouched by all of this; only more {x,y,radius} points get appended to
-    // listB, which e910 then carves.
-    // -----------------------------------------------------------------
+    // LABELING + CONNECT over the river points pass 2 kept. The label array is one int
+    // per point (0x1400cd6d4..0x1400cd761).
     int riverCount = hfp->riverPoints._size;
-
-    int* labels = nullptr;
+    // Retail stores labels[0] = 0 (0x1400cd761) through the array unguarded: with no
+    // river point the array was never allocated and that store faults. The port keeps
+    // the label and connect passes behind a non-empty list instead.
     if (riverCount > 0) {
-        labels = (int*)System::MemoryAllocator::MemAlloc((uint64_t)riverCount * 4, 4);
-        for (int i = 0; i < riverCount; ++i) labels[i] = -1;
-        labels[0] = 0;
+        int32_t* labels = static_cast<int32_t*>(
+            System::MemoryAllocator::MemAlloc((uint64_t)riverCount * 4, 4));
+        wg_RiverClusterLabels(hfp->riverPoints._data, riverCount, labels);
+        wg_RiverConnectClusters(hfp, labels, riverCount);
+        System::MemoryAllocator::MemFree(labels);   // 0x1400ce572
     }
+    // (scratch: freed by its destructor at scope exit, right here in retail's order, 0x1400ce58b)
+}
 
-    RawArray<RawArray<int32_t>> buckets = { nullptr, 0, 0 };
+// ============================================================
+// cd460's labeling  0x1400cd73b..0x1400cde06 — assign every river point a cluster label.
+//
+// Every point starts as -1, then point 0 is 0 (0x1400cd761). For each point i in order:
+//   * labels[i] = fresh, the next unused label (0 for i = 0; afterwards one more than the
+//     highest label seen at the end of the previous point, 0x1400cddb9);
+//   * a set of labels (an AVL tree at rsp+0x20, rebuilt for every point, 0x1400cd790) gets
+//     labels[i], then labels[j] of every earlier point j (j = 0..i-1) that touches i:
+//     sqrtf(Dot(p_i - p_j, p_i - p_j)) * 1.2 < r_i + r_j (0x1400cda27..0x1400cda8c);
+//   * lowest = the smallest of those labels (0x1400cdcf0 cmovl);
+//   * for k = 0..i, highest = max(highest, labels[k]) on the value before the relabel
+//     (0x1400cdd33 cmovg, highest starts at 0), and a labels[k] in the set becomes lowest
+//     (0x1400cdd57..0x1400cdd5e).
+// So a point that touches several clusters merges all of them into the lowest label;
+// labels are not contiguous afterwards. The set's tree shape decides nothing: every member
+// maps to the same lowest label.
+// HEIGHT EFFECT: none (labels only).
+// ============================================================
+void wg_RiverClusterLabels(const TerrainStamp* points, int count, int32_t* labels) {
+    for (int i = 0; i < count; ++i) {
+        labels[i] = -1;                                // 0x1400cd750
+    }
+    labels[0] = 0;                                     // 0x1400cd761
 
-    void* treeA = nullptr;   // AVL root placeholder (rotations applied by the helpers)
-    const TerrainStamp* rd = hfp->riverPoints._data;
-    int nextLabel = 1;
-    for (int i = 1; i < riverCount; ++i) {
-        const TerrainStamp& pi = rd[i];
-        int joined = -1;
+    std::vector<int32_t> touched;                      // retail: the AVL set at rsp+0x20
+    touched.reserve((size_t)count);
+    int32_t fresh = 0;                                 // r12d
+    for (int i = 0; i < count; ++i) {
+        labels[i] = fresh;                             // 0x1400cd79a
+        touched.clear();
+        touched.push_back(labels[i]);
+        int32_t lowest = fresh;
+        const TerrainStamp& pi = points[i];
         for (int j = 0; j < i; ++j) {
-            const TerrainStamp& pj = rd[j];
+            const TerrainStamp& pj = points[j];
+            // {dx, dy} = p_i - p_j; retail calls Dot(&d, &d) for |d|^2, then sqrtf.
             Math::Vector2 dv(pi.x - pj.x, pi.y - pj.y);
             float dot = dv.Dot(dv).v;
             float len = wg_sqrtf(dot);
-            if (len * kJoinThresh < pi.radius + pj.radius) { joined = labels[j]; break; }
+            if (len * kJoinThresh < pi.radius + pj.radius) {
+                touched.push_back(labels[j]);
+                if (labels[j] < lowest) {
+                    lowest = labels[j];
+                }
+            }
         }
-        labels[i] = (joined >= 0) ? joined : nextLabel++;
+        int32_t highest = 0;                           // r9d
+        for (int k = 0; k <= i; ++k) {
+            int32_t v = labels[k];
+            if (v > highest) {
+                highest = v;
+            }
+            for (int32_t member : touched) {
+                if (v == member) {
+                    labels[k] = lowest;
+                    break;
+                }
+            }
+        }
+        fresh = highest + 1;
     }
-    if (treeA) FUN_140014c30(&treeA, treeA);
+}
 
-    int clusterCount = nextLabel;
-    wg_VecOfVecResize(&buckets, clusterCount);
-    // (member-list population + nearest-pair connect via Random::Rand /
-    //  Vector2::Length / Vector2::Normalize is the cosmetic continuity refinement;
-    //  it appends additional {x,y,radius} segment points into listB. Faithful but
-    //  height-irrelevant — see HEIGHT EFFECT note above. Wired when the connect
-    //  geometry is needed for visible river continuity.)
+// ============================================================
+// cd460's connect pass  0x1400cde0c..0x1400ce4f1 (+ the teardown to 0x1400ce563) — join
+// the river-point clusters with a line of extra river points.
+//
+//   1. The distinct labels, ascending (an AVL set at rsp+0x30, 0x1400cde0c..0x1400ce096),
+//      give one bucket each: buckets resized to that count (0x1400ce0af call 0x140017640),
+//      bucket r = the indices k (ascending) whose label is the r-th smallest
+//      (0x1400ce0f0..0x1400ce211). Bucket 0 is point 0's cluster.
+//   2. With more than one bucket (0x1400ce224 cmp eax,1 / jle), for c = 1..count-1:
+//        from    = bucket[c][hf->random.Rand(bucket[c].size)]        0x1400ce275
+//        nearest = bucket[0][hf->random.Rand(bucket[0].size)]        0x1400ce28c
+//        best = 1e6 (0x140172268); for each member m of bucket 0, in order:
+//          len = Length(p_from - p_m) (0x1400ce2f7); if best > len: best = len, nearest = m
+//        dir = Normalize(p_nearest - p_from, &length) (0x1400ce368, length preset 0)
+//        pos = p_from.xy; travelled = 0
+//        if length > 0: do { append {pos.x, pos.y, 10.0} to riverPoints (0x1400ce3ab);
+//                             travelled += 2.0; pos += dir * 2.0 (0x1400ce3d8) }
+//                        while length > travelled
+//        bucket 0 gets bucket c's members appended, in order (0x1400ce410..0x1400ce4b1);
+//        bucket c is freed and zeroed (0x1400ce4c2).
+//      So every cluster joins the growing cluster 0, two Rand draws per extra cluster.
+//   3. Every bucket's data is freed, then the bucket array (0x1400ce4f5..0x1400ce520).
+// HEIGHT EFFECT: the appended points are stamped into maskA by e910 like every other
+// river point (radius 10, pow 1.75), so the connecting channels lower the heights; the
+// Rand draws move hf->random for every later stage that draws from it (cc080 erosion).
+// ============================================================
+void wg_RiverConnectClusters(TerrainHeightfield* hfp, const int32_t* labels, int count) {
+    // 1. distinct labels, ascending. Point i's fresh label is i and a relabel only lowers
+    //    one, so every label lies in 0..count-1.
+    std::vector<int32_t> clusterLabels;
+    {
+        std::vector<uint8_t> present((size_t)count, 0);
+        for (int k = 0; k < count; ++k) {
+            present[(size_t)labels[k]] = 1;
+        }
+        for (int label = 0; label < count; ++label) {
+            if (present[(size_t)label]) {
+                clusterLabels.push_back(label);
+            }
+        }
+    }
+    int clusterCount = (int)clusterLabels.size();
 
-    // --- teardown (matches decomp order) ---
-    wg_VecOfVecResize(&buckets, 0);
-    if (buckets.data) System::MemoryAllocator::MemFree(buckets.data);
-    if (labels) System::MemoryAllocator::MemFree(labels);
-    // (scratch: freed by its destructor at scope exit, right here in retail's order)
+    RawArray<RawArray<int32_t>> buckets = { nullptr, 0, 0 };
+    wg_VecOfVecResize(&buckets, clusterCount);                  // 0x1400ce0af
+    for (int r = 0; r < clusterCount; ++r) {
+        RawArray<int32_t>& bucket = buckets.data[r];
+        for (int k = 0; k < count; ++k) {
+            if (labels[k] == clusterLabels[(size_t)r]) {
+                RawArraySetSize(bucket, bucket.size + 1, (int32_t)k);
+            }
+        }
+    }
+
+    // 2. join every cluster to cluster 0.
+    if (clusterCount > 1) {
+        System::Random* rng = &hfp->random;
+        RawArray<int32_t>& merged = buckets.data[0];
+        for (int c = 1; c < clusterCount; ++c) {
+            RawArray<int32_t>& cluster = buckets.data[c];
+            int32_t from    = cluster.data[rng->Rand((uint32_t)cluster.size)];   // 0x1400ce275
+            int32_t nearest = merged.data[rng->Rand((uint32_t)merged.size)];     // 0x1400ce28c
+            float best = kInf;
+            for (int m = 0; m < merged.size; ++m) {
+                const TerrainStamp* pts = hfp->riverPoints._data;
+                int32_t member = merged.data[m];
+                Math::Vector2 d(pts[from].x - pts[member].x, pts[from].y - pts[member].y);
+                float len = d.Length().v;                               // 0x1400ce2f7
+                if (best > len) {
+                    best    = len;
+                    nearest = member;
+                }
+            }
+            const TerrainStamp* pts = hfp->riverPoints._data;
+            Math::Vector2 toward(pts[nearest].x - pts[from].x, pts[nearest].y - pts[from].y);
+            Math::Scalar length(0.0f);
+            Math::Vector2 dir = toward.Normalize(length);               // 0x1400ce368
+            Math::Vector2 pos(pts[from].x, pts[from].y);
+            float travelled = 0.0f;
+            if (length.v > 0.0f) {
+                do {
+                    TerrainStamp rec = { pos.x, pos.y, kConnectRadius };
+                    wg_VecPush0xC(&hfp->riverPoints, hfp->riverPoints._size + 1, rec);   // 0x1400ce3ab
+                    travelled += kConnectStep;
+                    Math::Vector2 step(dir.x * kConnectStep, dir.y * kConnectStep);
+                    // Vector2::operator+= (0x140151e68 import, Runtime 0x180060000): rhs + this.
+                    pos.x = step.x + pos.x;
+                    pos.y = step.y + pos.y;
+                } while (length.v > travelled);
+            }
+            for (int m = 0; m < cluster.size; ++m) {
+                RawArraySetSize(merged, merged.size + 1, cluster.data[m]);
+            }
+            System::MemoryAllocator::MemFree(cluster.data);             // 0x1400ce4c2
+            cluster.data     = nullptr;
+            cluster.size     = 0;
+            cluster.capacity = 0;
+        }
+    }
+
+    // 3. teardown (0x1400ce4f5..0x1400ce520).
+    for (int r = 0; r < clusterCount; ++r) {
+        System::MemoryAllocator::MemFree(buckets.data[r].data);
+        buckets.data[r].data     = nullptr;
+        buckets.data[r].size     = 0;
+        buckets.data[r].capacity = 0;
+    }
+    System::MemoryAllocator::MemFree(buckets.data);
 }
 
 // ============================================================

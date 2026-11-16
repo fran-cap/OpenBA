@@ -1,11 +1,7 @@
 // src/game/Game/worldgen_f390_shims.cpp
-// Link shims for worldgen_f390_rivers.cpp (cd460/e910). That stage declares a few
-// helpers as GLOBAL extern "C" symbols; the two it calls are defined here once so the
-// standalone exe links.
-//
-// All semantics match how rivers.cpp actually calls them (verified at the call sites):
-//   - FUN_140014c30           is only called on a null AVL root (dead path) -> no-op
-//   - TradeComponent_helper_f9e0 copies a stride-4 {data,count,cap} int bucket
+// Link shim for worldgen_f390_rivers.cpp (cd460/e910). That stage declares
+// TradeComponent_helper_f9e0 (a copy of a stride-4 {data,count,cap} int bucket) as a
+// GLOBAL extern "C" symbol; it is defined here once so the standalone exe links.
 
 #include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
 #include <cstdint>
@@ -34,9 +30,5 @@ void TradeComponent_helper_f9e0(RawArray<int32_t>* d, const RawArray<int32_t>* s
         for (int32_t i = 0; i < cnt; ++i) dp[i] = sp[i];
     }
 }
-
-// AVL recursive subtree free — rivers.cpp only calls this on a null root (the emulated
-// cluster partition uses no AVL tree), so this is a no-op.
-void FUN_140014c30(void** /*root*/, void* /*node*/) {}
 
 }
