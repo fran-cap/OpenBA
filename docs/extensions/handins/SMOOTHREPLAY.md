@@ -100,8 +100,25 @@ the camera it set. The emit sets the seam around its save-load and interface dra
   is up; the loop stops when it is not zero (1 to 5 times per 600 steps in the stress town).
 - **Read a pinned EdgeMesh a step is freeing.** `PinGate::FreeWaiting` (resource_pin.h): the loop stops, the
   reads are declared over, the free goes on.
+- **Cost the real frames.** `ReplayFits` plans with the time a replayed frame's submission takes on the
+  render thread; its GPU time is not in that plan. On the S25 (stress town, 50x, release apk) a Frame without
+  replayed frames is one fixed step and the game keeps its 60 steps a second; with them, 30 s in, a Frame
+  passed 16.7 ms, `MainLoop::Frame` ran two or three steps in the next, the longer steps held more replayed
+  frames, and it stayed there: 22 real frames a second with 29 replayed ones, and 48 to 54 steps a second.
+  The backend now measures the GPU's time for a frame (`GpuFrameUs`, finish_split.h): on Vulkan two
+  timestamp queries a frame-in-flight slot, the frame's first command and its last, read back at the slot's
+  next begin after its fence (`device.cpp`, GPU FRAME TIME); on Metal the presented command buffer's
+  `GPUStartTime` .. `GPUEndTime` (built by CI, not run). `GpuPlan` (gpu_plan.h, the render thread) keeps
+  the time the GPU is expected to be done with everything presented, real frames and replayed ones, and
+  `ReplayFits` is asked with the later of the submission estimate and the time until the GPU would be done
+  with a frame presented now. The S25 reports 12 to 22 ms a frame against steps of 13 to 16 ms: almost no
+  replayed frame fits, and the game keeps its pace. DirectX 11 answers "not supported" and plans by the
+  submission alone, as before: its timestamp queries run when they are issued, so a frame's two stamps span
+  its recording as well (2 to 3.8 ms read where Vulkan's read 1.9; planned with, the replayed frames fell
+  from 2.5 a step to under 0.5). The stress line's `gpu frame=` is the last reading and the largest one a
+  replayed frame was planned with (-1: not measured).
 
-## 5. Checks run (2026-11-15, Windows, DX11)
+## 5. Checks run (2026-11-15, Windows; DX11 unless a line says Vulkan)
 
 - Unit: `tests/unit/ext_render_pipe_replay_test.cpp` (the clock, the record's chunk bookkeeping,
   `ReplayFits`, the pin's waiting free, the driver's snapshot rule) and the emit-order test's new gate case.
@@ -111,14 +128,28 @@ the camera it set. The emit sets the seam around its save-load and interface dra
   sheets, the panel is complete in every window capture.
 - Falling leaves on (stress town, 50x, autumn reached): snapshots refused 0, 6.3 to 6.9 replayed frames per
   step, empty crash log; COMPPROF=4: `RenderPipeSnapshotLean checks=2086 mismatches=0`.
-- The tool (hand test, stress town, 50x, tools picked and dragged): 10177 real frames carried the overlay
+- The tool (hand test on Vulkan, stress town, 50x, tools picked and dragged): 10177 real frames carried the overlay
   into the record, 11253 replayed frames over 4798 steps, none without a record, none stopped, empty crash
   log; the tiles and the motion behind them judged good by eye.
 - Gate.sav at 50x with the key on (per-entry profile): load, the retail autosave path at frame 1500 with
   replayed frames running, quit through the pause menu: exit 0, empty crash log.
+- Vulkan (hand test before the GPU plan, stress town, 50x, perf exe): judged good by eye ("town looks
+  solid"); 2.5 to 2.9 replayed frames per step, none without a record, empty crash log. With the GPU plan
+  (unattended): 1.7 to 2.7 per step, the GPU's time read at 1.8 to 2.3 ms, empty crash log.
+- DX11 with the GPU plan in the tree (not measured there): 2.1 to 2.6 per step, empty crash log.
+- The S25 (release apk with the committed PGO profile, stress town, 50x, the row on). Hand test before the
+  GPU plan: judged good by eye apart from the frame counter (22 to 30 real frames a second), and 7800 to
+  9000 steps in 175 s against 10200 with the row off. With the GPU plan, untouched: 10200 steps in 172 s
+  with the row on and with it off; 0 to 0.2 replayed frames per step for most of the run, 0.6 once the
+  throttled phone ran two steps a Frame; empty crash log. The two legs did not start equally warm (30.5
+  and 37.5 C), and the phone reaches thermal status 1 to 2 inside three minutes, which moves a leg's frame
+  time more than the row does.
+- Gate (faithful) and resave gate with the GPU plan in the tree: a new town runs, empty crash log; PASS.
 
 ## 6. Not built yet
 
 - The delay derived from the last step's span (today a constant, tunable in the debug overlay only).
-- A look on Vulkan and on the phone; PresentMon numbers on a quiet machine; the user's ruling on the default.
+- The GPU's time on DirectX 11 (section 4), and a run of the Metal reading on a Mac.
+- On the S25's stress town the replayed frames now cost nothing and add little: the GPU has no room.
+- PresentMon numbers on a quiet machine.
 - Camera pans stay at the step rate (the camera has no interpolation, in retail too): a separate question.

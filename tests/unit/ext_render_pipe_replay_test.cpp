@@ -14,6 +14,7 @@
 // ============================================================================
 #include "unit.h"
 #include "ext/render_pipe/display_clock.h"
+#include "ext/render_pipe/gpu_plan.h"
 #include "ext/render_pipe/handoff.h"
 #include "ext/render_pipe/pipe_driver.h"
 #include "ext/render_pipe/resource_pin.h"
@@ -261,6 +262,33 @@ UNIT_TEST(ext_render_pipe_replay_asks_for_copies_after_a_long_step) {
     driver.BeforeTransition(host);
     h.Stop();
     render.join();
+}
+
+// The GPU plan: a frame presented now is complete after everything presented before it and its own
+// time; an idle GPU starts at once; the estimate never runs more than kMaxQueued frames ahead.
+UNIT_TEST(ext_render_pipe_replay_gpu_plan_queues_frames_behind_each_other) {
+    Ext::RenderPipe::GpuPlan plan;
+    CHECK_EQ(plan.CompleteIn(1000000, 12000), 12000);   // nothing presented: its own time
+
+    // The S25's stress town: a real frame presented at the end of a 13 ms step, 12 ms of GPU time.
+    // 3 ms into the next step a replayed frame would be complete 21 ms from now: not inside the step.
+    plan.Presented(1000000, 12000);
+    CHECK_EQ(plan.CompleteIn(1003000, 12000), 21000);
+    // A desktop: 2 ms of GPU time; the same question 3 ms later answers 2 ms.
+    Ext::RenderPipe::GpuPlan fast;
+    fast.Presented(1000000, 2000);
+    CHECK_EQ(fast.CompleteIn(1003000, 2000), 2000);
+
+    // Two more presented back to back queue behind the first.
+    plan.Presented(1003000, 12000);
+    plan.Presented(1004000, 12000);
+    CHECK_EQ(plan.CompleteIn(1004000, 12000), 44000);
+    // The GPU idle since: only the frame's own time again.
+    CHECK_EQ(plan.CompleteIn(2000000, 12000), 12000);
+
+    // Presents faster than the GPU's time: capped at kMaxQueued frames ahead.
+    for (int32_t i = 0; i < 20; ++i) plan.Presented(3000000 + i * 1000, 12000);
+    CHECK_EQ(plan.CompleteIn(3019000, 12000), 12000 * Ext::RenderPipe::GpuPlan::kMaxQueued + 12000);
 }
 
 // Sequential (no render thread): the replay is never on.

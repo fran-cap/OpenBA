@@ -117,6 +117,7 @@ Render::BackendTable MakeBackendTable(const char* id, bool (*available)()) {
 
     t.renderPipeFinishPresent = &Ext::RenderPipe::FinishPresent;
     t.renderPipeFinishRecover = &Ext::RenderPipe::FinishRecover;
+    t.renderPipeGpuFrameUs    = &Ext::RenderPipe::GpuFrameUs;
 
     t.extAoAfterOpaque = &Graphics::ExtAoAfterOpaque;
     return t;

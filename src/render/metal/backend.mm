@@ -58,6 +58,15 @@ static std::recursive_mutex stateMutex;
 using StateGuard = std::lock_guard<std::recursive_mutex>;
 
 static id<MTLCommandBuffer> commands;
+// GPU FRAME TIME: the last presented frame's GPU span, us (-1: none completed yet). Written by the
+// command buffer's completion handler (Metal's own thread), read by the render thread.
+static std::atomic<long long> gpuFrameUs{-1};
+bool GpuFrameTime(long long* us) {
+    const long long v = gpuFrameUs.load(std::memory_order_relaxed);
+    if (v < 0) return false;
+    *us = v;
+    return true;
+}
 static id<MTLRenderCommandEncoder> activeEncoder;
 static id<MTLTexture> encoderColor, encoderDepth;
 static id<MTLRenderPipelineState> activePipeline;
@@ -793,6 +802,11 @@ void Present() {
         [commands addCompletedHandler:^(id<MTLCommandBuffer> cb) {
           if (cb.error) {
               fprintf(stderr, "[Metal] command error: %s\n", cb.error.localizedDescription.UTF8String);
+          }
+          // GPU FRAME TIME (metal_entry.h GpuFrameTime): the presented frame's own GPU span.
+          const double gpuSeconds = cb.GPUEndTime - cb.GPUStartTime;
+          if (gpuSeconds > 0.0) {
+              gpuFrameUs.store(static_cast<long long>(gpuSeconds * 1e6 + 0.5), std::memory_order_relaxed);
           }
           dispatch_semaphore_signal(semaphore);
         }];

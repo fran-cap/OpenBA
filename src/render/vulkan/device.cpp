@@ -100,7 +100,16 @@ struct Frame {
     bool acquireWaited = false;                  // a split submit already waited on imageAvailable
     VkFence done = VK_NULL_HANDLE;               // signalled when this slot's submit completed
     VkSemaphore imageAvailable = VK_NULL_HANDLE;
+    bool timed = false;                          // GPU FRAME TIME: this slot's two timestamps were recorded
 };
+
+// GPU FRAME TIME (finish_split.h GpuFrameUs, for ext.render_pipe's replayed frames): two timestamp
+// queries a frame-in-flight slot, the first command of the frame and the last. Read back at the slot's
+// next begin, after its fence (the frame is complete: no wait, no availability bit). Null where the
+// graphics queue has no timestamps (timestampValidBits 0): "not supported".
+VkQueryPool gpuTimePool = VK_NULL_HANDLE;
+uint64_t gpuTimeMask = 0;                        // the queue family's valid timestamp bits
+std::atomic<int64_t> gpuFrameUs{-1};             // the last completed frame's GPU time, us; -1: none yet
 
 VkInstance instance = VK_NULL_HANDLE;
 uint32_t instanceVersion = 0;   // the instance's apiVersion: the loader's, at most 1.3
@@ -659,7 +668,22 @@ bool ForceDeviceLostThisPresent() {
     return true;
 }
 
+// The slot's previous frame is complete (its fence was waited for): its GPU time.
+void ReadGpuFrameTime(unsigned slot) {
+    uint64_t stamps[2] = {0, 0};
+    const VkResult r = vkGetQueryPoolResults(device, gpuTimePool, slot * 2, 2, sizeof(stamps), stamps,
+                                             sizeof(stamps[0]), VK_QUERY_RESULT_64_BIT);
+    if (r != VK_SUCCESS) return;   // VK_NOT_READY: the frame never reached its last command
+    const uint64_t ticks = (stamps[1] - stamps[0]) & gpuTimeMask;
+    const double us = static_cast<double>(ticks) * static_cast<double>(deviceProperties.limits.timestampPeriod) *
+                      1e-3;
+    gpuFrameUs.store(static_cast<int64_t>(us + 0.5), std::memory_order_relaxed);
+}
+
 void DestroyFrames() {
+    if (gpuTimePool) vkDestroyQueryPool(device, gpuTimePool, nullptr);
+    gpuTimePool = VK_NULL_HANDLE;
+    gpuFrameUs.store(-1, std::memory_order_relaxed);
     for (Frame& f : frames) {
         f.extra.clear();   // freed with the pool
         if (f.done) vkDestroyFence(device, f.done, nullptr);
@@ -701,10 +725,34 @@ bool CreateFrames(std::string* why) {
             return false;
         }
     }
+    // GPU FRAME TIME: optional. No pool where the graphics queue has no timestamps.
+    uint32_t qCount = 0;
+    vkGetPhysicalDeviceQueueFamilyProperties(physical, &qCount, nullptr);
+    std::vector<VkQueueFamilyProperties> families(qCount);
+    vkGetPhysicalDeviceQueueFamilyProperties(physical, &qCount, families.data());
+    const uint32_t bits = graphicsFamily < qCount ? families[graphicsFamily].timestampValidBits : 0;
+    if (bits != 0 && deviceProperties.limits.timestampPeriod > 0.0f) {
+        gpuTimeMask = bits >= 64 ? ~0ull : (1ull << bits) - 1;
+        auto qi = Make<VkQueryPoolCreateInfo>(VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO);
+        qi.queryType = VK_QUERY_TYPE_TIMESTAMP;
+        qi.queryCount = kFramesInFlight * 2;
+        if (vkCreateQueryPool(device, &qi, nullptr, &gpuTimePool) != VK_SUCCESS) gpuTimePool = VK_NULL_HANDLE;
+    }
+    std::fprintf(stderr, "[Vulkan] GPU frame time: %s (timestamp bits %u, period %.3f ns)\n",
+                 gpuTimePool ? "timestamp queries" : "not supported", bits,
+                 static_cast<double>(deviceProperties.limits.timestampPeriod));
     return true;
 }
 
 }  // namespace
+
+// finish_split.h GpuFrameUs: the last completed frame's GPU time. False: not supported, or none yet.
+bool GpuFrameTime(int64_t* us) {
+    const int64_t v = gpuFrameUs.load(std::memory_order_relaxed);
+    if (v < 0) return false;
+    *us = v;
+    return true;
+}
 
 // ---- the entry points (vulkan_entry.h) ----------------------------------------------------------
 
@@ -1543,6 +1591,13 @@ bool ContextData::BeginCommands() NO_THREAD_SAFETY_ANALYSIS {
     VkCommandBufferBeginInfo bi = Make<VkCommandBufferBeginInfo>(VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO);
     bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     vkBeginCommandBuffer(f.commands, &bi);
+    if (gpuTimePool) {
+        // GPU FRAME TIME: the slot's last frame is complete (the fence above); then this frame's first stamp.
+        if (f.timed) ReadGpuFrameTime(frameSlot);
+        vkCmdResetQueryPool(f.commands, gpuTimePool, frameSlot * 2, 2);
+        vkCmdWriteTimestamp(f.commands, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, gpuTimePool, frameSlot * 2);
+        f.timed = true;
+    }
 
     dev->Lock();
     // The slot's previous frame completed (the fence above): its ring, pools and the objects
@@ -1606,6 +1661,8 @@ int32_t PresentFrame(::Video::Context& ctx) NO_THREAD_SAFETY_ANALYSIS {
     }
     Frame& f = frames[frameSlot];
     DrawEndFrame();
+    if (gpuTimePool && f.timed)   // GPU FRAME TIME: the frame's last command
+        vkCmdWriteTimestamp(f.commands, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, gpuTimePool, frameSlot * 2 + 1);
     vkEndCommandBuffer(f.commands);
     const bool logFrame = frameCount == 0 || (frameCount + 1) % 300 == 0;
     if (logFrame) DrawLogFrame(frameCount + 1, &ctx);

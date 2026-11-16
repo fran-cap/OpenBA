@@ -1774,14 +1774,16 @@ void EmitRow(GameUpdateLoop* gul, int frame) {
     // SMOOTHREPLAY: ext.render_pipe's replayed frames, printed while a claim had the display clock on.
     if (rp.replayClaims != 0) {
         std::fprintf(stderr, "[Stress::replay] claims=%llu frames=%llu (%.2f/claim) no layer=%llu stopped=%llu "
-                             "yielded the lock=%llu tool frames=%llu\n",
+                             "yielded the lock=%llu tool frames=%llu gpu frame=%lldus (max %lld)\n",
                      static_cast<unsigned long long>(rp.replayClaims),
                      static_cast<unsigned long long>(rp.replayFrames),
                      static_cast<double>(rp.replayFrames) / static_cast<double>(rp.replayClaims),
                      static_cast<unsigned long long>(rp.replayNoLayer),
                      static_cast<unsigned long long>(rp.replayStopped),
                      static_cast<unsigned long long>(rp.replayYielded),
-                     static_cast<unsigned long long>(rp.replayTool));
+                     static_cast<unsigned long long>(rp.replayTool),
+                     static_cast<long long>(rp.gpuFrameUs),   // -1: the backend does not measure it
+                     static_cast<long long>(rp.gpuFrameMaxUs));
     }
     // P13_OVERLAP 2.8: ext.render_pipe's resource pin (resource_pin.h), printed while it saw a free,
     // with COMPPROF=5's own repaints and deselects (cumulative).

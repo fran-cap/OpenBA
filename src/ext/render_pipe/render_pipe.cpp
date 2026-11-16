@@ -84,6 +84,7 @@
 #include "ext/render_pipe/display_clock.h"  // SMOOTHREPLAY: the alpha a frame is drawn at
 #include "ext/render_pipe/ui_layer.h"       // SMOOTHREPLAY: the recorded interface
 #include "ext/render_pipe/replay_params.h"  // SMOOTHREPLAY: the display delay (ReplayLook)
+#include "ext/render_pipe/gpu_plan.h"       // SMOOTHREPLAY: when the GPU is done with what was presented
 #include "ext/tweak/ext_tweaks.h"           // the debug tweak overlay's copy of it (empty without the overlay)
 
 #include <atomic>
@@ -166,6 +167,24 @@ ReplayCounters g_replay;
 std::atomic<int32_t> g_lockWaiters{0};   // Video::Device::_extLockWaiters while the render thread is up
 int64_t g_replayEstimateUs = 2500;   // the render thread only: one replayed frame's span, smoothed
 bool    g_replaySaid = false;        // the render thread only: the first replayed frame was logged
+GpuPlan g_gpuPlan;                   // the render thread only: when the GPU is done with what was presented
+std::atomic<int64_t> g_gpuMaxUs{-1}; // the largest GPU frame time a replay was planned with (the stress window's)
+
+// A threaded emit presented a frame (a real one or a replayed one): the GPU has it to do.
+void NotePresented() {
+    int64_t gpuUs = 0;
+    if (GpuFrameUs(&gpuUs)) g_gpuPlan.Presented(NowUs(), gpuUs);
+}
+
+// What ReplayFits is asked with: the replayed frame's submission (`estimateUs`), or, where the
+// backend measures the GPU's time for a frame, the time until the GPU would be done with it.
+int64_t ReplayNeedUs(int64_t estimateUs) {
+    int64_t gpuUs = 0;
+    if (!GpuFrameUs(&gpuUs)) return estimateUs;
+    if (gpuUs > g_gpuMaxUs.load(std::memory_order_relaxed)) g_gpuMaxUs.store(gpuUs, std::memory_order_relaxed);
+    const int64_t doneUs = g_gpuPlan.CompleteIn(NowUs(), gpuUs);
+    return doneUs > estimateUs ? doneUs : estimateUs;
+}
 
 // The replayed frames' tunables: the defaults, or the debug tweak overlay's copy.
 ReplayLook CurrentReplayLook() {
@@ -529,7 +548,7 @@ struct EngineOps {
         Video::Device* const device = ctx->_device;
         int64_t estimateUs = g_replayEstimateUs;
         // A step's free of a pinned EdgeMesh waits for pass 2's reads (resource_pin.h): no more of them.
-        while (handoff->ReplayFits(estimateUs) && !PinFreeWaiting()) {
+        while (handoff->ReplayFits(ReplayNeedUs(estimateUs)) && !PinFreeWaiting()) {
             // A step asked for a resize: the next begin would refuse (Device::_extReplayBegin).
             if (device->settingsChanged != 0) return true;
             // A step waits for the device lock this loop holds almost without a gap (an unfair
@@ -550,6 +569,7 @@ struct EngineOps {
                 g_replay.stopped.fetch_add(1, std::memory_order_relaxed);
                 return false;
             }
+            NotePresented();
             if (g_replay.frames.fetch_add(1, std::memory_order_relaxed) == 0 && !g_replaySaid) {
                 g_replaySaid = true;   // once a run: the row's replay is doing something
                 std::fprintf(stderr, "[RenderPipe] replayed frames on (display delay %d us)\n",
@@ -652,10 +672,12 @@ struct EngineOps {
     }
     void IncFrameIndex() { ++ctx->_frameIndex; }
     void Finish() {
-        if (handoff != nullptr)
+        if (handoff != nullptr) {
             hr = FinishPresent(*ctx);          // Present + Unlock; a loss is only reported
-        else
+            NotePresented();                   // SMOOTHREPLAY: the replayed frames' GPU plan
+        } else {
             ctx->_contextData->Finish();       // the faithful slot: Present + the inline recovery
+        }
     }
 };
 
@@ -992,6 +1014,8 @@ Counters TakeWindow() {
     c.replayStopped = g_replay.stopped.exchange(0, std::memory_order_relaxed);
     c.replayYielded = g_replay.yielded.exchange(0, std::memory_order_relaxed);
     c.replayTool    = g_replay.tool.exchange(0, std::memory_order_relaxed);
+    if (g_handoff == nullptr || !GpuFrameUs(&c.gpuFrameUs)) c.gpuFrameUs = -1;
+    c.gpuFrameMaxUs = g_gpuMaxUs.exchange(-1, std::memory_order_relaxed);
     return c;
 }
 

@@ -142,6 +142,14 @@ void FinishRecover(Video::Device& device, int32_t state) {
     (void)state;
 }
 
+// The presented frame's command buffer times (backend.mm).
+bool GpuFrameUs(int64_t* us) {
+    long long v = 0;
+    if (!VideoMetal::GpuFrameTime(&v)) return false;
+    *us = static_cast<int64_t>(v);
+    return true;
+}
+
 }  // namespace RenderPipe
 }  // namespace Ext
 
