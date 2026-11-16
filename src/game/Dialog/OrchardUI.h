@@ -30,10 +30,7 @@ public:
     ~OrchardUI() override = default;                              // [0]  0x1400130e0
     void  OnCreated() override;                                   // [4]  0x1400755b0
     void  OnUpdateLayout() override;                              // [7]  0x1400754b0
-    // [9] STANDALONE DEVIATION: retail inherits SelectResourceUI's 0x140078d80;
-    // the tree's wrapper traces the event, then runs the same base body.
-    void  OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId a, int32_t b,
-                         int32_t c, int32_t d, int32_t e, void* userData) override;
+    // [8] [9] OnUpdate / OnElementEvent: SelectResourceUI's (0x140078d30 / 0x140078d80)
     void  SetResource(ComponentDescription* type) override;       // [11] 0x140075380
     ComponentDescription** GetResource(ComponentDescription** out) override;  // [12] 0x140075430
     int   GetCategory() override;                                 // [13] 0x140075420  MOV EAX,1

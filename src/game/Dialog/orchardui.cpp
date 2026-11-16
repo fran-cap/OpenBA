@@ -251,19 +251,6 @@ int OrchardUI::GetCategory() {
 // "enable the combo iff it has items" logic already inlined in OrchardUI::OnUpdateLayout.
 
 
-
-
-
-// [9] STANDALONE DEVIATION (retail inherits the base slot) — the tree's wiring, kept.
-void OrchardUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId a, int32_t b,
-                               int32_t c, int32_t d, int32_t e, void* userData) {
-    orchardui_sa::Trace("Slot9(event)", this);
-    SelectResourceUI::OnElementEvent(element, a, b, c, d, e, userData);
-}
-
-
-
-
 // create 0x140012ff0: MemAlloc(0x48, 8), then the ctor (DialogController ->
 // Internal: AddObject, the compiler's stamps, the field initialisers).
 ::Object::Base* OrchardUI::CreateNewObject() {

@@ -51,8 +51,8 @@
 #include "Component/AttendanceComponent.h"   // B4 S4 RT2: InternalPtr<AttendanceComponent>::Get() needs the class complete
 #include "Game/PlayerToolManager.h"   // CenterOnEntity 0x140103040 (row 452)
 
-// ResidenceUI::Slot7 is the per-frame roster refresh (driven from the slot-8 OnUpdate
-// below in standalone).
+// ResidenceUI::Slot7 is the per-frame roster refresh: the framework's layout pass runs it
+// once a frame (DialogInstance::ComputeLayout 0x180113d90 -> OnUpdateLayout 0x1801153a0).
 #ifdef _DEBUG
 #endif
 
@@ -116,7 +116,6 @@ static bool DataSourceAlive(ResidenceUI* self) {
 
 // [4] 0x1400b5850
 void ResidenceUI::OnCreated() {
-    if (!residenceui_sa::Ready()) return;
     UI::Element* dialogElem = _container;
 
     // Try "residenceTable" first, fall back to "residenceLongTable"
@@ -520,26 +519,15 @@ void ResidenceUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::
 //   +0x00 (idx0) ScalarDtor (0x140020fc0)  +0x10 (idx2) GetTypeId (0x140020f40)
 //   +0x20 (idx4) Slot4  (0x1400b5850) — build+cache the per-row element array (+0x30/+0x38)
 //   +0x38 (idx7) Slot7  (0x1400b51f0) — populate rows from the ResidenceComponent roster
-//   +0x40 (idx8)        (0x14003a96c)  — base DialogController::OnUpdate (per-frame). We
-//               drive the refresh here: build once (until +0x38 row count is set), then
-//               re-populate every frame so the roster stays live as residents change.
+//   +0x40 (idx8)        (0x14003a96c)  — base DialogController::OnUpdate, inherited (a RET).
+//               The rows are built once by Slot4 at creation and re-populated every frame
+//               by Slot7, which the framework's layout pass runs.
 //   +0x48 (idx9) Slot9  (0x1400b5820) — resident-row click dispatch (id 300+index)
 
 
 // ~ResidenceUI (0x140020fc0): the row array at +0x30 is freed by `rows`' own
 // dtor (MemFree + zero data / count / capacity, as the tree's teardown did);
 // the compiler then chains ~DialogController -> ~Internal.
-
-
-
-// [8] STANDALONE DEVIATION (retail inherits the base slot) — the tree's wiring, kept.
-void ResidenceUI::OnUpdate(const System::Time& /*time*/) {
-    if (!residenceui_sa::Ready() || !residenceui_sa::DataSourceAlive(this)) return;
-    if (rows._size == 0) {
-        ResidenceUI::OnCreated();
-    }
-    ResidenceUI::OnUpdateLayout();
-}
 
 
 // create 0x140020f60: MemAlloc(0x40, 8), then the ctor (DialogController ->

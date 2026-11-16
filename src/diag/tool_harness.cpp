@@ -2300,8 +2300,7 @@ void FireClearHarvest() {
 // Env: BANISHED_TOOL_HARNESS=upgrade
 //      BANISHED_UPGRADE_WAIT_FRAMES  poll budget before giving up (default 36000)
 //      BANISHED_UPGRADE_CLICK_DELAY  frames between opening the dialog and clicking
-//                                    (default 15 — UpgradeUI binds its button in the
-//                                    slot-8 self-heal a frame or more after the open)
+//                                    (default 15)
 // The whole rest of the sequence is observed through the DestroySM traces — this only
 // supplies the click.
 
@@ -2426,8 +2425,9 @@ void FireUpgradeClick() {
         return;
     }
 
-    // Slot 4 (OnCreated) binds the button into +0x30 and sets its element id. The
-    // slot-8 self-heal normally does this; drive it directly if it hasn't run.
+    // Slot 4 (OnCreated) binds the button into +0x30 and sets its element id.
+    // AddController runs it when the dialog is built; drive it directly if that
+    // left the button unbound (upgradeui.cpp:59 returns early without a target).
     if (ctrl->button == nullptr)
         ctrl->OnCreated();
 

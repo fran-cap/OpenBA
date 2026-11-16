@@ -461,7 +461,7 @@ DEFINE_EXE_TYPE(ToolUI, "UI::DialogController")
 
 DEFINE_EXE_TYPE(TradeUI, "UI::DialogController")
 // UpgradeUI: PROMOTED to a real per-class standalone vtable in
-// src/game/Dialog/upgradeui.cpp (wires Slot4/8/9 — the wood→stone upgrade
+// src/game/Dialog/upgradeui.cpp (wires Slot4/7/9 — the wood→stone upgrade
 // button; click writes the target template into DestroyComponent+0x60 and
 // pumps the BuildState state machine). Stub registration removed to avoid a
 // duplicate REGISTER_TYPE(UpgradeUI).

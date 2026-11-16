@@ -53,8 +53,8 @@ UpgradeUIConfig* UpgradeConfig(UpgradeUI* self) {
 // target template's ToolbarDescription icon on the button's image child, and
 // hands the button the target template as its user data.
 void UpgradeUI::OnCreated() {
-    // SA guard: only safe when the bound config is an UpgradeUIConfig with a
-    // target template (the stub config zero-filled it before the real port).
+    // NOT RETAIL (docs/known_port_issues.md row 1432): 0x140086d90 has no config or target
+    // test; it binds the button (0x140086e06), then reads the target unguarded (0x140086e6c).
     UpgradeUIConfig* upgradeConfig = UpgradeConfig(this);
     if (!upgradeConfig || upgradeConfig->_target == nullptr) return;
 
@@ -87,8 +87,8 @@ void UpgradeUI::OnCreated() {
         }
     }
 
-    // SA guard: retail data guarantees a ToolbarDescription on the upgrade
-    // target template; skip the icon when the standalone template lacks one.
+    // NOT RETAIL (row 1432): retail reads the ToolbarDescription unguarded (0x140086ec5);
+    // the port skips the icon and the user data when the target template has none.
     if (!toolbar) return;
 
     UI::Sprite sprite(Object::ExternalPtr<UI::SpriteSheet>(toolbar->_spriteSheet),
@@ -158,15 +158,11 @@ void UpgradeUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::Ev
 // Standalone promotion — real UpgradeUI vtable (2026-07-20)
 // ============================================================
 // Retail vtable @ 0x14015df00 (11 slots): overrides 0,1,2,4,7,9. Slot 7
-// (0x140086d80) is a 3-byte RET 0 no-op, slots 3,5,6,8,10 are inherited
-// UI::DialogController base thunks. OnCreated (icon + button wiring) is driven
-// once from slot 8 (OnUpdate) as a self-heal if the framework never calls
-// slot 4; slot 9 is the click handler.
-
-// [8] STANDALONE DEVIATION (retail inherits the base slot) — the tree's wiring, kept.
-void UpgradeUI::OnUpdate(const System::Time& /*time*/) {
-    if (button == nullptr) UpgradeUI::OnCreated();
-}
+// (0x140086d80) is a 3-byte RET 0 no-op, slot 3 is the inherited
+// Object::Internal::Persist and slots 5,6,8,10 are the inherited
+// UI::DialogController base thunks. OnCreated (icon + button wiring) runs once,
+// from DialogInstance::AddController 0x1801133b0 (the slot-4 call at 0x18011343d)
+// when the dialog is built; slot 9 is the click handler.
 
 
 // create 0x140016b30: MemAlloc(0x38, 8), then the ctor (DialogController ->

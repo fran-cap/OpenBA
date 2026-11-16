@@ -9,7 +9,7 @@
 //   [1] TypeName  [2] Type  (DECLARE_EXE_TYPE)
 //   [4] 0x140086d90  OnCreated
 //   [7] 0x140086d80  RET 0
-//   [8] retail inherits the base; the tree overrides it (STANDALONE DEVIATION)
+//   [8] 0x14003a96c  inherits DialogController::OnUpdate (the import thunk, a RET)
 //   [9] 0x140086c90  OnElementEvent
 //   every other slot is UI::DialogController's (inherited, not declared).
 // ============================================================================
@@ -32,8 +32,7 @@ public:
     ~UpgradeUI() override = default;                              // [0] 0x140016d50
     void OnCreated() override;   // [4] 0x140086d90
     void OnUpdateLayout() override {}   // [7] 0x140086d80  RET 0 in retail
-    // [8] STANDALONE DEVIATION: retail inherits DialogController::OnUpdate (RET); the tree drives this panel's per-frame refresh here.
-    void OnUpdate(const System::Time& time) override;
+    // [8] OnUpdate: DialogController's (retail's slot is the base thunk 0x14003a96c)
     void OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId a, int32_t b,
                         int32_t c, int32_t d, int32_t e, void* userData) override;   // [9] 0x140086c90
 

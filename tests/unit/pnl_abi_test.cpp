@@ -198,7 +198,7 @@ UNIT_TEST(pnl_CropUI_layout_and_slots) {
     CheckPanelShape<CropUI>((size_t)0x60);
     CHECK_SLOT(CropUI, OnCreated,      0x20/8);   // 0x1400b2b50
     CHECK_SLOT(CropUI, OnUpdateLayout, 0x38/8);   // 0x1400b2a50
-    CHECK_SLOT(CropUI, OnUpdate,       0x40/8);   // standalone deviation
+    CHECK_SLOT(CropUI, OnUpdate,       0x40/8);   // 0x140078d30: inherited SelectResourceUI::OnUpdate
     CHECK_SLOT(CropUI, SetResource,    0x58/8);   // 0x1400b2920
     CHECK_SLOT(CropUI, GetResource,    0x60/8);   // 0x1400b29d0
     CHECK_SLOT(CropUI, GetCategory,    0x68/8);   // 0x1400b29c0
@@ -217,7 +217,7 @@ UNIT_TEST(pnl_DestroyUI_layout_and_slots) {
     CheckPanelShape<DestroyUI>((size_t)0x78);
     CHECK_SLOT(DestroyUI, OnCreated,      0x20/8);   // 0x140066150
     CHECK_SLOT(DestroyUI, OnUpdateLayout, 0x38/8);   // 0x140065b00
-    CHECK_SLOT(DestroyUI, OnUpdate,       0x40/8);   // standalone deviation
+    CHECK_SLOT(DestroyUI, OnUpdate,       0x40/8);   // 0x14003a96c: inherited DialogController::OnUpdate
     CHECK_SLOT(DestroyUI, OnElementEvent, 0x48/8);   // 0x140066080
 }
 
@@ -283,8 +283,8 @@ UNIT_TEST(pnl_OrchardUI_layout_and_slots) {
     CheckPanelShape<OrchardUI>((size_t)0x48);
     CHECK_SLOT(OrchardUI, OnCreated,      0x20/8);   // 0x1400755b0
     CHECK_SLOT(OrchardUI, OnUpdateLayout, 0x38/8);   // 0x1400754b0
-    CHECK_SLOT(OrchardUI, OnUpdate,       0x40/8);   // standalone deviation
-    CHECK_SLOT(OrchardUI, OnElementEvent, 0x48/8);   // standalone deviation
+    CHECK_SLOT(OrchardUI, OnUpdate,       0x40/8);   // 0x140078d30: inherited SelectResourceUI::OnUpdate
+    CHECK_SLOT(OrchardUI, OnElementEvent, 0x48/8);   // 0x140078d80: SelectResourceUI's, inherited
     CHECK_SLOT(OrchardUI, SetResource,    0x58/8);   // 0x140075380
     CHECK_SLOT(OrchardUI, GetResource,    0x60/8);   // 0x140075430
     CHECK_SLOT(OrchardUI, GetCategory,    0x68/8);   // 0x140075420
@@ -302,7 +302,7 @@ UNIT_TEST(pnl_PastureUI_layout_and_slots) {
     CheckPanelShape<PastureUI>((size_t)0x40);
     CHECK_SLOT(PastureUI, OnCreated,      0x20/8);   // 0x1400b5090
     CHECK_SLOT(PastureUI, OnUpdateLayout, 0x38/8);   // 0x1400b4e50
-    CHECK_SLOT(PastureUI, OnUpdate,       0x40/8);   // standalone deviation
+    CHECK_SLOT(PastureUI, OnUpdate,       0x40/8);   // 0x140078d30: inherited SelectResourceUI::OnUpdate
     CHECK_SLOT(PastureUI, OnElementEvent, 0x48/8);   // 0x1400b4e20
     CHECK_SLOT(PastureUI, SetResource,    0x58/8);   // 0x1400b4c40
     CHECK_SLOT(PastureUI, GetResource,    0x60/8);   // 0x1400b4d00
@@ -334,7 +334,7 @@ UNIT_TEST(pnl_ResidenceUI_layout_and_slots) {
     CHECK_SLOT(ResidenceUI, Persist,        0x18/8);   // 0x1400b5db0
     CHECK_SLOT(ResidenceUI, OnCreated,      0x20/8);   // 0x1400b5850
     CHECK_SLOT(ResidenceUI, OnUpdateLayout, 0x38/8);   // 0x1400b51f0
-    CHECK_SLOT(ResidenceUI, OnUpdate,       0x40/8);   // standalone deviation
+    CHECK_SLOT(ResidenceUI, OnUpdate,       0x40/8);   // 0x14003a96c: inherited DialogController::OnUpdate
     CHECK_SLOT(ResidenceUI, OnElementEvent, 0x48/8);   // 0x1400b5820
 }
 
@@ -355,11 +355,11 @@ UNIT_TEST(pnl_SpriteCaptureUI_layout_and_slots) {
 
 UNIT_TEST(pnl_StatusBarUI_layout_and_slots) {
     CheckPanelShape<StatusBarUI>((size_t)0x1d0);
-    CHECK_SLOT(StatusBarUI, OnCreated,      0x20/8);   // standalone deviation
+    CHECK_SLOT(StatusBarUI, OnCreated,      0x20/8);   // 0x14003a984: inherited DialogController::OnCreated
     CHECK_SLOT(StatusBarUI, OnOpened,       0x28/8);   // 0x14007a3d0
     CHECK_SLOT(StatusBarUI, OnClosed,       0x30/8);   // 0x14007a3c0
     CHECK_SLOT(StatusBarUI, OnUpdateLayout, 0x38/8);   // 0x1400798d0
-    CHECK_SLOT(StatusBarUI, OnUpdate,       0x40/8);   // standalone deviation
+    CHECK_SLOT(StatusBarUI, OnUpdate,       0x40/8);   // 0x14003a96c: inherited DialogController::OnUpdate
     CHECK_SLOT(StatusBarUI, OnElementEvent, 0x48/8);   // 0x14007a3a0
 }
 
@@ -367,7 +367,7 @@ UNIT_TEST(pnl_StatusIconUI_layout_and_slots) {
     CheckPanelShape<StatusIconUI>((size_t)0x40);
     CHECK_SLOT(StatusIconUI, OnCreated,      0x20/8);   // 0x14007b270
     CHECK_SLOT(StatusIconUI, OnUpdateLayout, 0x38/8);   // 0x14007b0a0
-    CHECK_SLOT(StatusIconUI, OnUpdate,       0x40/8);   // standalone deviation
+    CHECK_SLOT(StatusIconUI, OnUpdate,       0x40/8);   // 0x14003a96c: inherited DialogController::OnUpdate
 }
 
 UNIT_TEST(pnl_StorageCapacityUI_layout_and_slots) {
@@ -375,7 +375,7 @@ UNIT_TEST(pnl_StorageCapacityUI_layout_and_slots) {
     CHECK_SLOT(StorageCapacityUI, Persist,        0x18/8);   // 0x14007b6b0
     CHECK_SLOT(StorageCapacityUI, OnCreated,      0x20/8);   // 0x14007b600
     CHECK_SLOT(StorageCapacityUI, OnUpdateLayout, 0x38/8);   // 0x14007b4d0
-    CHECK_SLOT(StorageCapacityUI, OnUpdate,       0x40/8);   // standalone deviation
+    CHECK_SLOT(StorageCapacityUI, OnUpdate,       0x40/8);   // 0x14003a96c: DialogController's, inherited
 }
 
 UNIT_TEST(pnl_StorageUI_layout_and_slots) {
@@ -383,7 +383,7 @@ UNIT_TEST(pnl_StorageUI_layout_and_slots) {
     CHECK_SLOT(StorageUI, Persist,        0x18/8);   // 0x1400b8ca0
     CHECK_SLOT(StorageUI, OnCreated,      0x20/8);   // 0x1400b8820
     CHECK_SLOT(StorageUI, OnUpdateLayout, 0x38/8);   // 0x1400b8450
-    CHECK_SLOT(StorageUI, OnUpdate,       0x40/8);   // standalone deviation
+    CHECK_SLOT(StorageUI, OnUpdate,       0x40/8);   // 0x14003a96c: inherited DialogController::OnUpdate
 }
 
 UNIT_TEST(pnl_TitleDescToolTipUI_layout_and_slots) {
@@ -424,7 +424,7 @@ UNIT_TEST(pnl_UpgradeUI_layout_and_slots) {
     CheckPanelShape<UpgradeUI>((size_t)0x38);
     CHECK_SLOT(UpgradeUI, OnCreated,      0x20/8);   // 0x140086d90
     CHECK_SLOT(UpgradeUI, OnUpdateLayout, 0x38/8);   // 0x140086d80
-    CHECK_SLOT(UpgradeUI, OnUpdate,       0x40/8);   // standalone deviation
+    CHECK_SLOT(UpgradeUI, OnUpdate,       0x40/8);   // 0x14003a96c: inherited DialogController::OnUpdate
     CHECK_SLOT(UpgradeUI, OnElementEvent, 0x48/8);   // 0x140086c90
 }
 
@@ -432,7 +432,7 @@ UNIT_TEST(pnl_WorkPlaceUI_layout_and_slots) {
     CheckPanelShape<WorkPlaceUI>((size_t)0x68);
     CHECK_SLOT(WorkPlaceUI, OnCreated,      0x20/8);   // 0x140087940
     CHECK_SLOT(WorkPlaceUI, OnUpdateLayout, 0x38/8);   // 0x140087080
-    CHECK_SLOT(WorkPlaceUI, OnUpdate,       0x40/8);   // standalone deviation
+    CHECK_SLOT(WorkPlaceUI, OnUpdate,       0x40/8);   // 0x14003a96c: inherited DialogController::OnUpdate
     CHECK_SLOT(WorkPlaceUI, OnElementEvent, 0x48/8);   // 0x1400877e0
 }
 // @@PANEL-TESTS-END
