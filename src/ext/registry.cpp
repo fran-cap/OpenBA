@@ -945,9 +945,9 @@ const Entry kEntries[] = {
       0, [](State& s) -> bool& { return s.ext.touch_pointer; } },
     // CUSTOMMAPS (docs/extensions/handins/CUSTOMMAPS.md): a new game can start on a map file (.bmap) instead
     // of a generated map. Class A: the terrain stage runs only for a new game and the save carries its own
-    // terrain, so nothing is stored and there is no lock. OFF by default: what the map is like is the
-    // player's choice (like no_fog).
-    { "custom_maps", Tier::Extension, Class::A, false,
+    // terrain, so nothing is stored and there is no lock. ON by default (maintainer ruling 2026-11-16): the
+    // row only adds the Custom map row to New Game, and a game changes only when the player picks a map.
+    { "custom_maps", Tier::Extension, Class::A, true,
       "Custom maps",
       "A new game can start on a map file made in a map editor instead of a generated map. Takes effect at "
       "the next new game.",

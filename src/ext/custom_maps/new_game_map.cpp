@@ -249,6 +249,9 @@ bool AddTableRow(NewGameDialog* dialog) {
 
 void NewGameMapOpened(NewGameDialog* dialog) {
     if (dialog == nullptr || !::Ext::Ext().custom_maps || !ResourceUsable()) return;
+    // The row is on by default, and a map can only be picked where the platform has a file dialog: without
+    // one the row would be a button that says "Not available", so it is not added.
+    if (!Platform::CanPickFile()) return;
     if (AddTableRow(dialog)) {
         UI::Element* load  = Find(dialog, "buttonLoadMap");
         UI::Element* clear = Find(dialog, "buttonClearMap");

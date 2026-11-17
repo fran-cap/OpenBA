@@ -115,8 +115,7 @@ UNIT_TEST(ext_registry_table_shape) {
                                   std::strcmp(e.id, "texture_quality") != 0 &&
                                   std::strcmp(e.id, "phone_menu") != 0 && std::strcmp(e.id, "fps_cap") != 0 &&
                                   std::strcmp(e.id, "touch_mode") != 0 && std::strcmp(e.id, "touch_pointer") != 0 &&
-                                  std::strcmp(e.id, "render_pipe_replay") != 0 &&
-                                  std::strcmp(e.id, "custom_maps") != 0)
+                                  std::strcmp(e.id, "render_pipe_replay") != 0)
                                                          : BcOnByDefault(e.id)));
     }
     CHECK(!Ext::ValidId("a.b"));
