@@ -56,3 +56,10 @@ The Enhanced tab gains a "Fog distance" slider (`src/ext/no_fog/enhanced_entry.c
 ## 7. On by default, retail at 0 (2026-11-08, maintainer ruling)
 
 The row ships ON on a desktop (the Android first run seeds `ext.no_fog=0`). `ext.fog_distance` became 0..100 with default 0 = retail's fog (`Apply` returns before touching the record, bit-identical, unit-tested), so a new player sees retail until the slider moves. The slider no longer turns the row off. A settings.cfg with `ext.no_fog=1` and no `ext.fog_distance` key (the old no-fog meaning) is migrated to `ext.fog_distance=100` at boot (`registry_boot.cpp`).
+
+## 8. 100 pushes the range too (2026-11-16, the maintainer's hand test)
+
+Seen with Better clouds Fancy: the clouds' shadows on far terrain were there at Fog distance 91 and gone at 100. At 100 `Apply` zeroed the fog maximum and left fog near / far at retail's values, and the readers that fade with the fog's range (the cloud shadows through `ShadowTermsFor`, AO's fade, fancy terrain's) fell back to retail's range, fading out where the fog no longer hid anything. 100 now also multiplies near / far by 99's scale (100x), so the slider is continuous to its top.
+
+* VERIFIED: unit (`ext_no_fog_apply`: at 100 the maximum is 0 and near / far equal 99's).
+* NOT YET LOOKED AT in game.

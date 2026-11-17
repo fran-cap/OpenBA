@@ -70,7 +70,8 @@ UNIT_TEST(ext_registry_table_shape) {
                            "autotrade_free_goods", "input_fetch_room", "stranded_wade",
                            "debug_spawn_origin", "statusbar_empty_town",
                            "stream_free_wait", "minimap_outline_clip", "decal_fog_order",
-                           "shadow_zoom_pulse", "priority_after_load"}) {
+                           "shadow_zoom_pulse", "priority_after_load",
+                           "reflection_hills"}) {
         const Ext::Entry& e = E(id);
         CHECK(e.tier == Ext::Tier::Fix);
         CHECK(e.cls == Ext::Class::None);
@@ -106,8 +107,7 @@ UNIT_TEST(ext_registry_table_shape) {
         // and the phone: OFF, Experimental tab (ruling 2026-11-15, SMOOTHREPLAY).
         // render_backend was OFF in the table until 1.0.3; ON since (maintainer ruling 2026-11-08).
         if (e.tier == Ext::Tier::Extension && std::strncmp(e.id, "unit_", 5) != 0)
-            CHECK(e.defaultOn == (e.cls == Ext::Class::A ? (std::strcmp(e.id, "eye_camera") != 0 &&
-                                  std::strcmp(e.id, "show_grid") != 0 &&
+            CHECK(e.defaultOn == (e.cls == Ext::Class::A ? (std::strcmp(e.id, "eye_camera") != 0 &&                                  std::strcmp(e.id, "show_grid") != 0 &&
                                   std::strcmp(e.id, "fps_counter") != 0 &&
                                   std::strcmp(e.id, "building_finder") != 0 &&
                                   std::strcmp(e.id, "storage_metrics") != 0 &&

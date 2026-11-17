@@ -284,7 +284,11 @@ void PlayerToolManager::UpdateCamera(int inputFlag, int64_t timeTicks) {
     {
         Map* grid = GameUpdateLoop::_singleton->m_game;
         if (grid) {
-            float factor = clampf(1.0f - (pc->distance - kClampBase) / kClampSpan, 0.0f, 1.0f);
+            // EXT SEAM (NOT RETAIL, docs/extensions/handins/BETTERCAM.md): with ext.better_camera on, a distance
+            // past retail's far limit reads as that limit, so the square stops shrinking at retail's 0.8. Row off:
+            // the distance as it is.
+            const float clampDist = betterCam ? Ext::BetterCamera::PanClampDistance(pc->distance) : pc->distance;
+            float factor = clampf(1.0f - (clampDist - kClampBase) / kClampSpan, 0.0f, 1.0f);
             float halfExtent = (float)grid->size * kHalf * factor;
             // Retail 0x1400ff451..0x1400ff4ae: Math::Vector3::Clamp(target, (-h,-h,0), (h,h,0))
             // (Runtime 0x18007cbe0) on the whole focus, z included (R12D = 0 at +0x48 and

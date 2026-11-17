@@ -46,6 +46,8 @@
 #include "ext/better_water/better_water.h"     // ext.better_water: the shore pass after a water range
 #include "ext/winter_ice/winter_ice.h"         // ext.winter_ice: the ice pass after a water range
 #include "ext/terrain_late/terrain_late.h"     // ext.terrain_late: the late terrain's less-test state
+#include "ext/registry.h"                      // Ext::Fix().reflection_hills
+#include "ext/reflection_hills/reflection_hills.h"   // fix.reflection_hills: the reflection group's chunk box
 #include "object/Internal.h"   // Object::detail::InternalMemFree
 #include <atomic>
 #include <cstdint>
@@ -252,6 +254,10 @@ void WorldGeometry::AddDrawItems(const Graphics::Scene& /*scene*/,
     //   zmin = -16.0f                             zmax = -16.0f + 32.0f = 16.0f
     float zMin = kChunkZMin;
     float zMax = kChunkZMin + kChunkZRange;
+    // FIX SEAM (NOT RETAIL, docs/retail_bugs.md section 35): fix.reflection_hills gives the reflection's
+    // group a chunk box as tall as the ground can be, so a hill across the water is not dropped from the
+    // mirrored view. Row off, or any other group: retail's zMax as it stands. Read once per call.
+    zMax = Ext::ReflectionHills::ChunkZMax(Ext::Fix().reflection_hills, renderer.GetShader(), zMax);
 
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/TERRAINBATCH.md): with ext.terrain_batch on
     // and its run buffer ready, the same chunk tests emit one item per run of visible chunks in

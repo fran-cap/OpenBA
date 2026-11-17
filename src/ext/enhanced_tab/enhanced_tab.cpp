@@ -66,7 +66,8 @@ const Contribution* const* Contributions(int* n) {
     static const Contribution* const list[] = {
         &AmbientOcclusionEntry(), &BetterTreesEntry(), &BetterWaterEntry(), &WinterIceEntry(), &BetterCloudsEntry(),
         &FancyTerrainEntry(), &DepthOfFieldEntry(), &SharpUiEntry(),
-        &BetterCameraEntry(), &CameraAngleEntry(), &FogDistanceEntry(), &MaxShadowResEntry(), &SeamlessLoopsEntry(),
+        &BetterCameraEntry(), &CameraAngleEntry(), &FogDistanceEntry(), &MapEdgeFadeEntry(),
+        &MaxShadowResEntry(), &SeamlessLoopsEntry(),
         &TextureQualityEntry(), &RenderScaleEntry(), &FpsCapEntry(), &TouchModeEntry(), &TouchPointerEntry(),
         &PhoneMenuEntry(), &DerivedCacheEntry(),
     };

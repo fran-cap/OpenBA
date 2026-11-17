@@ -16,6 +16,7 @@
 //   depth_of_field/enhanced_entry.cpp      combo "Depth blur" Off / On (DOF.md; ext.depth_of_field)
 //   better_camera/enhanced_entry.cpp       combo "Wider zoom" Off / On (next game) (BETTERCAM; class B, the request)
 //   camera_angle/enhanced_entry.cpp        slider "Camera angle" 0..100, 50 = retail (CAMERAANGLE; ext.camera_tilt)//   no_fog/enhanced_entry.cpp              slider "Fog distance" 0 (retail) .. 100 (no fog) (NOFOG; ext.fog_distance)
+//   map_edge_fade/enhanced_entry.cpp       combo "Map edge fade" Off / On (MAPEDGE; ext.map_edge_fade)
 //   sharp_ui/enhanced_entry.cpp            combo "Sharp UI" Off / Text / Text + icons (SHARP_SPRITES)
 //   max_shadow_res/enhanced_entry.cpp      combos "Max shadow resolution" and "Adaptive shadow map"
 //                                          (SHADOWZOOM; ext.max_shadow_zoom)
@@ -82,6 +83,7 @@ const Contribution& DepthOfFieldEntry();  // src/ext/depth_of_field/enhanced_ent
 const Contribution& BetterCameraEntry();  // src/ext/better_camera/enhanced_entry.cpp: ext.better_camera, "Wider zoom" (BETTERCAM)
 const Contribution& CameraAngleEntry();   // src/ext/camera_angle/enhanced_entry.cpp: ext.camera_angle + ext.camera_tilt (CAMERAANGLE)
 const Contribution& FogDistanceEntry();   // src/ext/no_fog/enhanced_entry.cpp: ext.no_fog + ext.fog_distance (NOFOG)
+const Contribution& MapEdgeFadeEntry();   // src/ext/map_edge_fade/enhanced_entry.cpp: ext.map_edge_fade (MAPEDGE)
 const Contribution& MaxShadowResEntry();
 const Contribution& SeamlessLoopsEntry();
 const Contribution& TextureQualityEntry();   // src/ext/texture_quality/enhanced_entry.cpp (TEXQUALITY)

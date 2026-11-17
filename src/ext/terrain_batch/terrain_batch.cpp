@@ -18,6 +18,8 @@
 #include "volume/frustum_cull.h"  // FrustumCull_Prepare / FrustumCull_Test
 
 #include "ext/terrain_batch/terrain_batch.h"
+#include "ext/reflection_hills/reflection_hills.h"   // fix.reflection_hills: the reflection group's chunk box
+#include "ext/registry.h"                            // Ext::Fix().reflection_hills
 
 #include <atomic>
 #include <cmath>
@@ -118,7 +120,10 @@ void AddChunkItems(const WorldGeometry& geo, Graphics::Renderer& renderer,
     const float fHalfGrid  = static_cast<float>(geo._gridSize >> 1);
     const float chunkSizeF = static_cast<float>(geo._chunkSize);
     const float zMin       = kChunkZMin;
-    const float zMax       = kChunkZMin + kChunkZRange;
+    // fix.reflection_hills (docs/retail_bugs.md section 35): the reflection's group gets the tall box, as
+    // the retail loop in geometry_draw.cpp does; the two must agree.
+    const float zMax       = Ext::ReflectionHills::ChunkZMax(Ext::Fix().reflection_hills, renderer.GetShader(),
+                                                             kChunkZMin + kChunkZRange);
 
     // The shadow pass (shader 1: cull camera = the sun box, draw camera = the view): the
     // view frustum in the geometry's space, the light direction (the sun box's plane 0,

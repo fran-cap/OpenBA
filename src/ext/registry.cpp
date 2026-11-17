@@ -335,6 +335,15 @@ const Entry kEntries[] = {
       "After loading a save, the Increase Priority tool again puts work ahead of everything else, "
       "including work that was prioritized before the save.",
       0, [](State& s) -> bool& { return s.fix.priority_after_load; } },
+    // REFLECTIONHILLS (docs/retail_bugs.md section 35): retail culls terrain chunks against a fixed 16-high
+    // box, so the water's reflection (drawn from below, looking up) drops a taller hill across the water
+    // while the camera is low. With the row on the reflection's group tests a box as tall as the ground
+    // can be (Ext::ReflectionHills::ChunkZMax). Render only; nothing saved.
+    { "reflection_hills", Tier::Fix, Class::None, true,
+      "Hills in water reflections",
+      "A tall hill across a lake or river no longer disappears from the water's reflection when the "
+      "camera is close to the ground.",
+      0, [](State& s) -> bool& { return s.fix.reflection_hills; } },
 
     // Extensions. Each one adds a field to Ext::Extensions and a row here:
     // Tier::Extension, its Class, default true for class A / false for B or C, and for class B or C its
@@ -540,6 +549,15 @@ const Entry kEntries[] = {
       "What is far from the point the camera looks at is softly blurred, like a photograph with a shallow "
       "depth of field: the far hills, the sky and anything close to the camera.",
       0, [](State& s) -> bool& { return s.ext.depth_of_field; } },
+    // MAPEDGE (docs/extensions/handins/MAPEDGE.md): a full-screen multiply after the main scene's lists (the
+    // scene-draw seam) that darkens the map's last tiles and blacks out what lies past the edge. Class A:
+    // drawing only, nothing saved, live. ON by default (maintainer ruling 2026-11-16); the Enhanced tab's
+    // "Map edge fade" is this row.
+    { "map_edge_fade", Tier::Extension, Class::A, true,
+      "Map edge fade",
+      "The edge of the map fades into black instead of ending in a cut: the last tiles darken and nothing "
+      "shows past them.",
+      0, [](State& s) -> bool& { return s.ext.map_edge_fade; } },
     // LEAF_LOD (docs/extensions/LEAF_LOD.md): zoomed out, every leafy tree draws a share of its leaf cards,
     // each a little larger, from reduced copies of the installed meshes built at run time. Class A: drawing
     // only, nothing saved, live. On the Experimental tab while the look is being judged.

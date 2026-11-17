@@ -23,6 +23,7 @@ StringTable aoStrings
 		{ String _name = "BetterCamera";	String _text = "Wider zoom"; }
 		{ String _name = "CameraAngle";		String _text = "Camera angle"; }
 		{ String _name = "FogDistance";	String _text = "Fog distance"; }
+		{ String _name = "MapEdgeFade";	String _text = "Map edge fade"; }
 		{ String _name = "MaxShadowRes";	String _text = "Max shadow resolution"; }
 		{ String _name = "ShadowZoom";		String _text = "Adaptive shadow map"; }
 		{ String _name = "SeamlessLoops";	String _text = "Seamless ambient loops"; }
@@ -388,13 +389,14 @@ TableDescription enhancedOptionsTable
 		{ int _x = 0; int _y = 18; ElementDescription _element = "textBetterCamera"; }
 		{ int _x = 0; int _y = 19; ElementDescription _element = "textCameraAngle"; }
 		{ int _x = 0; int _y = 20; ElementDescription _element = "textFogDistance"; }
-		{ int _x = 0; int _y = 21; ElementDescription _element = "textMaxShadowRes"; }
-		{ int _x = 0; int _y = 22; ElementDescription _element = "textShadowZoom"; }
-		{ int _x = 0; int _y = 23; ElementDescription _element = "textSeamlessLoops"; }
-		{ int _x = 0; int _y = 24; ElementDescription _element = "textTextureQuality"; }
-		{ int _x = 0; int _y = 25; ElementDescription _element = "textRenderScale"; }
-		{ int _x = 0; int _y = 26; ElementDescription _element = "textFpsCap"; }
-		{ int _x = 0; int _y = 27; ElementDescription _element = "textDerivedCache"; }
+		{ int _x = 0; int _y = 21; ElementDescription _element = "textMapEdgeFade"; }
+		{ int _x = 0; int _y = 22; ElementDescription _element = "textMaxShadowRes"; }
+		{ int _x = 0; int _y = 23; ElementDescription _element = "textShadowZoom"; }
+		{ int _x = 0; int _y = 24; ElementDescription _element = "textSeamlessLoops"; }
+		{ int _x = 0; int _y = 25; ElementDescription _element = "textTextureQuality"; }
+		{ int _x = 0; int _y = 26; ElementDescription _element = "textRenderScale"; }
+		{ int _x = 0; int _y = 27; ElementDescription _element = "textFpsCap"; }
+		{ int _x = 0; int _y = 28; ElementDescription _element = "textDerivedCache"; }
 
 		{ int _x = 1; int _y = 1; ElementDescription _element = "comboTouchMode"; }
 		{ int _x = 1; int _y = 2; ElementDescription _element = "comboTouchPad"; }
@@ -415,14 +417,15 @@ TableDescription enhancedOptionsTable
 		{ int _x = 1; int _y = 18; ElementDescription _element = "comboBetterCamera"; }
 		{ int _x = 1; int _y = 19; ElementDescription _element = "sliderCameraAngle"; }
 		{ int _x = 1; int _y = 20; ElementDescription _element = "sliderFogDistance"; }
-		{ int _x = 1; int _y = 21; ElementDescription _element = "comboMaxShadowRes"; }
-		{ int _x = 1; int _y = 22; ElementDescription _element = "comboShadowZoom"; }
-		{ int _x = 1; int _y = 23; ElementDescription _element = "comboSeamlessLoops"; }
-		{ int _x = 1; int _y = 24; ElementDescription _element = "comboTextureQuality"; }
-		{ int _x = 1; int _y = 25; ElementDescription _element = "comboRenderScale"; }
-		{ int _x = 1; int _y = 26; ElementDescription _element = "comboFpsCap"; }
-		{ int _x = 1; int _y = 27; ElementDescription _element = "textDerivedCacheSize"; }
-		{ int _x = 1; int _y = 28; ElementDescription _element = "buttonDerivedCacheClear"; }
+		{ int _x = 1; int _y = 21; ElementDescription _element = "comboMapEdgeFade"; }
+		{ int _x = 1; int _y = 22; ElementDescription _element = "comboMaxShadowRes"; }
+		{ int _x = 1; int _y = 23; ElementDescription _element = "comboShadowZoom"; }
+		{ int _x = 1; int _y = 24; ElementDescription _element = "comboSeamlessLoops"; }
+		{ int _x = 1; int _y = 25; ElementDescription _element = "comboTextureQuality"; }
+		{ int _x = 1; int _y = 26; ElementDescription _element = "comboRenderScale"; }
+		{ int _x = 1; int _y = 27; ElementDescription _element = "comboFpsCap"; }
+		{ int _x = 1; int _y = 28; ElementDescription _element = "textDerivedCacheSize"; }
+		{ int _x = 1; int _y = 29; ElementDescription _element = "buttonDerivedCacheClear"; }
 	]
 }
 
@@ -447,6 +450,7 @@ TextDescription textSharpUi : "textAoOption" { String _text = "SharpUi"; }
 TextDescription textBetterCamera : "textAoOption" { String _text = "BetterCamera"; }
 TextDescription textCameraAngle : "textAoOption" { String _text = "CameraAngle"; }
 TextDescription textFogDistance : "textAoOption" { String _text = "FogDistance"; }
+TextDescription textMapEdgeFade : "textAoOption" { String _text = "MapEdgeFade"; }
 TextDescription textMaxShadowRes : "textAoOption" { String _text = "MaxShadowRes"; }
 TextDescription textShadowZoom : "textAoOption" { String _text = "ShadowZoom"; }
 TextDescription textSeamlessLoops : "textAoOption" { String _text = "SeamlessLoops"; }
@@ -574,6 +578,14 @@ SliderDescription sliderFogDistance : "Options.rsc:sliderUI"
 	int _bottomPad = 2;
 	int _minWidth = 180;
 	ElementDescription _number = "Options.rsc:number";
+}
+
+// Map edge fade (MAPEDGE): Off / On = the row ext.map_edge_fade. Live.
+ComboDescription comboMapEdgeFade : "Options.rsc:comboAutosave"
+{
+	int _minWidth = 180;
+	int _bottomPad = 3;
+	StringTable _initialData = "EnhancedOptions.rsc:betterIceItems";
 }
 
 ComboDescription comboMaxShadowRes : "Options.rsc:comboAutosave"

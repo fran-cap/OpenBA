@@ -57,3 +57,10 @@ Options > Enhanced gains "Better camera" Off / On (next game) (`src/ext/better_c
 The row is now the zoom range only, shown as "Wider zoom" in the Extensions dialog and on the Enhanced tab. The steady tilt is `ext.camera_angle`'s slider at 90 (CAMERAANGLE.md); a settings.cfg with `ext.better_camera=1` and no `ext.camera_angle` key is migrated there at boot. `BetterCamera::PitchTarget` is still the pitch expression (called with `steady = false` and the far pair `CameraAngle::FarPair` hands it).
 
 ON by default on a desktop since 1.0.3 (maintainer ruling 2026-11-08); the Android first run seeds `ext.better_camera=0`. Class B as before: a new game's save lists `ext:better_camera`.
+
+## 7. The pan clamp keeps retail's floor (2026-11-16, a player's report)
+
+Retail clamps the focus to a square of half-extent `mapSize / 2 * clamp(1 - (distance - 100) / 150, 0, 1)` (0x1400ff451..0x1400ff4ae, constants 0x140172208 / 0x14017221c): the factor is 0.8 at retail's far limit, 130. The row raised the limit to 200 and left the clamp alone, so the factor fell to 0.33 there and the focus could not leave the middle third of the map ("the camera not allowing me to get to the rim when zoomed out"). With the row on the clamp now reads `BetterCamera::PanClampDistance(distance)`, the distance capped at 130: the factor never drops below retail's 0.8, and every distance retail can hold gives retail's value bit for bit. Row off: the distance as it is. `ext.camera_angle` does not enter the clamp (it never reads the pitch).
+
+* VERIFIED: unit (`ext_better_camera_pan_clamp_keeps_retails_floor`).
+* NOT YET LOOKED AT in game.

@@ -139,6 +139,7 @@ enum DepthReader : uint32_t {
     kDepthReaderClouds = 4u,
     kDepthReaderTerrain = 8u,   // ext.fancy_terrain's terrain light (fancy_terrain/terrain_light.cpp)
     kDepthReaderDof = 16u,      // ext.depth_of_field's depth blur (dof/dof_pass.cpp)
+    kDepthReaderMapEdge = 32u,  // ext.map_edge_fade's rim fade (map_edge/map_edge_pass.cpp)
 };
 bool DrawRequestReadableDepth(uint32_t reader, bool on);
 bool DrawDepthReadable();

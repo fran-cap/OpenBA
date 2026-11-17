@@ -12,8 +12,9 @@
 // records the same value in its packet for the render thread's pass 2. Null while no scene draw is on, so
 // with every row off the seam is one null test a frame.
 //
-// The draws: ext.depth_of_field's depth blur (src/ext/depth_of_field/depth_of_field.h). How several blurs
-// combine here (DOF.md section 5.1) is not ruled yet; there is one.
+// The draws, in order: ext.map_edge_fade's rim fade (src/ext/map_edge_fade/map_edge_fade.h), then
+// ext.depth_of_field's depth blur (src/ext/depth_of_field/depth_of_field.h), which blurs the faded rim with
+// the rest. How several blurs combine here (DOF.md section 5.1) is not ruled yet; there is one.
 // ============================================================================
 
 namespace Video { class Context; }

@@ -558,8 +558,27 @@ def draw_priority_load(px):
     ])
 
 
+def draw_reflection_hills(px):
+    # a hill over a water line, its mirror image below
+    _paint(px, [
+        "............",
+        ".....#......",
+        "....###.....",
+        "...#####....",
+        "..#######...",
+        ".#########..",
+        "++++++++++++",
+        ".+#######+..",
+        "..+#####+...",
+        "...+###+....",
+        "....+#+.....",
+        "............",
+    ])
+
+
 ICONS = {
-    "icon_slide": ("fix", draw_slide),               # "!" marker over a ground line
+    "reflection_hills": ("fix", draw_reflection_hills),   # a hill and its reflection under a water line
+    "icon_slide": ("fix", draw_slide),              # "!" marker over a ground line
     "residence_goto": ("fix", draw_goto),            # house with a target box on the wall
     "tavern_counter": ("fix", draw_mug),             # tankard with foam and handle
     "start_barn_height": ("fix", draw_barn),         # barn with door on a ground line

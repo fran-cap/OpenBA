@@ -12,6 +12,9 @@
 //     normalises the zoom for the pitch blend and the pan speed is recomputed from the new limits (max - min),
 //     as the exe fix does, so those two keep their near-to-far shape across the new range.
 //
+//   * THE PAN CLAMP KEEPS RETAIL'S FLOOR. Retail's focus clamp tightens with the distance; past 130 it reads 130
+//     (PanClampDistance below), so the wider zoom does not pull the focus away from the map's rim.
+//
 //   * The tilt is not this row's: ext.camera_angle (src/ext/camera_angle/camera_angle.h, FarPair) sets the far
 //     pair of the pitch blend, and UpdateCamera calls PitchTarget below with steady = false.
 //
@@ -65,6 +68,16 @@ inline float ClampToRetailRange(float zoomTarget, float nearLimit = kRetailZoomM
     if (zoomTarget < nearLimit) return nearLimit;
     if (zoomTarget > kRetailZoomMax) return kRetailZoomMax;
     return zoomTarget;
+}
+
+// The distance the pan clamp reads with the row on. Retail shrinks the square the focus may move in as the camera
+// backs off: factor = clamp(1 - (distance - 100) / 150, 0, 1), which is 0.8 at retail's far limit (130) and would
+// be 0.33 at this row's (200): fully zoomed out the focus could not leave the middle third of the map (a player's
+// report). Past retail's far limit the clamp reads that limit, so the square never gets smaller than retail's own
+// smallest. The identity for every distance up to 130.
+inline float PanClampDistance(float distance) {
+    if (distance > kRetailZoomMax) return kRetailZoomMax;
+    return distance;
 }
 
 }  // namespace BetterCamera

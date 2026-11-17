@@ -36,6 +36,7 @@ enum Reader : uint32_t {
     kReaderClouds = 4u,
     kReaderTerrain = 8u,   // ext.fancy_terrain's terrain light (fancy_terrain/terrain_light.cpp)
     kReaderDof = 16u,      // ext.depth_of_field's depth blur (dof/dof_pass.cpp), at the scene-draw seam
+    kReaderMapEdge = 32u,  // ext.map_edge_fade's rim fade (map_edge/map_edge_pass.cpp), at the scene-draw seam
 };
 
 // A reader wants the copy, or no longer does. Any thread. With no reader left the copy's objects are
