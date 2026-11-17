@@ -342,6 +342,14 @@ static char TradeCtrl_Event0A_Dismissed(TradeComponent* /*self*/, StateMachine* 
 // the transition result the same way. So: 0, on every path. The delta is read
 // unguarded (0x14005aa82).
 char TradeComponent::TickIdle(StateMachine* smV, const System::Time* deltaTime) {
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/CUSTOMMAPS.md): a world with no boat polyline (a custom
+    // map with no water path) has no route to build; the route builder reads the missing polyline and
+    // crashes. The post waits, its timer held, as it would for a merchant that never comes. This runs with
+    // the row off too (a custom map's save loads with it off); MerchantRouteExists keeps its answer per
+    // world, so with a boat route, as in every retail map, the cost is one compare per tick.
+    if (!MerchantRouteExists()) {
+        return 0;
+    }
     merchantTimer._ticks -= deltaTime->_ticks;
     if (merchantTimer._ticks >= 1) return 0;
 

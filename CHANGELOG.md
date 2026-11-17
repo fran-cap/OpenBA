@@ -15,6 +15,7 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 6. Terrain drawn last (Experimental tab): the ground is drawn after the buildings, trees and people, so the graphics card skips the ground they hide; the picture is unchanged (`ext.terrain_late`).
 7. Smoother motion at high game speed: while a long simulation step runs, the render thread shows the town again at a later blend instead of holding one picture. "Smooth fast speed" on the Experimental tab, off by default; needs Render thread (`ext.render_pipe_replay`).
 8. Map edge fade: the edge of the land fades into black instead of ending in a cut. "Map edge fade" on the Enhanced tab, on by default (`ext.map_edge_fade`).
+9. Custom maps: a new game can start on a map file (`.bmap`) made in a map editor; its ground, water paths, resources and town start replace the generated ones, picked with a Load custom map row in New Game (`ext.custom_maps`).
 
 **Fixes:**
 1. Map data views: no crash when "Show overlay on terrain" shows the Land view in a second game of one session (`ext.map_overlays`).

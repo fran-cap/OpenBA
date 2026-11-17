@@ -58,6 +58,7 @@
 #include "load_time.h"   // [LoadTime] stamps (NOT RETAIL, print-only; block LOADSTAMP)
 #include "ext/registry.h"                      // EXT SEAM: Ext::Ext().river_channel
 #include "ext/river_channel/river_channel.h"   // EXT SEAM: Ext::RiverChannel::Apply
+#include "ext/custom_maps/world_seam.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/CUSTOMMAPS.md)
 
 // ============================================================
 // Reused helpers from sibling reimpl TUs (already defined)
@@ -195,6 +196,12 @@ static void wg_HeightmapPipeline_f390(TerrainHeightfield* hf) {
     hf->gridSize = (sizeRow ? sizeRow->mapSize : 0) * 2;   // gridSize = mapDim*2
 
     wg_PublishLoadProgress(1);
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/CUSTOMMAPS.md): a picked map file supplies the finished
+    // height map and water paths; the generator's stages are skipped.
+    if (Ext::CustomMaps::ApplyToHeightfield(hf)) {
+        wg_PublishLoadProgress(5);
+        return;
+    }
     LoadTime::Stamp("wg.base");   // NOT RETAIL: print-only (f390: base heightmap)
     wg_BaseHeightmap_e5d0(hf);
 
@@ -572,6 +579,18 @@ void WorldGeometry::BuildTerrain(TerrainGenerator* gen, int sizeIdx, uint32_t se
     // Size-table row for this map size: gen->sizeTable + sizeIdx*0x44.
     TerrainSizeRow* sizeTable = gen->sizeRows._data;
     TerrainSizeRow* sizeRow   = sizeTable ? &sizeTable[sizeIdx] : nullptr;
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/CUSTOMMAPS.md): a picked map file brings its own size.
+    // The row's other fields (the generator's counts) are not used then, so a copy of the row with the map's
+    // size stands in for it.
+    TerrainSizeRow customRow;
+    if (sizeRow != nullptr) {
+        const unsigned mapDim = Ext::CustomMaps::BuildSize(static_cast<unsigned>(sizeRow->mapSize));
+        if (mapDim != static_cast<unsigned>(sizeRow->mapSize)) {
+            customRow = *sizeRow;
+            customRow.mapSize = static_cast<int>(mapDim);
+            sizeRow = &customRow;
+        }
+    }
     int dim = sizeRow ? sizeRow->mapSize : 0;
 
     fprintf(stderr, "[worldgen] BuildTerrain ENTER wg=%p gen=%p sizeIdx=%d seed=%u sizeTable=%p dim=%d\n",

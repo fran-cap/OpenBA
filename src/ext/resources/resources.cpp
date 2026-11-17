@@ -267,6 +267,8 @@ void InitText() {
     Register("Dialog/ProfessionsWindow", &ProvideText, nullptr);
     Register("Dialog/FullscreenMode", &ProvideText, nullptr);
     Register("Dialog/MapOverlays", &ProvideText, nullptr);
+    Register("Dialog/NewGameMap", &ProvideText, nullptr);
+    Register("Dialog/CustomMapLoad", &ProvideText, nullptr);
 }
 
 int TextObjectCount() {

@@ -1248,3 +1248,22 @@ The dispatch-order fallback (`IdxForFallback` and its 11-entry registry) is remo
 row with no config would crash retail too. Seen in a run before and after the change: the Custom rows are
 separate from Log and survive a save and reload. No serialized state is touched; the resave gate was not
 run by the author.
+
+## 16. A game made on a custom map reports the Terrain Size combo's index as its map size — CONFIRMED (the port's own limit of `ext.custom_maps`; retail has no such map)
+
+**Where.** `GameUpdateLoop::m_mapSize` (`src/game/Game/gameupdateloop.cpp`, set at game creation), read by
+the map info dialog (`src/game/Dialog/mapparamsdialog.cpp`, `textTerrainSize`: the text at that index of
+the element's own string table) and by statistic `0x1b` (`src/game/Goal/statvaluedispatch.cpp`: the index
+as a number).
+
+**What the code does.** `m_mapSize` is the row of the terrain size table that the New Game dialog's Terrain
+Size combo had when the game was made. With `ext.custom_maps` and a map picked, the game is built at the
+map's own size (a multiple of 8 from 64 to 1024; `docs/extensions/handins/CUSTOMMAPS.md`), whatever the
+combo said, and `m_mapSize` still holds the combo's index. So the map info dialog names the size of the
+combo's row, and statistic `0x1b` returns its number, for a map that has another size. The real size is
+`Map::size`.
+
+**What retail does.** Nothing to compare: retail has only the sizes of its table, and its index is the size.
+
+**Fix.** Where the game was made on a custom map, show the map's real size in the dialog and in the
+statistic. Not done.

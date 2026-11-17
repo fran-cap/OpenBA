@@ -114,6 +114,7 @@ struct Extensions {
     // class A, live: src/ext/radius_all/, a Shift+click in EditTool::OnKey (docs/extensions/handins/RADIUSALL.md)
     bool radius_all = false;
     bool tool_names = false;   // class C: src/ext/tool_names/ (docs/extensions/handins/TOOLNAMES.md)
+    bool custom_maps = false;  // class A: src/ext/custom_maps/ (docs/extensions/handins/CUSTOMMAPS.md)
     bool better_camera = false; // class B: src/ext/better_camera/ (docs/extensions/handins/BETTERCAM.md): zoom range 6 .. 200 ("Wider zoom")
     bool camera_angle = false;  // class A, live: src/ext/camera_angle/, the far pitch pair in PlayerToolManager::UpdateCamera (docs/extensions/handins/CAMERAANGLE.md)
     bool high_limits = false;   // class B: src/ext/high_limits/ (docs/extensions/handins/HIGHLIMITS.md)

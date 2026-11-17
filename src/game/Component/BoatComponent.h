@@ -128,6 +128,13 @@ static_assert(offsetof(BoatComponent, _controller) == 0x78,
 static_assert(offsetof(BoatComponent, _controller) + offsetof(ControllerComponent::Controller, _owner) == 0x90,
               "controller back-pointer at +0x90 (ctor 0x140046800)");
 static_assert(offsetof(BoatComponent, destination) == 0x28, "BoatComponent::destination @ +0x28");
+// NOT RETAIL. Whether the world has a boat polyline SetDestination can build a route from (polyline 0: two
+// or more points, one of them in the play area; ext.custom_maps' bmap.h BoatRouteExists). Retail's maps
+// always do; a custom map with no water path has none, and the route builder then reads a missing
+// polyline. The trading post asks before it summons a merchant. True when the world cannot be read, so
+// retail's path stays retail's.
+bool MerchantRouteExists();
+
 static_assert(offsetof(BoatComponent, model) == 0x30, "BoatComponent::model @ +0x30");
 static_assert(offsetof(BoatComponent, character) == 0x38, "BoatComponent::character @ +0x38");
 static_assert(offsetof(BoatComponent, dockPosition) == 0x40, "BoatComponent::dockPosition @ +0x40");

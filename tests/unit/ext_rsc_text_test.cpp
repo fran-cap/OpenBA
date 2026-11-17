@@ -39,7 +39,7 @@ bool ParseEmbedded(const char* path, File& f) {
 }  // namespace
 
 UNIT_TEST(ext_rsc_text_embedded_files) {
-    CHECK(kEmbeddedCount == 24);
+    CHECK(kEmbeddedCount == 26);
     CHECK(Embedded("Dialog/Extensions.rsc") != nullptr);
     CHECK(Embedded("Dialog/EnhancedOptions.rsc") != nullptr);
     CHECK(Embedded("Dialog/ExtensionsStringTable.rsc") != nullptr);
@@ -56,6 +56,8 @@ UNIT_TEST(ext_rsc_text_embedded_files) {
     CHECK(Embedded("Dialog/TouchPointer.rsc") != nullptr);
     CHECK(Embedded("Dialog/PhoneScroll.rsc") != nullptr);
     CHECK(Embedded("Dialog/TownScreenshotPage.rsc") != nullptr);
+    CHECK(Embedded("Dialog/NewGameMap.rsc") != nullptr);
+    CHECK(Embedded("Dialog/CustomMapLoad.rsc") != nullptr);
     CHECK(Embedded("Dialog/ShowGridPage.rsc") != nullptr);
     CHECK(Embedded("Dialog/FpsCounterPage.rsc") != nullptr);
     CHECK(Embedded("Dialog/StorageMetricsTab.rsc") != nullptr);
@@ -265,7 +267,8 @@ void CheckKnownTypes(const File& f, const char* file) {
                            o.type == "ButtonDescription" || o.type == "TableDescription" ||
                            o.type == "ContainerDescription" || o.type == "CheckDescription" ||
                            o.type == "ImageDescription" || o.type == "SliderDescription" ||
-                           o.type == "ComboDescription" || o.type == "EditDescription";
+                           o.type == "ComboDescription" || o.type == "EditDescription" ||
+                           o.type == "LayoutDescription" || o.type == "StringTable";
         CHECK(known);
         if (!known) std::printf("  %s:%s has type %s\n", file, o.name.c_str(), o.type.c_str());
     }
@@ -698,6 +701,45 @@ UNIT_TEST(ext_rsc_text_parse_phone_scroll) {
     CHECK(frame && frame->body.Find("_height") && frame->body.Find("_height")->tokens[0].text == "0");
     CHECK(f.Find("phoneScrollContent") != nullptr);
     CheckKnownTypes(f, "PhoneScroll.rsc");
+}
+
+UNIT_TEST(ext_rsc_text_parse_new_game_map) {
+    File f;
+    CHECK(ParseEmbedded("Dialog/NewGameMap.rsc", f));
+    // One row (two table rows), added at run time to the New Game dialog in use (vanilla or a mod's): no
+    // dialog, table or layout of its own, so nothing of the game's or a mod's NewGame.rsc is replaced
+    const Object* row = f.Find("rowCustomMap");
+    CHECK(row != nullptr && row->type == "RibbonDescription");
+    CHECK(f.Find("rowButtons") && f.Find("customMapStrings"));
+    // the table's first row: a label for the first column, a cell with the two buttons for the second; its
+    // second row: an empty cell and the cell with the name and the mods line, under the buttons
+    const Object* cell = f.Find("cellCustomMap");
+    CHECK(cell != nullptr && cell->type == "RibbonDescription" && f.Find("textCustomMapRow"));
+    CHECK(f.Find("cellCustomMapBlank") != nullptr && f.Find("cellCustomMapName") != nullptr);
+    CHECK(f.Find("buttonsOnly") == nullptr);
+    CHECK(f.Find("textMapMods") != nullptr);   // the "Needs: ..." line, apart from the name
+    CHECK(f.Find("textCustomMap") && f.Find("buttonLoadMap") && f.Find("buttonClearMap") &&
+          f.Find("textMapName"));
+    CHECK(f.Find("resource") == nullptr && f.Find("tableNew") == nullptr && f.Find("content") == nullptr &&
+          f.Find("tableGroup") == nullptr);
+    CheckKnownTypes(f, "NewGameMap.rsc");
+}
+
+UNIT_TEST(ext_rsc_text_parse_custom_map_load) {
+    File f;
+    CHECK(ParseEmbedded("Dialog/CustomMapLoad.rsc", f));
+    const Object* dlg = f.Find("resource");
+    CHECK(dlg != nullptr && dlg->type == "Dialog");
+    // the game's Load screen over the maps folder: the frame, the layout, the title, the strings and
+    // the Browse button
+    CHECK(f.Find("main") && f.Find("content") && f.Find("mainGroup"));
+    CHECK(f.Find("labelTitle") && f.Find("customMapLoadStrings") && f.Find("buttonBrowse") &&
+          f.Find("textBrowse"));
+    // the taller list and the four-line row (the Load screen's row with an author line and a mods line)
+    const Object* row = f.Find("mapRow");
+    CHECK(row != nullptr && row->type == "RibbonDescription" && row->base == "SaveLoad.rsc:icon");
+    CHECK(f.Find("labelMapAuthor") && f.Find("labelMapMods") && f.Find("groupSelect"));
+    CheckKnownTypes(f, "CustomMapLoad.rsc");
 }
 
 UNIT_TEST(ext_rsc_text_syntax_errors) {

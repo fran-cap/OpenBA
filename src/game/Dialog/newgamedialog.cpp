@@ -20,6 +20,7 @@
 #include "ui/String.h"   // ENDGAME B.3.6 UI callers (K2)
 #include "ui/StringTable.h"   // ENDGAME B.3.6 UI callers (K2)
 #include "Dialog/NewGameDialog.h"
+#include "ext/custom_maps/new_game_map.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/CUSTOMMAPS.md)
 #include "Dialog/MainMenuDialog.h"
 #include "Dialog/ui_dialogs.h"
 #include "options.h"
@@ -474,6 +475,10 @@ void NewGameDialog::OnOpened() {
         fflush(stderr);
     }
 
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/CUSTOMMAPS.md): the Custom map row, when our
+    // dialog is open.
+    ::Ext::CustomMaps::NewGameMapOpened(this);
+
     // --- Update description text from selected map generator ---
     UpdateDescription();
 }
@@ -737,6 +742,8 @@ void NewGameDialog::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/
     fflush(stderr);
 
     if (eventType == UI::EventId::Activated) {
+        // EXT SEAM (NOT RETAIL, docs/extensions/handins/CUSTOMMAPS.md): the Custom map row's buttons.
+        if (::Ext::CustomMaps::NewGameMapButton(this, eventData)) return;
         // Button click
         if (eventData == 2) {
             // buttonOk: start game
