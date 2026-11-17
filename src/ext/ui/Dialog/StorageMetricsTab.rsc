@@ -30,12 +30,12 @@ LabelDescription labelStorageMetricsTab : "TownHall.rsc:labelInventory"
 	String _text = "StorageMetricsTab";
 }
 
-// The page: the title, the column headers, the scrolling list.
+// The page, laid out as the Town Hall's own tabs are (TownHall.rsc:inventoryTab, productionTab): the title, then the
+// framed box.
 RibbonDescription pageStorageMetrics
 {
 	Alignment _alignment = TopLeft; bool _vertical = true;
-	int _leftPad = 4; int _rightPad = 4; int _topPad = 4; int _bottomPad = 4;
-	ElementDescription _elements [ "textStorageMetricsTitle" "ribbonStorageMetricsHeader" "containerStorageMetrics" ]
+	ElementDescription _elements [ "textStorageMetricsTitle" "groupStorageMetrics" ]
 }
 
 TextDescription textStorageMetricsTitle : "TownHall.rsc:inventoryTitle"
@@ -44,10 +44,26 @@ TextDescription textStorageMetricsTitle : "TownHall.rsc:inventoryTitle"
 	String _text = "StorageMetricsTitle";
 }
 
-// The column headers, as wide as the rows' cells below them.
+// The box: the Town Hall's container border (by reference) behind the column headers and the list, with
+// TownHall.rsc:inventoryGroup's pads. It is laid across the page (which the controller widens to the tab strip), as
+// the game's boxes span theirs.
+GroupDescription groupStorageMetrics
+{
+	Flags _flags = ExpandWidth;
+	int _leftPad = 4; int _rightPad = 4; int _bottomPad = 4;
+	ElementDescription _elements [ "TownHall.rsc:containerBorder" "ribbonStorageMetricsBox" ]
+}
+
+RibbonDescription ribbonStorageMetricsBox
+{
+	Alignment _alignment = TopLeft; bool _vertical = true;
+	ElementDescription _elements [ "ribbonStorageMetricsHeader" "containerStorageMetrics" ]
+}
+
+// The column headers, as wide as the rows' cells below them; the pads are TownHall.rsc:inventoryHeader's.
 RibbonDescription ribbonStorageMetricsHeader
 {
-	Alignment _alignment = TopLeft; int _cellPad = 2; int _leftPad = 8;
+	Alignment _alignment = TopLeft; int _cellPad = 2; int _topPad = 8; int _leftPad = 8;
 	ElementDescription _elements
 	[
 		"textStorageMetricsHeaderName" "textStorageMetricsHeaderBuildings" "textStorageMetricsHeaderSpace"
