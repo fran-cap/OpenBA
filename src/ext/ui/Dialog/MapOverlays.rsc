@@ -30,11 +30,13 @@ GroupDescription groupMapOverlaysMapSlot
 	Alignment _alignment = TopLeft;
 }
 
-// Map, Made, Used, Stock, Services, Traffic, Homes, Nature, Land, top to bottom, all one width; the top pad lines the first
-// button up with the minimap (Map.rsc:content pads its image by 2), clear of the title bar.
+// Map, Made, Used, Stock, Services, Traffic, Homes, Nature, Land, top to bottom, all one width. The column is centred
+// on the row's height, so the room above the first button and below the last is the same whether the map (retail's
+// 192 units) or the column is the taller cell; the two pads are the minimap's own (Map.rsc:content pads its image
+// by 2), so a column that sets the map's height (map_window.cpp FitMap) starts and ends with the image.
 RibbonDescription columnMapOverlaysViews
 {
-	Alignment _alignment = TopLeft; bool _vertical = true; int _cellPad = 1; int _topPad = 2;
+	Alignment _alignment = MidLeft; bool _vertical = true; int _cellPad = 1; int _topPad = 2; int _bottomPad = 2;
 	ElementDescription _elements
 	[
 		"buttonMapOverlaysTab" "buttonMapOverlaysTab" "buttonMapOverlaysTab" "buttonMapOverlaysTab"
