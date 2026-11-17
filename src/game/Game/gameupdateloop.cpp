@@ -145,6 +145,7 @@ extern "C" void BuildingGoal_Probe(const char* templateName);  // src/game/Goal/
 #include "ext/outline_with_panel/outline_with_panel.h"   // FIX SEAM (NOT RETAIL, docs/retail_bugs.md section 16): after step 10
 #include "ext/background_save/background_save.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/HITCH_SAVESNAP.md): ext.background_save, the frozen Update / Draw alpha
 #include "ext/town_screenshot/town_screenshot.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/TOWNSCREENSHOT.md): ext.town_screenshot, Draw step 7
+#include "ext/better_camera/better_camera.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/BETTERCAM.md): ext.better_camera, Draw step 4 (the far plane)
 #include "ext/eye_camera/eye_camera.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/EYECAM.md): ext.eye_camera, Update step 6 / Draw steps 4 and 7
 #include "ext/sharp_ui/sharp_ui.h"       // EXT SEAM (NOT RETAIL, docs/extensions/handins/SHARPUI.md): ext.sharp_ui, Draw step 12
 #include "ext/ambient_occlusion/ambient_occlusion.h"     // EXT SEAM (NOT RETAIL, docs/extensions/AO.md): ext.ambient_occlusion, Draw step 7
@@ -1527,8 +1528,12 @@ void GameUpdateLoop::Draw(float alpha) {
     // builds the eye at the renderer's alpha and the near plane 0.1 per frame.
     if (Ext::Ext().eye_camera && Ext::EyeCamera::Active())
         Ext::EyeCamera::ApplyFrame(*m_playerController, alpha, kRdata_1401721dc, kRdata_140172240);
-    else
-        m_playerController->UpdateCamera(kRdata_1401721dc, kRdata_140172174, kRdata_140172240);   // 0x140098660
+    else {
+        // EXT SEAM (NOT RETAIL, docs/extensions/handins/BETTERCAM.md): with ext.better_camera on the far plane
+        // lies past the terrain's diagonal; row off = retail's 512, the same bits.
+        const float farZ = Ext::BetterCamera::FrameFarPlane(kRdata_140172240);
+        m_playerController->UpdateCamera(kRdata_1401721dc, kRdata_140172174, farZ);   // 0x140098660
+    }
     TRACE("[GameUpdateLoop::Draw] player camera done\n");
 
     // Step 5: Weather draw update

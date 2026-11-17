@@ -123,6 +123,7 @@
 #include "platform/common/cpu/roster.h"      // Cpu::RenderThread (block CPULIMIT)
 #include "platform/common/cpu/topology.h"    // Cpu::Get().physical
 #include "ext/eye_camera/eye_camera.h"
+#include "ext/better_camera/better_camera.h"   // FrameFarPlane: the camera step's far plane
 #include "ext/touch_pointer/touch_pointer.h"   // ToolAimHeld: the tool flag (P11b)
 #include "ext/ground_draw.h"   // the ground draw (ext.map_overlays, ext.show_grid), carried to pass 2 in the packet
 #include "ext/scene_draw.h"    // the scene draw (ext.depth_of_field), carried to pass 2 in the packet
@@ -256,7 +257,7 @@ void IdemCamera(PlayerController& pc) {
     Graphics::Camera& cam = pc.camera;
     Graphics::Camera saved(cam);   // retail's partial copy ctor (Camera.h) ...
     saved = cam;                   // ... then the trivial assignment copies every byte
-    pc.UpdateCamera(kRdata_1401721dc, kRdata_140172174, kRdata_140172240);
+    pc.UpdateCamera(kRdata_1401721dc, kRdata_140172174, BetterCamera::FrameFarPlane(kRdata_140172240));
     bool same = cam._frustum.isOrthographic == saved._frustum.isOrthographic;
     for (int i = 0; i < 6 && same; ++i) {
         const Math::Vector4& a = cam._frustum.planes[i];
@@ -302,7 +303,9 @@ void MainHalf(::Engine::MainLoop& loop, GameUpdateLoop& g, Graphics::Renderer& r
     // thread joined). A skipping frame's RenderPipeIdem camera check runs after
     // the join (Host::AfterJoin -> IdemCamera).
     if (renderIdle) {
-        g.m_playerController->UpdateCamera(kRdata_1401721dc, kRdata_140172174, kRdata_140172240);
+        // ext.better_camera's far plane, as GameUpdateLoop::Draw step 4 passes it.
+        g.m_playerController->UpdateCamera(kRdata_1401721dc, kRdata_140172174,
+                                           BetterCamera::FrameFarPlane(kRdata_140172240));
     }
 
     // Step 5: Weather::DrawUpdate (weather_sun.cpp), split. The context half

@@ -117,6 +117,36 @@ UNIT_TEST(ext_better_camera_a_wide_target_cannot_push_the_faithful_pitch_out_of_
     }
 }
 
+UNIT_TEST(ext_better_camera_far_plane_covers_the_terrain) {
+    using Ext::BetterCamera::FarPlane;
+    const float retailFar = 512.0f;
+    // Row off, or no terrain: retail's value, bit for bit.
+    for (float half : {0.0f, 128.0f, 384.0f, 512.0f}) {
+        const float off = FarPlane(false, retailFar, half);
+        CHECK(std::memcmp(&off, &retailFar, sizeof off) == 0);
+    }
+    const float none = FarPlane(true, retailFar, 0.0f);
+    CHECK(std::memcmp(&none, &retailFar, sizeof none) == 0);
+    // Never nearer than retail's plane, whatever the terrain's size.
+    CHECK(FarPlane(true, retailFar, 8.0f) == retailFar);
+    // Row on: past the farthest ground from any eye over the terrain at the row's highest zoom. The eye is
+    // within the terrain's footprint and at most kZoomMax above the ground plane.
+    for (float half : {256.0f, 384.0f, 512.0f}) {   // Small, Medium, Large (strides 513, 769, 1025)
+        const float farZ = FarPlane(true, retailFar, half);
+        CHECK(farZ > retailFar);
+        for (float ex : {-half, 0.0f, half}) {
+            for (float ey : {-half, 0.0f, half}) {
+                const float dx = std::fabs(ex) + half;
+                const float dy = std::fabs(ey) + half;
+                const float z = Ext::BetterCamera::kZoomMax;
+                CHECK(std::sqrt(dx * dx + dy * dy + z * z) < farZ);
+            }
+        }
+    }
+    // The report's map (Medium, the ground -384 .. +384): retail's plane stops well short of the far rim.
+    CHECK(FarPlane(true, retailFar, 384.0f) > 1086.0f);
+}
+
 UNIT_TEST(ext_better_camera_pan_clamp_keeps_retails_floor) {
     using Ext::BetterCamera::PanClampDistance;
     // Retail's factor (camera_input.cpp: kClampBase 100, kClampSpan 150), from the distance the clamp reads.

@@ -64,3 +64,17 @@ Retail clamps the focus to a square of half-extent `mapSize / 2 * clamp(1 - (dis
 
 * VERIFIED: unit (`ext_better_camera_pan_clamp_keeps_retails_floor`).
 * NOT YET LOOKED AT in game.
+
+## 8. The far plane covers the terrain (2026-11-16, the maintainer's hand test)
+
+The report: "can still see the outside of the map even with the edge fade, only when fully zoomed out and in between mountains", and the water "reflects a random circle of trees" looking toward the middle of the map.
+
+Retail's camera far plane is fixed at 512 (`PlayerController::UpdateCamera(40, 2, 512)`, `.rdata 0x140172240`). At retail's zoom the fog has hidden the ground before that distance. At the row's zoom (200) with a flat tilt (`ext.camera_angle`) and the fog pushed back (`ext.no_fog`), ground past 512 is clipped while a nearer mountain still draws: the clear colour shows between the mountains, and `ext.map_edge_fade` leaves it alone because the view ray meets the ground plane inside the terrain. The reflection's camera is a copy of the view's (`ReflectionImageBuffer::Render`), so the water's reflection was cut at the same distance.
+
+With the row on the far plane is `BetterCamera::FarPlane`: the terrain's diagonal and the row's highest eye, plus 16, one value for the whole game from `WorldGeometry::_heightRowStride` (about 1120 on a Medium map). `BetterCamera::FrameFarPlane` hands it to the three callers of the game's `UpdateCamera` (`GameUpdateLoop::Draw` step 4, `ext.render_pipe`'s copy and its idempotence check). Row off: 512, the same bits. `ext.eye_camera`'s own call is not changed. The sun's shadow box does not read the far plane (`SunLight::GetSunCamera`); AO's fade ends at view depth 460. The frustum cull now passes what the wider view shows: at zoom 200 with a flat tilt that can be the whole map.
+
+`BANISHED_CAMERA_PIN` takes a fifth value, the manual pitch (0 top-down .. 1 flat), to pin a view near the horizon.
+
+* VERIFIED: unit (`ext_better_camera_far_plane_covers_the_terrain`).
+* VERIFIED in game by engine screenshot (Vulkan, the maintainer's settings.cfg, seed 511106701, Medium, pin `104,106,200,135,1`): on retail's plane the ground is cut behind the near mountains and the lake reflects only the near shore; with the row's plane the terrain draws to the faded rim and the lake reflects the far ground.
+* NOT MEASURED: the frame cost of the wider view at zoom 200. Small and Large maps not run. DX11 not run.

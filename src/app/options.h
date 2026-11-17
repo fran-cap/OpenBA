@@ -99,7 +99,7 @@ struct Options {
     const char* climate              = nullptr;// perf/README.md, CLAUDE.md — mild|fair|harsh
     const char* difficulty           = nullptr;// perf/README.md stress command line
     const char* startCondition       = nullptr;// documented world-setup lever (ENDGAME C.3 tier 3)
-    const char* cameraPin            = nullptr;// CLAUDE.md "Camera Pinning" — x,y[,dist[,yaw]] or town[,dist[,yaw]];
+    const char* cameraPin            = nullptr;// CLAUDE.md "Camera Pinning" — x,y[,dist[,yaw[,pitch]]] or town[,dist[,yaw]];
                                                //   a trailing ",sweep" moves yaw / zoom / pitch every frame (HITCH_BGSAVE)
     const char* forceSpeed           = nullptr;// perf/README.md — game speed override
     const char* simprof              = nullptr;// perf/README.md — SIMPROF phase-split interval
