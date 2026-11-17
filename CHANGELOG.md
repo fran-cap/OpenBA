@@ -26,6 +26,7 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 7. Wider zoom: the camera reaches the map's rim when zoomed out past the original game's limit, instead of being held to the middle of the map (`ext.better_camera`).
 8. Fog distance at 100: cloud shadows, ambient occlusion and the terrain shading no longer fade out in the distance where the fog used to be (`ext.no_fog`).
 9. A tall hill across a lake or river no longer disappears from the water's reflection when the camera is close to the ground (retail bug, `fix.reflection_hills`).
+10. Wider zoom: fully zoomed out at a flat camera angle, distant ground is no longer cut off behind nearer mountains, in the view and in the water's reflection (`ext.better_camera`).
 
 ## v1.0.3 (2026-11-10)
 

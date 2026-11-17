@@ -27,6 +27,8 @@ roams and lands differently every run. `BANISHED_CAMERA_PIN=town[,dist]` pins th
 - The 512 terrain grid has a 128-cell non-playable border; build cells map 1:1 onto its
   center. There is NO 2-cells-per-tile scaling.
 - `dist` defaults to 40; ~50 frames a 21x17 building with context.
+- `x,y,dist,yaw,pitch`: the fifth value pins the manual pitch (0 top-down .. 1 flat; the game's default
+  is 0.75). Use 1 with a far `dist` for a view near the horizon (the map's rim, far reflections).
 - Flags are read once at boot: relaunch to move the pin. Placement is deterministic per
   seed+flags, so a wrong guess costs one probe run — read the tile from the log, relaunch.
 

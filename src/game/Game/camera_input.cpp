@@ -330,7 +330,8 @@ void PlayerToolManager::UpdateCamera(int inputFlag, int64_t timeTicks) {
     // position every frame, overriding pan/follow, so a verification run can look at a
     // known spot (e.g. the demo quarry) without keyboard input. World coords are
     // cell - (mapDim/2 - 0.5); dist defaults to 40. The optional yaw (degrees) pins the
-    // camera's heading too (an azimuth pair for view-dependence checks, TS-CORE).
+    // camera's heading too (an azimuth pair for view-dependence checks, TS-CORE). A fifth value pins the
+    // manual pitch (0 top-down .. 1 flat, what the pitch keys move), for a view near the horizon.
     // A trailing `,sweep` (HITCH_BGSAVE scenario 3) keeps the focus pinned but moves the rest of
     // the camera every call, through the same fields the keys write: the yaw turns at 40 deg/s,
     // the zoom target (+0x3C) swings 25 around the pinned distance and the manual pitch (+0x44)
@@ -341,6 +342,8 @@ void PlayerToolManager::UpdateCamera(int inputFlag, int64_t timeTicks) {
     static float s_pinZ = 0.0f;   // focus height; only the showroom sets it
     static bool s_pinHasYaw = false;
     static float s_pinYaw = 0.0f;
+    static bool s_pinHasPitch = false;      // x,y,dist,yaw,pitch: the manual pitch (+0x44), 0 top-down .. 1 flat
+    static float s_pinManualPitch = 0.0f;
     static bool s_sweep = false;
     static float s_sweepT = 0.0f;
     if (static_cast<int>(s_pin) < 0) {   // Unresolved (a sign test: == Unresolved compiles differently)
@@ -350,8 +353,8 @@ void PlayerToolManager::UpdateCamera(int inputFlag, int64_t timeTicks) {
             s_sweep = std::strstr(e, ",sweep") != nullptr;
             // "%f,%f,%f,%f", read with the checked scanner (review F-087: sscanf's %f is
             // undefined on a value out of float range).
-            float pin[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-            const int got = ScanClampedFloats(e, pin, 4);
+            float pin[5] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+            const int got = ScanClampedFloats(e, pin, 5);
             if (got >= 2) {
                 s_pinX = pin[0];
                 s_pinY = pin[1];
@@ -361,6 +364,10 @@ void PlayerToolManager::UpdateCamera(int inputFlag, int64_t timeTicks) {
                 if (got >= 4) {
                     s_pinYaw = pin[3];
                     s_pinHasYaw = true;
+                }
+                if (got >= 5) {
+                    s_pinManualPitch = clampf(pin[4], 0.0f, 1.0f);
+                    s_pinHasPitch = true;
                 }
             }
             // "town[,dist]": pin on the start-town spawn tile, whatever seed/map size
@@ -427,6 +434,7 @@ void PlayerToolManager::UpdateCamera(int inputFlag, int64_t timeTicks) {
             pc->distance = s_pinDist;
             zoomTarget = s_pinDist;   // zoom target, so smoothing doesn't fight it
             if (s_pinHasYaw) pc->yaw = s_pinYaw;
+            if (s_pinHasPitch) manualPitch = s_pinManualPitch;   // read by the next call's pitch target
         }
     }
 

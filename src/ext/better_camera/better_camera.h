@@ -15,6 +15,9 @@
 //   * THE PAN CLAMP KEEPS RETAIL'S FLOOR. Retail's focus clamp tightens with the distance; past 130 it reads 130
 //     (PanClampDistance below), so the wider zoom does not pull the focus away from the map's rim.
 //
+//   * THE FAR PLANE COVERS THE TERRAIN. Retail's 512 clips low ground behind a nearer mountain at the wide zoom
+//     (FarPlane below); with the row on the plane lies past the terrain's diagonal.
+//
 //   * The tilt is not this row's: ext.camera_angle (src/ext/camera_angle/camera_angle.h, FarPair) sets the far
 //     pair of the pitch blend, and UpdateCamera calls PitchTarget below with steady = false.
 //
@@ -34,6 +37,8 @@
 // At 200 retail's normZ is (200 - 20) / 110 = 1.64 and the pitch blend extrapolates to about -101 degrees (retail's
 // ceiling is -85), which flips the view. The clamp is a no-op for every value retail itself can hold.
 // ============================================================================
+
+#include <cmath>
 
 namespace Ext {
 namespace BetterCamera {
@@ -79,6 +84,31 @@ inline float PanClampDistance(float distance) {
     if (distance > kRetailZoomMax) return kRetailZoomMax;
     return distance;
 }
+
+// The camera's far plane with the row on. Retail's is fixed (512, .rdata 0x140172240): from its far zoom the
+// fog has hidden the ground long before that distance. From this row's zoom, with the tilt flat and the fog
+// pushed back (ext.no_fog), low ground past 512 is clipped while a nearer mountain still draws, and the
+// clear colour shows between the mountains. With the row on the far plane is one value for the whole game,
+// from the terrain's size alone: the terrain's diagonal and the row's highest eye (kZoomMax), plus
+// kFarMargin, which is past the farthest ground an eye over the terrain can see at any zoom, tilt or
+// heading. It does not follow the eye, so every frame of a game builds the same projection.
+// `terrainHalf`: half the terrain's side in world units (the ground runs -half .. +half on x and y, centred
+// on the origin); 0 when there is no terrain. Row off, no terrain, or a terrain small enough for retail's
+// plane: retail's value as given (the same bits come back). The sun's shadow box does not read the far
+// plane (SunLight::GetSunCamera extrudes the near corners); the frustum cull does, and draws what is now in
+// view.
+constexpr float kFarMargin = 16.0f;
+inline float FarPlane(bool on, float retailFar, float terrainHalf) {
+    if (!on || !(terrainHalf > 0.0f)) return retailFar;
+    const float side = terrainHalf * 2.0f;
+    const float reach = std::sqrt(side * side * 2.0f + kZoomMax * kZoomMax) + kFarMargin;
+    return reach > retailFar ? reach : retailFar;
+}
+
+// The same for the game being drawn: the terrain's side from the world's heightmap (better_camera.cpp). The
+// three callers of PlayerController::UpdateCamera's game arm (GameUpdateLoop::Draw step 4, ext.render_pipe's
+// copy of it and its idempotence check) pass retail's constant through it, so they agree.
+float FrameFarPlane(float retailFar);
 
 }  // namespace BetterCamera
 }  // namespace Ext
