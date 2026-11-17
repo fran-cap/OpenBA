@@ -20,7 +20,8 @@
 //             100x at 99. The fog keeps its colour and its maximum; it starts and thickens farther out.
 //   * 100     the fog maximum is 0, so the mix is 0 whatever the depth: no fog (the row's behaviour before
 //             the key existed; a settings.cfg with ext.no_fog=1 and no ext.fog_distance is migrated to 100 at
-//             boot, registry_boot.cpp, so it keeps no fog).
+//             boot, registry_boot.cpp, so it keeps no fog). Near and far are pushed as at 99, for the readers
+//             below that fade with the fog's range.
 // One seam, at the end of BlendLighting, which both the shipped
 // draw path (WeatherSimulation::DrawUpdate) and ext.render_pipe's recorded path call; every later reader of
 // the fog (AO's fade, the clouds' fade) derives it from the same record, so they follow. With the row off,
@@ -48,7 +49,7 @@ inline float FogMax(float retail, bool on) {
 }
 
 // How far fog near and far are pushed at `distance` (1..99): 100 / (100 - d). 1 at 0 and below, and the
-// value at 99 above it (100 itself is "no fog", handled by Apply, never a scale).
+// value at 99 above it (100 is "no fog": Apply zeroes the maximum and pushes the range by 99's value).
 inline float DistanceScale(int32_t distance) {
     if (distance <= kDistanceRetail) return 1.0f;
     if (distance > kDistanceOff - 1) distance = kDistanceOff - 1;
@@ -59,13 +60,14 @@ inline float DistanceScale(int32_t distance) {
 // (retail's fog): untouched.
 inline void Apply(float& fogNear, float& fogFar, float& fogMax, bool on, int32_t distance) {
     if (!on || distance <= kDistanceRetail) return;
-    if (distance >= kDistanceOff) {
-        fogMax = kFogMax;
-        return;
-    }
+    // 100 pushes near / far as far as 99 does (DistanceScale holds 99's value above it): the readers that fade
+    // with the fog's range (the cloud shadows, AO, fancy terrain) would otherwise fall back to retail's range at
+    // the slider's top and fade out where the fog no longer hides them.
     const float s = DistanceScale(distance);
     fogNear *= s;
     fogFar *= s;
+    if (distance >= kDistanceOff)
+        fogMax = kFogMax;
 }
 
 }  // namespace NoFog

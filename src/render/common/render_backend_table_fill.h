@@ -22,6 +22,7 @@
 #include "better_clouds/cloud_shadow_backend.h"
 #include "fancy_terrain/terrain_light_backend.h"
 #include "dof/dof_backend.h"
+#include "map_edge/map_edge_backend.h"
 #include "better_trees/billboard_shadow_backend.h"
 #include "better_trees/foliage_aa_backend.h"
 #include "better_water/scene_depth_backend.h"
@@ -80,6 +81,10 @@ Render::BackendTable MakeBackendTable(const char* id, bool (*available)()) {
     t.dofSupported = &DofBackend::Supported;
     t.dofRequest = &DofBackend::Request;
     t.dofDraw = &DofBackend::Draw;
+
+    t.mapEdgeSupported = &MapEdgeBackend::Supported;
+    t.mapEdgeRequest = &MapEdgeBackend::Request;
+    t.mapEdgeDraw = &MapEdgeBackend::Draw;
 
     t.compressAoRequest = &CompressAoBackend::Request;
     t.compressAoSupported = &CompressAoBackend::Supported;

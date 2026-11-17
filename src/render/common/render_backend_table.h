@@ -48,6 +48,9 @@ struct Textures;
 namespace DofBackend {
 struct Frame;
 }
+namespace MapEdgeBackend {
+struct Frame;
+}
 namespace CloudShadowBackend {
 struct Frame;
 }
@@ -108,6 +111,11 @@ struct BackendTable {
     bool (*dofSupported)();
     void (*dofRequest)(bool on);
     void (*dofDraw)(::Video::Context& context, const ::DofBackend::Frame& frame);
+
+    // ---- map_edge/map_edge_backend.h -----------------------------------------------------------
+    bool (*mapEdgeSupported)();
+    void (*mapEdgeRequest)(bool on);
+    void (*mapEdgeDraw)(::Video::Context& context, const ::MapEdgeBackend::Frame& frame);
 
     // ---- compress_ao/compress_ao_backend.h -----------------------------------------------------
     void (*compressAoRequest)(bool on, ::Ext::DerivedCache::Store* cache);

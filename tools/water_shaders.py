@@ -30,6 +30,7 @@ ICE_DIR = os.path.join(REPO, "src", "render", "common", "winter_ice")
 CLOUDS_DIR = os.path.join(REPO, "src", "render", "common", "better_clouds")
 TERRAIN_DIR = os.path.join(REPO, "src", "render", "common", "fancy_terrain")
 DOF_DIR = os.path.join(REPO, "src", "render", "common", "dof")
+EDGE_DIR = os.path.join(REPO, "src", "render", "common", "map_edge")
 
 # (source, entry, profile, variable, header, defines). ps_4_0: the profile retail's own water programs
 # use, so the overlay runs wherever the water does.
@@ -55,6 +56,8 @@ SHADERS = [
     ("dof/dof.hlsl", "PSDofGather", "ps_4_0", "g_dof_PSGather", "dof/dof_gather_ps.h", []),
     ("dof/dof.hlsl", "PSDofTent", "ps_4_0", "g_dof_PSTent", "dof/dof_tent_ps.h", []),
     ("dof/dof.hlsl", "PSDofComposite", "ps_4_0", "g_dof_PSComposite", "dof/dof_composite_ps.h", []),
+    # ext.map_edge_fade's rim fade (docs/extensions/handins/MAPEDGE.md): the full-screen multiply.
+    ("map_edge/map_edge.hlsl", "PSMapEdge", "ps_4_0", "g_me_PSMapEdge", "map_edge/map_edge_ps.h", []),
 ]
 FLAGS = ["/O3", "/WX", "/Ges"]
 
@@ -82,7 +85,7 @@ def blob_size(header_text):
 
 def source_path(name):
     """A source or header name relative to better_water/, or under a `winter_ice/`, `better_clouds/`,
-    `fancy_terrain/` or `dof/` prefix to that directory."""
+    `fancy_terrain/`, `dof/` or `map_edge/` prefix to that directory."""
     if name.startswith("winter_ice/"):
         return os.path.join(ICE_DIR, name[len("winter_ice/"):])
     if name.startswith("better_clouds/"):
@@ -91,6 +94,8 @@ def source_path(name):
         return os.path.join(TERRAIN_DIR, name[len("fancy_terrain/"):])
     if name.startswith("dof/"):
         return os.path.join(DOF_DIR, name[len("dof/"):])
+    if name.startswith("map_edge/"):
+        return os.path.join(EDGE_DIR, name[len("map_edge/"):])
     return os.path.join(WATER_DIR, name)
 
 

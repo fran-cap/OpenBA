@@ -100,7 +100,7 @@ UNIT_TEST(ext_no_fog_distance_scale) {
     CHECK(Ext::NoFog::DistanceScale(75) == 4.0f);
     CHECK(Ext::NoFog::DistanceScale(99) == 100.0f);
     CHECK(Ext::NoFog::DistanceScale(0) == 1.0f);          // below the range: no push
-    CHECK(Ext::NoFog::DistanceScale(100) == 100.0f);      // above 99: 99's push (Apply never asks for 100)
+    CHECK(Ext::NoFog::DistanceScale(100) == 100.0f);      // above 99: 99's push (what Apply uses at 100)
     for (int d = 2; d <= 99; ++d) CHECK(Ext::NoFog::DistanceScale(d) > Ext::NoFog::DistanceScale(d - 1));
 }
 
@@ -119,12 +119,16 @@ UNIT_TEST(ext_no_fog_apply) {
         Ext::NoFog::Apply(n, f, m, true, 0);
         CHECK(Bits(n) == Bits(kNear) && Bits(f) == Bits(kFar) && Bits(m) == Bits(kMax));
     }
-    // row on at 100: no fog, near / far left alone (the row's original behaviour)
+    // row on at 100: no fog, and near / far pushed as far as at 99, so what fades with the fog's range (the
+    // cloud shadows, AO, fancy terrain) does not fall back to retail's range at the slider's top
     {
         float n = kNear, f = kFar, m = kMax;
         Ext::NoFog::Apply(n, f, m, true, 100);
         CHECK(Bits(m) == Bits(0.0f));
-        CHECK(Bits(n) == Bits(kNear) && Bits(f) == Bits(kFar));
+        float n99 = kNear, f99 = kFar, m99 = kMax;
+        Ext::NoFog::Apply(n99, f99, m99, true, 99);
+        CHECK(Bits(n) == Bits(n99) && Bits(f) == Bits(f99));
+        CHECK(n == 9000.0f && f == 22500.0f);
     }
     // row on at 50: twice as far, same maximum
     {

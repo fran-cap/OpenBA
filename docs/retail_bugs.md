@@ -1638,3 +1638,36 @@ tree under its saved `_queueOrder` (the version-2 arm's insert, with the job's o
 what it held when the save was written; one `[PriorityAfterLoad]` line per load gives the count. It changes
 which job an idle worker takes after a load (sim-visible); nothing is saved differently. Row off: retail's
 empty tree. `src/ext/priority_after_load/`, seam `WorkScheduler::Serialize` (`src/game/Game/goals_serialize.cpp`).
+
+## 35. A tall hill across the water is missing from the reflection while the camera is low
+
+**Status: read in the retail disassembly (objdump; the Ghidra bridge was down) and reproduced in the port;
+fixed by `fix.reflection_hills` (default on, ruled 2026-11-16: "cheaper tall box").**
+Seen 2026-11-16 by hand (seed 511106701, Valleys, Medium, the lake near world (104,106)): the water shows no
+reflection of the hillside across it at a close zoom, and the reflection pops in as the camera zooms out.
+
+**Mechanism.** `ReflectionImageBuffer::Render` (`src/engine/graphics/imagebuffer_derived.cpp`) appends a
+scene entry (shader 2) whose camera is the view mirrored under the water plane, and retail hands that same
+camera over as the entry's cull camera (`mov %r8,%r9` at Runtime `0x180104c55`). `WorldGeometry::AddDrawItems`
+(`0x1400ae490`) culls the terrain in chunks against the cull camera, each chunk a box of its footprint and a
+fixed height range, z -16 .. +16 (`0x14017228c`, `0x1401721d0`; the chunk loop at `0x1400ae59b` /
+`0x1400ae5b9`). The mirrored camera looks up from below the water: with the eye low, the lower edge of its
+frustum rises steeply, a hill taller than 16 across the lake is in the mirrored view, but its 16-high box is
+under that edge and the whole chunk is dropped. Raising the eye lowers the edge and the hill appears. The
+main view looks down and never meets this.
+
+**Shown.** Camera pinned at 104,104, the reflection group's terrain chunks: distance 8, 14 chunks and no
+hill in the reflection (3 of 3 frames); distance 12 / 16 / 20, 21 / 22 / 23 chunks and the hill there. With
+the chunk box raised for a test the hill is in the reflection at distance 8 (3 of 3 frames). Seventeen
+rendering extensions off at once left the reflection's item count as it was: none of them is the cause. At
+this spot the pop lies under retail's nearest zoom (20), so it takes `ext.better_camera`'s range (6 ..) to
+see it; that retail shows it inside 20 .. 130 for a taller or farther hill is possible by the geometry and
+was not found.
+
+**Fix: `fix.reflection_hills`** (default on). For the reflection's group only, the chunk box's top is 128,
+above every height the int16 heightmap can hold (`Ext::ReflectionHills::ChunkZMax`), at retail's chunk loop
+(`src/game/Game/geometry_draw.cpp`) and at `ext.terrain_batch`'s copy of it. The main view's and the shadow
+map's boxes are retail's. Render only; nothing saved. The scene grid's node boxes (z -3 .. 8, Runtime
+`0x18016176c` / `0x1801616ec`) are not changed: no object was lost to them in the runs above. It costs the
+reflection the chunks retail dropped (about 8x the chunks at distance 8 in the test with a box to +200).
+Row off: retail's box. `src/ext/reflection_hills/`.

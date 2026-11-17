@@ -116,3 +116,27 @@ UNIT_TEST(ext_better_camera_a_wide_target_cannot_push_the_faithful_pitch_out_of_
         }
     }
 }
+
+UNIT_TEST(ext_better_camera_pan_clamp_keeps_retails_floor) {
+    using Ext::BetterCamera::PanClampDistance;
+    // Retail's factor (camera_input.cpp: kClampBase 100, kClampSpan 150), from the distance the clamp reads.
+    const auto factor = [](float distance) {
+        const float f = 1.0f - (distance - 100.0f) / 150.0f;
+        return f < 0.0f ? 0.0f : (f > 1.0f ? 1.0f : f);
+    };
+    // The identity over every distance retail can hold, bit for bit.
+    for (int i = 0; i <= 1300; ++i) {
+        const float d = i * 0.1f;
+        if (d > 130.0f) break;
+        const float c = PanClampDistance(d);
+        CHECK(std::memcmp(&c, &d, sizeof c) == 0);
+    }
+    // Past retail's far limit the clamp reads the limit: the factor stays at retail's smallest, 0.8.
+    CHECK(PanClampDistance(130.01f) == 130.0f);
+    CHECK(PanClampDistance(Ext::BetterCamera::kZoomMax) == 130.0f);
+    CHECK(std::fabs(factor(PanClampDistance(Ext::BetterCamera::kZoomMax)) - 0.8f) < 1e-6f);
+    // The report: unclamped, the focus is held to the middle third of the map at the row's far limit.
+    CHECK(factor(Ext::BetterCamera::kZoomMax) < 0.34f);
+    for (int d = 6; d <= 200; ++d)
+        CHECK(factor(PanClampDistance(static_cast<float>(d))) >= 0.8f - 1e-6f);
+}

@@ -14,6 +14,7 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 5. Work circles of a kind: Shift+click (long press on a touch screen) a building with a work circle to show the circle of every building of its kind, also while placing a new one; again to hide them (`ext.radius_all`).
 6. Terrain drawn last (Experimental tab): the ground is drawn after the buildings, trees and people, so the graphics card skips the ground they hide; the picture is unchanged (`ext.terrain_late`).
 7. Smoother motion at high game speed: while a long simulation step runs, the render thread shows the town again at a later blend instead of holding one picture. "Smooth fast speed" on the Experimental tab, off by default; needs Render thread (`ext.render_pipe_replay`).
+8. Map edge fade: the edge of the land fades into black instead of ending in a cut. "Map edge fade" on the Enhanced tab, on by default (`ext.map_edge_fade`).
 
 **Fixes:**
 1. Map data views: no crash when "Show overlay on terrain" shows the Land view in a second game of one session (`ext.map_overlays`).
@@ -22,6 +23,9 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 4. After loading a save, the Increase Priority tool ranks ahead of work prioritized before the save (retail bug, `fix.priority_after_load`).
 5. Better water: no wedge of squeezed ripples on the inside of a sharp river bend, and no band across the channel where a river runs through a lake (`ext.better_water`).
 6. A tree that dies in view falls once instead of flickering between upright and fallen: the off-screen animation skip tested against the shadow or reflection camera instead of the view (`ext.render_culling`).
+7. Wider zoom: the camera reaches the map's rim when zoomed out past the original game's limit, instead of being held to the middle of the map (`ext.better_camera`).
+8. Fog distance at 100: cloud shadows, ambient occlusion and the terrain shading no longer fade out in the distance where the fog used to be (`ext.no_fog`).
+9. A tall hill across a lake or river no longer disappears from the water's reflection when the camera is close to the ground (retail bug, `fix.reflection_hills`).
 
 ## v1.0.3 (2026-11-10)
 
