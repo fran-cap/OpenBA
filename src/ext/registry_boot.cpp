@@ -24,6 +24,7 @@
 #include "ext/large_packages/large_packages.h"   // fix.large_packages: the FileSystem mount seam
 #include "ext/package_cache/package_cache.h"       // ext.package_cache: the FileSystem index seams
 #include "ext/menu_entry/menu_entry.h"             // ext.menu_entry: the mod scan and remount seams
+#include "ext/renamed_mods/renamed_mods.h"         // ext.renamed_mods: the UpdateLoop mod-list seam
 #include "ext/phone_menu/phone_menu.h"             // ext.phone_menu: the menu safe area and backdrop seam
 #include "ext/fps_cap/fps_cap.h"                     // ext.fps_cap: the frame limiter's settings cap
 #include "ext/staggered_passes/staggered_passes.h"   // ext.staggered_passes: the shadow / reflection hold seams
@@ -241,6 +242,9 @@ void InitFromSettings() {
     // ext.menu_entry: the IO::Modification mod-scan / remount seams and IO::FileSystem::_extPackagesClosed
     // (null under the faithful profile); the hooks read the row at each scan and remount.
     MenuEntry::Sync();
+    // ext.renamed_mods: the Engine::UpdateLoop::_extModRoot seam (null under the faithful profile);
+    // the hook reads the row each time the loader finds a mod's list missing.
+    RenamedMods::Sync();
     // The save's pseudo-mods (EXT SEAM, Save::SaveLoad::_extExtraMods). Installed
     // ONCE here: the profile is fixed for the run (settings key or /profile at
     // boot; nothing changes it later), so SaveModsProvider() is final now --

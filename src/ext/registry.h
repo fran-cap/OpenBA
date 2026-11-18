@@ -151,6 +151,9 @@ struct Extensions {
     // class B: src/ext/recipe_skip/ (docs/extensions/handins/RECIPESKIP.md); a workshop set to every recipe
     // skips a recipe whose material is at its limit
     bool recipe_skip = false;
+    // class B, next start: src/ext/renamed_mods/ (docs/extensions/handins/RENAMEDMODS.md); a mod whose
+    // .pkm file was renamed loads by the list its package holds, seam Engine::UpdateLoop::_extModRoot
+    bool renamed_mods = false;
     // class C: src/ext/item_limits/ (docs/extensions/handins/ITEMLIMITS.md); a town-wide limit per item, set
     // in a workshop's panel
     bool item_limits = false;
