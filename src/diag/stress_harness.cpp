@@ -57,6 +57,7 @@
 #include "Component/WorkDescription.h"
 #include "Game/PlayerToolManager.h"         // B4: GameUpdateLoop::m_toolManager
 #include "Game/PlayerController.h"          // the CSV's view columns: the camera distance
+#include "Game/WeatherSimulation.h"         // REPEATABLE: the [Stress] weather line (temperature)
 #include "video/Device.h"                   // the CSV's view columns: the back buffer size
 #include "platform_window.h"                // THE VIEW: MaximizeOnPrimaryDisplay (Opt().stressMaximize)
 #include "ext/fast_paths/fast_paths.h"      // PFBENCH: shadow mode switch (COMPPROF level 3)
@@ -2259,6 +2260,14 @@ extern "C" void StressHarness_UpdateEnd(GameUpdateLoop* gul, int frameNum) {
         MaximizeView();   // THE VIEW: once, before the first row
     }
     s_worldFrame = frameNum - s_worldSeenAt + 1;
+    // REPEATABLE: the town's temperature after its first Update, once per world. The ctor's
+    // noise is clock-seeded in retail (fix.stable_order: from the map seed), and at 34 F or
+    // below the weather skips a world-Random draw, so this line tells which town a run builds.
+    if (s_worldFrame == 1 && gw != nullptr && gw->m_weather != nullptr) {
+        std::fprintf(stderr, "[Stress] weather after world frame 1: %.2f F, type %d, season step %d\n",
+                     gw->m_weather->temperature, static_cast<int>(gw->m_weather->weatherType),
+                     gw->m_weather->seasonStep);
+    }
     s_hCur.frame = s_worldFrame;                               // HITCH
     if (s_worldFrame % 1800 == 0) s_hCur.markers |= kHmFrame1800;
 

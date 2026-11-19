@@ -1700,6 +1700,17 @@ sibling of §14).
   starts, and the MusicPlayer (`0x1400a40e0`) draws the next track from it. Both follow the audio
   device's real playback (a channel is recycled when its samples report ended), so the number of world
   draws between two simulation steps depends on the machine, and the next simulation draw changes.
+- Also a clock: the `WeatherSimulation` ctor (`0x140093f60`) builds the temperature Perlin noise from
+  two stack `System::Random`s made with the default ctor, which seeds from `_time64` (`0x1800c7f20`).
+  The noise is not saved and is replaced from the world Random only at a half-year keyframe
+  (`0x1400935f0`, keyframe 0 or 24), so until then a new game's (or a load's) temperature follows the
+  second it was started at. The sim reads it: at 34 F and below `WeatherSimulation::Update` takes no
+  ambient-spawn roll from the world Random (part 6), houses burn wood and citizens grow cold. The save
+  holds the temperature (+0x18) but not the noise, so a load continues on a new clock-seeded noise: the
+  next weather update's temperature jumps away from the saved one, and a reloaded town's weather until
+  the next keyframe is not the weather the unbroken game would have had. Found
+  2026-11-19 with the stress town (seed 31337): every run whose first-tick temperature read 33.9 F or below
+  built one town, every run at 34.0 F or above another (the first tick is not the tick that decides).
 
 **Lever.** Order by the entity's EntityList id (`ComponentEntity::_entityId`, +0x18): unique at any
 moment, set only by the order of registrations and removals, saved and restored by
@@ -1710,6 +1721,8 @@ walk of `EntityList::Update` (`src/game/Entity/entitylist.cpp`), `MoveTo::Enter`
 (`src/game/Action/moveto.cpp`), the leisure pick (`src/game/Component/citizenai_leisure.cpp`), the
 twelve Work leaves' Cleanup picks (`src/game/Work/*.cpp`: the lowest entity id instead of the leftmost
 node; the sets and the save are unchanged), and the sound's Random (`gameupdateloop.cpp` step 12 and
-`unreg_lane5_musicplayer.cpp`: a presentation Random of its own, never saved). With the row on the
+`unreg_lane5_musicplayer.cpp`: a presentation Random of its own, never saved), and the weather's first
+noise (`gameupdateloop_load.cpp` step 15: rebuilt from a Random seeded with the map seed,
+`src/ext/stable_order/weather_noise.h`). With the row on the
 sim's random sequence is therefore not retail's even on one machine. Code
 `src/ext/stable_order/`. Hand-in `docs/extensions/handins/STABLEORDER.md`.

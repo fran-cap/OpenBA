@@ -45,11 +45,9 @@
 #                 the registry's default rows, i.e. what ships -- every `ext.` / `fix.` line is taken
 #                 out of settings.cfg for the run (restored at exit) and the exe runs per-entry.
 #                 `faithful`: /profile:faithful, every fix and extension off, the port's own code.
-#                 `repeatable`: every row off but fix.stable_order and fix.alloc_tiebreak, and
-#                 --inline-paths, so two runs build the same town (same sim_hash in every row): the
-#                 mode for a same-town A/B of two exes. Not the default rows: with those on, runs of
-#                 one exe built one of two towns. Check the report's WORKLOAD block says SAME TOWN
-#                 before reading a delta.
+#                 `repeatable`: player, plus fix.stable_order on and --inline-paths, so two runs build
+#                 the same town (same sim_hash in every row): the mode for a same-town A/B of two
+#                 exes. Check the report's WORKLOAD block says SAME TOWN before reading a delta.
 #                 The two have different bottlenecks (faithful is sim-bound; with the default rows
 #                 the main / render hand-off sets the pace). An explicit STRESS_PROFILE or STRESS_EXT
 #                 wins over the mode. Baselines cut before this date ran faithful, no houses,
@@ -328,21 +326,14 @@ if [ "$MODE" != faithful ] && [ -z "${STRESS_PROFILE:-}" ] && [ -z "${STRESS_EXT
     if [ "$MODE" = player ]; then
         echo "== mode player: the registry's default rows (ext. / fix. lines out of settings.cfg for this run)"
     fi
-    # repeatable: every row OFF except fix.stable_order and fix.alloc_tiebreak, the paths searched inline:
-    # the configuration whose 9000-frame digests repeated (STABLEORDER.md section 6). NOT the default
-    # rows: with those on, two runs of one exe still built one of two towns (2026-11-19, cause not found).
-    # A row with no line takes its registry default, so every id gets a line; the ids are the registry's.
+    # repeatable: the player's rows (the registry defaults, as above), plus fix.stable_order and the
+    # paths searched inline. Two runs then build one town: 10 of 10 runs, and two A B B A blocks of
+    # 9000 frames, held one sim digest in every row (2026-11-19, once the row also took the weather's
+    # clock-seeded noise out of the sim: STABLEORDER.md section 6).
     if [ "$MODE" = repeatable ]; then
-        sed -n 's/^ *{ "\([a-z0-9_]*\)", Tier::\(Fix\|Extension\),.*/\2 \1/p' src/ext/registry.cpp |
-            while read -r tier id; do
-                case "$tier" in
-                    Fix) printf 'fix.%s=0\n' "$id" ;;
-                    *)   printf 'ext.%s=0\n' "$id" ;;
-                esac
-            done >> "$CFG"
-        sed -i 's/^fix\.stable_order=0/fix.stable_order=1/; s/^fix\.alloc_tiebreak=0/fix.alloc_tiebreak=1/' "$CFG"
+        printf 'fix.stable_order=1\n' >> "$CFG"
         export BANISHED_STRESS_PATH_INLINE=1
-        echo "== mode repeatable: every row off but fix.stable_order and fix.alloc_tiebreak; inline paths"
+        echo "== mode repeatable: the default rows, fix.stable_order=1, inline paths"
     fi
 fi
 PROFILE_ARG="/profile:${STRESS_PROFILE:-faithful}"

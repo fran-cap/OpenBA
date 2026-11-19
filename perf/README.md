@@ -69,15 +69,14 @@ normal Easy founding town, on a **medium (384) map**, seed 31337 (12345's town a
   the hand-off between the main and the render thread sets the pace. The CSV carries `cam_dist`,
   `view_w`, `view_h` and the report says when two runs' views differ (a different scene is drawn and
   culled). Baselines cut before that date ran faithful, without houses, at default staff.
-- **`--mode repeatable`**: every row off but `fix.stable_order` and `fix.alloc_tiebreak`, inline paths.
-  Two runs then build the same town: four 2,500-frame runs gave the same `sim_hash` in every row and sim
-  times within 1% (2026-11-19), and three pairs of 9,000 frames repeated before that
-  (`docs/extensions/handins/STABLEORDER.md` §6). Use it for a same-town A/B of two exes. **The default
-  rows do not repeat even with the fix on and inline paths**: runs of one exe built one of two towns
-  (about one in four the rarer one, different from the first CSV row at frame 600); which extension
-  brings the clock back in is not found. An earlier note blamed the camera (`ext.render_culling`); two
-  runs with the same pinned view and window size split the same way, so that is not the cause, or not
-  all of it.
+- **`--mode repeatable`**: the player's rows plus `fix.stable_order` and inline paths. Two runs then
+  build the same town: 10 of 10 runs, and two A B B A blocks of 9,000 frames (speed 50 uncapped; four
+  cores at speed 120 with a 60 fps cap), held one `sim_hash` in every row, and two runs of one exe agreed
+  within 0.5% in fps (2026-11-19; `docs/extensions/handins/STABLEORDER.md` §6). Use it for a same-town
+  A/B of two exes. Before that date the default rows built one of two towns, about one run in four the
+  rarer: the weather's first temperature noise was seeded from the wall clock (retail), and a start at or
+  below 34 F skips a world-Random draw. `fix.stable_order` now seeds that noise from the map seed. An
+  earlier note here blamed the camera; that was wrong.
 - **Houses** (`BANISHED_STRESS_HOUSES=1`, on by default, `--no-houses` turns it off): the town never builds, so the children who grow up stay with a parent and each
   of them runs `CitizenComponent::FindHome` (every citizen, then every residence) on every idle
   update; that cost grows with the square of the population. With `--houses` a **housing pass**
