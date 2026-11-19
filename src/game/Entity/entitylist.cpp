@@ -42,6 +42,8 @@
 #include "stress_harness.h"               // g_compProfOn / CompProf_AddVtbl (BANISHED_STRESS)
 #include "ext/walk_batch/walk_batch.h"    // EXT SEAM (NOT RETAIL, docs/extensions/handins/WALKBATCH.md, WALKGRID.md): ext.walk_batch (A) / ext.walk_batch_grid (B), the batched walk instantiations
 #include "ext/walk_batch_grid/walk_batch_grid.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/WALKGRID.md): ext.walk_batch_grid (B), the grid walk's character tick
+#include "ext/registry.h"                    // Ext::Fix().update_order
+#include "ext/update_order/update_order.h"   // FIX update_order (NOT RETAIL, docs/extensions/handins/UPDATEORDER.md): the id-ordered visit
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -400,6 +402,17 @@ extern "C" void EntityList_MarkUpdateTreeDirty() { s_walkDirty = true; }
 static std::vector<TickList::Entry> s_tickList;
 static bool s_tickSorted = false;
 
+// FIX update_order (NOT RETAIL, docs/extensions/handins/UPDATEORDER.md, docs/retail_bugs.md §36):
+// with the row on the walk visits s_walkSnap[s_walkOrder[j]], the snapshot's entities by
+// ascending EntityList id (Ext::UpdateOrder::BuildIdOrder). The snapshot itself stays in
+// the tree's pointer order, so s_tickList, the PERFXTBL side table and every pointer
+// lookup above are unchanged. The order is stale when the snapshot is rebuilt
+// (RebuildWalkSnapshot) or an id moves (RemoveEntity's swap of the last master entry);
+// the row-on walk rebuilds it then. With the row off nothing reads these.
+static std::vector<uint32_t> s_walkOrder;
+static std::vector<int32_t>  s_walkOrderSlot;   // BuildIdOrder's scratch, one int32 per id
+static bool s_walkOrderValid = false;
+
 void EntityList_TickListInvalidate(const ComponentEntity* entity) {
     if (!s_tickSorted) return;
     const int64_t i = TickList::IndexOf(s_walkSnap.data(), s_walkSnap.size(), entity);
@@ -415,6 +428,7 @@ template <bool kReserve>
     s_walkSnap.clear();
     s_tickList.clear();
     s_tickSorted = false;
+    s_walkOrderValid = false;   // FIX update_order: the id order follows the snapshot
     s_walkOwner = self;
     s_walkCountAtBuild = self->updateTree._count;
     EntityTreeNode* treeRoot = self->updateTree._root;
@@ -556,22 +570,26 @@ template <class Fn>
     }
 }
 
+// `at` maps a visit position to its snapshot index: the identity for retail's order, the
+// fix.update_order permutation with that row on (the stages then run ahead in the visit
+// order, not the snapshot's).
+template <class AtFn>
 [[gnu::always_inline]] static inline void WalkPrefetchStaged(ComponentEntity* const* arr, const TickList::Entry* tl,
                                       size_t n, size_t i, bool cached, const WalkVptrs& vt,
-                                      const WalkCovVptrs& cv) {
+                                      const WalkCovVptrs& cv, AtFn&& at) {
     if (i + 5 * kWalkPrefetchStride < n) {
-        const ComponentEntity* e = arr[i + 5 * kWalkPrefetchStride];
+        const ComponentEntity* e = arr[at(i + 5 * kWalkPrefetchStride)];
         __builtin_prefetch(&e->_components);
         __builtin_prefetch(&e->_entityFlags);
     }
     if (i + 4 * kWalkPrefetchStride < n) {
-        ForEachWalkCandidate(arr[i + 4 * kWalkPrefetchStride], tl[i + 4 * kWalkPrefetchStride], cached,
+        ForEachWalkCandidate(arr[at(i + 4 * kWalkPrefetchStride)], tl[at(i + 4 * kWalkPrefetchStride)], cached,
             [](const Object::InternalPtr<Component>* comps, int k) __attribute__((always_inline)) {
                 __builtin_prefetch(&comps[k]);
             });
     }
     if (i + 3 * kWalkPrefetchStride < n) {
-        ForEachWalkCandidate(arr[i + 3 * kWalkPrefetchStride], tl[i + 3 * kWalkPrefetchStride], cached,
+        ForEachWalkCandidate(arr[at(i + 3 * kWalkPrefetchStride)], tl[at(i + 3 * kWalkPrefetchStride)], cached,
             [](const Object::InternalPtr<Component>* comps, int k) __attribute__((always_inline)) {
                 const char* c = reinterpret_cast<const char*>(comps[k].Get());  // CAST-OK: crash_walk (a prefetch names a line, never a value)
                 if (!c) return;
@@ -581,7 +599,7 @@ template <class Fn>
             });
     }
     if (i + 2 * kWalkPrefetchStride < n) {
-        ForEachWalkCandidate(arr[i + 2 * kWalkPrefetchStride], tl[i + 2 * kWalkPrefetchStride], cached,
+        ForEachWalkCandidate(arr[at(i + 2 * kWalkPrefetchStride)], tl[at(i + 2 * kWalkPrefetchStride)], cached,
             [&vt, &cv](const Object::InternalPtr<Component>* comps, int k) __attribute__((always_inline)) {
                 const Component* c = comps[k].Get();
                 if (!c) return;
@@ -610,7 +628,7 @@ template <class Fn>
             });
     }
     if (i + 1 * kWalkPrefetchStride < n) {
-        ForEachWalkCandidate(arr[i + 1 * kWalkPrefetchStride], tl[i + 1 * kWalkPrefetchStride], cached,
+        ForEachWalkCandidate(arr[at(i + 1 * kWalkPrefetchStride)], tl[at(i + 1 * kWalkPrefetchStride)], cached,
             [&vt, &cv](const Object::InternalPtr<Component>* comps, int k) __attribute__((always_inline)) {
                 const Component* c = comps[k].Get();
                 if (!c) return;
@@ -681,7 +699,10 @@ static inline auto MakeWalkTick(const System::Time* time) {
 // (ext.walk_batch), kWalkNoPlace EntityList::UpdateWalkBatchGrid's (ext.walk_batch_grid);
 // kWalkFaithful is the faithful walk (EntityList::Update), the body as it was, with no test in
 // its loop.
-template <int kWalk>
+// kIdOrder: FIX update_order (NOT RETAIL, docs/extensions/handins/UPDATEORDER.md) -- false is
+// retail's pointer order, the body as it was; true visits the snapshot by ascending entity id
+// through s_walkOrder (the same entities, the same per-entity visit, another order).
+template <int kWalk, bool kIdOrder>
 static bool WalkUpdateTreeSnapshot(EntityList* self, const System::Time* time, bool prof) {
     if (!kTreeSnapshot) return false;
     if (s_walkDirty || s_walkOwner != self || s_walkCountAtBuild != self->updateTree._count) {
@@ -690,6 +711,27 @@ static bool WalkUpdateTreeSnapshot(EntityList* self, const System::Time* time, b
     const size_t n = s_walkSnap.size();
     ComponentEntity* const* arr = s_walkSnap.data();
     TickList::Entry* tl = s_tickList.data();
+    const uint32_t* ord = nullptr;
+    if constexpr (kIdOrder) {
+        if (!s_walkOrderValid || s_walkOrder.size() != n) {
+            const size_t misplaced = Ext::UpdateOrder::BuildIdOrder(arr, n, self->masterArray._size, s_walkOrder,
+                                                                    s_walkOrderSlot);
+            s_walkOrderValid = true;
+            static int s_misplacedLines = 0;   // capped: never more than 4 lines a session
+            if (misplaced != 0 && s_misplacedLines < 4) {
+                ++s_misplacedLines;
+                std::fprintf(stderr, "[UpdateOrder] %zu of %zu update-tree entities carry no usable id; "
+                                     "they tick last, in pointer order\n", misplaced, n);
+            }
+        }
+        ord = s_walkOrder.data();
+    }
+    // The visit position's snapshot index: the identity (retail) or the id permutation.
+    auto at = [ord](size_t j) __attribute__((always_inline)) -> size_t {
+        if constexpr (kIdOrder) return ord[j];
+        else return j;
+    };
+    (void)ord;
     const bool cached = s_tickSorted;
     auto tick = MakeWalkTick<kWalk>(time);
     // BANISHED_STRESS_COMPPROF=4: the WALKCACHE shadow (TickList::Cached<true>) checks
@@ -702,7 +744,7 @@ static bool WalkUpdateTreeSnapshot(EntityList* self, const System::Time* time, b
     WalkCovVptrs cv{nullptr};   // [PREFETCHCOV] set only when the arm is on
     if constexpr (kWalkPrefetch == 2 && kPrefetchCovParticle) cv.particle = Object::ClassVptr<ParticleComponent>::Get();
     for (size_t i = 0; i < n; ++i) {
-        if constexpr (kWalkPrefetch == 2) WalkPrefetchStaged(arr, tl, n, i, cached, vt, cv);
+        if constexpr (kWalkPrefetch == 2) WalkPrefetchStaged(arr, tl, n, i, cached, vt, cv, at);
         if constexpr (kWalkPrefetch == 1) {
         // Three-deep prefetch pipeline: entity header (i+3) -> its component IBP array
         // (i+2, header already resident) -> the component objects' flag words (i+1,
@@ -736,17 +778,27 @@ static bool WalkUpdateTreeSnapshot(EntityList* self, const System::Time* time, b
             }
         }
         }   // kWalkPrefetch == 1
-        ComponentEntity* entity = arr[i];
-        Ext::RenderCulling::g_walkIndex = static_cast<int64_t>(i);   // [PerfX PERFXTBL] the ticks' side-table slot
+        const size_t si = at(i);   // the snapshot index of visit i (i itself in retail's order)
+        ComponentEntity* entity = arr[si];
+        Ext::RenderCulling::g_walkIndex = static_cast<int64_t>(si);   // [PerfX PERFXTBL] the ticks' side-table slot
         if (!(entity->_entityFlags & Bits(ComponentFlags::MarkedForRemoval))) {
             if (!cached)      entity->TickComponents(time);
-            else if (verify)  TickList::Cached<true>(entity, tl[i], tick, report);
-            else              TickList::Cached<false>(entity, tl[i], tick, report);
+            else if (verify)  TickList::Cached<true>(entity, tl[si], tick, report);
+            else              TickList::Cached<false>(entity, tl[si], tick, report);
         }
         if (prof) ++g_elProfTreeNodes;
     }
     Ext::RenderCulling::g_walkIndex = -1;   // [PerfX PERFXTBL] outside the walk: binary search
     return true;
+}
+
+// FIX update_order (NOT RETAIL, docs/extensions/handins/UPDATEORDER.md): the id-ordered walk, out of
+// line so EntityList::Update's faithful walk (inlined there) compiles as it did before the row, and
+// flattened so the per-entity visit inside it is inlined as the faithful walk's is.
+template <int kWalk>
+[[gnu::noinline, gnu::flatten]] static bool WalkUpdateTreeSnapshotById(EntityList* self, const System::Time* time,
+                                                                     bool prof) {
+    return WalkUpdateTreeSnapshot<kWalk, true>(self, time, prof);
 }
 
 // ============================================================
@@ -827,7 +879,12 @@ template <int kWalk>
     EntityTreeNode* treeRoot = updateTree._root;
     // [ext.walk_batch / ext.walk_batch_grid] kWalk: the batched snapshot walks. The tree walk
     // below (the snapshot's corrupt-tree fallback) is retail's in every instantiation.
-    if (treeRoot && WalkUpdateTreeSnapshot<kWalk>(this, time, prof)) {
+    // FIX update_order (NOT RETAIL, docs/extensions/handins/UPDATEORDER.md): the row is read once per
+    // Update; with it on the snapshot walk visits the entities by EntityList id, else retail's order.
+    // The corrupt-tree fallback below stays retail's pointer order either way.
+    const bool idOrder = Ext::Fix().update_order;
+    if (treeRoot && (idOrder ? WalkUpdateTreeSnapshotById<kWalk>(this, time, prof)
+                             : WalkUpdateTreeSnapshot<kWalk, false>(this, time, prof))) {
         treeRoot = nullptr;   // [PerfX] flat snapshot walk ran -- identical order, no tree chase
     }
     if (treeRoot) {
@@ -1436,6 +1493,9 @@ void EntityList::RemoveEntity(ComponentEntity** entityIBP) {
 
         // Update swapped entity's master array index
         masterData[entityMasterIdx]->_entityId = entityMasterIdx;
+        // FIX update_order (NOT RETAIL, docs/extensions/handins/UPDATEORDER.md): an id moved, so the
+        // id-ordered walk recomputes its order. A store only; retail's order never reads it.
+        s_walkOrderValid = false;
     }
 
     // Shrink master array.

@@ -576,7 +576,26 @@ def draw_reflection_hills(px):
     ])
 
 
+def draw_update_order(px):
+    # three figures in a row, numbered 1 2 3 under them (everyone takes a turn in one fixed order)
+    _paint(px, [
+        "............",
+        ".##..##..##.",
+        ".##..##..##.",
+        "............",
+        ".##..##..##.",
+        ".##..##..##.",
+        ".##..##..##.",
+        "............",
+        ".+..++..+++.",
+        ".+..++..+++.",
+        "............",
+        "............",
+    ])
+
+
 ICONS = {
+    "update_order": ("fix", draw_update_order),     # three figures, numbered 1 2 3
     "reflection_hills": ("fix", draw_reflection_hills),   # a hill and its reflection under a water line
     "icon_slide": ("fix", draw_slide),              # "!" marker over a ground line
     "residence_goto": ("fix", draw_goto),            # house with a target box on the wall

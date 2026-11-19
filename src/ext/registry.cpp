@@ -344,6 +344,15 @@ const Entry kEntries[] = {
       "A tall hill across a lake or river no longer disappears from the water's reflection when the "
       "camera is close to the ground.",
       0, [](State& s) -> bool& { return s.fix.reflection_hills; } },
+    // UPDATEORDER (docs/extensions/handins/UPDATEORDER.md, docs/retail_bugs.md section 36): EntityList::Update
+    // ticks its update tree's entities in the order of their entity id instead of their heap address
+    // (the tree keeps retail's key; the walk's snapshot is visited through an id permutation). Sim-visible:
+    // which citizen gets which random draw. Nothing saved: the ids are retail's own, already in the save.
+    { "update_order", Tier::Fix, Class::None, true,
+      "Repeatable update order",
+      "Every citizen, animal and building takes its turn in a fixed order instead of one set by memory "
+      "layout, so the same seed or the same save plays out the same way each time.",
+      0, [](State& s) -> bool& { return s.fix.update_order; } },
 
     // Extensions. Each one adds a field to Ext::Extensions and a row here:
     // Tier::Extension, its Class, default true for class A / false for B or C, and for class B or C its

@@ -71,7 +71,7 @@ UNIT_TEST(ext_registry_table_shape) {
                            "debug_spawn_origin", "statusbar_empty_town",
                            "stream_free_wait", "minimap_outline_clip", "decal_fog_order",
                            "shadow_zoom_pulse", "priority_after_load",
-                           "reflection_hills"}) {
+                           "reflection_hills", "update_order"}) {
         const Ext::Entry& e = E(id);
         CHECK(e.tier == Ext::Tier::Fix);
         CHECK(e.cls == Ext::Class::None);
