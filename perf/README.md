@@ -80,6 +80,11 @@ normal Easy founding town, on a **medium (384) map**, seed 31337 (12345's town a
   parent / shared), free slots, houses placed in the window and in total, footprints rejected
   by reason, and the pass's own ms. The CSV header says `# houses on|off`, and
   `stress_report.py`'s WORKLOAD block flags two compared runs that differ in it.
+  Measured 2026-11-18 (seed 31337, 9000 frames at 50x): without the pass the waiting households
+  grow from 36 to 220 (all grown children with a parent); with it they stay at 1 to 12, and 117 houses
+  were placed. From about frame 8400 the free, tree-free, reachable ground runs out (`noSite` in the
+  line), so a longer run falls behind again. The pass runs after the Update timer (not in
+  `update_ms`) but inside the frame: 35-120 ms per CSV window, at most about 60 ms in one frame.
 - **Full staff** (`--full-staff`, `BANISHED_STRESS_FULL_STAFF=1`, off by default): the staffing
   pass raises every workplace to its template's `_maxWorkerCount` (the panel spinner's
   `SetMaxWorkers`, 0x14012fb00) and seats that many instead of `_defaultWorkers`, so new adults
