@@ -126,6 +126,8 @@ extern "C" void MapComponent_ReportDc20Evictions(const char* tag);  // keystone_
 #include <functional>
 #include "Game/cell_stamp.h"   // AMBMEMO: CellStamp::NoteWrite after a cell store
 #include "ext/registry.h"      // EXT SEAM: Ext::Fix().unresolved_seeds
+#include "Game/starttown_stress.h"   // BANISHED_STRESS: the stress town's siting (StressTown::Siting)
+#include <memory>
 
 // ============================================================================
 // Economy Brick M-D — live town storage.
@@ -1011,7 +1013,9 @@ static struct {
 // animal density for the hunter lodge) are NOT here — the harness turns their existing
 // BANISHED_BUILD_DEMO_* blocks on instead, one of each.
 // ============================================================================
-struct StressBuilding { const char* path; const char* tag; int fw, fh; };
+// The siting rules themselves are StressTown::Siting (starttown_stress.h, defined below
+// the tables), kept alive for the world so the harness housing pass sites by them too.
+using StressBuilding = StressTown::Building;
 static const StressBuilding kStressSet[] = {
     { "Template\\StorageBarn.rsc",     "storagebarn",     6,  5 },
     { "Template\\StorageYard.rsc",     "storageyard",     8,  8 },
@@ -1056,6 +1060,318 @@ static const StressBuilding kStressHouses[] = {
 static double StressNowMs() {
     return std::chrono::duration<double, std::milli>(
         std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
+// ── StressTown::Siting (starttown_stress.h) ─────────────────────────────────────────
+// The stress town's siting state and rules, moved out of StartTown_StressSpawnStructures'
+// lambdas unchanged (the founding spawn calls them, so it sites exactly as before) and kept
+// for the life of the world, so the harness housing pass places by the same rules.
+static std::unique_ptr<StressTown::Siting> g_stressSiting;
+
+StressTown::Siting* StressTown::Current() {
+    return g_stressSiting.get();
+}
+
+StressTown::Siting::Siting(Map* game_, int cx_, int cy_)
+    : game(game_),
+      mapW(game_->size),
+      cells((size_t)game_->size * (size_t)game_->size),
+      cx(cx_),
+      cy(cy_),
+      townCell(cy_ * game_->size + cx_),
+      allowPockets([] { const char* e = Opt().stressAllowPockets;
+                        return e && e[0] && e[0] != '0'; }()),
+      occ(cells, 0),
+      workable(cells, -1),
+      reach(cells, 0),
+      reachB(cells, 0),
+      anchorX(cx_),
+      anchorY(cy_),
+      ringMax(game_->size / 2 - 4),
+      maxR(game_->size / 2 - 4),
+      houseAnchorX(cx_),
+      houseAnchorY(cy_),
+      houseRingMax(game_->size / 2 - 4) {
+    for (const STRect& r : g_stOccupied) Mark(r.x, r.y, r.w, r.h);
+    occSynced = g_stOccupied.size();
+    reachCount = FloodTown(reach, 0, 0, 0, 0, -1, -1);
+}
+
+void StressTown::Siting::Mark(int x, int y, int w, int h) {
+    for (int yy = y; yy < y + h; ++yy)
+        for (int xx = x; xx < x + w; ++xx)
+            if (xx >= 0 && yy >= 0 && xx < mapW && yy < mapW) occ[(size_t)yy * mapW + xx] = 1;
+}
+
+bool StressTown::Siting::CellWorkable(int cell) {
+    if (cell < 0 || (size_t)cell >= cells) return false;
+    if (workable[cell] < 0) {
+        // 0x14009ccf0
+        workable[cell] = (game->FindCell(cell, cell, PathBits::Walk & ~PathBits::Obstacle) >= 0) ? 1 : 0;
+    }
+    return workable[cell] == 1;
+}
+
+// Walkability for the flood = the cell's OWN stamped kind against the citizen walk
+// mask (0xe1f), NOT CellWorkable: that one asks nearestPassable(), which answers with
+// the nearest passable cell, so shoreline water counted as ground and houses were
+// sited with their door on the river bank (reachfix2-verify: 49 residual losses).
+bool StressTown::Siting::CellWalkable(int cell) {
+    const MapCell* const kindTiles = game->cells.GetData();
+    if (!kindTiles) return CellWorkable(cell);
+    const unsigned k = static_cast<uint8_t>(kindTiles[(size_t)cell].terrainType);
+    return ((1u << (k & 0x1f)) & Bits(PathBits::Walk)) != 0;
+}
+
+// WHOLE-MAP reachability from the town cell over free cells (not occupied by a
+// footprint, terrain walkable). The earlier version flooded an 8-cell window from its
+// own boundary and treated every cell on that boundary as connected to the world —
+// a strip along the river that ran out of the window was "reachable" even though it
+// was sealed further along, so houses kept getting sited with their doors in dead
+// strips (2026-09-04, doorfix-verify: 797 -> 604 housed). A full flood is ~0.5 ms and
+// only runs for candidates that passed every cheaper test.
+int StressTown::Siting::FloodTown(std::vector<uint8_t>& out, int ftx, int fty, int fw, int fh,
+                                  int doorDx, int doorDy) {
+    std::fill(out.begin(), out.end(), 0);
+    if (townCell < 0 || (size_t)townCell >= cells) return 0;
+    std::vector<int> stack; stack.reserve(4096);
+    int n = 0;
+    auto push = [&](int xx, int yy) {
+        if (xx < 0 || yy < 0 || xx >= mapW || yy >= mapW) return;
+        const int cell = yy * mapW + xx;
+        if (out[cell]) return;
+        if (fw > 0 && xx >= ftx && xx < ftx + fw && yy >= fty && yy < fty + fh &&
+            !(doorDx >= 0 && xx == ftx + doorDx && yy == fty + doorDy)) return;
+        if (occ[cell] || !CellWalkable(cell)) return;
+        out[cell] = 1; ++n; stack.push_back(cell);
+    };
+    // The town centre cell itself is usually inside a founding footprint: seed from
+    // every free cell in the smallest ring around it that has one.
+    for (int r = 0; r < 24 && stack.empty(); ++r)
+        for (int dy = -r; dy <= r; ++dy)
+            for (int dx = -r; dx <= r; ++dx)
+                if (dx == -r || dx == r || dy == -r || dy == r) push(cx + dx, cy + dy);
+    while (!stack.empty()) {
+        const int c = stack.back(); stack.pop_back();
+        const int xx = c % mapW, yy = c / mapW;
+        push(xx + 1, yy); push(xx - 1, yy); push(xx, yy + 1); push(xx, yy - 1);
+    }
+    return n;
+}
+
+// true = placing this footprint (its door cell excepted) would cut some currently
+// reachable cell off from the town, or leave its own door unreachable. w == 0 =
+// verify-only (footprint already in occ): just the door test.
+bool StressTown::Siting::CreatesPocket(int tx, int ty, int w, int h, int doorDx, int doorDy) {
+    // A door strictly inside the rectangle (yard, market, cemetery, field, orchard,
+    // quarry: open ground the citizens walk over) has no outside neighbour in this
+    // solid-rectangle model and can never test reachable; only test edge doors.
+    if (doorDx >= 0 && w > 0 && doorDx > 0 && doorDx < w - 1 && doorDy > 0 && doorDy < h - 1)
+        doorDx = doorDy = -1;
+    if (doorDx >= 0 && w > 0) {
+        // Cheap necessary condition before the full flood: the door's outside
+        // neighbour(s) must be reachable ground right now.
+        bool anyOut = false;
+        const int dxs[4] = {1, -1, 0, 0}, dys[4] = {0, 0, 1, -1};
+        for (int i = 0; i < 4 && !anyOut; ++i) {
+            const int nx = tx + doorDx + dxs[i], ny = ty + doorDy + dys[i];
+            if (nx >= tx && nx < tx + w && ny >= ty && ny < ty + h) continue;   // inside footprint
+            if (nx < 0 || ny < 0 || nx >= mapW || ny >= mapW) continue;
+            if (reach[(size_t)ny * mapW + nx]) anyOut = true;
+        }
+        if (!anyOut) { ++rejDoor; return true; }
+    }
+    const int after = FloodTown(reachB, tx, ty, w, h, doorDx, doorDy);
+    if (doorDx >= 0) {
+        const int d = (ty + doorDy) * mapW + (tx + doorDx);
+        if (d < 0 || (size_t)d >= cells || !reachB[d]) { ++rejDoor; return true; }
+    }
+    if (w == 0) return false;
+    int lost = 0;   // reachable-before cells inside the footprint (door excluded) — expected losses
+    for (int yy = ty; yy < ty + h; ++yy)
+        for (int xx = tx; xx < tx + w; ++xx) {
+            if (doorDx >= 0 && xx == tx + doorDx && yy == ty + doorDy) continue;
+            if (reach[(size_t)yy * mapW + xx]) ++lost;
+        }
+    if (after != reachCount - lost) {
+        ++rejPocket;
+        if (log && diagN < 12) { ++diagN;
+            fprintf(stderr, "[Stress::place] pocket reject at (%d,%d) %dx%d door(%d,%d): reachBefore=%d lost=%d after=%d\n",
+                    tx, ty, w, h, doorDx, doorDy, reachCount, lost, after);
+        }
+        return true;
+    }
+    return false;
+}
+
+bool StressTown::Siting::Fits(int tx, int ty, int w, int h, int doorDx, int doorDy) {
+    const int edge = margin + 1;
+    if (tx < edge || ty < edge || tx + w > mapW - edge || ty + h > mapW - edge) return false;
+    for (int yy = ty - margin; yy < ty + h + margin; ++yy)
+        for (int xx = tx - margin; xx < tx + w + margin; ++xx)
+            if (occ[(size_t)yy * mapW + xx]) return false;
+    for (int yy = 0; yy < h; ++yy)
+        for (int xx = 0; xx < w; ++xx)
+            if (!CellWorkable((ty + yy) * mapW + (tx + xx))) { ++rejUnworkable; return false; }
+    // Housing pass only: the live world has trees, rocks, crops and walkers the founding
+    // ground did not. A footprint stamped over a resource leaves it standing under the
+    // building (placeStructure's residue note); one stamped over a walker walls it in.
+    if (checkLive) {
+        const MapCell* const mc = game->cells.GetData();
+        for (int yy = ty; yy < ty + h; ++yy) {
+            for (int xx = tx; xx < tx + w; ++xx) {
+                const size_t cell = (size_t)yy * mapW + xx;
+                if (live[cell] || (mc && (mc[cell].occupant || mc[cell].blocker))) {
+                    ++rejLive;
+                    return false;
+                }
+            }
+        }
+    }
+    if (!ST_CanPathTo(game, PathBits::Walk, (uint32_t)((ty + h / 2) * mapW + (tx + w / 2)), townCell)) {
+        ++reachRejects; return false;
+    }
+    if (!allowPockets && CreatesPocket(tx, ty, w, h, doorDx, doorDy)) { ++pocketRejects; return false; }
+    return true;
+}
+
+bool StressTown::Siting::DoorFor(const char* path, int* dx, int* dy) const {
+    for (const DoorOff& d : doorOffs) if (d.path == path) { *dx = d.dx; *dy = d.dy; return true; }
+    return false;
+}
+
+ComponentEntity* StressTown::Siting::Place(const Building& b) {
+    lastFail = Fail::None;
+    ComponentDescription* tmpl = ResolveTemplateByPath(b.path);
+    if (!tmpl) {
+        if (log) fprintf(stderr, "[Stress::place] %s did not resolve\n", b.path);
+        ++failed;
+        lastFail = Fail::Unresolved;
+        return nullptr;
+    }
+    int w = 0, h = 0;
+    if (const CreatePlacedDescription* cpd =
+            FindDescriptionOnTemplate<CreatePlacedDescription>(tmpl, CreatePlacedDescription::TypeId())) {
+        w = cpd->_width;
+        h = cpd->_height;
+    }
+    if (w <= 0 || h <= 0) { w = b.fw; h = b.fh; }
+
+    int doorDx = -1, doorDy = -1;
+    DoorFor(b.path, &doorDx, &doorDy);
+    int bestX = 0, bestY = 0; bool found = false;
+    for (int r = 1; r <= ringMax && !found; ++r) {
+        for (int dy = -r; dy <= r && !found; ++dy) {
+            for (int dx = -r; dx <= r && !found; ++dx) {
+                if (dx != -r && dx != r && dy != -r && dy != r) continue;
+                const int tx = anchorX + dx, ty = anchorY + dy;
+                if (!Fits(tx, ty, w, h, doorDx, doorDy)) continue;
+                bestX = tx; bestY = ty; found = true;
+                if (r > maxUsedR) maxUsedR = r;
+            }
+        }
+    }
+    if (!found) {
+        if (log)
+            fprintf(stderr, "[Stress::place] %s: no free workable reachable %dx%d footprint within r=%d\n",
+                    b.tag, w, h, ringMax);
+        ++failed;
+        lastFail = Fail::NoSite;
+        return nullptr;
+    }
+    lastX = bestX;
+    lastY = bestY;
+    lastW = w;
+    lastH = h;
+    ComponentEntity* ent = g_stPlaceStructure(tmpl, bestX, bestY, 0, w, h, /*isDemoFoundation=*/false, -1);
+    g_stOccupied.push_back({ bestX, bestY, w, h });
+    if (occSynced + 1 == g_stOccupied.size()) occSynced = g_stOccupied.size();
+    Mark(bestX, bestY, w, h);
+    lastEnt = ent;
+    if (!ent) {
+        ++failed;
+        lastFail = Fail::PlaceNull;
+        return nullptr;
+    }
+    reachCount = FloodTown(reach, 0, 0, 0, 0, -1, -1);
+    // Learn (first instance) or verify (later ones) the template's door cell, and keep
+    // the door notch walkable in occ so every later pocket test sees it as ground.
+    {
+        ComponentEntity* entIBP = ent;
+        const int cell = EntityAnchorCell(&entIBP, nullptr);   // 0x140087fb0
+        if (cell >= 0) {
+            const int ddx = cell % mapW - bestX, ddy = cell / mapW - bestY;
+            occ[(size_t)cell] = 0;
+            reachCount = FloodTown(reach, 0, 0, 0, 0, -1, -1);
+            if (doorDx < 0) {
+                doorOffs.push_back({ b.path, ddx, ddy });
+                if (log)
+                    fprintf(stderr, "[Stress::place] %s door offset learned: (%d,%d) in %dx%d\n",
+                            b.tag, ddx, ddy, w, h);
+                // The first instance was sited before its door offset was known.
+                const bool edgeDoor = ddx == 0 || ddx == w - 1 || ddy == 0 || ddy == h - 1;
+                if (!allowPockets && edgeDoor && CreatesPocket(bestX, bestY, 0, 0, ddx, ddy)) {
+                    ++doorWalled;
+                    if (log)
+                        fprintf(stderr, "[Stress::place] WARNING %s at (%d,%d): door (%d,%d) is walled in\n",
+                                b.tag, bestX, bestY, bestX + ddx, bestY + ddy);
+                }
+            } else if (ddx != doorDx || ddy != doorDy) {
+                if (log)
+                    fprintf(stderr, "[Stress::place] %s door offset CHANGED (%d,%d) -> (%d,%d)\n",
+                            b.tag, doorDx, doorDy, ddx, ddy);
+            }
+        }
+    }
+    return ent;
+}
+
+void StressTown::Siting::BeginPass() {
+    // Footprints recorded since (the deferred hunter lodge places through g_stPlaceStructure
+    // and records itself in g_stOccupied).
+    for (; occSynced < g_stOccupied.size(); ++occSynced) {
+        const STRect& r = g_stOccupied[occSynced];
+        Mark(r.x, r.y, r.w, r.h);
+    }
+    // The world changed under the memo (buildings, planted trees): ask again.
+    std::fill(workable.begin(), workable.end(), -1);
+    // The cells a character stands on now, from the character grid's own slot list (the
+    // array the deferred lodge's animal scan reads), tile = the model's translation + mapW/2
+    // as CitizenComponent::CanReach clamps it.
+    checkLive = true;
+    live.assign(cells, 0);
+    const CharacterGrid* grid = GameUpdateLoop::_singleton ? GameUpdateLoop::_singleton->m_characterGrid : nullptr;
+    const CharacterGridSlot* slots = grid ? grid->slots._data : nullptr;
+    const int slotCount = grid ? grid->slots._size : 0;
+    for (int i = 0; slots && i < slotCount; ++i) {
+        if (slots[i].cell < 0) continue;
+        const CharacterComponent* ch = slots[i].character.Get();
+        const ModelComponent* model = ch ? ch->modelComponent.Get() : nullptr;
+        if (!model) continue;
+        const int half = mapW >> 1;
+        const int tx = std::max(0, std::min(mapW - 1, static_cast<int>(model->transform.translation.x + half)));
+        const int ty = std::max(0, std::min(mapW - 1, static_cast<int>(model->transform.translation.y + half)));
+        live[(size_t)ty * mapW + tx] = 1;
+    }
+    reachCount = FloodTown(reach, 0, 0, 0, 0, -1, -1);
+}
+
+ComponentEntity* StressTown::Siting::PlaceHouse() {
+    const int ax = anchorX;
+    const int ay = anchorY;
+    const int rm = ringMax;
+    const int mg = margin;
+    anchorX = houseAnchorX;
+    anchorY = houseAnchorY;
+    ringMax = houseRingMax;
+    margin = 1;
+    ComponentEntity* ent = Place(kStressHouses[houseKind]);
+    houseKind = (houseKind + 1) % (int)(sizeof(kStressHouses) / sizeof(kStressHouses[0]));
+    anchorX = ax;
+    anchorY = ay;
+    ringMax = rm;
+    margin = mg;
+    return ent;
 }
 
 // Defined in the resource section below; the showroom's trees use them before it.
@@ -1153,30 +1469,19 @@ static int StartTown_StressSpawnStructures(MapGenerator* startConfig, Map* game,
     }
     const double t0 = StressNowMs();
 
-    Map* grid = game;
     const int mapW = game->size;
     if (mapW <= 0) return 0;
     const size_t cells = (size_t)mapW * (size_t)mapW;
 
-    std::vector<uint8_t> occ(cells, 0);
-    auto mark = [&](int x, int y, int w, int h) {
-        for (int yy = y; yy < y + h; ++yy)
-            for (int xx = x; xx < x + w; ++xx)
-                if (xx >= 0 && yy >= 0 && xx < mapW && yy < mapW) occ[(size_t)yy * mapW + xx] = 1;
-    };
-    for (const STRect& r : g_stOccupied) mark(r.x, r.y, r.w, r.h);
-
-    std::vector<int8_t> workable(cells, -1);
-    auto cellWorkable = [&](int cell) -> bool {
-        if (cell < 0 || (size_t)cell >= cells) return false;
-        if (workable[cell] < 0) {
-            // 0x14009ccf0
-            workable[cell] = (grid->FindCell(cell, cell, PathBits::Walk & ~PathBits::Obstacle) >= 0) ? 1 : 0;
-        }
-        return workable[cell] == 1;
-    };
-    const int townCell = cy * mapW + cx;
-    int reachRejects = 0, pocketRejects = 0;
+    // The siting state (starttown_stress.h): the occupancy bitmap seeded from everything
+    // StartTown already placed (g_stOccupied), the workability memo, the town flood. Kept
+    // for the life of the world for the harness housing pass; the names below are the
+    // ones this function's showroom code has always used.
+    g_stressSiting = std::make_unique<StressTown::Siting>(game, cx, cy);
+    StressTown::Siting& st = *g_stressSiting;
+    std::vector<uint8_t>& occ = st.occ;
+    auto mark = [&](int x, int y, int w, int h) { st.Mark(x, y, w, h); };
+    auto cellWorkable = [&](int cell) -> bool { return st.CellWorkable(cell); };
 
     // POCKET TEST. Footprints sited 1 tile apart can wall a gap cell in on all four
     // sides. That gap cell is where a neighbour's ACCESS cell (Entity_impl_7fb0, the cell
@@ -1198,66 +1503,12 @@ static int StartTown_StressSpawnStructures(MapGenerator* startConfig, Map* game,
     // and the river). Offsets are per template at rotation 0, which is all we place.
     // BANISHED_STRESS_ALLOW_POCKETS=1 reproduces the old walled-in layout (the
     // population-collapse / teardown-corruption repro town).
-    static const bool allowPockets = [] { const char* e = Opt().stressAllowPockets;
-                                          return e && e[0] && e[0] != '0'; }();
-    struct DoorOff { const char* path; int dx, dy; };
-    std::vector<DoorOff> doorOffs;
-    auto doorFor = [&](const char* path, int* dx, int* dy) -> bool {
-        for (const DoorOff& d : doorOffs) if (std::strcmp(d.path, path) == 0) { *dx = d.dx; *dy = d.dy; return true; }
-        return false;
-    };
-
-    // doorDx/doorDy >= 0: the footprint cell that must stay reachable (blocked cells of the
-    // new footprint exclude it). w == 0: verify an ALREADY-placed footprint (marked in occ):
-    // only the door reachability test runs.
-    // WHOLE-MAP reachability from the town cell over free cells (not occupied by a
-    // footprint, terrain workable). The earlier version flooded an 8-cell window from its
-    // own boundary and treated every cell on that boundary as connected to the world —
-    // a strip along the river that ran out of the window was "reachable" even though it
-    // was sealed further along, so houses kept getting sited with their doors in dead
-    // strips (2026-09-04, doorfix-verify: 797 -> 604 housed). A full flood is ~0.5 ms and
-    // only runs for candidates that passed every cheaper test.
-    // Walkability for the flood = the cell's OWN stamped kind against the citizen walk
-    // mask (0xe1f), NOT cellWorkable: that one asks nearestPassable(), which answers with
-    // the nearest passable cell, so shoreline water counted as ground and houses were
-    // sited with their door on the river bank (reachfix2-verify: 49 residual losses).
+    // The door table, the whole-map town flood (CellWalkable / FloodTown) and the pocket test
+    // (CreatesPocket) are StressTown::Siting's (above StartTown_StressSpawnStructures).
     const MapCell* const kindTiles = game->cells.GetData();
-    auto cellWalkable = [&](int cell) -> bool {
-        if (!kindTiles) return cellWorkable(cell);
-        const unsigned k = static_cast<uint8_t>(kindTiles[(size_t)cell].terrainType);
-        return ((1u << (k & 0x1f)) & Bits(PathBits::Walk)) != 0;
-    };
-    std::vector<uint8_t> reach(cells, 0);
-    int reachCount = 0;
-    auto floodTown = [&](std::vector<uint8_t>& out, int ftx, int fty, int fw, int fh, int doorDx, int doorDy) -> int {
-        std::fill(out.begin(), out.end(), 0);
-        if (townCell < 0 || (size_t)townCell >= cells) return 0;
-        std::vector<int> stack; stack.reserve(4096);
-        int n = 0;
-        auto push = [&](int xx, int yy) {
-            if (xx < 0 || yy < 0 || xx >= mapW || yy >= mapW) return;
-            const int cell = yy * mapW + xx;
-            if (out[cell]) return;
-            if (fw > 0 && xx >= ftx && xx < ftx + fw && yy >= fty && yy < fty + fh &&
-                !(doorDx >= 0 && xx == ftx + doorDx && yy == fty + doorDy)) return;
-            if (occ[cell] || !cellWalkable(cell)) return;
-            out[cell] = 1; ++n; stack.push_back(cell);
-        };
-        // The town centre cell itself is usually inside a founding footprint: seed from
-        // every free cell in the smallest ring around it that has one.
-        for (int r = 0; r < 24 && stack.empty(); ++r)
-            for (int dy = -r; dy <= r; ++dy)
-                for (int dx = -r; dx <= r; ++dx)
-                    if (dx == -r || dx == r || dy == -r || dy == r) push(cx + dx, cy + dy);
-        while (!stack.empty()) {
-            const int c = stack.back(); stack.pop_back();
-            const int xx = c % mapW, yy = c / mapW;
-            push(xx + 1, yy); push(xx - 1, yy); push(xx, yy + 1); push(xx, yy - 1);
-        }
-        return n;
-    };
-    reachCount = floodTown(reach, 0, 0, 0, 0, -1, -1);
-    std::vector<uint8_t> reachB(cells, 0);
+    auto cellWalkable = [&](int cell) -> bool { return st.CellWalkable(cell); };
+    std::vector<uint8_t>& reach = st.reach;
+    const int reachCount = st.reachCount;
     // One-time kind-grid dump for offline layout analysis (standalone_kindmap.txt: one
     // row per y, one base-36 kind digit per cell; '#' = occupied by a footprint).
     static const bool dumpKinds = [] { const char* e = Opt().stressKindMap;
@@ -1279,159 +1530,37 @@ static int StartTown_StressSpawnStructures(MapGenerator* startConfig, Map* game,
         }
     }
 
-    // true = placing this footprint (its door cell excepted) would cut some currently
-    // reachable cell off from the town, or leave its own door unreachable. w == 0 =
-    // verify-only (footprint already in occ): just the door test.
-    int rejDoor = 0, rejPocket = 0, diagN = 0;
-    auto createsPocket = [&](int tx, int ty, int w, int h, int doorDx, int doorDy) -> bool {
-        // A door strictly inside the rectangle (yard, market, cemetery, field, orchard,
-        // quarry: open ground the citizens walk over) has no outside neighbour in this
-        // solid-rectangle model and can never test reachable; only test edge doors.
-        if (doorDx >= 0 && w > 0 && doorDx > 0 && doorDx < w - 1 && doorDy > 0 && doorDy < h - 1)
-            doorDx = doorDy = -1;
-        if (doorDx >= 0 && w > 0) {
-            // Cheap necessary condition before the full flood: the door's outside
-            // neighbour(s) must be reachable ground right now.
-            bool anyOut = false;
-            const int dxs[4] = {1, -1, 0, 0}, dys[4] = {0, 0, 1, -1};
-            for (int i = 0; i < 4 && !anyOut; ++i) {
-                const int nx = tx + doorDx + dxs[i], ny = ty + doorDy + dys[i];
-                if (nx >= tx && nx < tx + w && ny >= ty && ny < ty + h) continue;   // inside footprint
-                if (nx < 0 || ny < 0 || nx >= mapW || ny >= mapW) continue;
-                if (reach[(size_t)ny * mapW + nx]) anyOut = true;
-            }
-            if (!anyOut) { ++rejDoor; return true; }
-        }
-        const int after = floodTown(reachB, tx, ty, w, h, doorDx, doorDy);
-        if (doorDx >= 0) {
-            const int d = (ty + doorDy) * mapW + (tx + doorDx);
-            if (d < 0 || (size_t)d >= cells || !reachB[d]) { ++rejDoor; return true; }
-        }
-        if (w == 0) return false;
-        int lost = 0;   // reachable-before cells inside the footprint (door excluded) — expected losses
-        for (int yy = ty; yy < ty + h; ++yy)
-            for (int xx = tx; xx < tx + w; ++xx) {
-                if (doorDx >= 0 && xx == tx + doorDx && yy == ty + doorDy) continue;
-                if (reach[(size_t)yy * mapW + xx]) ++lost;
-            }
-        if (after != reachCount - lost) {
-            ++rejPocket;
-            if (diagN < 12) { ++diagN;
-                fprintf(stderr, "[Stress::place] pocket reject at (%d,%d) %dx%d door(%d,%d): reachBefore=%d lost=%d after=%d\n",
-                        tx, ty, w, h, doorDx, doorDy, reachCount, lost, after);
-            }
-            return true;
-        }
-        return false;
-    };
     // Free ring kept around every footprint: the 1-tile walk lane, or a wider one for the
     // showroom's buildings (set below, after the stress town is placed, so a stress town
     // under the showroom keeps its own layout) so each is framed without its neighbours.
-    int margin = 1;
-    auto fits = [&](int tx, int ty, int w, int h, int doorDx, int doorDy) -> bool {
-        const int edge = margin + 1;
-        if (tx < edge || ty < edge || tx + w > mapW - edge || ty + h > mapW - edge) return false;
-        for (int yy = ty - margin; yy < ty + h + margin; ++yy)
-            for (int xx = tx - margin; xx < tx + w + margin; ++xx)
-                if (occ[(size_t)yy * mapW + xx]) return false;
-        for (int yy = 0; yy < h; ++yy)
-            for (int xx = 0; xx < w; ++xx)
-                if (!cellWorkable((ty + yy) * mapW + (tx + xx))) return false;
-        if (!ST_CanPathTo(game, PathBits::Walk, (uint32_t)((ty + h / 2) * mapW + (tx + w / 2)), townCell)) {
-            ++reachRejects; return false;
-        }
-        if (!allowPockets && createsPocket(tx, ty, w, h, doorDx, doorDy)) { ++pocketRejects; return false; }
-        return true;
-    };
-    int doorWalled = 0;
+    // The fit test itself (occupancy + margin, workable, path-reachable, pocket) is
+    // StressTown::Siting::Fits.
+    int& margin = st.margin;
 
-    const int maxR = mapW / 2 - 4;
-    int maxUsedR = 0;
+    const int maxR = st.maxR;
     // PFBENCH spread layout (BANISHED_STRESS_SETS < 0, stress_harness.h): the ring search
     // centres on an ANCHOR instead of the town centre. Compact (the default) keeps
     // anchor = town centre and ring limit = maxR, i.e. exactly the old siting. Spread puts
     // the sets' workplaces and storage around a point a quarter map WEST of the centre and
     // the houses a quarter map EAST, so every commute crosses about half the map.
     const bool spread = StressHarness_Spread();
-    int anchorX = cx, anchorY = cy, ringMax = maxR;
-    const uint32_t tidCPD = CreatePlacedDescription::TypeId();
+    int& anchorX = st.anchorX;
+    int& anchorY = st.anchorY;
+    int& ringMax = st.ringMax;
     const uint32_t tidRes = ResidenceComponent::TypeId();
     struct Tally { const char* tag; int n; };
     std::vector<Tally> tally;
-    int placed = 0, failed = 0, houses = 0;
-    int lastX = 0, lastY = 0, lastW = 0, lastH = 0;   // the footprint the last place() picked
-    ComponentEntity* lastEnt = nullptr;               // and the entity it placed there
+    int placed = 0, houses = 0;
 
+    // Resolve, size, site, place COMPLETED and learn the door: StressTown::Siting::Place.
     auto place = [&](const StressBuilding& b) -> bool {
-        ComponentDescription* tmpl = ResolveTemplateByPath(b.path);
-        if (!tmpl) {
-            fprintf(stderr, "[Stress::place] %s did not resolve\n", b.path);
-            ++failed; return false;
-        }
-        int w = 0, h = 0;
-        if (const CreatePlacedDescription* cpd =
-                FindDescriptionOnTemplate<CreatePlacedDescription>(tmpl, tidCPD)) {
-            w = cpd->_width;
-            h = cpd->_height;
-        }
-        if (w <= 0 || h <= 0) { w = b.fw; h = b.fh; }
-
-        int doorDx = -1, doorDy = -1;
-        doorFor(b.path, &doorDx, &doorDy);
-        int bestX = 0, bestY = 0; bool found = false;
-        for (int r = 1; r <= ringMax && !found; ++r) {
-            for (int dy = -r; dy <= r && !found; ++dy) {
-                for (int dx = -r; dx <= r && !found; ++dx) {
-                    if (dx != -r && dx != r && dy != -r && dy != r) continue;
-                    const int tx = anchorX + dx, ty = anchorY + dy;
-                    if (!fits(tx, ty, w, h, doorDx, doorDy)) continue;
-                    bestX = tx; bestY = ty; found = true;
-                    if (r > maxUsedR) maxUsedR = r;
-                }
-            }
-        }
-        if (!found) {
-            fprintf(stderr, "[Stress::place] %s: no free workable reachable %dx%d footprint within r=%d\n",
-                    b.tag, w, h, ringMax);
-            ++failed; return false;
-        }
-        lastX = bestX;
-        lastY = bestY;
-        lastW = w;
-        lastH = h;
-        ComponentEntity* ent = g_stPlaceStructure(tmpl, bestX, bestY, 0, w, h, /*isDemoFoundation=*/false, -1);
-        g_stOccupied.push_back({ bestX, bestY, w, h });
-        mark(bestX, bestY, w, h);
-        lastEnt = ent;
-        if (!ent) { ++failed; return false; }
+        ComponentEntity* ent = st.Place(b);
+        if (!ent) return false;
         ++placed;
-        reachCount = floodTown(reach, 0, 0, 0, 0, -1, -1);
-        // Learn (first instance) or verify (later ones) the template's door cell, and keep
-        // the door notch walkable in occ so every later pocket test sees it as ground.
-        {
-            ComponentEntity* entIBP = ent;
-            const int cell = EntityAnchorCell(&entIBP, nullptr);   // 0x140087fb0
-            if (cell >= 0) {
-                const int ddx = cell % mapW - bestX, ddy = cell / mapW - bestY;
-                occ[(size_t)cell] = 0;
-                reachCount = floodTown(reach, 0, 0, 0, 0, -1, -1);
-                if (doorDx < 0) {
-                    doorOffs.push_back({ b.path, ddx, ddy });
-                    fprintf(stderr, "[Stress::place] %s door offset learned: (%d,%d) in %dx%d\n",
-                            b.tag, ddx, ddy, w, h);
-                    // The first instance was sited before its door offset was known.
-                    const bool edgeDoor = ddx == 0 || ddx == w - 1 || ddy == 0 || ddy == h - 1;
-                    if (!allowPockets && edgeDoor && createsPocket(bestX, bestY, 0, 0, ddx, ddy)) {
-                        ++doorWalled;
-                        fprintf(stderr, "[Stress::place] WARNING %s at (%d,%d): door (%d,%d) is walled in\n",
-                                b.tag, bestX, bestY, bestX + ddx, bestY + ddy);
-                    }
-                } else if (ddx != doorDx || ddy != doorDy) {
-                    fprintf(stderr, "[Stress::place] %s door offset CHANGED (%d,%d) -> (%d,%d)\n",
-                            b.tag, doorDx, doorDy, ddx, ddy);
-                }
-            }
-        }
+        const int bestX = st.lastX;
+        const int bestY = st.lastY;
+        const int w = st.lastW;
+        const int h = st.lastH;
         bool isTallied = false;
         for (Tally& t : tally) if (std::strcmp(t.tag, b.tag) == 0) { ++t.n; isTallied = true; break; }
         if (!isTallied) tally.push_back({ b.tag, 1 });
@@ -1454,8 +1583,13 @@ static int StartTown_StressSpawnStructures(MapGenerator* startConfig, Map* game,
             mapW, cx, cy, sets, target, wantHouses, houseIdx0);
     fflush(stderr);
 
-    int housesQueued = 0, houseKind = 0;
+    int housesQueued = 0;
+    int& houseKind = st.houseKind;   // the housing pass continues the alternation
     auto placeHouses = [&](int n) {
+        // Where the houses go (the spread layout moves them): the housing pass sites there too.
+        st.houseAnchorX = anchorX;
+        st.houseAnchorY = anchorY;
+        st.houseRingMax = ringMax;
         for (int i = 0; i < n && housesQueued < wantHouses; ++i, ++housesQueued) {
             place(kStressHouses[houseKind]);
             houseKind = (houseKind + 1) % (int)(sizeof(kStressHouses) / sizeof(kStressHouses[0]));
@@ -1536,9 +1670,9 @@ static int StartTown_StressSpawnStructures(MapGenerator* startConfig, Map* game,
             }
             // The model's world bounds frame the camera; Scene::Clean fills them in later
             // frames, so the showroom keeps the address and reads it at shot time.
-            const ModelComponent* model = FindComponentOnEntity<ModelComponent>(lastEnt, tidModel);
+            const ModelComponent* model = FindComponentOnEntity<ModelComponent>(st.lastEnt, tidModel);
             const float* bounds = model ? &model->meshInstance._worldBounds.min.x : nullptr;
-            Showroom_NotePlaced(i, true, lastX, lastY, lastW, lastH, mapW, bounds, nullptr);
+            Showroom_NotePlaced(i, true, st.lastX, st.lastY, st.lastW, st.lastH, mapW, bounds, nullptr);
         }
 
         // The trees ("tree <species>"), in list order, in rows of kTreeCols at kTreeStep tiles,
@@ -1835,9 +1969,9 @@ static int StartTown_StressSpawnStructures(MapGenerator* startConfig, Map* game,
     // houses for the family pairing — g_stressHouseTiles is filled from the component
     // test above, not from the house list, so the pairing stays index-exact.
     fprintf(stderr, "[Stress::place] DONE placed=%d failed=%d houses(residences)=%d maxRing=%d "
-            "reachRejects=%d pocketRejects=%d doorWalled=%d in %.0f ms\n", placed, failed, houses, maxUsedR,
-            reachRejects, pocketRejects, doorWalled, StressNowMs() - t0);
-    fprintf(stderr, "[Stress::place] reject reasons: door=%d pocket=%d\n", rejDoor, rejPocket);
+            "reachRejects=%d pocketRejects=%d doorWalled=%d in %.0f ms\n", placed, st.failed, houses, st.maxUsedR,
+            st.reachRejects, st.pocketRejects, st.doorWalled, StressNowMs() - t0);
+    fprintf(stderr, "[Stress::place] reject reasons: door=%d pocket=%d\n", st.rejDoor, st.rejPocket);
     for (const Tally& t : tally) fprintf(stderr, "[Stress::place]   %-14s x%d\n", t.tag, t.n);
     fflush(stderr);
     return placed;
@@ -5645,6 +5779,7 @@ extern "C" void StartTown_SpawnEntities(MapGenerator* startConfig, GameUpdateLoo
     g_demoGatherer.acceptN    = 0;
     g_stressHouseTiles.clear();            // BANISHED_STRESS per-town state
     g_stressHouseFirstIdx     = 0;
+    g_stressSiting.reset();                // the stress town's siting (holds game one's Map*)
     g_stSpawnX = g_stSpawnY   = -1;
 
     MapGenerator* sc = startConfig;
