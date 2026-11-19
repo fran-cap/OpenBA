@@ -969,8 +969,7 @@ const Entry kEntries[] = {
     // name of its .pkm file, so a renamed file's new content never appears. With the row on, a mod
     // whose list is not found by that name is loaded by the list its package holds. Class B: no
     // serialized state, but the town holds content that only loaded because of the row, so it is
-    // locked for the game and recorded in the save. Read when the mods load, so a change takes effect
-    // at the next start.
+    // locked for the game and recorded in the save. Read once at boot (next start).
     { "renamed_mods", Tier::Extension, Class::B, false,
       "Load renamed mods",
       "A mod whose .pkm file was renamed still loads: when the package has no content list named after the "
