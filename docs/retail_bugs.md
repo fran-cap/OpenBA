@@ -1695,7 +1695,7 @@ sibling of §14).
 moment, set only by the order of registrations and removals, saved and restored by
 `EntityList::Serialize` (`0x1400c44a0`). The update tree keeps its pointer key; the walk visits it by id.
 
-Fix: `fix.update_order` (tier 1), default on, off under `/profile:faithful`. Three seams: the snapshot
+Fix: `fix.stable_order` (tier 1), default on, off under `/profile:faithful`. Three seams: the snapshot
 walk of `EntityList::Update` (`src/game/Entity/entitylist.cpp`), `MoveTo::Enter`
 (`src/game/Action/moveto.cpp`), the leisure pick (`src/game/Component/citizenai_leisure.cpp`). Code
-`src/ext/update_order/`. Hand-in `docs/extensions/handins/UPDATEORDER.md`.
+`src/ext/stable_order/`. Hand-in `docs/extensions/handins/STABLEORDER.md`.

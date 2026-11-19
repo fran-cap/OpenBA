@@ -92,8 +92,8 @@
 #include "Game/exe_bodies.h"
 #include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
 #include "Object/type_cache.h"   // PERF (TYPECACHE): Type() through the vptr cache
-#include "ext/registry.h"                    // Ext::Fix().update_order
-#include "ext/update_order/update_order.h"   // FIX update_order (NOT RETAIL, docs/retail_bugs.md §36): the home-box pick
+#include "ext/registry.h"                    // Ext::Fix().stable_order
+#include "ext/stable_order/stable_order.h"   // FIX stable_order (NOT RETAIL, docs/retail_bugs.md §36): the home-box pick
 
 namespace {
 
@@ -515,12 +515,12 @@ LAB_14010a846:
             }
         }
         // pick (rand%count)-th in-order node; its key (+0x00) is local_res20.
-        // FIX update_order (NOT RETAIL, docs/extensions/handins/UPDATEORDER.md, docs/retail_bugs.md §36):
+        // FIX stable_order (NOT RETAIL, docs/extensions/handins/STABLEORDER.md, docs/retail_bugs.md §36):
         // the home box is keyed by pointer, so retail's Rand(count)-th in-order key is a building
         // chosen by address. With the row on the same draw takes the pick-th key in entity-id order.
-        if (homeBox._count > 0 && Ext::Fix().update_order) {
+        if (homeBox._count > 0 && Ext::Fix().stable_order) {
             uint32_t pick = pRVar6->Rand(static_cast<uint32_t>(homeBox._count));
-            local_res20 = Ext::UpdateOrder::NthById(homeBox._root, pick);
+            local_res20 = Ext::StableOrder::NthById(homeBox._root, pick);
         } else if (homeBox._count > 0) {
             uint32_t pick = pRVar6->Rand(static_cast<uint32_t>(homeBox._count));
             LeisureHomeNode* node = homeBox._root; LeisureHomeNode* chosen = homeBox._root;

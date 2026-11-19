@@ -1,6 +1,9 @@
-# UPDATEORDER: entities act in a fixed order, not by where they sit in memory (`fix.update_order`, 2026-11-18)
+# STABLEORDER: entities act in a fixed order, not by where they sit in memory (`fix.stable_order`, 2026-11-18)
 
-> **Built: `fix.update_order` (tier 1, default ON, off under `/profile:faithful`), sim-visible.**
+> Renamed from `fix.update_order` (hand-in UPDATEORDER.md) before it shipped, by the owner's ruling: the
+> row covers more than the update order. It never shipped, so no retired id.
+
+> **Built: `fix.stable_order` (tier 1, default ON, off under `/profile:faithful`), sim-visible.**
 > The entity update walk visits the update tree's entities by EntityList id instead of by heap address,
 > and the address-decided choices the digests found on the way (who follows whom on a path, which
 > nearby building a citizen visits in its free time) use the id too. Nothing new is saved.
@@ -53,7 +56,7 @@ reverse, across a save: nothing changes on disk; the order switches at the next 
 | `MoveTo::Enter` (0x1400c8970, `moveto.cpp`) | follow speed only behind a character at a HIGHER ADDRESS (`CMP [found], mover; JBE` at 0x1400c8a17) | behind a character with a higher id |
 | `CitizenAIComponent::State_Leisure` (0x14010a560, `citizenai_leisure.cpp`) | `Rand(count)`-th key of a scratch `Set<ComponentEntity*>` of nearby buildings, in pointer order | the `Rand(count)`-th by id (the same draw) |
 
-Each seam reads `Ext::Fix().update_order` once per call (the walk: once per `EntityList::Update`), and
+Each seam reads `Ext::Fix().stable_order` once per call (the walk: once per `EntityList::Update`), and
 the other arm is retail's code as it was.
 
 **Post-update tree (+0x78): left in pointer order, on purpose.** Its only visitor is
@@ -100,7 +103,7 @@ the key would change under a live node whenever `RemoveEntity` re-stamps an id. 
 - **TREE_SNAPSHOT** (the flat in-order copy, rebuilt when the tree changes): unchanged, still in pointer
   order, still rebuilt at the same moments.
 - **The row's permutation** `s_walkOrder`: the snapshot's indices sorted by id, built by
-  `Ext::UpdateOrder::BuildIdOrder` (a counting placement over the dense ids, O(n + master count), no
+  `Ext::StableOrder::BuildIdOrder` (a counting placement over the dense ids, O(n + master count), no
   compare sort). It is stale when the snapshot is rebuilt or when `RemoveEntity` moves an id (one store
   in its swap arm), and the row-on walk rebuilds it then. Visit `j` ticks `snapshot[order[j]]`.
 - **WALKCACHE** (`s_tickList`, one entry per snapshot index): unchanged; the visit uses the entity's
@@ -136,7 +139,7 @@ pays one load per visit for `order[j]`; the timing A/B is the judge.
 
 `tools/stress_run.sh --speed 50 --frames 3000 --hash 10 --no-build`, the default seed, the functional
 dir (`C:/GOG Games/Banished-B`), exe `0e9b74d2` (tip `1c4361d08`), every `fix.*` / `ext.*` line pinned
-to 0 and then `STRESS_EXT=none STRESS_FIXES=update_order,alloc_tiebreak` (per-entry profile, every
+to 0 and then `STRESS_EXT=none STRESS_FIXES=update_order,alloc_tiebreak` (now `stable_order`) (per-entry profile, every
 extension off) unless stated. Every pair's address order differed (`frame=0 ... order=`).
 
 | Pair | Paths | Identical through | First differing digest | What split first |
@@ -162,19 +165,16 @@ latency instead of a ready byte polled every tick. Out of scope here.
 
 ## 7. Open choices
 
-- **The id `update_order`.** The row now also covers two choices that are not the update order (the
-  follow test, the leisure pick); its menu text says "act in a fixed order, not by where they sit in
-  memory". A rename to `address_order` (or `stable_order`) would say it better; not renamed, it needs a
-  ruling, and a fix's id is a settings key a player's file may already hold once it ships.
+- **The id.** Ruled: renamed `update_order` -> `stable_order` before it ships (done).
 - **The Work `_citizens` sets** (section 3) need a container change to be ordered by id; a separate
   block if the remaining splits are traced there.
 
 ## 8. Tests and gates
 
-- `tests/unit/ext_update_order_test.cpp`: the visit is the id order at two address layouts; a snapshot
+- `tests/unit/ext_stable_order_test.cpp`: the visit is the id order at two address layouts; a snapshot
   with id gaps; ids outside the master range or duplicated still tick (last, in pointer order); scratch
   reuse; the follow test by id; the n-th by id of a pointer-keyed set at two layouts; the ids of one
   add / remove sequence (with RemoveEntity's swap) are the same at two address layouts.
 - `tests/unit/ext_registry_test.cpp` `ext_registry_table_shape`: the row is a fix, no class, default ON.
-- Row icon `Entry_update_order.png` (`tools/ext_icons/fixes.py` `draw_update_order`, baked).
+- Row icon `Entry_stable_order.png` (`tools/ext_icons/fixes.py` `draw_stable_order`, baked).
 - The gate and the resave gate run `/profile:faithful`, which forces the row off: retail's order.

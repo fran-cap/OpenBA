@@ -10996,8 +10996,8 @@ inline constexpr uint8_t kRgba_ExtensionsEntry_reflection_hills[9216] = {
     42,42,42,255,42,42,42,255,42,42,42,255,42,42,42,255,42,42,42,255,42,42,42,255,42,42,42,255,42,42,42,255,
     42,42,42,255,42,42,42,255,42,42,42,255,42,42,42,255,42,42,42,255,0,0,0,0,0,0,0,0,0,0,0,0,
 };
-// ExtensionsEntry_update_order: Sprite/Extensions/Entry_update_order.png, 48 x 48
-inline constexpr uint8_t kRgba_ExtensionsEntry_update_order[9216] = {
+// ExtensionsEntry_stable_order: Sprite/Extensions/Entry_stable_order.png, 48 x 48
+inline constexpr uint8_t kRgba_ExtensionsEntry_stable_order[9216] = {
     0,0,0,0,0,0,0,0,0,0,0,0,42,42,42,255,42,42,42,255,42,42,42,255,42,42,42,255,42,42,42,255,
     42,42,42,255,42,42,42,255,42,42,42,255,42,42,42,255,42,42,42,255,42,42,42,255,42,42,42,255,42,42,42,255,
     42,42,42,255,42,42,42,255,42,42,42,255,42,42,42,255,42,42,42,255,42,42,42,255,42,42,42,255,42,42,42,255,
@@ -37764,7 +37764,7 @@ inline const SheetBitmap kBitmaps[kBitmapCount] = {
     { "ExtensionsEntry_shadow_zoom_pulse", "Sprite\\Extensions\\Entry_shadow_zoom_pulse.png", 48, 48, kRgba_ExtensionsEntry_shadow_zoom_pulse },
     { "ExtensionsEntry_priority_after_load", "Sprite\\Extensions\\Entry_priority_after_load.png", 48, 48, kRgba_ExtensionsEntry_priority_after_load },
     { "ExtensionsEntry_reflection_hills", "Sprite\\Extensions\\Entry_reflection_hills.png", 48, 48, kRgba_ExtensionsEntry_reflection_hills },
-    { "ExtensionsEntry_update_order", "Sprite\\Extensions\\Entry_update_order.png", 48, 48, kRgba_ExtensionsEntry_update_order },
+    { "ExtensionsEntry_stable_order", "Sprite\\Extensions\\Entry_stable_order.png", 48, 48, kRgba_ExtensionsEntry_stable_order },
     { "ExtensionsEntry_eye_camera", "Sprite\\Extensions\\Entry_eye_camera.png", 48, 48, kRgba_ExtensionsEntry_eye_camera },
     { "ExtensionsEntry_sharp_ui", "Sprite\\Extensions\\Entry_sharp_ui.png", 48, 48, kRgba_ExtensionsEntry_sharp_ui },
     { "ExtensionsEntry_fast_paths", "Sprite\\Extensions\\Entry_fast_paths.png", 48, 48, kRgba_ExtensionsEntry_fast_paths },

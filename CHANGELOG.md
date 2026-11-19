@@ -28,7 +28,7 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 8. Fog distance at 100: cloud shadows, ambient occlusion and the terrain shading no longer fade out in the distance where the fog used to be (`ext.no_fog`).
 9. A tall hill across a lake or river no longer disappears from the water's reflection when the camera is close to the ground (retail bug, `fix.reflection_hills`).
 10. Wider zoom: fully zoomed out at a flat camera angle, distant ground is no longer cut off behind nearer mountains, in the view and in the water's reflection (`ext.better_camera`).
-11. Citizens, animals and buildings act in a fixed order instead of one set by memory layout, so the same start or save no longer plays out differently for that reason (retail bug, `fix.update_order`).
+11. Citizens, animals and buildings act in a fixed order instead of one set by memory layout, so the same start or save no longer plays out differently for that reason (retail bug, `fix.stable_order`).
 
 ## v1.0.3 (2026-11-10)
 

@@ -1,7 +1,7 @@
 // ============================================================================
-// tests/unit/ext_update_order_test.cpp -- fix.update_order's id permutation
+// tests/unit/ext_stable_order_test.cpp -- fix.stable_order's id permutation
 // ============================================================================
-// src/ext/update_order/update_order.h without the world. The walk snapshot is in
+// src/ext/stable_order/stable_order.h without the world. The walk snapshot is in
 // pointer order (the update tree's key); BuildIdOrder gives the visit order by
 // EntityList id. Proved here: the visit order is the id order whatever the address
 // layout; a snapshot holding only some ids is ordered by them; an entity with no
@@ -10,7 +10,7 @@
 // the hole), come out the same for one sequence of adds and removes at any addresses.
 // ============================================================================
 #include "unit.h"
-#include "ext/update_order/update_order.h"
+#include "ext/stable_order/stable_order.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -19,7 +19,7 @@
 
 namespace {
 
-using Ext::UpdateOrder::BuildIdOrder;
+using Ext::StableOrder::BuildIdOrder;
 
 struct Ent {
     int32_t _entityId;
@@ -59,7 +59,7 @@ struct Master {
 
 }  // namespace
 
-UNIT_TEST(ext_update_order_visits_by_id_at_any_layout) {
+UNIT_TEST(ext_stable_order_visits_by_id_at_any_layout) {
     // The same five entities at two address layouts: the snapshots differ, the visit does not.
     Ent ascending[5] = { {0}, {1}, {2}, {3}, {4} };
     Ent scrambled[5] = { {3}, {0}, {4}, {2}, {1} };
@@ -80,7 +80,7 @@ UNIT_TEST(ext_update_order_visits_by_id_at_any_layout) {
     CHECK(visits[1] == expect);
 }
 
-UNIT_TEST(ext_update_order_subset_of_ids) {
+UNIT_TEST(ext_stable_order_subset_of_ids) {
     // The update tree holds only the ticking entities: ids with gaps, out of a master of 10.
     Ent e[4] = { {7}, {2}, {9}, {4} };
     const std::vector<Ent*> snap = PointerSorted({ &e[0], &e[1], &e[2], &e[3] });
@@ -95,7 +95,7 @@ UNIT_TEST(ext_update_order_subset_of_ids) {
     for (size_t i = 0; i < sorted.size(); ++i) CHECK_EQ(sorted[i], (uint32_t)i);
 }
 
-UNIT_TEST(ext_update_order_unusable_ids_tick_last) {
+UNIT_TEST(ext_stable_order_unusable_ids_tick_last) {
     // -1 (never registered), past the master count, and a duplicate: none is dropped.
     Ent e[5] = { {3}, {-1}, {1}, {12}, {3} };
     const std::vector<Ent*> snap = PointerSorted({ &e[0], &e[1], &e[2], &e[3], &e[4] });
@@ -112,7 +112,7 @@ UNIT_TEST(ext_update_order_unusable_ids_tick_last) {
     for (size_t i = 0; i < sorted.size(); ++i) CHECK_EQ(sorted[i], (uint32_t)i);
 }
 
-UNIT_TEST(ext_update_order_empty_and_reuse) {
+UNIT_TEST(ext_stable_order_empty_and_reuse) {
     std::vector<uint32_t> order = { 9, 9 };
     std::vector<int32_t> slot = { 5 };
     CHECK_EQ(BuildIdOrder<Ent>(nullptr, 0, 0, order, slot), (size_t)0);
@@ -128,17 +128,17 @@ UNIT_TEST(ext_update_order_empty_and_reuse) {
     CHECK_EQ(order[0], (uint32_t)0);
 }
 
-UNIT_TEST(ext_update_order_follow_test_ignores_addresses) {
+UNIT_TEST(ext_stable_order_follow_test_ignores_addresses) {
     // MoveTo::Enter's "the other character comes after the mover": by id at either address order.
     Ent pair[2] = { {7}, {3} };
     Ent* lo = &pair[0];   // the lower address carries the higher id
     Ent* hi = &pair[1];
     CHECK(lo < hi);
-    CHECK(Ext::UpdateOrder::FollowsAfter(hi, hi->_entityId, lo, lo->_entityId));    // 3 before 7
-    CHECK(!Ext::UpdateOrder::FollowsAfter(lo, lo->_entityId, hi, hi->_entityId));
+    CHECK(Ext::StableOrder::FollowsAfter(hi, hi->_entityId, lo, lo->_entityId));    // 3 before 7
+    CHECK(!Ext::StableOrder::FollowsAfter(lo, lo->_entityId, hi, hi->_entityId));
     // Equal ids (never two live entities): the address decides, as retail.
-    CHECK(Ext::UpdateOrder::FollowsAfter(lo, 5, hi, 5));
-    CHECK(!Ext::UpdateOrder::FollowsAfter(hi, 5, lo, 5));
+    CHECK(Ext::StableOrder::FollowsAfter(lo, 5, hi, 5));
+    CHECK(!Ext::StableOrder::FollowsAfter(hi, 5, lo, 5));
 }
 
 namespace {
@@ -149,7 +149,7 @@ struct SetNode {
 };
 }  // namespace
 
-UNIT_TEST(ext_update_order_nth_by_id_ignores_the_set_shape) {
+UNIT_TEST(ext_stable_order_nth_by_id_ignores_the_set_shape) {
     // Three buildings in a pointer-keyed set, at two address layouts: the k-th by id is the same.
     Ent a[3] = { {30}, {10}, {20} };   // ascending addresses carry ids 30, 10, 20
     Ent b[3] = { {10}, {20}, {30} };
@@ -157,14 +157,14 @@ UNIT_TEST(ext_update_order_nth_by_id_ignores_the_set_shape) {
     SetNode la{&a[0], nullptr, nullptr}, ra{&a[2], nullptr, nullptr}, rootA{&a[1], &la, &ra};
     SetNode lb{&b[0], nullptr, nullptr}, rb{&b[2], nullptr, nullptr}, rootB{&b[1], &lb, &rb};
     for (uint32_t k = 0; k < 3; ++k) {
-        CHECK_EQ(Ext::UpdateOrder::NthById(&rootA, k)->_entityId, static_cast<int32_t>(10 * (k + 1)));
-        CHECK_EQ(Ext::UpdateOrder::NthById(&rootB, k)->_entityId, static_cast<int32_t>(10 * (k + 1)));
+        CHECK_EQ(Ext::StableOrder::NthById(&rootA, k)->_entityId, static_cast<int32_t>(10 * (k + 1)));
+        CHECK_EQ(Ext::StableOrder::NthById(&rootB, k)->_entityId, static_cast<int32_t>(10 * (k + 1)));
     }
-    CHECK(Ext::UpdateOrder::NthById(&rootA, 3) == nullptr);
-    CHECK(Ext::UpdateOrder::NthById<SetNode>(nullptr, 0) == nullptr);
+    CHECK(Ext::StableOrder::NthById(&rootA, 3) == nullptr);
+    CHECK(Ext::StableOrder::NthById<SetNode>(nullptr, 0) == nullptr);
 }
 
-UNIT_TEST(ext_update_order_ids_follow_the_add_remove_sequence) {
+UNIT_TEST(ext_stable_order_ids_follow_the_add_remove_sequence) {
     // One sequence of registrations and removals at two address layouts gives every
     // entity the same id, and so the same visit order, though the ids move on removal.
     constexpr int kN = 8;

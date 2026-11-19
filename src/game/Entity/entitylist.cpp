@@ -42,8 +42,8 @@
 #include "stress_harness.h"               // g_compProfOn / CompProf_AddVtbl (BANISHED_STRESS)
 #include "ext/walk_batch/walk_batch.h"    // EXT SEAM (NOT RETAIL, docs/extensions/handins/WALKBATCH.md, WALKGRID.md): ext.walk_batch (A) / ext.walk_batch_grid (B), the batched walk instantiations
 #include "ext/walk_batch_grid/walk_batch_grid.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/WALKGRID.md): ext.walk_batch_grid (B), the grid walk's character tick
-#include "ext/registry.h"                    // Ext::Fix().update_order
-#include "ext/update_order/update_order.h"   // FIX update_order (NOT RETAIL, docs/extensions/handins/UPDATEORDER.md): the id-ordered visit
+#include "ext/registry.h"                    // Ext::Fix().stable_order
+#include "ext/stable_order/stable_order.h"   // FIX stable_order (NOT RETAIL, docs/extensions/handins/STABLEORDER.md): the id-ordered visit
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -402,9 +402,9 @@ extern "C" void EntityList_MarkUpdateTreeDirty() { s_walkDirty = true; }
 static std::vector<TickList::Entry> s_tickList;
 static bool s_tickSorted = false;
 
-// FIX update_order (NOT RETAIL, docs/extensions/handins/UPDATEORDER.md, docs/retail_bugs.md §36):
+// FIX stable_order (NOT RETAIL, docs/extensions/handins/STABLEORDER.md, docs/retail_bugs.md §36):
 // with the row on the walk visits s_walkSnap[s_walkOrder[j]], the snapshot's entities by
-// ascending EntityList id (Ext::UpdateOrder::BuildIdOrder). The snapshot itself stays in
+// ascending EntityList id (Ext::StableOrder::BuildIdOrder). The snapshot itself stays in
 // the tree's pointer order, so s_tickList, the PERFXTBL side table and every pointer
 // lookup above are unchanged. The order is stale when the snapshot is rebuilt
 // (RebuildWalkSnapshot) or an id moves (RemoveEntity's swap of the last master entry);
@@ -428,7 +428,7 @@ template <bool kReserve>
     s_walkSnap.clear();
     s_tickList.clear();
     s_tickSorted = false;
-    s_walkOrderValid = false;   // FIX update_order: the id order follows the snapshot
+    s_walkOrderValid = false;   // FIX stable_order: the id order follows the snapshot
     s_walkOwner = self;
     s_walkCountAtBuild = self->updateTree._count;
     EntityTreeNode* treeRoot = self->updateTree._root;
@@ -571,7 +571,7 @@ template <class Fn>
 }
 
 // `at` maps a visit position to its snapshot index: the identity for retail's order, the
-// fix.update_order permutation with that row on (the stages then run ahead in the visit
+// fix.stable_order permutation with that row on (the stages then run ahead in the visit
 // order, not the snapshot's).
 template <class AtFn>
 [[gnu::always_inline]] static inline void WalkPrefetchStaged(ComponentEntity* const* arr, const TickList::Entry* tl,
@@ -699,7 +699,7 @@ static inline auto MakeWalkTick(const System::Time* time) {
 // (ext.walk_batch), kWalkNoPlace EntityList::UpdateWalkBatchGrid's (ext.walk_batch_grid);
 // kWalkFaithful is the faithful walk (EntityList::Update), the body as it was, with no test in
 // its loop.
-// kIdOrder: FIX update_order (NOT RETAIL, docs/extensions/handins/UPDATEORDER.md) -- false is
+// kIdOrder: FIX stable_order (NOT RETAIL, docs/extensions/handins/STABLEORDER.md) -- false is
 // retail's pointer order, the body as it was; true visits the snapshot by ascending entity id
 // through s_walkOrder (the same entities, the same per-entity visit, another order).
 template <int kWalk, bool kIdOrder>
@@ -714,13 +714,13 @@ static bool WalkUpdateTreeSnapshot(EntityList* self, const System::Time* time, b
     const uint32_t* ord = nullptr;
     if constexpr (kIdOrder) {
         if (!s_walkOrderValid || s_walkOrder.size() != n) {
-            const size_t misplaced = Ext::UpdateOrder::BuildIdOrder(arr, n, self->masterArray._size, s_walkOrder,
+            const size_t misplaced = Ext::StableOrder::BuildIdOrder(arr, n, self->masterArray._size, s_walkOrder,
                                                                     s_walkOrderSlot);
             s_walkOrderValid = true;
             static int s_misplacedLines = 0;   // capped: never more than 4 lines a session
             if (misplaced != 0 && s_misplacedLines < 4) {
                 ++s_misplacedLines;
-                std::fprintf(stderr, "[UpdateOrder] %zu of %zu update-tree entities carry no usable id; "
+                std::fprintf(stderr, "[StableOrder] %zu of %zu update-tree entities carry no usable id; "
                                      "they tick last, in pointer order\n", misplaced, n);
             }
         }
@@ -792,7 +792,7 @@ static bool WalkUpdateTreeSnapshot(EntityList* self, const System::Time* time, b
     return true;
 }
 
-// FIX update_order (NOT RETAIL, docs/extensions/handins/UPDATEORDER.md): the id-ordered walk, out of
+// FIX stable_order (NOT RETAIL, docs/extensions/handins/STABLEORDER.md): the id-ordered walk, out of
 // line so EntityList::Update's faithful walk (inlined there) compiles as it did before the row, and
 // flattened so the per-entity visit inside it is inlined as the faithful walk's is.
 template <int kWalk>
@@ -879,10 +879,10 @@ template <int kWalk>
     EntityTreeNode* treeRoot = updateTree._root;
     // [ext.walk_batch / ext.walk_batch_grid] kWalk: the batched snapshot walks. The tree walk
     // below (the snapshot's corrupt-tree fallback) is retail's in every instantiation.
-    // FIX update_order (NOT RETAIL, docs/extensions/handins/UPDATEORDER.md): the row is read once per
+    // FIX stable_order (NOT RETAIL, docs/extensions/handins/STABLEORDER.md): the row is read once per
     // Update; with it on the snapshot walk visits the entities by EntityList id, else retail's order.
     // The corrupt-tree fallback below stays retail's pointer order either way.
-    const bool idOrder = Ext::Fix().update_order;
+    const bool idOrder = Ext::Fix().stable_order;
     if (treeRoot && (idOrder ? WalkUpdateTreeSnapshotById<kWalk>(this, time, prof)
                              : WalkUpdateTreeSnapshot<kWalk, false>(this, time, prof))) {
         treeRoot = nullptr;   // [PerfX] flat snapshot walk ran -- identical order, no tree chase
@@ -1493,7 +1493,7 @@ void EntityList::RemoveEntity(ComponentEntity** entityIBP) {
 
         // Update swapped entity's master array index
         masterData[entityMasterIdx]->_entityId = entityMasterIdx;
-        // FIX update_order (NOT RETAIL, docs/extensions/handins/UPDATEORDER.md): an id moved, so the
+        // FIX stable_order (NOT RETAIL, docs/extensions/handins/STABLEORDER.md): an id moved, so the
         // id-ordered walk recomputes its order. A store only; retail's order never reads it.
         s_walkOrderValid = false;
     }

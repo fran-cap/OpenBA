@@ -1,8 +1,8 @@
 #pragma once
 // ============================================================================
-// src/ext/update_order/update_order.h -- fix.update_order (fix tier, default ON)
+// src/ext/stable_order/stable_order.h -- fix.stable_order (fix tier, default ON)
 // ============================================================================
-// NOT RETAIL (docs/retail_bugs.md §36, docs/extensions/handins/UPDATEORDER.md).
+// NOT RETAIL (docs/retail_bugs.md §36, docs/extensions/handins/STABLEORDER.md).
 // Retail's EntityList::Update (0x1400c4090) ticks every entity of its update tree
 // (+0x68, a Set<InternalPtr<ComponentEntity>> whose key is the entity pointer,
 // compared unsigned: 0x1400c38e0) in key order, so the order in which citizens
@@ -17,7 +17,7 @@
 //     the hole and re-stamps it. So `masterArray[e->_entityId] == e` always holds, the
 //     ids are dense in [0, master count), unique at any moment, and set only by the
 //     sequence of registrations and removals, which the sim decides (with the row on,
-//     the removal list is filled in id order: UPDATEORDER.md §2).
+//     the removal list is filled in id order: STABLEORDER.md §2).
 //   * an id CHANGES during an entity's life (the swap on a removal), so the order is
 //     recomputed whenever one moves, not only when the tree changes.
 //   * EntityList::Serialize (0x1400c44a0) writes every entity's id and reads it back:
@@ -29,7 +29,7 @@
 // the snapshot's indices sorted by id (BuildIdOrder below). The walk visits
 // snapshot[order[j]].
 //
-// Header-only and world-free: tests/unit/ext_update_order_test.cpp drives it with
+// Header-only and world-free: tests/unit/ext_stable_order_test.cpp drives it with
 // plain structs (any type with an int32_t `_entityId`).
 // ============================================================================
 #include <algorithm>
@@ -38,7 +38,7 @@
 #include <vector>
 
 namespace Ext {
-namespace UpdateOrder {
+namespace StableOrder {
 
 // The permutation of snapshot indices that visits `snap[0..n)` by ascending
 // `_entityId`. `idLimit` is the master array's count: every registered entity's id
@@ -122,5 +122,5 @@ inline auto NthById(const Node* root, uint32_t pick) -> decltype(root->element) 
     return keys[pick];
 }
 
-}  // namespace UpdateOrder
+}  // namespace StableOrder
 }  // namespace Ext
