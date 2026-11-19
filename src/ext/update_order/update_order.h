@@ -32,6 +32,7 @@
 // Header-only and world-free: tests/unit/ext_update_order_test.cpp drives it with
 // plain structs (any type with an int32_t `_entityId`).
 // ============================================================================
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <vector>
@@ -79,6 +80,46 @@ inline size_t BuildIdOrder(Ent* const* snap, size_t n, int32_t idLimit, std::vec
         }
     }
     return misplaced;
+}
+
+// MoveTo::Enter (0x1400c8970): a mover walks at the follow speed only behind a nearby
+// character "after" it, and retail's "after" is a higher ADDRESS (`mover < other`,
+// unsigned). With the row on, "after" is a higher entity id; equal ids (never two live
+// entities) fall back to the address. `moverId` / `otherId` are the two characters'
+// entity ids, read by the seam only with the row on.
+template <class T>
+inline bool FollowsAfter(const T* mover, int32_t moverId, const T* other, int32_t otherId) {
+    if (moverId != otherId) return moverId < otherId;
+    return mover < other;
+}
+
+// CitizenAI's leisure state (0x14010a560) gathers the reachable buildings around a citizen
+// into a scratch Set<ComponentEntity*> (the "home box", keyed by pointer) and takes the
+// Rand(count)-th of its in-order walk: the same draw names a different building in two
+// runs. With the row on the seam takes the `pick`-th key in (entity id, pointer) order
+// instead. `Node` is a Collection::Set node (element, left, right); `Ent` has `_entityId`.
+// Returns nullptr when the set holds `pick` keys or fewer.
+template <class Node>
+inline auto NthById(const Node* root, uint32_t pick) -> decltype(root->element) {
+    using Ent = decltype(root->element);
+    std::vector<Ent> keys;
+    std::vector<const Node*> stack;
+    for (const Node* n = root; n != nullptr || !stack.empty();) {
+        while (n != nullptr) {
+            stack.push_back(n);
+            n = n->left;
+        }
+        n = stack.back();
+        stack.pop_back();
+        keys.push_back(n->element);
+        n = n->right;
+    }
+    if (pick >= keys.size()) return nullptr;
+    std::sort(keys.begin(), keys.end(), [](Ent a, Ent b) {
+        if (a->_entityId != b->_entityId) return a->_entityId < b->_entityId;
+        return a < b;
+    });
+    return keys[pick];
 }
 
 }  // namespace UpdateOrder

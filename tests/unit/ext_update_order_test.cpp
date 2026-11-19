@@ -128,6 +128,42 @@ UNIT_TEST(ext_update_order_empty_and_reuse) {
     CHECK_EQ(order[0], (uint32_t)0);
 }
 
+UNIT_TEST(ext_update_order_follow_test_ignores_addresses) {
+    // MoveTo::Enter's "the other character comes after the mover": by id at either address order.
+    Ent pair[2] = { {7}, {3} };
+    Ent* lo = &pair[0];   // the lower address carries the higher id
+    Ent* hi = &pair[1];
+    CHECK(lo < hi);
+    CHECK(Ext::UpdateOrder::FollowsAfter(hi, hi->_entityId, lo, lo->_entityId));    // 3 before 7
+    CHECK(!Ext::UpdateOrder::FollowsAfter(lo, lo->_entityId, hi, hi->_entityId));
+    // Equal ids (never two live entities): the address decides, as retail.
+    CHECK(Ext::UpdateOrder::FollowsAfter(lo, 5, hi, 5));
+    CHECK(!Ext::UpdateOrder::FollowsAfter(hi, 5, lo, 5));
+}
+
+namespace {
+struct SetNode {
+    Ent* element;
+    SetNode* left;
+    SetNode* right;
+};
+}  // namespace
+
+UNIT_TEST(ext_update_order_nth_by_id_ignores_the_set_shape) {
+    // Three buildings in a pointer-keyed set, at two address layouts: the k-th by id is the same.
+    Ent a[3] = { {30}, {10}, {20} };   // ascending addresses carry ids 30, 10, 20
+    Ent b[3] = { {10}, {20}, {30} };
+    // A balanced set of three: the middle address at the root.
+    SetNode la{&a[0], nullptr, nullptr}, ra{&a[2], nullptr, nullptr}, rootA{&a[1], &la, &ra};
+    SetNode lb{&b[0], nullptr, nullptr}, rb{&b[2], nullptr, nullptr}, rootB{&b[1], &lb, &rb};
+    for (uint32_t k = 0; k < 3; ++k) {
+        CHECK_EQ(Ext::UpdateOrder::NthById(&rootA, k)->_entityId, static_cast<int32_t>(10 * (k + 1)));
+        CHECK_EQ(Ext::UpdateOrder::NthById(&rootB, k)->_entityId, static_cast<int32_t>(10 * (k + 1)));
+    }
+    CHECK(Ext::UpdateOrder::NthById(&rootA, 3) == nullptr);
+    CHECK(Ext::UpdateOrder::NthById<SetNode>(nullptr, 0) == nullptr);
+}
+
 UNIT_TEST(ext_update_order_ids_follow_the_add_remove_sequence) {
     // One sequence of registrations and removals at two address layouts gives every
     // entity the same id, and so the same visit order, though the ids move on removal.

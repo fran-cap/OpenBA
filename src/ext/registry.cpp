@@ -349,9 +349,9 @@ const Entry kEntries[] = {
     // (the tree keeps retail's key; the walk's snapshot is visited through an id permutation). Sim-visible:
     // which citizen gets which random draw. Nothing saved: the ids are retail's own, already in the save.
     { "update_order", Tier::Fix, Class::None, true,
-      "Repeatable update order",
-      "Every citizen, animal and building takes its turn in a fixed order instead of one set by memory "
-      "layout, so the same seed or the same save plays out the same way each time.",
+      "Repeatable turn order",
+      "Citizens, animals and buildings act in a fixed order, not by where they sit in memory, so "
+      "the same start or the same save does not play out differently for that reason.",
       0, [](State& s) -> bool& { return s.fix.update_order; } },
 
     // Extensions. Each one adds a field to Ext::Extensions and a row here:

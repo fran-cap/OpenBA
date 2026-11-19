@@ -55,6 +55,7 @@
 #include "Entity/ComponentEntity.h"   // B4 S4 RT2: InternalPtr<ComponentEntity>::Get() needs the class complete
 #include "ext/registry.h"                      // EXT SEAM (NOT RETAIL): Ext::Fix().stranded_wade
 #include "ext/stranded_wade/stranded_wade.h"   // EXT SEAM (NOT RETAIL, docs/retail_bugs.md §19)
+#include "ext/update_order/update_order.h"     // FIX update_order (NOT RETAIL, docs/retail_bugs.md §36): Enter's follow test
 
 // ============================================================
 // Helpers, called by name (B3R)
@@ -517,7 +518,18 @@ void MoveTo::Enter(ActionStack*, const System::Time*) {
 
     if (bridgeResult != nullptr) {
         // Found a nearby character -- only one at a higher address than ours
-        if (character.Get() < bridgeResult) {
+        // FIX update_order (NOT RETAIL, docs/extensions/handins/UPDATEORDER.md, docs/retail_bugs.md §36):
+        // with the row on, "higher" is the higher entity id, so whether a mover takes the follow speed
+        // does not depend on where the allocator put the two characters. Off: retail's address compare
+        // (0x1400c8970: `CMP [found], mover; JBE` at 0x1400c8a17, unsigned, before the facing dot).
+        bool after;
+        if (Ext::Fix().update_order) {
+            after = Ext::UpdateOrder::FollowsAfter(character.Get(), character.Get()->_entity.Get()->_entityId,
+                                                    bridgeResult, bridgeResult->_entity.Get()->_entityId);
+        } else {
+            after = character.Get() < bridgeResult;
+        }
+        if (after) {
             // Compare facing directions via dot product
             CharacterComponent* mover = character.Get();
 
