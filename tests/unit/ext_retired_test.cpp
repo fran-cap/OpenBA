@@ -9,7 +9,8 @@
 // Only up to the last formatVersion it was written at; anything else stays
 // what an unknown id is. The first real entry is work_cand (WORKCAND.md 7.1);
 // the test-only ones are unit_retired_b (an old class B row, v2) and
-// unit_retired_fix (an old fix), both under BANISHED_UNIT_TEST.
+// unit_retired_fix (an old fix), in this file's own table (kTestRetired,
+// passed with Ext::UseRetiredTable): the registry carries no test-only entry.
 // ============================================================================
 #include "unit.h"
 #include "ext/load_notice.h"
@@ -43,6 +44,21 @@ Ext::State With(std::initializer_list<const char*> on) {
     for (const char* id : on) E(id).slot(s) = true;
     return s;
 }
+
+// The registry's real entry, then an old class B row that reached formatVersion 2 and an old fix.
+const Ext::RetiredEntry kTestRetired[] = {
+    { "work_cand", Ext::Tier::Extension, 1, "as the registry's" },
+    { "unit_retired_b", Ext::Tier::Extension, 2, "test only" },
+    { "unit_retired_fix", Ext::Tier::Fix, 0, "test only" },
+};
+
+// The lookups read kTestRetired while one of these lives; the registry's table is back after it.
+struct TestRetiredTable {
+    TestRetiredTable() {
+        Ext::UseRetiredTable(kTestRetired, static_cast<int>(sizeof(kTestRetired) / sizeof(kTestRetired[0])));
+    }
+    ~TestRetiredTable() { Ext::UseRetiredTable(nullptr, 0); }
+};
 
 Record Rec(const char* id, int32_t v) {
     Record r;
@@ -92,6 +108,7 @@ UNIT_TEST(ext_retired_table_shape) {
 // what an unknown id gets. The notice and the status agree everywhere.
 UNIT_TEST(ext_retired_pseudo_mod_loads_without_notice) {
     Ext::Install(With({}), Ext::Profile::PerEntry, false);
+    TestRetiredTable table;
     using N = Ext::PseudoModNotice;
     CHECK_EQ(Ext::PseudoModLoadStatus("ext:work_cand", 1), 0);
     CHECK(Ext::PseudoModNoticeFor("ext:work_cand", 1) == N::None);
@@ -116,6 +133,7 @@ UNIT_TEST(ext_retired_pseudo_mod_loads_without_notice) {
 // An old save's block-1 manifest: the retired record passes Validate, DropRetired takes it out, and the lock
 // takes the save's other rows. Past the last version, or an id never registered, it stays fatal.
 UNIT_TEST(ext_retired_manifest_validates_then_drops) {
+    TestRetiredTable table;
     std::string offending;
     std::vector<Record> recs = {Rec("unit_b", 1), Rec("work_cand", 1), Rec("unit_c", 3)};
     CHECK(Ext::SaveTail::Validate(recs, &offending) == Status::Ok);

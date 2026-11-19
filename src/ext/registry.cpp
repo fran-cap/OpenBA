@@ -1012,14 +1012,13 @@ const RetiredEntry kRetired[] = {
     // class B, default ON since 2026-11-09, formatVersion 1. The idle work search's sorted flat candidate
     // list is faithful perf work with no row: unconditional in src/game/Component/citizenai_housing_idle.cpp.
     { "work_cand", Tier::Extension, 1, "always on, now faithful perf (the work search's flat candidate list)" },
-#ifdef BANISHED_UNIT_TEST
-    // tests/unit/ext_retired_test.cpp only: an old class B row that reached formatVersion 2, and an old fix.
-    { "unit_retired_b", Tier::Extension, 2, "test only" },
-    { "unit_retired_fix", Tier::Fix, 0, "test only" },
-#endif
 };
 
 constexpr int kRetiredCount = static_cast<int>(sizeof(kRetired) / sizeof(kRetired[0]));
+
+// The table the lookups read: kRetired, or the one a unit test passed to UseRetiredTable.
+const RetiredEntry* s_retired = kRetired;
+int s_retiredCount = kRetiredCount;
 
 // THE VALUED KEYS (registry.h "VALUED KEYS"). Each names its owner row; the
 // ranges are the menu's (AO.md §3: quality 1..3 = Low / Medium / High, 4 = Lowest, Off is
@@ -1499,15 +1498,21 @@ bool IsPseudoModPath(const char* path) {
            std::strncmp(path, kPseudoModPrefix, std::strlen(kPseudoModPrefix)) == 0;
 }
 
-int RetiredCount() { return kRetiredCount; }
+int RetiredCount() { return s_retiredCount; }
 
-const RetiredEntry& RetiredAt(int index) { return kRetired[index]; }
+const RetiredEntry& RetiredAt(int index) { return s_retired[index]; }
 
 const RetiredEntry* FindRetired(const char* id) {
     if (id == nullptr) return nullptr;
-    for (const RetiredEntry& r : kRetired)
-        if (std::strcmp(r.id, id) == 0) return &r;
+    for (int i = 0; i < s_retiredCount; ++i) {
+        if (std::strcmp(s_retired[i].id, id) == 0) return &s_retired[i];
+    }
     return nullptr;
+}
+
+void UseRetiredTable(const RetiredEntry* table, int count) {
+    s_retired = table != nullptr ? table : kRetired;
+    s_retiredCount = table != nullptr ? count : kRetiredCount;
 }
 
 bool RetiredSaveEntry(const char* id, int32_t savedFormatVersion) {

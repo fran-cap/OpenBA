@@ -542,6 +542,10 @@ struct RetiredEntry {
 int RetiredCount();
 const RetiredEntry& RetiredAt(int index);
 const RetiredEntry* FindRetired(const char* id);   // null when the id was never retired
+// The table the three above (and RetiredSaveEntry) read. The game never calls this: the registry's own
+// table is in use from the start. A unit test passes its own table, so the registry carries no test-only
+// entry; nullptr puts the registry's back. `table` must outlive its use.
+void UseRetiredTable(const RetiredEntry* table, int count);
 // True when a save entry naming `id` at `savedFormatVersion` is one a retired B / C row left: `id` is a
 // retired extension and 1 <= savedFormatVersion <= its lastFormatVersion.
 bool RetiredSaveEntry(const char* id, int32_t savedFormatVersion);
