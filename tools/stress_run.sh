@@ -284,7 +284,9 @@ fi
 # per frame because the window came up unfocused (the user was typing elsewhere). As
 # tools/linux_run.sh does: switch it off for the run and restore the file at exit.
 CFG="${BANISHED_USER_DIR:-${USERPROFILE:-$HOME}/Documents/Banished}/settings.cfg"; CFG_SAVED=""   # tools/game_dirs.sh
-if [ -f "$CFG" ] && { grep -q '^GameAutoPause=' "$CFG" || [ -n "${STRESS_EXT:-}" ] || [ -n "${STRESS_CPU_LIMIT:-}" ]; }; then
+# Always saved and restored when the file exists: the game writes settings.cfg back when it quits, and
+# a run that maximised its window (the default) would otherwise leave that size in the user's file.
+if [ -f "$CFG" ]; then
     CFG_SAVED="$(mktemp)"; cp -f "$CFG" "$CFG_SAVED"
     sed -i 's/^GameAutoPause=.*/GameAutoPause=false/' "$CFG"
     trap '[ -n "$CFG_SAVED" ] && cp -f "$CFG_SAVED" "$CFG" && rm -f "$CFG_SAVED"' EXIT
