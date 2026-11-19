@@ -29,6 +29,9 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 9. A tall hill across a lake or river no longer disappears from the water's reflection when the camera is close to the ground (retail bug, `fix.reflection_hills`).
 10. Wider zoom: fully zoomed out at a flat camera angle, distant ground is no longer cut off behind nearer mountains, in the view and in the water's reflection (`ext.better_camera`).
 
+**Changes:**
+1. Faster job search is no longer an extension: it is always on, in every profile. Its row "Faster job search" (`ext.work_cand`) leaves the Extensions dialog; saves made with it load as before, with no notice, and an old `ext.work_cand` line in settings.cfg is ignored.
+
 ## v1.0.3 (2026-11-10)
 
 **Major Changes:**
