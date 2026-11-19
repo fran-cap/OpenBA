@@ -49,7 +49,6 @@ static bool BcOnByDefault(const char* id) {
         "restricted_foods", "item_priority", "tool_names", "recipe_skip", "high_limits", "boat_lane",
         "walk_on_ice", "map_overlays",
         "better_camera",   // Wider zoom: ON on a desktop (the Android first run seeds it off)
-        "work_cand",       // ruled ON 2026-11-09 (WORKCAND.md)
         "trader_request",  // ruled ON 2026-11-11 (TRADERREQUEST.md): a post with no request is retail's
     };
     for (const char* on : kBcOn)
