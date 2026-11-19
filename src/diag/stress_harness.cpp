@@ -56,6 +56,8 @@
 #include "Component/WorkComponent.h"
 #include "Component/WorkDescription.h"
 #include "Game/PlayerToolManager.h"         // B4: GameUpdateLoop::m_toolManager
+#include "Game/PlayerController.h"          // the CSV's view columns: the camera distance
+#include "video/Device.h"                   // the CSV's view columns: the back buffer size
 #include "ext/fast_paths/fast_paths.h"      // PFBENCH: shadow mode switch (COMPPROF level 3)
 #include "Component/ModelComponent.h"       // OFFSCREEN: the character's transform / yaw
 #include "Action/MoveTo.h"                  // OFFSCREEN: the class of a character's top chain
@@ -1814,7 +1816,11 @@ void OpenCsv() {
                         // REPEATABLE (perf/README.md "Repeatable town"): appended. The sim
                         // digest at the row (two runs built the same town while it agrees)
                         // and its rng part (the first to split when a draw moves).
-                        "sim_hash,sim_hash_rng\n");
+                        "sim_hash,sim_hash_rng,"
+                        // THE VIEW at the row, appended: the camera distance and the back buffer.
+                        // A run whose window was not maximized, or whose pin had not applied,
+                        // draws and culls a different scene; the report can tell from these.
+                        "cam_dist,view_w,view_h\n");
     std::fflush(s_csv);
 }
 
@@ -1908,6 +1914,12 @@ void EmitRow(GameUpdateLoop* gul, int frame) {
 
     Census c = TakeCensus(gw);
     const SimHash sim = TakeSimHash(gw);   // REPEATABLE: the sim_hash columns
+    // THE VIEW columns: what the camera and the window were at this row.
+    const PlayerController* viewPc = GameUpdateLoop::_singleton->m_playerController;
+    const ::Video::Device* viewDev = ::Video::Device::_singleton;
+    const double viewDist = viewPc != nullptr ? static_cast<double>(viewPc->distance) : 0.0;
+    const int viewW = viewDev != nullptr ? viewDev->backBufferWidth : 0;
+    const int viewH = viewDev != nullptr ? viewDev->backBufferHeight : 0;
     double ws = 0, priv = 0; MemoryMB(&ws, &priv);
 
     // PFBENCH: take the window (one lock), fold in the main-thread brackets, summarise.
@@ -1943,7 +1955,7 @@ void EmitRow(GameUpdateLoop* gul, int frame) {
                             "%.4f,%.4f,%.4f,"
                             "%.1f,%.1f,"
                             "%.3f,%d,%.3f,%.3f,"
-                            "%016llx,%016llx\n",
+                            "%016llx,%016llx,%.1f,%d,%d\n",
                      pf.requests, pf.reqPerSimS, pf.searchUsP50, pf.searchUsP95, pf.searchUsMax,
                      pf.expandedMean, pf.expandedP95, pf.waitUsP50, pf.waitUsP95, pf.queueMax,
                      pf.fail, pf.workerBusyPct, pf.lenMean, pf.e2eUsP50, pf.e2eUsP95,
@@ -1954,7 +1966,8 @@ void EmitRow(GameUpdateLoop* gul, int frame) {
                      pipeMain, pipePacket, pipeEmit,
                      pipeWaitUs, pipeLatencyUs,
                      s_hWinMax, s_hWinN, s_hWinExcessMax, s_hWinExcessSum,
-                     static_cast<unsigned long long>(sim.All()), static_cast<unsigned long long>(sim.rng));
+                     static_cast<unsigned long long>(sim.All()), static_cast<unsigned long long>(sim.rng),
+                     viewDist, viewW, viewH);
         std::fflush(s_csv);
     }
     if (HitchOn()) {
