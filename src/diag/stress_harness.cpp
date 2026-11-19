@@ -87,6 +87,9 @@
 #include "ext/drain_split/drain_split.h"       // HITCH_DRAINSPLIT: the [Stress::drainsplit] counters
 #include "Component/HighlightComponent.h"   // P13_OVERLAP 2.8: COMPPROF=5's outline repaints (PinProvoke)
 #include "Component/MapComponent.h"         //   its targets: the outlines Repaint builds (fields, orchards)
+#include "Game/Map.h"                       // REPEATABLE: Map::pathfinder (the sim digest, the inline arm)
+#include "Game/PathfinderThread.h"          // REPEATABLE: nextToken, runInline, DrainQueue
+#include "system/Value.h"                   // REPEATABLE: System::Random (the sim digest's rng part)
 #define WIN32_LEAN_AND_MEAN
 #if defined(_WIN32)
 #include <windows.h>
@@ -475,6 +478,143 @@ Census TakeCensus(GameUpdateLoop* gw) {
     }
     if (c.citizens) { c.ageMean = age / c.citizens; c.hungerMean = hunger / c.citizens; }
     return c;
+}
+
+// ── REPEATABLE: the sim-state digest (perf/README.md "Repeatable town") ─────────────
+// Two runs of one exe with one seed build the same town only if this digest agrees row by row.
+// Four parts, so a mismatch says WHAT differs first: the world Random's whole state (every draw
+// of the sim and of the audio scene advances it), the entity count, the path requests made so
+// far (the pathfinder's token counter), and every citizen's vitals, action-stack depth and
+// position (float bits). Nothing here is a pointer value: addresses differ run to run.
+// The cost is one pass over the citizens plus 2.5 KB of Random state: once per CSV row, or
+// every BANISHED_STRESS_HASH frames when the bisecting line is asked for.
+struct SimHash {
+    uint64_t rng = 0, ent = 0, pf = 0, cit = 0;
+    int pop = 0;
+    uint64_t All() const {
+        uint64_t h = rng;
+        h = h * 0x100000001b3ULL ^ ent;
+        h = h * 0x100000001b3ULL ^ pf;
+        h = h * 0x100000001b3ULL ^ cit;
+        return h;
+    }
+};
+
+struct Fnv {
+    uint64_t h = 0xcbf29ce484222325ULL;
+    void Bytes(const void* p, size_t n) {
+        const unsigned char* b = static_cast<const unsigned char*>(p);
+        for (size_t i = 0; i < n; ++i) {
+            h ^= b[i];
+            h *= 0x100000001b3ULL;
+        }
+    }
+    void U32(uint32_t v) { Bytes(&v, sizeof(v)); }
+    void F32(float v) {
+        uint32_t u;
+        std::memcpy(&u, &v, sizeof(u));
+        U32(u);
+    }
+};
+
+SimHash TakeSimHash(GameUpdateLoop* gw) {
+    SimHash s;
+    if (!Readable(gw)) return s;
+    if (Readable(gw->m_random)) {
+        Fnv f;
+        f.Bytes(gw->m_random, sizeof(System::Random));
+        s.rng = f.h;
+    }
+    if (Readable(gw->m_entityList)) {
+        Fnv f;
+        f.U32(static_cast<uint32_t>(gw->m_entityList->masterArray._size));
+        s.ent = f.h;
+    }
+    Map* map = gw->m_game;
+    if (Readable(map) && Readable(map->pathfinder)) {
+        Fnv f;
+        f.U32(static_cast<uint32_t>(map->pathfinder->nextToken));
+        f.U32(static_cast<uint32_t>(map->pathfinder->results.size));
+        s.pf = f.h;
+    }
+    CitizenBehavior* town = gw->m_citizenList;
+    if (!Readable(town)) return s;
+    Object::InternalPtr<CitizenComponent>* arr = town->citizens._data;
+    const int n = town->citizens._size;
+    if (!arr || n <= 0 || n > 100000) return s;
+    Fnv f;
+    for (int i = 0; i < n; ++i) {
+        CitizenComponent* cz = arr[i].Get();
+        if (!Readable(cz)) {
+            f.U32(0xffffffffu);
+            continue;
+        }
+        ++s.pop;
+        f.F32(cz->age);
+        f.F32(cz->hunger);
+        f.F32(cz->health);
+        f.F32(cz->happiness);
+        CharacterComponent* ch = cz->character.Get();
+        if (!Readable(ch)) continue;
+        f.U32(static_cast<uint32_t>(ch->actionStack.current));
+        ModelComponent* mc = ch->modelComponent.Get();
+        if (!Readable(mc)) continue;
+        f.F32(mc->transform.translation.x);
+        f.F32(mc->transform.translation.y);
+        f.F32(mc->transform.translation.z);
+    }
+    s.cit = f.h;
+    return s;
+}
+
+// REPEATABLE: BANISHED_STRESS_PATH_INLINE (tools/stress_run.sh --inline-paths). Retail's pathfinder
+// answers on a worker thread and a mover polls the ready byte every sim tick (MoveTo::Execute
+// 0x1400c8570), so the tick a path lands on is the worker's wall-clock race against the sim:
+// at speed 50 one Update runs 50 ticks in a few ms and the worker finishes somewhere inside
+// them. Retail's own runInline byte (+0x5c, never set by retail: the ctor stores 0) makes every
+// enqueuer apply its command at once on the calling thread; the harness sets it on the first
+// Update of each world after draining what the load queued, so a path is ready on the tick
+// after it was asked for, in every run. The searches then cost main-thread time (the pf_search
+// columns say how much); the game itself never sets the byte. This removes the worker race only:
+// the update order (UpdateOrderLine below) still differs run to run, so the towns still drift.
+GameUpdateLoop* s_inlineWorld = nullptr;
+void PathInlineArm(GameUpdateLoop* gw) {
+    if (!Opt().stressPathInline || gw == nullptr || gw == s_inlineWorld) return;
+    Map* map = gw->m_game;
+    if (map == nullptr || map->pathfinder == nullptr) return;
+    s_inlineWorld = gw;
+    PathfinderThread* pf = map->pathfinder;
+    pf->DrainQueue();   // the load's queued commands applied, the worker finished
+    pf->runInline = 1;
+    std::fprintf(stderr, "[Stress] path requests inline: worker drained, "
+                         "runInline set, %d requests so far\n", pf->nextToken - 1);
+}
+
+// REPEATABLE: the second source, which the harness cannot remove. EntityList's update tree
+// (+0x68) is a Set<ComponentEntity*> ordered by ADDRESS, as retail's is, so the order in which
+// the entities tick, and so which citizen receives which draw of the world Random, follows where
+// the allocator put them; that differs run to run. One line per world before its first tick
+// (BANISHED_STRESS_HASH only): the digest of the entity ids taken in address order and the first
+// sixteen of them. Two runs with different `order` lines tick their towns in different orders.
+GameUpdateLoop* s_orderWorld = nullptr;
+void UpdateOrderLine(GameUpdateLoop* gw) {
+    if (gw == nullptr || gw == s_orderWorld || gw->m_entityList == nullptr) return;
+    s_orderWorld = gw;
+    EntityList* el = gw->m_entityList;
+    std::vector<std::pair<uintptr_t, int>> order;
+    order.reserve(static_cast<size_t>(el->masterArray._size));
+    for (int i = 0; i < el->masterArray._size; ++i) {
+        ComponentEntity* e = el->masterArray._data[i].Get();
+        if (e != nullptr)
+            order.push_back({reinterpret_cast<uintptr_t>(e), e->_entityId});   // CAST-OK: ptr_int
+    }
+    std::sort(order.begin(), order.end());
+    Fnv f;
+    for (const auto& p : order) f.U32(static_cast<uint32_t>(p.second));
+    std::fprintf(stderr, "[Stress::hash] frame=0 entities=%zu order=%016llx first ids in address order:",
+                 order.size(), static_cast<unsigned long long>(f.h));
+    for (size_t i = 0; i < order.size() && i < 16; ++i) std::fprintf(stderr, " %d", order[i].second);
+    std::fprintf(stderr, "\n");
 }
 
 #if defined(_WIN32)
@@ -1511,6 +1651,9 @@ void OpenCsv() {
         Cpu::Describe(Cpu::Get(), cpu, sizeof(cpu));
         std::fprintf(s_csv, "# cpu %s\n", cpu);
     }
+    // REPEATABLE: stress_report.py reads this line to say whether two runs CAN build one town.
+    std::fprintf(s_csv, "# paths %s\n", Opt().stressPathInline ? "inline (searched on the main thread; no worker race)"
+                                                                : "async (retail's worker: arrival follows wall-clock time)");
     std::fprintf(s_csv, "wall_s,world,frame,speed,sim_iters,fps,frame_ms_mean,frame_ms_p95,"
                         "update_ms_mean,update_ms_p95,update_ms_per_iter,draw_ms_mean,"
                         "ph_paircache_ms,ph_animation_ms,ph_entitylist_ms,ph_weather_ms,"
@@ -1531,7 +1674,11 @@ void OpenCsv() {
                         "pipe_wait_us,pipe_latency_us,"
                         // HITCH (perf/README.md "Hitches"): appended. The window's longest
                         // Draw-to-Draw period and its hitch count / worst / summed excess.
-                        "frame_ms_max,hitch_n,hitch_excess_max_ms,hitch_excess_sum_ms\n");
+                        "frame_ms_max,hitch_n,hitch_excess_max_ms,hitch_excess_sum_ms,"
+                        // REPEATABLE (perf/README.md "Repeatable town"): appended. The sim
+                        // digest at the row (two runs built the same town while it agrees)
+                        // and its rng part (the first to split when a draw moves).
+                        "sim_hash,sim_hash_rng\n");
     std::fflush(s_csv);
 }
 
@@ -1624,6 +1771,7 @@ void EmitRow(GameUpdateLoop* gul, int frame) {
     for (int i = 0; i < phN; ++i) ph[i] /= (s_updN ? s_updN : 1);
 
     Census c = TakeCensus(gw);
+    const SimHash sim = TakeSimHash(gw);   // REPEATABLE: the sim_hash columns
     double ws = 0, priv = 0; MemoryMB(&ws, &priv);
 
     // PFBENCH: take the window (one lock), fold in the main-thread brackets, summarise.
@@ -1658,7 +1806,8 @@ void EmitRow(GameUpdateLoop* gul, int frame) {
                             "%.4f,%.4f,%.4f,"
                             "%.4f,%.4f,%.4f,"
                             "%.1f,%.1f,"
-                            "%.3f,%d,%.3f,%.3f\n",
+                            "%.3f,%d,%.3f,%.3f,"
+                            "%016llx,%016llx\n",
                      pf.requests, pf.reqPerSimS, pf.searchUsP50, pf.searchUsP95, pf.searchUsMax,
                      pf.expandedMean, pf.expandedP95, pf.waitUsP50, pf.waitUsP95, pf.queueMax,
                      pf.fail, pf.workerBusyPct, pf.lenMean, pf.e2eUsP50, pf.e2eUsP95,
@@ -1668,7 +1817,8 @@ void EmitRow(GameUpdateLoop* gul, int frame) {
                      pf.syncWaitMs, pf.pathDistanceMs, pf.fillZonesMs,
                      pipeMain, pipePacket, pipeEmit,
                      pipeWaitUs, pipeLatencyUs,
-                     s_hWinMax, s_hWinN, s_hWinExcessMax, s_hWinExcessSum);
+                     s_hWinMax, s_hWinN, s_hWinExcessMax, s_hWinExcessSum,
+                     static_cast<unsigned long long>(sim.All()), static_cast<unsigned long long>(sim.rng));
         std::fflush(s_csv);
     }
     if (HitchOn()) {
@@ -1850,6 +2000,8 @@ extern "C" void StressHarness_UpdateBegin(int frameNum) {
     if (!StressHarness_Enabled()) return;
     (void)frameNum;
     ++s_pfFrame;   // E2E SPLIT
+    PathInlineArm(GameUpdateLoop::_singleton);   // REPEATABLE: before the first sim tick, outside the timer
+    if (Opt().stressHash > 0) UpdateOrderLine(GameUpdateLoop::_singleton);   // REPEATABLE: once per world
     s_updT0 = QpcNow();
     if (!s_runT0) s_runT0 = s_updT0;
     // P13_OVERLAP 2.8 (COMPPROF=5): at the step's start, where a claimed emit is likeliest
@@ -1902,6 +2054,16 @@ extern "C" void StressHarness_UpdateEnd(GameUpdateLoop* gul, int frameNum) {
 
     const long long harnessT0 = QpcNow();   // HITCH: the harness's own work below is not the game's
     if (gw && s_homeWatch) HomeShadowScan(gw);
+    // REPEATABLE: the bisecting digest line (BANISHED_STRESS_HASH=N, off by default), taken after
+    // the Update's sim and before the harness's own passes below touch the town.
+    if (gw && Opt().stressHash > 0 && s_worldFrame % Opt().stressHash == 0) {
+        const SimHash h = TakeSimHash(gw);
+        std::fprintf(stderr, "[Stress::hash] frame=%d all=%016llx rng=%016llx ent=%016llx pf=%016llx "
+                             "cit=%016llx pop=%d\n",
+                     s_worldFrame, static_cast<unsigned long long>(h.All()),
+                     static_cast<unsigned long long>(h.rng), static_cast<unsigned long long>(h.ent),
+                     static_cast<unsigned long long>(h.pf), static_cast<unsigned long long>(h.cit), h.pop);
+    }
     if (s_worldFrame % s_interval == 0) EmitRow(gul, frameNum);
     if (gw && s_worldFrame % s_interval == 0) FoodCensus(gw, s_worldFrame);
     if (s_worldFrame % s_interval == 0 && Ext::SpreadWarmth::g_on) {   // HITCH_PFBURST: ext.spread_warmth, cumulative

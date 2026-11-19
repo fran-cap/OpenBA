@@ -39,7 +39,15 @@
 #   tools/stress_run.sh [--label NAME] [--speed N] [--citizens N] [--sets N] [--frames N]
 #                       [--interval N] [--seed N] [--map small|medium|large]
 #                       [--baseline CSV|none] [--no-build] [--debug] [--timeout SECS]
-#                       [--lock LANE] [--no-load] [--spread]
+#                       [--lock LANE] [--no-load] [--spread] [--inline-paths] [--hash N]
+#   --inline-paths every path request is searched on the main thread when it is made
+#                 (BANISHED_STRESS_PATH_INLINE=1) instead of by retail's worker, which answers
+#                 on wall-clock time. Removes ONE of the two sources that make two runs of a
+#                 seed different towns; the other (the entity update order follows heap
+#                 addresses) needs a game-side change: perf/README.md "Repeatable town".
+#                 Off by default: the searches then cost main-thread time
+#   --hash N      a [Stress::hash] sim-digest line every N world frames in standalone_error.log
+#                 (BANISHED_STRESS_HASH; 1 = every frame), to find the first frame two runs differ
 #   --spread      the PFBENCH spread layout: workplaces and storage a quarter map west of
 #                 the centre, houses a quarter map east (BANISHED_STRESS_SETS=-N, N = --sets
 #                 or 3), so path requests dominate the run
@@ -71,6 +79,7 @@ BUILDER="${BUILDER:-tools/build.sh}"   # the CMake build (2026-10-11; was mingw3
 ORIG_ARGS=("$@")
 LABEL="run"; SPEED=""; CITIZENS=""; SETS=""; FRAMES=""; INTERVAL=""; SEED=""; MAP=""
 BASELINE=""; BUILD=1; DEBUG=0; TIMEOUT=""; LOCK_LANE=""; LOAD=1; SPREAD=0
+PATH_INLINE=0; HASH=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --label)    LABEL="$2"; shift 2 ;;
@@ -86,6 +95,8 @@ while [ $# -gt 0 ]; do
         --lock)     LOCK_LANE="$2"; shift 2 ;;
         --no-load)  LOAD=0; shift ;;
         --spread)   SPREAD=1; shift ;;
+        --inline-paths) PATH_INLINE=1; shift ;;
+        --hash)     HASH="$2"; shift 2 ;;
         --no-build) BUILD=0; shift ;;
         --debug)    DEBUG=1; BUILD=0; shift ;;
         -h|--help)  sed -n '2,30p' "$0"; exit 0 ;;
@@ -177,6 +188,9 @@ export BANISHED_STRESS=1
 [ -n "$INTERVAL" ] && export BANISHED_STRESS_INTERVAL="$INTERVAL"
 [ -n "$SEED" ]     && export BANISHED_SEED="$SEED"
 [ -n "$MAP" ]      && export BANISHED_MAP_SIZE="$MAP"
+[ -n "$HASH" ]     && export BANISHED_STRESS_HASH="$HASH"
+# --inline-paths (perf/README.md "Repeatable town"); an exported value wins, as for the knobs.
+if [ -z "${BANISHED_STRESS_PATH_INLINE:-}" ]; then export BANISHED_STRESS_PATH_INLINE="$PATH_INLINE"; fi
 
 if tasklist 2>/dev/null | grep -qi 'OpenBA.exe'; then
     echo "OpenBA.exe is already running -- stop it first" >&2
@@ -307,7 +321,7 @@ if [ -n "${STRESS_CPU_LIMIT:-}" ]; then
     echo "== STRESS_CPU_LIMIT=$STRESS_CPU_LIMIT: sys.cpu_limit set for this run (settings.cfg restored at exit)"
 fi
 
-echo "== launching  label=$LABEL speed=${SPEED:-default} citizens=${CITIZENS:-default} sets=${SETS:-default} frames=$FRAMES_EFF debug=$DEBUG"
+echo "== launching  label=$LABEL speed=${SPEED:-default} citizens=${CITIZENS:-default} sets=${SETS:-default} frames=$FRAMES_EFF debug=$DEBUG paths=$([ "$BANISHED_STRESS_PATH_INLINE" = 0 ] && echo async || echo inline)"
 echo "   results -> $OUT"
 # STRESS_PROFILE (default faithful): the exe's /profile:<name> switch (docs/extensions/DESIGN.md);
 # `all` turns every fix and extension on for the everything-on comparison.

@@ -195,6 +195,55 @@ CitizenAI/Citizen/Character Updates dominate it; memory flat.
 Keep old baselines as `perf/baselines/<date>_<commit>.csv` when you replace `current.csv`
 so a regression can be bisected by re-diffing.
 
+## Repeatable town (2026-11-18): two runs of one seed are two towns
+
+**Two stress runs of the same exe with the same seed do not simulate the same town**, and the
+sim cost follows the town. A difference between two runs is therefore mostly *workload*, not
+measurement noise: the six runs of 2026-11-18 (`perf/results/20261118_*_td_*`) all held 803
+citizens at frame 600 and 723 to 1000 at frame 3000. The run that fell to 723 (`ibs_off`) is the
+path worker falling behind: queue 67k deep, a 1.4 s median wait, worker 99.8% busy at frame 1200,
+then starvation. A one-run "18%" between two exes of the same code is that drift.
+
+Where it comes from (measured with the sim digest below; the world before the first sim tick is
+byte-identical run to run: all 803 citizens and the world Random):
+
+1. **The entity update order follows heap addresses.** `EntityList::updateTree` (+0x68) is a
+   `Set<ComponentEntity*>` ordered by pointer, as retail's is (`src/game/Entity/EntityList.h`), so
+   the order in which entities tick, and so which citizen receives which draw of the world Random,
+   follows where the allocator put each entity. The address order of the entity ids differed in
+   every pair of runs measured (the `[Stress::hash] frame=0 ... order=` line). After the first
+   Update (50 ticks at speed 50) 4 to 12 of the 803 citizens stand somewhere else while the world
+   Random's state is still identical: the same draws went to different citizens. **Retail behaves
+   the same** (same tree, its allocator's addresses vary too); the harness cannot change it.
+2. **Retail's path worker.** A mover polls the result's ready byte every tick (`MoveTo::Execute`,
+   0x1400c8570), so the tick a path lands on is the worker thread's race against the sim. At
+   speed 50 one Update is 50 ticks in a few ms. Also retail behaviour. `--inline-paths`
+   (`BANISHED_STRESS_PATH_INLINE=1`) removes this one: the harness drains the worker and sets the
+   pathfinder's own `runInline` byte (+0x5c, which retail never sets), so every request is searched
+   on the main thread when it is made. The searches then cost main-thread time, and the worker's
+   meltdown regime (the 723 run) cannot happen. On its own it does not repeat the town (source 1).
+
+What a reader does about it:
+
+- `stress_report.py --baseline` prints a **WORKLOAD** block: each row's population and entities
+  in both runs and whether the sim digest agrees. When the population differs by more than 2% at
+  some row, the timing deltas are labelled `(workload: different towns)` and no REGRESSION or PLAN
+  verdict is given. A CSV older than the `sim_hash` column says UNKNOWN.
+- Compare the rows before the towns drift apart: `--rows-to FRAME` (the first window agrees to
+  2-3%), or several runs a side, or the per-1000-citizen line (a first-order correction only).
+- The `sim_hash` / `sim_hash_rng` columns are the digest at each row: the world Random's whole
+  state, the entity count, the path requests made so far, and every citizen's vitals, action-stack
+  depth and position. `--hash N` (`BANISHED_STRESS_HASH=N`) prints `[Stress::hash]` lines every N
+  world frames to `standalone_error.log`, plus the one-shot `frame=0 ... order=` line. Two runs'
+  lines diffed frame by frame give the first frame they differ and which part split first.
+
+What would make the town repeat (game or engine changes, NOT made here): order the update tree
+(and the post-update tree) by the entity's stable id, the way `fix.alloc_tiebreak` orders the
+employment allocator's trees (a `fix.*` row; it changes the tick order, so the town and saves play
+out differently from retail's); or a deterministic allocator (one reserved range at a fixed base,
+no allocation or free on another thread during the sim). Either one together with `--inline-paths`
+should give one town per seed; the digest proves or disproves it on the first run pair.
+
 ## Retail as the target
 
 Retail cannot be driven by these env vars, but the same world can be put in front of it:

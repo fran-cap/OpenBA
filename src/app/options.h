@@ -139,6 +139,14 @@ struct Options {
     double      stressHitchMs        = 1000.0 / 140.0; // BANISHED_STRESS_HITCH_MS — HITCH: a frame whose Draw-to-Draw period
                                                //   exceeds the rolling median by more than this is logged to
                                                //   standalone_stress_hitch.csv (perf/README.md "Hitches"); 0 = off
+    int         stressHash           = 0;      // BANISHED_STRESS_HASH — tools/stress_run.sh --hash N: one [Stress::hash] line
+                                               //   (the sim-state digest: RNG, entities, path requests, citizens) every N
+                                               //   world frames, to find the first frame two runs differ; 0 = off (the CSV's
+                                               //   sim_hash column is written regardless, once per row)
+    bool        stressPathInline     = false;  // BANISHED_STRESS_PATH_INLINE — tools/stress_run.sh --inline-paths: the harness
+                                               //   drains the path worker and sets the pathfinder's runInline byte, so every
+                                               //   path request is searched on the main thread when it is made (no wall-clock
+                                               //   race). NOT RETAIL TIMING (perf/README.md "Repeatable town"); stress only
 
     // ── perf: profiling and frame pacing ─────────────────────────────────────
     int         sample               = 0;      // tools/sample_report.py, perf/README.md — sampling profiler Hz; 0 = off
