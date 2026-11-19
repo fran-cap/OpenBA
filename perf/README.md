@@ -63,8 +63,14 @@ normal Easy founding town, on a **medium (384) map**, seed 31337 (12345's town a
   Citizens still fetch it and carry it home. Each CSV row is followed by a `[Stress::food]`
   line: storage / house / other food, the units topped up, and each food store's
   food/used/capacity.
-- **Houses** (`--houses`, `BANISHED_STRESS_HOUSES=1`, **off by default** so older baselines stay
-  comparable): the town never builds, so the children who grow up stay with a parent and each
+- **The default run** (ruled 2026-11-19): `--mode player`, houses on, full staff, async paths. `player`
+  is the registry's default rows, what ships; `--mode faithful` is every fix and extension off, the
+  port's own code. The two have different bottlenecks: faithful is sim-bound, and with the default rows
+  the hand-off between the main and the render thread sets the pace. With the default rows the camera
+  changes the sim (`ext.render_culling` skips work for off-screen citizens), so the CSV carries
+  `cam_dist`, `view_w`, `view_h` and the report says when two runs' views differ. Baselines cut before
+  that date ran faithful, without houses, at default staff.
+- **Houses** (`BANISHED_STRESS_HOUSES=1`, on by default, `--no-houses` turns it off): the town never builds, so the children who grow up stay with a parent and each
   of them runs `CitizenComponent::FindHome` (every citizen, then every residence) on every idle
   update; that cost grows with the square of the population. With `--houses` a **housing pass**
   (`HousePass` in `src/diag/stress_harness.cpp`) runs every 300 world frames from frame 600: it
@@ -85,7 +91,7 @@ normal Easy founding town, on a **medium (384) map**, seed 31337 (12345's town a
   were placed. From about frame 8400 the free, tree-free, reachable ground runs out (`noSite` in the
   line), so a longer run falls behind again. The pass runs after the Update timer (not in
   `update_ms`) but inside the frame: 35-120 ms per CSV window, at most about 60 ms in one frame.
-- **Full staff** (`--full-staff`, `BANISHED_STRESS_FULL_STAFF=1`, off by default): the staffing
+- **Full staff** (`BANISHED_STRESS_FULL_STAFF=1`, on by default, `--no-full-staff` turns it off): the staffing
   pass raises every workplace to its template's `_maxWorkerCount` (the panel spinner's
   `SetMaxWorkers`, 0x14012fb00) and seats that many instead of `_defaultWorkers`, so new adults
   are employed instead of joining the idle labourers.

@@ -346,6 +346,14 @@ def workload_check(rows, brows):
     return table, first_hash, first_pop, hashed
 
 
+def view_of(rows):
+    """The camera distance and back buffer of a run's last row ("n/a": a CSV from before the columns)."""
+    if not rows or "cam_dist" not in rows[-1]:
+        return "n/a"
+    r = rows[-1]
+    return "dist {:.0f} {:.0f}x{:.0f}".format(r["cam_dist"], r["view_w"], r["view_h"])
+
+
 def print_workload(meta, bmeta, rows, brows, s, b):
     """The WORKLOAD block of a baseline comparison. Returns True when the populations differ by
     more than WORKLOAD_POP_TOL_PCT at some compared row: the timing verdicts are then withheld."""
@@ -363,6 +371,13 @@ def print_workload(meta, bmeta, rows, brows, s, b):
               f"(tools/stress_run.sh --houses), so the populations, entities and FindHome cost differ by design")
     if sa != sb:
         print(f"  !! the staffing differs ({sb} vs {sa}): --full-staff seats every workplace to its maximum")
+    va, vb = view_of(rows), view_of(brows)
+    print(f"  view      baseline {vb}   now {va}")
+    if "n/a" in (va, vb):
+        print("  the view is missing from one CSV: whether the camera and window matched is UNKNOWN")
+    elif va != vb:
+        print("  !! the views differ (camera distance / back buffer): draw and culling figures are not "
+              "comparable, and with the default rows neither is the sim (ext.render_culling)")
     print("  {:>6} {:>9} {:>9} {:>7} {:>9} {:>9}  {}".format(
         "frame", "cit base", "cit now", "delta", "ent base", "ent now", "sim_hash"))
     for f, cb, ca, dpop, eb, ea, same in table:

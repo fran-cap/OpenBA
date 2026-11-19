@@ -40,14 +40,24 @@
 #                       [--interval N] [--seed N] [--map small|medium|large]
 #                       [--baseline CSV|none] [--no-build] [--debug] [--timeout SECS]
 #                       [--lock LANE] [--no-load] [--spread] [--inline-paths] [--hash N]
-#                       [--houses] [--full-staff]
+#                       [--mode player|faithful] [--no-houses] [--no-full-staff]
+#   --mode        WHAT IS MEASURED (ruled 2026-11-19; STRESS_MODE sets it too). `player`, the default:
+#                 the registry's default rows, i.e. what ships -- every `ext.` / `fix.` line is taken
+#                 out of settings.cfg for the run (restored at exit) and the exe runs per-entry.
+#                 `faithful`: /profile:faithful, every fix and extension off, the port's own code.
+#                 The two have different bottlenecks (faithful is sim-bound; with the default rows
+#                 the main / render hand-off sets the pace). An explicit STRESS_PROFILE or STRESS_EXT
+#                 wins over the mode. Baselines cut before this date ran faithful, no houses,
+#                 default staff: the report's WORKLOAD block says so when they are compared
 #   --houses      the harness housing pass (BANISHED_STRESS_HOUSES=1): every 300 world frames from
 #                 frame 600 it places completed houses, by the founding town's siting, for the
 #                 households CitizenComponent::FindHome would move (grown children with a parent,
 #                 the homeless, hostel households) that no free house is waiting for.
-#                 perf/README.md "What the town is". Off by default: older baselines stay comparable
+#                 perf/README.md "What the town is". ON by default since 2026-11-19
+#                 (--houses is accepted and does nothing); --no-houses turns it off
 #   --full-staff  the staffing pass seats every workplace up to its template's _maxWorkerCount
-#                 instead of _defaultWorkers (BANISHED_STRESS_FULL_STAFF=1). Off by default
+#                 instead of _defaultWorkers (BANISHED_STRESS_FULL_STAFF=1). ON by default
+#                 since 2026-11-19; --no-full-staff turns it off
 #   --inline-paths every path request is searched on the main thread when it is made
 #                 (BANISHED_STRESS_PATH_INLINE=1) instead of by retail's worker, which answers
 #                 on wall-clock time. Removes ONE of the two sources that make two runs of a
@@ -87,7 +97,7 @@ BUILDER="${BUILDER:-tools/build.sh}"   # the CMake build (2026-10-11; was mingw3
 ORIG_ARGS=("$@")
 LABEL="run"; SPEED=""; CITIZENS=""; SETS=""; FRAMES=""; INTERVAL=""; SEED=""; MAP=""
 BASELINE=""; BUILD=1; DEBUG=0; TIMEOUT=""; LOCK_LANE=""; LOAD=1; SPREAD=0
-PATH_INLINE=0; HASH=""; HOUSES=0; FULL_STAFF=0
+PATH_INLINE=0; HASH=""; HOUSES=1; FULL_STAFF=1; MODE="${STRESS_MODE:-player}"
 while [ $# -gt 0 ]; do
     case "$1" in
         --label)    LABEL="$2"; shift 2 ;;
@@ -105,7 +115,10 @@ while [ $# -gt 0 ]; do
         --spread)   SPREAD=1; shift ;;
         --inline-paths) PATH_INLINE=1; shift ;;
         --houses)   HOUSES=1; shift ;;
+        --no-houses) HOUSES=0; shift ;;
         --full-staff) FULL_STAFF=1; shift ;;
+        --no-full-staff) FULL_STAFF=0; shift ;;
+        --mode)     MODE="$2"; shift 2 ;;
         --hash)    HASH="$2"; shift 2 ;;
         --no-build) BUILD=0; shift ;;
         --debug)    DEBUG=1; BUILD=0; shift ;;
@@ -276,6 +289,24 @@ fi
 # fewer entities; STRESS_FIXES=keep restores the old behaviour), and the exe runs WITHOUT
 # /profile (per-entry), so exactly the listed extensions are on. The file is restored at exit
 # (the trap above).
+# --mode (the header): `player` runs the registry's default rows. A row with no line in settings.cfg
+# takes its registry default, so the run's file loses every `ext.` / `fix.` line (the valued keys
+# too: their defaults) and the exe runs per-entry. An explicit STRESS_PROFILE / STRESS_EXT wins.
+case "$MODE" in
+    player|faithful) ;;
+    *) echo "unknown --mode $MODE (player or faithful)" >&2; exit 1 ;;
+esac
+if [ "$MODE" = player ] && [ -z "${STRESS_PROFILE:-}" ] && [ -z "${STRESS_EXT:-}" ]; then
+    if [ -f "$CFG" ]; then
+        if [ -z "$CFG_SAVED" ]; then
+            CFG_SAVED="$(mktemp)"; cp -f "$CFG" "$CFG_SAVED"
+            trap '[ -n "$CFG_SAVED" ] && cp -f "$CFG_SAVED" "$CFG" && rm -f "$CFG_SAVED"' EXIT
+        fi
+        sed -i '/^\(ext\|fix\)\./d' "$CFG"
+    fi
+    STRESS_PROFILE=per-entry
+    echo "== mode player: the registry's default rows (ext. / fix. lines out of settings.cfg for this run)"
+fi
 PROFILE_ARG="/profile:${STRESS_PROFILE:-faithful}"
 if [ -n "${STRESS_EXT:-}" ]; then
     [ -n "$CFG_SAVED" ] || { echo "STRESS_EXT needs $CFG" >&2; exit 1; }
@@ -334,7 +365,7 @@ if [ -n "${STRESS_CPU_LIMIT:-}" ]; then
     echo "== STRESS_CPU_LIMIT=$STRESS_CPU_LIMIT: sys.cpu_limit set for this run (settings.cfg restored at exit)"
 fi
 
-echo "== launching  label=$LABEL speed=${SPEED:-default} citizens=${CITIZENS:-default} sets=${SETS:-default} frames=$FRAMES_EFF debug=$DEBUG paths=$([ "$BANISHED_STRESS_PATH_INLINE" = 0 ] && echo async || echo inline) houses=$([ "$BANISHED_STRESS_HOUSES" = 0 ] && echo off || echo on) fullstaff=$([ "$BANISHED_STRESS_FULL_STAFF" = 0 ] && echo off || echo on)"
+echo "== launching  label=$LABEL profile=${STRESS_PROFILE:-faithful} speed=${SPEED:-default} citizens=${CITIZENS:-default} sets=${SETS:-default} frames=$FRAMES_EFF debug=$DEBUG paths=$([ "$BANISHED_STRESS_PATH_INLINE" = 0 ] && echo async || echo inline) houses=$([ "$BANISHED_STRESS_HOUSES" = 0 ] && echo off || echo on) fullstaff=$([ "$BANISHED_STRESS_FULL_STAFF" = 0 ] && echo off || echo on)"
 echo "   results -> $OUT"
 # STRESS_PROFILE (default faithful): the exe's /profile:<name> switch (docs/extensions/DESIGN.md);
 # `all` turns every fix and extension on for the everything-on comparison.
