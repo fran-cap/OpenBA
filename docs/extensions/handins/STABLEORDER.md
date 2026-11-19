@@ -65,6 +65,7 @@ reverse, across a save: nothing changes on disk; the order switches at the next 
 | The Work leaves' `Cleanup` (vtable slot 8), twelve classes (table below) | cancel the workers one by one, each time the citizen on the set's LEFTMOST node (the lowest key in pointer order), until the set is empty | the same loop and the same cancel; the node picked is the one whose key has the lowest entity id |
 | `GameUpdateLoop::Update` step 12, `Audio::Scene::Update` (`gameupdateloop.cpp`) | the scene gets the WORLD Random (0x1400966aa `MOV R9,[RDI+0xd8]`, the call at 0x1400966bb) and draws 2 per sample it starts (variant, pitch) | the presentation Random (`Ext::StableOrder::PresentationRandom`) |
 | `MusicPlayer::Update` (0x1400a40e0, `unreg_lane5_musicplayer.cpp`) | the next track `Rand(n)` from the WORLD Random when the current track stops | the presentation Random |
+| `GameUpdateLoop::Load` step 15, after the `WeatherSimulation` ctor (0x140093f60, `gameupdateloop_load.cpp`) | the temperature noise from two `Random()`s seeded with `_time64`, kept until the first half-year keyframe | rebuilt from a Random seeded with the map seed (`weather_noise.h`) |
 
 **The sound's draws (a clock, not an address).** A sample starts when its window passes, but a channel
 is recycled, and an ambient effect restarts, only when the device reports the sample ENDED
@@ -239,7 +240,18 @@ one pair. Of fourteen later runs with the registry's default rows, `fix.stable_o
 paths, eleven built one town and three another (the CSV's `sim_hash` at frame 600 ends `96a325` or
 `1acf01`); two runs of one exe, the same pinned camera and the same window size split this way. So one
 of the default-on extensions lets a clock or a thread's timing into the sim before frame 600; which one
-is not found. The faithful rows with this fix and `fix.alloc_tiebreak` hold: four more 2,500-frame runs
+is not found. **Found (same day): no extension.** The town's starting temperature is seeded from the
+wall clock (the `WeatherSimulation` ctor's two `Random()`s, row above); a start at 34 F or below skips
+the weather's ambient-spawn roll on the world Random (`WeatherSimulation::Update` part 6), so the RNG
+sequence shifts within the first five world frames. Over the default-row runs of that day (this lane's and the `det_*` runs) every first-tick
+temperature of 33.9 F or below built the `1acf01` town and every one of 34.0 F or above the `96a325` one. With
+every fix off (a different town), four starts between 32.3 and 34.0 F built the same town to frame 600
+as the warm ones: why that town does not reach the roll so early was not determined, and the
+repeatable configuration draws from the same clock. The row now rebuilds the noise from the map seed.
+With it, on seed 31337 and inline paths: the default rows 10 of 10 `96a325` at 34.18 F, `--mode
+repeatable` 10 of 10 `03bc8de3dffa8a26` at 36.81 F (the harness line `[Stress] weather after world
+frame 1` gives the temperature); a cold start by seed (6 at 32.45 F, 12 at 33.83 F) and a warm one (4 at
+37.18 F) each built one town in three runs. The faithful rows with this fix and `fix.alloc_tiebreak` hold: four more 2,500-frame runs
 gave one digest sequence. `tools/stress_run.sh --mode repeatable` is that configuration.
 
 ### 6.2 The bisect that found the sound
