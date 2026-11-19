@@ -66,10 +66,18 @@ normal Easy founding town, on a **medium (384) map**, seed 31337 (12345's town a
 - **The default run** (ruled 2026-11-19): `--mode player`, houses on, full staff, async paths. `player`
   is the registry's default rows, what ships; `--mode faithful` is every fix and extension off, the
   port's own code. The two have different bottlenecks: faithful is sim-bound, and with the default rows
-  the hand-off between the main and the render thread sets the pace. With the default rows the camera
-  changes the sim (`ext.render_culling` skips work for off-screen citizens), so the CSV carries
-  `cam_dist`, `view_w`, `view_h` and the report says when two runs' views differ. Baselines cut before
-  that date ran faithful, without houses, at default staff.
+  the hand-off between the main and the render thread sets the pace. The CSV carries `cam_dist`,
+  `view_w`, `view_h` and the report says when two runs' views differ (a different scene is drawn and
+  culled). Baselines cut before that date ran faithful, without houses, at default staff.
+- **`--mode repeatable`**: every row off but `fix.stable_order` and `fix.alloc_tiebreak`, inline paths.
+  Two runs then build the same town: four 2,500-frame runs gave the same `sim_hash` in every row and sim
+  times within 1% (2026-11-19), and three pairs of 9,000 frames repeated before that
+  (`docs/extensions/handins/STABLEORDER.md` §6). Use it for a same-town A/B of two exes. **The default
+  rows do not repeat even with the fix on and inline paths**: runs of one exe built one of two towns
+  (about one in four the rarer one, different from the first CSV row at frame 600); which extension
+  brings the clock back in is not found. An earlier note blamed the camera (`ext.render_culling`); two
+  runs with the same pinned view and window size split the same way, so that is not the cause, or not
+  all of it.
 - **Houses** (`BANISHED_STRESS_HOUSES=1`, on by default, `--no-houses` turns it off): the town never builds, so the children who grow up stay with a parent and each
   of them runs `CitizenComponent::FindHome` (every citizen, then every residence) on every idle
   update; that cost grows with the square of the population. With `--houses` a **housing pass**

@@ -40,11 +40,16 @@
 #                       [--interval N] [--seed N] [--map small|medium|large]
 #                       [--baseline CSV|none] [--no-build] [--debug] [--timeout SECS]
 #                       [--lock LANE] [--no-load] [--spread] [--inline-paths] [--hash N]
-#                       [--mode player|faithful] [--no-houses] [--no-full-staff]
+#                       [--mode player|faithful|repeatable] [--no-houses] [--no-full-staff]
 #   --mode        WHAT IS MEASURED (ruled 2026-11-19; STRESS_MODE sets it too). `player`, the default:
 #                 the registry's default rows, i.e. what ships -- every `ext.` / `fix.` line is taken
 #                 out of settings.cfg for the run (restored at exit) and the exe runs per-entry.
 #                 `faithful`: /profile:faithful, every fix and extension off, the port's own code.
+#                 `repeatable`: every row off but fix.stable_order and fix.alloc_tiebreak, and
+#                 --inline-paths, so two runs build the same town (same sim_hash in every row): the
+#                 mode for a same-town A/B of two exes. Not the default rows: with those on, runs of
+#                 one exe built one of two towns. Check the report's WORKLOAD block says SAME TOWN
+#                 before reading a delta.
 #                 The two have different bottlenecks (faithful is sim-bound; with the default rows
 #                 the main / render hand-off sets the pace). An explicit STRESS_PROFILE or STRESS_EXT
 #                 wins over the mode. Baselines cut before this date ran faithful, no houses,
@@ -293,10 +298,14 @@ fi
 # takes its registry default, so the run's file loses every `ext.` / `fix.` line (the valued keys
 # too: their defaults) and the exe runs per-entry. An explicit STRESS_PROFILE / STRESS_EXT wins.
 case "$MODE" in
-    player|faithful) ;;
-    *) echo "unknown --mode $MODE (player or faithful)" >&2; exit 1 ;;
+    player|faithful|repeatable) ;;
+    *) echo "unknown --mode $MODE (player, faithful or repeatable)" >&2; exit 1 ;;
 esac
-if [ "$MODE" = player ] && [ -z "${STRESS_PROFILE:-}" ] && [ -z "${STRESS_EXT:-}" ]; then
+if [ "$MODE" = repeatable ] && [ ! -f "$CFG" ]; then
+    echo "--mode repeatable needs $CFG (it turns fix.stable_order on there for the run)" >&2
+    exit 1
+fi
+if [ "$MODE" != faithful ] && [ -z "${STRESS_PROFILE:-}" ] && [ -z "${STRESS_EXT:-}" ]; then
     if [ -f "$CFG" ]; then
         if [ -z "$CFG_SAVED" ]; then
             CFG_SAVED="$(mktemp)"; cp -f "$CFG" "$CFG_SAVED"
@@ -305,7 +314,25 @@ if [ "$MODE" = player ] && [ -z "${STRESS_PROFILE:-}" ] && [ -z "${STRESS_EXT:-}
         sed -i '/^\(ext\|fix\)\./d' "$CFG"
     fi
     STRESS_PROFILE=per-entry
-    echo "== mode player: the registry's default rows (ext. / fix. lines out of settings.cfg for this run)"
+    if [ "$MODE" = player ]; then
+        echo "== mode player: the registry's default rows (ext. / fix. lines out of settings.cfg for this run)"
+    fi
+    # repeatable: every row OFF except fix.stable_order and fix.alloc_tiebreak, the paths searched inline:
+    # the configuration whose 9000-frame digests repeated (STABLEORDER.md section 6). NOT the default
+    # rows: with those on, two runs of one exe still built one of two towns (2026-11-19, cause not found).
+    # A row with no line takes its registry default, so every id gets a line; the ids are the registry's.
+    if [ "$MODE" = repeatable ]; then
+        sed -n 's/^ *{ "\([a-z0-9_]*\)", Tier::\(Fix\|Extension\),.*/\2 \1/p' src/ext/registry.cpp |
+            while read -r tier id; do
+                case "$tier" in
+                    Fix) printf 'fix.%s=0\n' "$id" ;;
+                    *)   printf 'ext.%s=0\n' "$id" ;;
+                esac
+            done >> "$CFG"
+        sed -i 's/^fix\.stable_order=0/fix.stable_order=1/; s/^fix\.alloc_tiebreak=0/fix.alloc_tiebreak=1/' "$CFG"
+        export BANISHED_STRESS_PATH_INLINE=1
+        echo "== mode repeatable: every row off but fix.stable_order and fix.alloc_tiebreak; inline paths"
+    fi
 fi
 PROFILE_ARG="/profile:${STRESS_PROFILE:-faithful}"
 if [ -n "${STRESS_EXT:-}" ]; then
