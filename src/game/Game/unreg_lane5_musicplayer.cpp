@@ -82,6 +82,8 @@
 #include "Entity/CitizenBehavior.h"
 #include "Component/CitizenComponent.h"
 #include "audio/SoundEffect.h"
+#include "ext/registry.h"                           // Ext::Fix().stable_order
+#include "ext/stable_order/presentation_random.h"   // FIX stable_order (NOT RETAIL): the track pick's Random
 
 namespace {
 
@@ -183,6 +185,10 @@ void MusicPlayer::Update() {
         return;                       // nothing eligible this month/mood
     } else {
         System::Random* rng = gw->m_random;
+        // FIX stable_order (NOT RETAIL, docs/extensions/handins/STABLEORDER.md, docs/retail_bugs.md §36):
+        // retail (0x1400a40e0) draws the track from the WORLD Random when the current track stops
+        // playing, a wall-clock moment. With the row on, from the presentation Random.
+        if (Ext::Fix().stable_order) rng = &Ext::StableOrder::PresentationRandom();
         if (!rng) return;
         pick = static_cast<int>(rng->Rand(static_cast<uint32_t>(n)));
         // Don't immediately repeat the last track: step one past it, wrapping.

@@ -69,6 +69,8 @@
 #include "collection/Collection.h"
 #include "Action/PathSearch.h"   // RawArray (PickBestDropTarget)
 #include "Action/PickupStoredRawMaterial.h"   // AddMaterial 0x1400ca230 on the path result
+#include "ext/registry.h"                    // Ext::Fix().stable_order
+#include "ext/stable_order/stable_order.h"   // FIX stable_order (NOT RETAIL): Cleanup's cancel order
 
 // ============================================================
 // Sub-functions, called by name (B3R; the module exe_bodies.h headers)
@@ -144,6 +146,15 @@ int MarketWork::Cleanup() {
 
         // Cancel the work item: the claiming citizen's action list
         CitizenComponent* citizen = leftmost->element.citizen.Get();
+        // FIX stable_order (NOT RETAIL, docs/extensions/handins/STABLEORDER.md, docs/retail_bugs.md §36):
+        // the claims are keyed by the citizen's pointer, so retail (0x1400f1ca0) cancels the lowest
+        // ADDRESS first. With the row on, the claim whose citizen has the lowest entity id.
+        if (Ext::Fix().stable_order) {
+            ClaimNode* first = Ext::StableOrder::MinNodeById(_claims.root, [](const ClaimNode* n) {
+                return Ext::StableOrder::EntityIdOf(n->element.citizen.Get());
+            });
+            citizen = first->element.citizen.Get();
+        }
         citizen->character->actionStack.Clear();
 
         count = _claims.count;

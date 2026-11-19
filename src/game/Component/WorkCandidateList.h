@@ -1,8 +1,9 @@
-// src/ext/work_cand/work_cand.h -- ext.work_cand: the idle work search's candidates in a sorted flat array
-// (NOT RETAIL)
+// src/game/Component/WorkCandidateList.h -- the idle work search's candidates in a sorted flat array
+// (NOT RETAIL: faithful perf work)
 //
-// docs/extensions/handins/WORKCAND.md. Standard C++ with no game types, so the unit tests build it
-// (tests/unit/ext_work_cand_test.cpp). The game side is the plain-cost arm of the work walk,
+// docs/extensions/handins/WORKCAND.md (built as the class B row ext.work_cand, 2026-11-09; ruled faithful
+// perf work with no row 2026-11-18, section 7.1). Standard C++ with no game types, so the unit tests build
+// it (tests/unit/work_candidate_list_test.cpp). The game side is the plain-cost arm of the work walk,
 // src/game/Component/citizenai_housing_idle.cpp (Helper_sub_79b0_Flat).
 //
 // Retail (0x1400f8000, the plain-cost builder of the walk 0x1400f79b0) inserts every job of a scheduler bucket
@@ -22,8 +23,7 @@
 #include <cstdint>
 #include <vector>
 
-namespace Ext {
-namespace WorkCand {
+namespace WorkCandidates {
 
 // Retail's (cost, id) order as ONE signed 64-bit compare: the cost in the high half, the id's sign bit flipped
 // in the low half (so the low half counts up with the signed id). cost * 2^32 cannot overflow for any int32.
@@ -139,5 +139,4 @@ private:
     std::vector<Entry> merged_;
 };
 
-}  // namespace WorkCand
-}  // namespace Ext
+}  // namespace WorkCandidates

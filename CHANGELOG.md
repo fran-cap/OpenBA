@@ -16,8 +16,8 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 7. Smoother motion at high game speed: while a long simulation step runs, the render thread shows the town again at a later blend instead of holding one picture. "Smooth fast speed" on the Experimental tab, off by default; needs Render thread (`ext.render_pipe_replay`).
 8. Map edge fade: the edge of the land fades into black instead of ending in a cut. "Map edge fade" on the Enhanced tab, on by default (`ext.map_edge_fade`).
 9. Custom maps: a new game can start on a map file (`.bmap`) made in a map editor; its ground, water paths, resources and town start replace the generated ones, picked with a Load custom map row in New Game (`ext.custom_maps`).
-10. Item limits on more buildings (`ext.item_limits`): a workshop without a product choice (a clay or sand pit, a mod's butcher) gets a limit row for each item it makes; a pasture gets one for each item its animals give, and a slaughter yields only the items still under their limits; a gatherer gets one for each item its plants give (a mod's gatherer with many items gets an item picker) and passes by the plants of an item at its limit.
-
+10. Load renamed mods: a mod whose `.pkm` file was renamed gets its new content, by the content list its package holds (its files that replace the game's own already applied), and the log notes a mod that has no content list of its own; off by default, from the next start (`ext.renamed_mods`).
+11. Item limits on more buildings (`ext.item_limits`): a workshop without a product choice (a clay or sand pit, a mod's butcher) gets a limit row for each item it makes; a pasture gets one for each item its animals give, and a slaughter yields only the items still under their limits; a gatherer gets one for each item its plants give (a mod's gatherer with many items gets an item picker) and passes by the plants of an item at its limit.
 **Fixes:**
 1. Map data views: no crash when "Show overlay on terrain" shows the Land view in a second game of one session (`ext.map_overlays`).
 2. No red cell left where stone, iron or a tree was cleared with the Remove Resources tool on uneven ground (`fix.terrain_resort`).
@@ -29,6 +29,13 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 8. Fog distance at 100: cloud shadows, ambient occlusion and the terrain shading no longer fade out in the distance where the fog used to be (`ext.no_fog`).
 9. A tall hill across a lake or river no longer disappears from the water's reflection when the camera is close to the ground (retail bug, `fix.reflection_hills`).
 10. Wider zoom: fully zoomed out at a flat camera angle, distant ground is no longer cut off behind nearer mountains, in the view and in the water's reflection (`ext.better_camera`).
+11. Citizens, animals and buildings act in a fixed order instead of one set by memory layout, and the sounds no longer draw from the town's random numbers, so the same start or save plays out the same way every time (retail bug, `fix.stable_order`). Off by default: the town only repeats fully once pathfinding results are timed the same way too.
+
+**Changes:**
+1. Faster job search is no longer an extension: it is always on, in every profile. Its row "Faster job search" (`ext.work_cand`) leaves the Extensions dialog; saves made with it load as before, with no notice, and an old `ext.work_cand` line in settings.cfg is ignored.
+
+**Changes:**
+1. Faster job search is no longer an extension: it is always on, in every profile. Its row "Faster job search" (`ext.work_cand`) leaves the Extensions dialog; saves made with it load as before, with no notice, and an old `ext.work_cand` line in settings.cfg is ignored.
 
 ## v1.0.3 (2026-11-10)
 

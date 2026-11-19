@@ -344,6 +344,19 @@ const Entry kEntries[] = {
       "A tall hill across a lake or river no longer disappears from the water's reflection when the "
       "camera is close to the ground.",
       0, [](State& s) -> bool& { return s.fix.reflection_hills; } },
+    // STABLEORDER (docs/extensions/handins/STABLEORDER.md, docs/retail_bugs.md section 36): EntityList::Update
+    // ticks its update tree's entities in the order of their entity id instead of their heap address
+    // (the tree keeps retail's key; the walk's snapshot is visited through an id permutation), and the
+    // sim's other address-decided choices use the id too. Sim-visible: which citizen gets which random
+    // draw. Nothing saved: the ids are retail's own, already in the save.
+    // Default OFF (ruled 2026-11-19): with it on the town's random sequence is no longer retail's (sound
+    // stops drawing from the world Random), and a player's town still does not repeat while path results
+    // arrive on the worker's clock. The stress harness turns it on; revisit with deterministic paths.
+    { "stable_order", Tier::Fix, Class::None, false,
+      "Repeatable turn order",
+      "Citizens, animals and buildings act in a fixed order, not by where they sit in memory, so "
+      "the same start or the same save does not play out differently for that reason.",
+      0, [](State& s) -> bool& { return s.fix.stable_order; } },
 
     // Extensions. Each one adds a field to Ext::Extensions and a row here:
     // Tier::Extension, its Class, default true for class A / false for B or C, and for class B or C its
@@ -952,6 +965,16 @@ const Entry kEntries[] = {
       "A new game can start on a map file made in a map editor instead of a generated map. Takes effect at "
       "the next new game.",
       0, [](State& s) -> bool& { return s.ext.custom_maps; } },
+    // RENAMEDMODS (docs/extensions/handins/RENAMEDMODS.md): the game finds a mod's content list by the
+    // name of its .pkm file, so a renamed file's new content never appears. With the row on, a mod
+    // whose list is not found by that name is loaded by the list its package holds. Class B: no
+    // serialized state, but the town holds content that only loaded because of the row, so it is
+    // locked for the game and recorded in the save. Read once at boot (next start).
+    { "renamed_mods", Tier::Extension, Class::B, false,
+      "Load renamed mods",
+      "A mod whose .pkm file was renamed still loads: when the package has no content list named after the "
+      "file, the list it carries is used. Takes effect at the next start.",
+      1, [](State& s) -> bool& { return s.ext.renamed_mods; } },
     // Issue #253 (graphics/stagger_hold.h): the sun's shadow map and the water's reflection may each keep
     // last frame's image on a near-still view, rendering at least every ext.staggered_passes_shadow /
     // _reflection frames (2: one frame held at most, the two passes on alternate frames) and at once on a
@@ -991,18 +1014,6 @@ const Entry kEntries[] = {
       "The Video tab's Renderer lists DirectX 11 and Vulkan; the game restarts its graphics on the one you "
       "pick. If Vulkan cannot start on this computer, DirectX 11 is used.",
       0, [](State& s) -> bool& { return s.ext.render_backend; } },
-    // WORKCAND (docs/extensions/handins/WORKCAND.md): the idle work search's candidates (the plain-cost
-    // builder 0x1400f8000 of the walk 0x1400f79b0) in a sorted flat array instead of a transient AVL of one
-    // MemAlloc node per job: the same jobs visited in the same order (retail's cost / work id order and
-    // duplicate rule; the COMPPROF=4 shadow compares the two). Class B: the arena allocations it skips move
-    // later heap addresses, and EntityList's update tree orders entities by address, so a town diverges
-    // from retail's as it does between two installs (known_port_issues row 1280). Default ON (ruled
-    // 2026-11-09); the open ruling is whether it is faithful perf work with no row (WORKCAND.md section 2).
-    { "work_cand", Tier::Extension, Class::B, true,
-      "Faster job search",
-      "Idle citizens look through the open jobs without building a list item by item. The same jobs in "
-      "the same order; play diverges.",
-      1, [](State& s) -> bool& { return s.ext.work_cand; } },
 
 #ifdef BANISHED_UNIT_TEST
     // The unit tests' three classes (registry.h). Not compiled into the exe.
@@ -1016,6 +1027,21 @@ const Entry kEntries[] = {
 };
 
 constexpr int kEntryCount = static_cast<int>(sizeof(kEntries) / sizeof(kEntries[0]));
+
+// THE RETIRED ROWS (registry.h "RETIRED ROWS", DESIGN.md section 3 "Retiring a row"). Append only: an id
+// here is reserved for good. Each line names the hand-in that ruled it.
+const RetiredEntry kRetired[] = {
+    // WORKCAND (docs/extensions/handins/WORKCAND.md section 7.1, ruled 2026-11-18): "Faster job search",
+    // class B, default ON since 2026-11-09, formatVersion 1. The idle work search's sorted flat candidate
+    // list is faithful perf work with no row: unconditional in src/game/Component/citizenai_housing_idle.cpp.
+    { "work_cand", Tier::Extension, 1, "always on, now faithful perf (the work search's flat candidate list)" },
+};
+
+constexpr int kRetiredCount = static_cast<int>(sizeof(kRetired) / sizeof(kRetired[0]));
+
+// The table the lookups read: kRetired, or the one a unit test passed to UseRetiredTable.
+const RetiredEntry* s_retired = kRetired;
+int s_retiredCount = kRetiredCount;
 
 // THE VALUED KEYS (registry.h "VALUED KEYS"). Each names its owner row; the
 // ranges are the menu's (AO.md §3: quality 1..3 = Low / Medium / High, 4 = Lowest, Off is
@@ -1495,8 +1521,33 @@ bool IsPseudoModPath(const char* path) {
            std::strncmp(path, kPseudoModPrefix, std::strlen(kPseudoModPrefix)) == 0;
 }
 
+int RetiredCount() { return s_retiredCount; }
+
+const RetiredEntry& RetiredAt(int index) { return s_retired[index]; }
+
+const RetiredEntry* FindRetired(const char* id) {
+    if (id == nullptr) return nullptr;
+    for (int i = 0; i < s_retiredCount; ++i) {
+        if (std::strcmp(s_retired[i].id, id) == 0) return &s_retired[i];
+    }
+    return nullptr;
+}
+
+void UseRetiredTable(const RetiredEntry* table, int count) {
+    s_retired = table != nullptr ? table : kRetired;
+    s_retiredCount = table != nullptr ? count : kRetiredCount;
+}
+
+bool RetiredSaveEntry(const char* id, int32_t savedFormatVersion) {
+    const RetiredEntry* r = FindRetired(id);
+    if (r == nullptr || r->tier != Tier::Extension) return false;
+    return savedFormatVersion >= 1 && savedFormatVersion <= r->lastFormatVersion;
+}
+
 int PseudoModLoadStatus(const char* path, int32_t savedFormatVersion) {
     if (!IsPseudoModPath(path)) return 1;
+    // A retired row's entry: nothing to load and nothing to tell the player (RETIRED ROWS).
+    if (RetiredSaveEntry(path + std::strlen(kPseudoModPrefix), savedFormatVersion)) return 0;
     const Entry* e = FindEntry(path + std::strlen(kPseudoModPrefix));
     if (e == nullptr || e->tier != Tier::Extension || !IsLockedClass(e->cls)) return 1;
     if (savedFormatVersion > e->formatVersion) return 1;

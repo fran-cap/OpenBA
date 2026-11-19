@@ -170,6 +170,9 @@ int64_t g_replayEstimateUs = 2500;   // the render thread only: one replayed fra
 bool    g_replaySaid = false;        // the render thread only: the first replayed frame was logged
 GpuPlan g_gpuPlan;                   // the render thread only: when the GPU is done with what was presented
 std::atomic<int64_t> g_gpuMaxUs{-1}; // the largest GPU frame time a replay was planned with (the stress window's)
+// OVERLAP: the GPU's frame time read once per threaded emit (the [Stress::overlap] line).
+std::atomic<uint64_t> g_tlGpuUs{0};
+std::atomic<uint64_t> g_tlGpuN{0};
 
 // A threaded emit presented a frame (a real one or a replayed one): the GPU has it to do.
 void NotePresented() {
@@ -798,6 +801,11 @@ struct EngineHost {
         if (!ops.layerRecorded) UiLayerDrop();
         if (threaded) Platform::PerfHint::WorkEnd(Platform::PerfHint::Role::Render);
         StressHarness_PipeEmitEnd();
+        int64_t gpuUs = 0;
+        if (threaded && GpuFrameUs(&gpuUs) && gpuUs > 0) {   // OVERLAP: the last completed frame's
+            g_tlGpuUs.fetch_add(static_cast<uint64_t>(gpuUs), std::memory_order_relaxed);
+            g_tlGpuN.fetch_add(1, std::memory_order_relaxed);
+        }
 
         res.failed = ops.failed;
         if (threaded) {
@@ -1019,6 +1027,8 @@ Counters TakeWindow() {
     c.replayTool    = g_replay.tool.exchange(0, std::memory_order_relaxed);
     if (g_handoff == nullptr || !GpuFrameUs(&c.gpuFrameUs)) c.gpuFrameUs = -1;
     c.gpuFrameMaxUs = g_gpuMaxUs.exchange(-1, std::memory_order_relaxed);
+    c.tlGpuUs = g_tlGpuUs.exchange(0, std::memory_order_relaxed);   // OVERLAP
+    c.tlGpuN  = g_tlGpuN.exchange(0, std::memory_order_relaxed);
     return c;
 }
 

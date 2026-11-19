@@ -59,6 +59,8 @@
 #include "Game/Map.h"
 // EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMLIMITS.md): ext.item_limits (class C), the slaughter test
 #include "ext/item_limits/item_limits.h"
+#include "ext/registry.h"                    // Ext::Fix().stable_order
+#include "ext/stable_order/stable_order.h"   // FIX stable_order (NOT RETAIL): Cleanup's cancel order
 
 
 // ============================================================
@@ -503,6 +505,12 @@ int PastureWork::Cleanup() {
         }
 
         CitizenComponent* citizenEntity = leftmost->element;
+        // FIX stable_order (NOT RETAIL, docs/extensions/handins/STABLEORDER.md, docs/retail_bugs.md §36):
+        // the set is keyed by pointer, so retail (0x1400f2b90) cancels the lowest ADDRESS first. With
+        // the row on, the citizen with the lowest entity id.
+        if (Ext::Fix().stable_order) {
+            citizenEntity = Ext::StableOrder::LowestIdKey(_citizens._root);
+        }
 
         citizenEntity->character->actionStack.Clear();
 

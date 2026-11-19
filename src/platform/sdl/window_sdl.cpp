@@ -37,6 +37,7 @@
 // ============================================================================
 
 #include "platform_window.h"
+#include "display_geometry.h"   // PointsToPixels (MaximizeOnPrimaryDisplay)
 #include "platform_window_hooks.h"
 #include "window_sdl_internal.h"
 
@@ -47,6 +48,7 @@
 #include <SDL3/SDL_video.h>
 
 #include <cstdio>
+#include <cstring>
 #include <string>
 
 namespace Platform {
@@ -161,6 +163,41 @@ void ShowDefault(void* /*window*/) {
         SDL_ShowWindow(w);
         ConfigureBackgroundWindow(w);
     }
+}
+
+// NOT RETAIL, harness only (platform_window.h). Retail never maximises its window; a stress run
+// does, so its view does not depend on the persisted window rect or on an outside window manager
+// (PowerToys FancyZones moves and maximises a new window on the active monitor). The window is
+// first brought onto the primary display so a run on a desk of mixed monitors still draws the
+// primary's work area. SDL_MaximizeWindow is ShowWindow(SW_MAXIMIZE) on Windows.
+bool MaximizeOnPrimaryDisplay(void* /*window*/, Rect* display) {
+    std::memset(display, 0, sizeof(*display));
+    SDL_Window* w = Sdl::GameWindow();
+    if (w == nullptr) return false;
+    const SDL_WindowFlags flags = SDL_GetWindowFlags(w);
+    if (flags & (SDL_WINDOW_HIDDEN | SDL_WINDOW_FULLSCREEN)) return false;
+    const SDL_DisplayID primary = SDL_GetPrimaryDisplay();
+    SDL_Rect usable;
+    if (primary == 0 || !SDL_GetDisplayUsableBounds(primary, &usable)) return false;
+    if (flags & (SDL_WINDOW_MAXIMIZED | SDL_WINDOW_MINIMIZED)) {
+        SDL_RestoreWindow(w);
+        SDL_SyncWindow(w);
+    }
+    // The client origin a little inside the work area: the title bar lands on the primary too.
+    SDL_SetWindowPosition(w, usable.x + 32, usable.y + 32);
+    SDL_SyncWindow(w);
+    if (!SDL_MaximizeWindow(w)) return false;
+    SDL_SyncWindow(w);
+    SDL_Rect bounds;
+    const SDL_DisplayID on = SDL_GetDisplayForWindow(w);
+    if (on != 0 && SDL_GetDisplayBounds(on, &bounds)) {
+        const float d = PixelDensity(w);
+        display->left   = PointsToPixels(static_cast<float>(bounds.x), d);
+        display->top    = PointsToPixels(static_cast<float>(bounds.y), d);
+        display->right  = PointsToPixels(static_cast<float>(bounds.x + bounds.w), d);
+        display->bottom = PointsToPixels(static_cast<float>(bounds.y + bounds.h), d);
+    }
+    return (SDL_GetWindowFlags(w) & SDL_WINDOW_MAXIMIZED) != 0;
 }
 
 int64_t DefaultWindowProc(void* /*window*/, uint32_t /*message*/, uint64_t /*wParam*/,

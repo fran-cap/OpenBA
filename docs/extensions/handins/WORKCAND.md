@@ -1,11 +1,15 @@
 # WORKCAND: the idle work search's candidates in a sorted flat array (`ext.work_cand`, 2026-11-09)
 
-> **Built: `ext.work_cand`, class B, default ON (off under `/profile:faithful`).** The plain-cost arm of the
+> **Ruled 2026-11-18: faithful perf work, no row (section 7.1).** Built 2026-11-09 as `ext.work_cand`, class
+> B, default ON; the row is retired (DESIGN.md section 3 "Retiring a row": `kRetired` in
+> `src/ext/registry.cpp`, last formatVersion 1) and the flat list runs in every profile, the faithful one
+> included. The list is now `WorkCandidates::CandidateList` in `src/game/Component/WorkCandidateList.h`, its
+> tests `tests/unit/work_candidate_list_test.cpp`; the tables below keep the paths and names of the build.
+> The plain-cost arm of the
 > citizen's work walk (`Helper_sub_79b0` 0x1400f79b0 with its builder `Helper_sub_8000` 0x1400f8000, the idle
 > state's bucket probe) puts the bucket's jobs into one sorted array instead of a transient AVL of one
 > `MemAlloc(0x30, 8)` node per job, and visits that array. The same jobs are visited in the same order with the
-> same calls. It is class B only because the skipped allocations move later heap addresses (section 2); a
-> ruling on "faithful perf work, no row" is requested there.
+> same calls. It was class B only because the skipped allocations move later heap addresses (section 2).
 
 Candidate 1 of `PROFILE_20261106.md` section 2: 9.9% of the spread town's sim update (5.5% in `MemAlloc`, 2.4%
 in the rebalance), plus the frees in 79b0. Branch `perf/work-candidates`, base main `bc4e7bc7e`.
@@ -58,7 +62,7 @@ differs, and the town's history diverges into another valid town.
 
 **Class: B**, as briefed: the town can diverge from retail's because heap addresses order the tick list.
 
-**Ruling requested: faithful perf work, no row?** Recommended. The divergence is of the kind retail shows
+**Ruling requested: faithful perf work, no row?** Ruled yes 2026-11-18 (section 7.1). Recommended. The divergence is of the kind retail shows
 between two installs and between two runs, it is not tied to what the change computes (the walk is
 retail's), and main already accepted it in PATHDIST. The row's only effect a player can see is the
 pseudo-mod modal in retail. If ruled so: drop the row, the bool, the icon commits, the `kBcOn` token and the
@@ -92,6 +96,10 @@ Read in Ghidra (Application-x64.exe) against the port, not from the decompile al
   re-read is there so the merge reads what retail reads if they ever did.
 
 ## 4. The shadow (`BANISHED_STRESS_COMPPROF=4`, `g_verifyOn`)
+
+Since the retirement (section 7.1) there is no row: the walk is the array's in every profile and under the
+shadow, which still builds retail's tree with `Helper_sub_8000` beside it, compares, and frees it. The text
+below is the build's.
 
 With the shadow on, the seam takes the flat body whatever the row says. Each build fills the array AND runs
 retail's `Helper_sub_8000` into a real tree from the same source node; `VerifyCandidates` walks the tree in order
@@ -144,7 +152,14 @@ to `Ext::Ext()` and three tests per plain-cost walk, nothing per job.
 
 ## 7. Open choices
 
-1. **Faithful perf, no row** (section 2). Recommendation: yes.
+1. **Faithful perf, no row** (section 2). Recommendation: yes. **RULED yes, 2026-11-18** (with: rows will be
+   deprecated or condensed again, so retiring one needs a reusable path). Done on `behaviour/retire-work-cand`:
+   the seam is `if (param_5 == '\0') return Helper_sub_79b0_Flat(...)`, the body carries a faithful-perf
+   comment, the row, the bool, the two readers, the `kBcOn` token, the icon and `src/ext/work_cand/` are gone,
+   and `work_cand` is the first line of the retired table (DESIGN.md section 3 "Retiring a row"): an old save
+   with `ext:work_cand` v1 loads with no notice and its manifest record is dropped before the lock. Retail's
+   8000 / 7b60 / 79b0 bodies stay in the file: 79b0's path-distance arm runs them, and 8000 is the COMPPROF=4
+   shadow's reference. The divergence now applies to the faithful profile too (`known_port_issues.md` row 1280).
 2. **The path-distance arm** (`Helper_sub_7c90`, the FindHousing / idle-fallback roll). It builds the same tree
    type and could use the same list (its cost would be computed in the flat body). Not done: the profile
    attributes the time to 8000, and 7c90's per-job `PathDistance` likely dominates its own share.

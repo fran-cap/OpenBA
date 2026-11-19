@@ -100,8 +100,7 @@
 #include "Game/Profession.h"
 #include "Component/ModelComponent.h"
 #include "Entity/CitizenBehavior.h"    // ProfessionResourceEntry
-#include "ext/registry.h"              // EXT SEAM (NOT RETAIL, WORKCAND.md): Ext::Ext().work_cand
-#include "ext/work_cand/work_cand.h"   // EXT SEAM (NOT RETAIL, WORKCAND.md): the sorted flat candidate list
+#include "Component/WorkCandidateList.h"   // NOT RETAIL, faithful perf (WORKCAND.md): the sorted flat candidate list
 #include "stress_harness.h"            // g_verifyOn / StressHarness_Verify (WORKCAND's COMPPROF=4 shadow)
 #include <memory>
 #include <vector>
@@ -144,7 +143,7 @@ uint64_t      Helper_sub_79b0(WorkScheduler* param_1, CitizenComponent* const* p
                               WorkSchedulerIdNode* const* param_3, Profession* param_4,
                               char param_5, char param_6);                                 // 0x1400f79b0
 uint64_t      Helper_7550(WorkScheduler* param_1, CitizenComponent* const* param_2);      // 0x1400f7550
-// EXT BODY (NOT RETAIL, docs/extensions/handins/WORKCAND.md): ext.work_cand's plain-cost walk (below 79b0).
+// NOT RETAIL, faithful perf work (docs/extensions/handins/WORKCAND.md): 79b0's plain-cost walk (below 79b0).
 uint64_t      Helper_sub_79b0_Flat(WorkScheduler* param_1, CitizenComponent* const* param_2,
                                    WorkSchedulerIdNode* const* param_3, Profession* param_4, char param_6);
 
@@ -507,9 +506,11 @@ uint8_t Helper_sub_7b60(WorkScheduler* param_1, CitizenComponent* const* param_2
 uint64_t Helper_sub_79b0(WorkScheduler* param_1, CitizenComponent* const* param_2,
                          WorkSchedulerIdNode* const* param_3, Profession* param_4,
                          char param_5, char param_6) {
-    // EXT SEAM (NOT RETAIL, docs/extensions/handins/WORKCAND.md): ext.work_cand -- the plain-cost build
-    // (0x1400f8000) into a sorted flat array instead of this transient AVL; the COMPPROF=4 shadow builds both.
-    if (param_5 == '\0' && (::Ext::Ext().work_cand || g_verifyOn != 0)) {
+    // NOT RETAIL, faithful perf work (docs/extensions/handins/WORKCAND.md, ruled 2026-11-18): the plain-cost
+    // build (0x1400f8000) goes into a sorted flat array instead of this transient AVL, the same jobs walked in
+    // the same order; the COMPPROF=4 shadow builds both. Below, retail's body: the path-distance arm
+    // (param_5 != 0, 0x1400f7c90) runs it, and its plain-cost arm (8000) is the shadow's reference.
+    if (param_5 == '\0') {
         return Helper_sub_79b0_Flat(param_1, param_2, param_3, param_4, param_6);
     }
     Profession* local_res20 = param_4;
@@ -581,23 +582,24 @@ uint64_t Helper_sub_79b0(WorkScheduler* param_1, CitizenComponent* const* param_
 }
 
 // ============================================================
-// EXT BODY (NOT RETAIL, docs/extensions/handins/WORKCAND.md): ext.work_cand, class B.
+// NOT RETAIL: faithful perf work (docs/extensions/handins/WORKCAND.md; built as the class B row
+// ext.work_cand 2026-11-09, ruled faithful perf with no row 2026-11-18, section 7.1).
 //   Helper_sub_79b0 above for its plain-cost builder (param_5 == 0, 0x1400f8000): the candidates go into a
-//   sorted flat array (Ext::WorkCand::CandidateList, src/ext/work_cand/work_cand.h: retail's
+//   sorted flat array (WorkCandidates::CandidateList, Component/WorkCandidateList.h: retail's
 //   (Work +0x24, Work +0x20) order and duplicate rule) instead of the transient AVL, and the walk
 //   (0x1400f7b60) visits that array: no MemAlloc / MemFree per job. The gate test, the two builds into one
 //   set, the visit (Validate, Execute, the reject stamp) and the return are 79b0's and 7b60's.
-//   Class B because the arena allocations it skips move later heap addresses, which pointer-keyed sets
-//   (EntityList's update tree) order by (WORKCAND.md section 2); the walk itself is retail's.
-//   Under the COMPPROF=4 shadow (g_verifyOn) retail's AVL is built too, from the same source tree, and its
-//   in-order sequence is compared with the array after each build ("WorkCandidates", once per build). The
-//   walk then follows the row: the array with ext.work_cand on, retail's tree (7b60) with it off, so a
-//   faithful shadow run allocates and plays as retail.
+//   The arena allocations it skips move later heap addresses, which pointer-keyed sets (EntityList's update
+//   tree) order by (WORKCAND.md section 2, docs/known_port_issues.md row 1280): a town can take another
+//   valid course than retail's, as between two installs; the walk itself is retail's.
+//   Under the COMPPROF=4 shadow (g_verifyOn) retail's AVL is built too, from the same source tree (8000), and
+//   its in-order sequence is compared with the array after each build ("WorkCandidates", once per build).
+//   The walk is the array's either way; the shadow's tree is freed as 79b0 frees its own.
 // ============================================================
 struct WorkIdOf {
     int32_t operator()(const Work* w) const { return w->_workId; }   // Work +0x20, read at each insert
 };
-using WorkCandidateList = ::Ext::WorkCand::CandidateList<Work, WorkIdOf>;
+using WorkCandidateList = ::WorkCandidates::CandidateList<Work, WorkIdOf>;
 
 // One list per nesting level of the walk (a job's Execute is game code; a nested walk gets its own list).
 // The lists live for the process: no allocation per walk once they have grown.
@@ -702,7 +704,6 @@ uint64_t Helper_sub_79b0_Flat(WorkScheduler* param_1, CitizenComponent* const* p
         gate = nullptr;   // 79b0's fresh empty IBP
     }
     const bool verify = g_verifyOn != 0;
-    const bool walkFlat = ::Ext::Ext().work_cand;
     WorkCandidateLease lease;
     WorkCandidateList& list = *lease.list;
     WorkCandidateTree shadow = {};   // retail's tree: built under the shadow only
@@ -717,8 +718,7 @@ uint64_t Helper_sub_79b0_Flat(WorkScheduler* param_1, CitizenComponent* const* p
             VerifyCandidates(list, shadow);
         }
         CitizenComponent* citHolder = *param_2;
-        if (walkFlat) return WalkFlat(param_1, &citHolder, list);
-        return Helper_sub_7b60(param_1, &citHolder, &shadow);
+        return WalkFlat(param_1, &citHolder, list);
     };
 
     uint64_t ret = 0;

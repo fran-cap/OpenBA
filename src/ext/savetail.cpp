@@ -144,10 +144,16 @@ Status Validate(const std::vector<Record>& records, std::string* offending) {
         const Record& rec = records[i];
         Status st = Status::Ok;
         const Entry* e = FindEntry(rec.id.c_str());
-        if (e == nullptr) st = Status::UnknownId;
-        else if (e->tier != Tier::Extension || !IsLockedClass(e->cls)) st = Status::NotLockedClass;
-        else if (rec.formatVersion > e->formatVersion) st = Status::NewerFormatVersion;
-        else {
+        // A retired row's record at or below its last formatVersion is accepted here and dropped by
+        // DropRetired before the lock (registry.h RETIRED ROWS); any other unknown id stays fatal.
+        if (e == nullptr) {
+            if (!RetiredSaveEntry(rec.id.c_str(), rec.formatVersion)) st = Status::UnknownId;
+        } else if (e->tier != Tier::Extension || !IsLockedClass(e->cls)) {
+            st = Status::NotLockedClass;
+        } else if (rec.formatVersion > e->formatVersion) {
+            st = Status::NewerFormatVersion;
+        }
+        if (st == Status::Ok) {
             for (size_t j = 0; j < i; ++j)
                 if (records[j].id == rec.id) { st = Status::DuplicateId; break; }
         }
@@ -157,6 +163,25 @@ Status Validate(const std::vector<Record>& records, std::string* offending) {
         }
     }
     return Status::Ok;
+}
+
+void DropRetired(std::vector<Record>& records, std::vector<std::string>* dropped) {
+    size_t kept = 0;
+    for (size_t i = 0; i < records.size(); ++i) {
+        const bool retired = FindEntry(records[i].id.c_str()) == nullptr &&
+                             RetiredSaveEntry(records[i].id.c_str(), records[i].formatVersion);
+        if (retired) {
+            if (dropped != nullptr) {
+                dropped->push_back(records[i].id);
+            }
+            continue;
+        }
+        if (kept != i) {
+            records[kept] = std::move(records[i]);
+        }
+        ++kept;
+    }
+    records.resize(kept);
 }
 
 std::vector<Record> ActiveRecords() {

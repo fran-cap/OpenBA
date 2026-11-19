@@ -222,6 +222,17 @@ void Engine::UpdateLoop::LoadResources() {
                 // Result DISCARDED by retail — see FindAndCheck's comment.
                 FindAndCheck(name, false);
             }
+            else if (_extModRoot != nullptr) {
+                // EXT SEAM (NOT RETAIL, docs/extensions/handins/RENAMEDMODS.md): ext.renamed_mods --
+                // the package does not hold the list its file name asks for; the hook may name the
+                // one it does hold.
+                System::String root;
+                if (_extModRoot(mod, root)) {
+                    ++g_modsFound;
+                    System::Filename name(root);
+                    FindAndCheck(name, false);
+                }
+            }
             // `spec` then `dir` release at the bottom of the iteration.
         }
     }
@@ -258,6 +269,9 @@ void Engine::UpdateLoop::LoadResources() {
 
 // EXT SEAM (NOT RETAIL, docs/extensions/handins/LOADPROGRESS.md): null by default.
 Engine::UpdateLoop::ExtLoadProgress* Engine::UpdateLoop::_extLoadProgress = nullptr;
+
+// EXT SEAM (NOT RETAIL, docs/extensions/handins/RENAMEDMODS.md): null by default.
+bool (*Engine::UpdateLoop::_extModRoot)(const RtIO::Mod& mod, System::String& spec) = nullptr;
 
 extern "C" void RtEngineLoadResourcesSummary() {
     printf("[RtPort]   Engine::UpdateLoop::LoadResources: calls=%u ownList=%u "
