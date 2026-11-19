@@ -94,9 +94,11 @@
 // The log2 loop is the classic binary-search bit scan:
 //     s=32; n=64; do { if (v>>s) { n-=s; v>>=s; } s>>=1; } while (s);
 //     bin = (int)v - n + 0xb6;
-// It leaves v == 1 for every input, so it is exactly 119 + floor(log2(bytes));
-// it is transcribed literally below rather than replaced by a bit scan, so the
-// two builds cannot disagree on a boundary case.
+// It leaves v == 1 for every non-zero input, so it is exactly 119 + floor(log2(bytes))
+// == 0xb6 - clz64(bytes); for 0 it leaves v == 0, n == 64, i.e. 118 == 0xb6 - 64. The
+// port computes it with a count-leading-zeros; tests/unit/allocator_hot_path_test.cpp
+// checks it against the literal loop on every power of two +-2, every value below 2^22
+// and a million random ones.
 //
 // `_minBin` (+0x628) is a search FLOOR, not a hint: GetFreeTagForSize clamps
 // its starting bin UP to _minBin. It starts at 0xbf (191, "everything is
@@ -294,6 +296,14 @@ public:
     // ?MemFree@MemoryAllocator@System@@SAXPEAX@Z      0x1800c7ad0
     //   if (p) { Enter; Free(p); Leave; }. Consults g_memoryAllocatorInstrument.
     static void  MemFree(void* p);
+    // NOT RETAIL (no retail address): MemFree over `count` pointers under ONE lock hold.
+    //   The same Free calls in the same order as `for (i) MemFree(ptrs[i])`, nulls skipped,
+    //   so the heap ends identical; only the per-pointer lock / unlock pairs go. With an
+    //   instrument armed it is exactly that MemFree loop. For a caller that frees many
+    //   blocks at once (the work-search candidate tree). Another thread's allocation can no
+    //   longer land between two of these frees; that is one of the interleavings the
+    //   per-call lock already allowed, never a new one.
+    static void  MemFreeBatch(void* const* ptrs, int count);
     // ?Get@MemoryAllocator@System@@SAPEAV12@XZ        0x1800534e0
     static MemoryAllocator* Get();
     // ?PointerOffset@MemoryAllocator@System@@CA_JPEAX0@Z  0x180034e20 (retail: private)
@@ -362,7 +372,12 @@ public:
     uint64_t     totalReserved;  // +0x020 AddNewMemoryRange accumulates
     rt::system::FreeTag* freeLists[192]; // +0x028 the head FreeTag of each bin (null == empty), 0x600 bytes
     int32_t      minBin;         // +0x628 search floor; ctor sets 0xbf
-    int32_t      pad62c;         // +0x62c never written by any retail function
+    // +0x62c: never written by any retail function (retail's pad). NOT RETAIL: the port keeps
+    // a derived index of the bins here, bit g set exactly when one of freeLists[8g .. 8g+7] is
+    // non-null (24 groups of 8 bins). GetFreeTagForSize and UnlinkFreeTag's minBin walk read
+    // it to skip empty bins; it decides nothing the linear scan would not (see "THE BIN
+    // GROUPS" in allocator.cpp). Construct zeroes it with freeLists.
+    uint32_t     binGroups;      // +0x62c
     int64_t      allocatedBytes; // +0x630 GetAllocatedSize
     int32_t      allocCount;     // +0x638 live blocks
     int32_t      freeTagCount;   // +0x63c linked free blocks
@@ -421,7 +436,7 @@ namespace system {
 using MemoryAllocator = ::System::MemoryAllocator;
 
 static_assert(sizeof(MemoryAllocator) == 0x670, "MemoryAllocator is 0x670 bytes");
-static_assert(offsetof(MemoryAllocator, pad62c) == 0x62C, "MemoryAllocator::pad62c");
+static_assert(offsetof(MemoryAllocator, binGroups) == 0x62C, "MemoryAllocator::binGroups (retail's pad)");
 static_assert(offsetof(MemoryAllocator, ranges) == 0x000, "ranges");
 static_assert(offsetof(MemoryAllocator, rangeCount) == 0x008, "rangeCount");
 static_assert(offsetof(MemoryAllocator, rangeCapacity) == 0x00c, "rangeCapacity");

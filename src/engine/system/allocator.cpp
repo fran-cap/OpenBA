@@ -56,9 +56,16 @@
 //    that returns null on miss and is then dereferenced unguarded. Retail does
 //    not check it and neither do we (CLAUDE.md: do not "fix" a faithful crash).
 //  * Free decrements _allocCount/_allocatedBytes BEFORE coalescing.
-//  * GetBinForLargeSize' bit-scan loop is transcribed literally rather than
-//    replaced with a clz, so no boundary case can disagree between builds.
 //  * No exceptions anywhere (PLAN.md §4.3 risk 5).
+//
+// THE HOT PATH (2026-11-18). Allocate, Free, GetFreeTagForSize, Link/UnlinkFreeTag and the
+// bin and page arithmetic compute retail's results with cheaper instructions: a
+// count-leading-zeros for GetBinForLargeSize' bit-scan loop, a shift / mask for a 64-bit
+// DIV whose divisor is a power of two, and an index of non-empty bins (binGroups, retail's
+// pad at +0x62c) in place of stepping over empty free-list heads. Every block, tag, list
+// link and counter is what the transcription produces, for any call sequence:
+// tests/unit/allocator_hot_path_test.cpp keeps the transcription as its oracle
+// (tests/unit/allocator_oracle.h) and compares the two after every call.
 // ============================================================================
 
 #include <cstdio>
@@ -182,6 +189,166 @@ void SetPrevTagInfo(uint8_t* next, const uint8_t* prev) {
 inline MemoryTag* AsTag(uint8_t* p)  { return reinterpret_cast<MemoryTag*>(p); }  // CAST-OK: alloc_header
 inline FreeTag*   AsNode(uint8_t* p) { return reinterpret_cast<FreeTag*>(p); }  // CAST-OK: alloc_header
 
+// ---------------------------------------------------------------------------
+// THE HOT-PATH HELPERS (NOT RETAIL CODE, RETAIL RESULTS). Each one computes exactly what
+// the retail instruction sequence it replaces computes, for every input; the proof is
+// tests/unit/allocator_hot_path_test.cpp, which runs the frozen transcription
+// (tests/unit/allocator_oracle.h) beside these bodies and compares every address and the
+// whole heap after every step.
+// ---------------------------------------------------------------------------
+
+// `(x / d) * d` and `x / d` where retail executes a 64-bit DIV. Every divisor the hot path
+// meets is a power of two (the page size; align8 for every aligned request), where the
+// quotient is a shift and the product a mask, exactly. Any other divisor, 0 included, takes
+// the DIV: align == 0 makes retail divide by zero (DIV RCX at 0x1800c6f66 with RCX = 0), and
+// so does this.
+inline bool IsPowerOfTwo(uint64_t d) {
+    return d != 0 && (d & (d - 1)) == 0;
+}
+
+inline uint64_t DivideU64(uint64_t x, uint64_t d) {
+    if (IsPowerOfTwo(d)) return x >> __builtin_ctzll(d);
+    return x / d;
+}
+
+inline uint64_t RoundDownU64(uint64_t x, uint64_t d) {
+    if (IsPowerOfTwo(d)) return x & ~(d - 1);
+    return (x / d) * d;
+}
+
+// GetBinForSize (0x1800c78d0) / GetBinForLargeSize (0x1800c7920). The large path's
+// bit-scan loop ends at 119 + floor(log2 n) == 0xb6 - clz64(n) for n != 0 and at 118 ==
+// 0xb6 - 64 for n == 0 (MemoryAllocator.h, THE BINS).
+inline int BinForLargeSize(uint64_t n) {
+    const int lz = n == 0 ? 64 : __builtin_clzll(n);
+    return 0xb6 - lz;
+}
+
+inline int BinForSize(uint64_t n) {
+    if (n < 0x201) return static_cast<int>(static_cast<int32_t>(n)) >> 2;
+    return BinForLargeSize(n);
+}
+
+// ---------------------------------------------------------------------------
+// THE BIN GROUPS (NOT RETAIL: MemoryAllocator::binGroups, retail's never-written pad at
+// +0x62c). Bit g is set exactly when one of freeLists[8g .. 8g+7] is non-null. Every
+// store that can turn a head null or non-null updates it (LinkFreeTag sets the bit,
+// UnlinkFreeTag re-tests the group when it nulls a head), and Construct zeroes it with the
+// heads. With that invariant, NextNonEmptyBin(from) is the first bin >= from whose head is
+// non-null, or kFreeListBinCount when there is none -- the bin retail's linear scans
+// (GetFreeTagForSize's `continue` on a null head, UnlinkFreeTag's minBin walk) stop at,
+// without reading the empty heads in between. In the work-search pattern (a tree of 0x30
+// nodes allocated from the one big block and freed back into it) GetFreeTagForSize used to
+// step over ~120 empty heads per allocation.
+// ---------------------------------------------------------------------------
+constexpr int kBinGroupShift = 3;   // 8 bins per bit, 24 bits for 192 bins
+
+inline void MarkBinNonEmpty(MemoryAllocator* self, int bin) {
+    self->binGroups |= 1u << (bin >> kBinGroupShift);
+}
+
+// Called after freeLists[bin] was set to null.
+inline void NoteBinEmptied(MemoryAllocator* self, int bin) {
+    FreeTag* const* group = &self->freeLists[bin & ~((1 << kBinGroupShift) - 1)];
+    for (int i = 0; i < (1 << kBinGroupShift); ++i) {
+        if (group[i] != nullptr) return;
+    }
+    self->binGroups &= ~(1u << (bin >> kBinGroupShift));
+}
+
+inline int NextNonEmptyBin(const MemoryAllocator* self, int from) {
+    if (from >= kFreeListBinCount) return kFreeListBinCount;
+    const int group = from >> kBinGroupShift;
+    uint32_t groups = self->binGroups;
+    if ((groups & (1u << group)) != 0) {
+        const int groupEnd = (group + 1) << kBinGroupShift;
+        for (int bin = from; bin < groupEnd; ++bin) {
+            if (self->freeLists[bin] != nullptr) return bin;
+        }
+    }
+    groups &= ~((2u << group) - 1u);   // the groups above `group` (group <= 23)
+    if (groups == 0) return kFreeListBinCount;
+    int bin = __builtin_ctz(groups) << kBinGroupShift;
+    while (self->freeLists[bin] == nullptr) ++bin;   // the group's bit says one head is set
+    return bin;
+}
+
+// LinkFreeTag (0x1800c7310), the body. Push `tag` onto the head of its bin. Blocks under
+// 16 bytes are never linked.
+inline void LinkBlock(MemoryAllocator* self, uint8_t* tag) {
+    uint64_t bytes = (Tag(tag) & kTagSizeMask) * 4;
+    if (bytes < 0x10) return;
+
+    uint8_t* node = tag + 8;
+    int bin = BinForSize(bytes);
+    FreeTag** head = &self->freeLists[bin];
+
+    if (*head == nullptr) {
+        Node(node) = 0;
+        Tag(tag) &= ~kTagPrevHiMask;          // clear the prev-link high bits
+        if (bin < self->minBin) self->minBin = bin;
+        MarkBinNonEmpty(self, bin);           // NOT RETAIL: the bin-group index
+    } else {
+        uint8_t* oldHead = reinterpret_cast<uint8_t*>(*head);  // CAST-OK: alloc_header
+        Node(node) = static_cast<uint64_t>(oldHead - node) & kTagSizeMask;
+        Tag(tag) &= ~kTagPrevHiMask;
+
+        uint64_t back = static_cast<uint64_t>(node - oldHead);
+        Node(oldHead) &= kTagSizeMask;
+        Node(oldHead) |= back << 41;
+        Tag(oldHead - 8) &= ~kTagPrevHiMask;
+        Tag(oldHead - 8) |= (back & kLinkDeltaHiMask) << 23;
+    }
+    *head = AsNode(node);
+    self->freeTagCount++;
+}
+
+// UnlinkFreeTag(FreeTag*, FreeTag*) (0x1800c7410), the body.
+inline void UnlinkNode(MemoryAllocator* self, uint8_t* node) {
+    const uint64_t tagv  = Tag(node - 8);
+    const uint64_t nodev = Node(node);
+    int bin = BinForSize((tagv & kTagSizeMask) * 4);
+
+    uint64_t pdelta = (static_cast<uint64_t>(static_cast<int64_t>(tagv) >> 23) &
+                       kLinkDeltaHiMask) | (nodev >> 41);
+    uint8_t* prev = pdelta ? node + static_cast<int64_t>(pdelta) : nullptr;
+
+    int64_t ndelta = static_cast<int64_t>(nodev << 23) >> 23;
+    uint8_t* next = ndelta ? node + ndelta : nullptr;
+
+    if (prev == nullptr) {
+        if (next == nullptr) {
+            self->freeLists[bin] = nullptr;
+            NoteBinEmptied(self, bin);        // NOT RETAIL: the bin-group index
+        } else {
+            self->freeLists[bin] = AsNode(next);
+            Node(next) &= kTagSizeMask;
+            Tag(next - 8) &= ~kTagPrevHiMask;
+        }
+    } else {
+        Node(prev) &= ~kTagSizeMask;        // drop prev's next field
+        if (next != nullptr) {
+            Node(prev) |= static_cast<uint64_t>(next - prev) & kTagSizeMask;
+            uint64_t back = static_cast<uint64_t>(prev - next);
+            Node(next) &= kTagSizeMask;
+            Node(next) |= back << 41;
+            Tag(next - 8) &= ~kTagPrevHiMask;
+            Tag(next - 8) |= (back & kLinkDeltaHiMask) << 23;
+        }
+    }
+
+    Node(node) = 0;
+    Tag(node - 8) &= ~kTagPrevHiMask;
+
+    // Retail walks minBin up one bin at a time while its head is null, stopping at the
+    // first non-null head or at kFreeListBinCount (192, one past the last bin):
+    //     while (cursor < 192 && freeLists[minBin] == null) { cursor = minBin + 1; minBin = cursor; }
+    // NextNonEmptyBin lands on the same bin.
+    if (bin == self->minBin && self->freeLists[bin] == nullptr)
+        self->minBin = NextNonEmptyBin(self, bin);
+    self->freeTagCount--;
+}
+
 }  // namespace
 
 // ===========================================================================
@@ -193,20 +360,16 @@ inline FreeTag*   AsNode(uint8_t* p) { return reinterpret_cast<FreeTag*>(p); }  
 // ===========================================================================
 
 // --- GetBinForLargeSize (0x1800c7920) / GetBinForSize (0x1800c78d0) ---------
+// Retail is the binary-search bit scan
+//     shift = 32; bits = 64; do { if (n >> shift) { bits -= shift; n >>= shift; } shift >>= 1; } while (shift);
+//     return (int)n - bits + 0xb6;
+// computed here with a count-leading-zeros (BinForLargeSize above, MemoryAllocator.h THE BINS).
 int MemoryAllocator::GetBinForLargeSize(uint64_t n) const {
-    int shift = 0x20;
-    int bits  = 0x40;
-    do {
-        uint64_t v = n >> shift;
-        if (v != 0) { bits -= shift; n = v; }
-        shift >>= 1;
-    } while (shift != 0);
-    return static_cast<int>(n) - bits + 0xb6;
+    return BinForLargeSize(n);
 }
 
 int MemoryAllocator::GetBinForSize(uint64_t n) const {
-    if (n < 0x201) return static_cast<int>(static_cast<int32_t>(n)) >> 2;
-    return GetBinForLargeSize(n);
+    return BinForSize(n);
 }
 
 // --- GetMemoryRange (0x1800c71f0) ------------------------------------------
@@ -230,13 +393,14 @@ int64_t MemoryAllocator::GetAllocatedSize() const { return allocatedBytes; }
 // --- GetFreeTagForSize (0x1800c7230) ---------------------------------------
 // Returns a FreeTag* (== tag + 8), i.e. the USER pointer of a free block whose
 // byte size is >= `want`. First fit within a bin, then the next bin up.
+// Retail steps `++bin` over every bin and `continue`s on a null head; NextNonEmptyBin
+// visits the same non-null heads in the same order without reading the null ones.
 FreeTag* MemoryAllocator::GetFreeTagForSize(uint64_t want) {
-    int bin = GetBinForSize(want);
+    int bin = BinForSize(want);
     if (bin < minBin) bin = minBin;
 
-    for (; bin < kFreeListBinCount; ++bin) {
+    for (bin = NextNonEmptyBin(this, bin); bin < kFreeListBinCount; bin = NextNonEmptyBin(this, bin + 1)) {
         uint8_t* cur = reinterpret_cast<uint8_t*>(freeLists[bin]);  // CAST-OK: alloc_header
-        if (cur == nullptr) continue;
         for (;;) {
             if (((TagC(cur - 8) & kTagSizeMask) << 2) >= want) return AsNode(cur);
             int64_t next = static_cast<int64_t>(Node(cur) << 23) >> 23;
@@ -250,96 +414,32 @@ FreeTag* MemoryAllocator::GetFreeTagForSize(uint64_t want) {
 
 // --- LinkFreeTag (0x1800c7310) ---------------------------------------------
 // Push `tag` onto the head of its bin. Blocks under 16 bytes are never linked.
+// The body is LinkBlock (above), shared with Allocate and Free so they inline it.
 void MemoryAllocator::LinkFreeTag(MemoryTag* tagp) {
-    uint8_t* tag = reinterpret_cast<uint8_t*>(tagp);  // CAST-OK: alloc_header
-    uint64_t bytes = (Tag(tag) & kTagSizeMask) * 4;
-    if (bytes < 0x10) return;
-
-    uint8_t* node = tag + 8;
-    int bin = GetBinForSize(bytes);
-    FreeTag** head = &freeLists[bin];
-
-    if (*head == nullptr) {
-        Node(node) = 0;
-        Tag(tag) &= ~kTagPrevHiMask;          // clear the prev-link high bits
-        if (bin < minBin) minBin = bin;
-    } else {
-        uint8_t* oldHead = reinterpret_cast<uint8_t*>(*head);  // CAST-OK: alloc_header
-        Node(node) = static_cast<uint64_t>(oldHead - node) & kTagSizeMask;
-        Tag(tag) &= ~kTagPrevHiMask;
-
-        uint64_t back = static_cast<uint64_t>(node - oldHead);
-        Node(oldHead) &= kTagSizeMask;
-        Node(oldHead) |= back << 41;
-        Tag(oldHead - 8) &= ~kTagPrevHiMask;
-        Tag(oldHead - 8) |= (back & kLinkDeltaHiMask) << 23;
-    }
-    *head = AsNode(node);
-    freeTagCount++;
+    LinkBlock(this, reinterpret_cast<uint8_t*>(tagp));  // CAST-OK: alloc_header
 }
 
 // --- UnlinkFreeTag(FreeTag*, FreeTag*) (0x1800c7410) -----------------------
-// The second parameter is unused by retail; kept for ABI shape.
+// The second parameter is unused by retail; kept for ABI shape. The body is UnlinkNode
+// (above), shared with Allocate and Free so they inline it.
 void MemoryAllocator::UnlinkFreeTag(FreeTag* nodep, FreeTag* /*unused*/) {
-    uint8_t* node = reinterpret_cast<uint8_t*>(nodep);  // CAST-OK: alloc_header
-    uint64_t bytes = (TagC(node - 8) & kTagSizeMask) * 4;
-    int bin = GetBinForSize(bytes);
-
-    const uint64_t tagv  = Tag(node - 8);
-    const uint64_t nodev = Node(node);
-
-    uint64_t pdelta = (static_cast<uint64_t>(static_cast<int64_t>(tagv) >> 23) &
-                       kLinkDeltaHiMask) | (nodev >> 41);
-    uint8_t* prev = pdelta ? node + static_cast<int64_t>(pdelta) : nullptr;
-
-    int64_t ndelta = static_cast<int64_t>(nodev << 23) >> 23;
-    uint8_t* next = ndelta ? node + ndelta : nullptr;
-
-    if (prev == nullptr) {
-        if (next == nullptr) {
-            freeLists[bin] = nullptr;
-        } else {
-            freeLists[bin] = AsNode(next);
-            Node(next) &= kTagSizeMask;
-            Tag(next - 8) &= ~kTagPrevHiMask;
-        }
-    } else {
-        Node(prev) &= ~kTagSizeMask;        // drop prev's next field
-        if (next != nullptr) {
-            Node(prev) |= static_cast<uint64_t>(next - prev) & kTagSizeMask;
-            uint64_t back = static_cast<uint64_t>(prev - next);
-            Node(next) &= kTagSizeMask;
-            Node(next) |= back << 41;
-            Tag(next - 8) &= ~kTagPrevHiMask;
-            Tag(next - 8) |= (back & kLinkDeltaHiMask) << 23;
-        }
-    }
-
-    Node(node) = 0;
-    Tag(node - 8) &= ~kTagPrevHiMask;
-
-    int cursor = minBin;
-    if (bin == cursor && freeLists[bin] == nullptr) {
-        while (cursor < kFreeListBinCount && freeLists[minBin] == nullptr) {
-            cursor = minBin + 1;
-            minBin = cursor;
-        }
-    }
-    freeTagCount--;
+    UnlinkNode(this, reinterpret_cast<uint8_t*>(nodep));  // CAST-OK: alloc_header
 }
 
 // --- UnlinkFreeTag(MemoryTag*) (0x1800c7580) -------------------------------
 void MemoryAllocator::UnlinkFreeTag(MemoryTag* tagp) {
     uint8_t* tag = reinterpret_cast<uint8_t*>(tagp);  // CAST-OK: alloc_header
-    if (3 < (Tag(tag) & kTagSizeMask)) UnlinkFreeTag(AsNode(tag + 8), nullptr);
+    if (3 < (Tag(tag) & kTagSizeMask)) UnlinkNode(this, tag + 8);
 }
 
 // --- CommitToPage (0x1800c7bd0) --------------------------------------------
+// Retail: need = ((page - base - 1 + upTo) / page) * page, a 64-bit DIV; RoundDownU64 is
+// the same value (a mask for the power-of-two page every platform reports).
 void MemoryAllocator::CommitToPage(MemoryRange* range, void* upTo) {
     uint64_t page = pageSize;
     uint64_t have = range->committed;
-    uint64_t need = ((page - reinterpret_cast<uint64_t>(range->base) - 1 +  // CAST-OK: alloc_header
-                      reinterpret_cast<uint64_t>(upTo)) / page) * page;  // CAST-OK: alloc_header
+    uint64_t need = RoundDownU64(page - reinterpret_cast<uint64_t>(range->base) - 1 +  // CAST-OK: alloc_header
+                                     reinterpret_cast<uint64_t>(upTo), page);  // CAST-OK: alloc_header
     if (have <= need && need - have != 0) {
         // EXT SEAM (NOT RETAIL, docs/extensions/handins/HEAPSLACK.md): ext.heap_slack decides
         // what reaches the platform; retail's mark is stored either way.
@@ -354,8 +454,8 @@ void MemoryAllocator::CommitToPage(MemoryRange* range, void* upTo) {
 // --- ReleaseToPage (0x1800c7c80) -------------------------------------------
 void MemoryAllocator::ReleaseToPage(MemoryRange* range, void* downTo) {
     uint64_t page = pageSize;
-    uint64_t need = ((page - reinterpret_cast<uint64_t>(range->base) - 1 +  // CAST-OK: alloc_header
-                      reinterpret_cast<uint64_t>(downTo)) / page) * page;  // CAST-OK: alloc_header
+    uint64_t need = RoundDownU64(page - reinterpret_cast<uint64_t>(range->base) - 1 +  // CAST-OK: alloc_header
+                                     reinterpret_cast<uint64_t>(downTo), page);  // CAST-OK: alloc_header
     if (need < range->committed) {
         // EXT SEAM (NOT RETAIL, docs/extensions/handins/HEAPSLACK.md): ext.heap_slack may keep
         // the pages committed; retail's mark is lowered either way.
@@ -459,7 +559,7 @@ void* MemoryAllocator::Allocate(uint64_t size, int align) {
                 "no more memory is available, or an error has occured.", true);
         }
     }
-    UnlinkFreeTag(freeTag, nullptr);
+    UnlinkNode(this, reinterpret_cast<uint8_t*>(freeTag));   // UnlinkFreeTag(freeTag, nullptr)  // CAST-OK: alloc_header
 
     uint8_t* tag = reinterpret_cast<uint8_t*>(freeTag) - 8;  // CAST-OK: alloc_header
 
@@ -472,12 +572,14 @@ void* MemoryAllocator::Allocate(uint64_t size, int align) {
         }
     }
 
-    // Alignment padding: 64-bit DIV, 32-bit IMUL/SUB. The truncation is retail's.
+    // Alignment padding: 64-bit DIV, 32-bit IMUL/SUB. The truncation is retail's. The
+    // divide is DivideU64: a shift for a power-of-two align8, the DIV otherwise (align8 == 0
+    // divides by zero, as retail's DIV RCX does).
     uint8_t* user = tag + 8;
-    uint64_t quot = (static_cast<uint64_t>(static_cast<int64_t>(
-                         static_cast<int32_t>(align8 - 1u))) +
-                     reinterpret_cast<uint64_t>(user)) /  // CAST-OK: alloc_header
-                    static_cast<uint64_t>(static_cast<int64_t>(static_cast<int32_t>(align8)));
+    uint64_t quot = DivideU64(static_cast<uint64_t>(static_cast<int64_t>(
+                                  static_cast<int32_t>(align8 - 1u))) +
+                                  reinterpret_cast<uint64_t>(user),  // CAST-OK: alloc_header
+                              static_cast<uint64_t>(static_cast<int64_t>(static_cast<int32_t>(align8))));
     int32_t pad = static_cast<int32_t>(static_cast<uint32_t>(quot) * align8) -
                   static_cast<int32_t>(static_cast<uint32_t>(reinterpret_cast<uint64_t>(user)));  // CAST-OK: alloc_header
 
@@ -491,7 +593,7 @@ void* MemoryAllocator::Allocate(uint64_t size, int align) {
         // The head of the block becomes a `pad`-byte free block …
         Tag(tag) = (((static_cast<uint64_t>(padS) & kSizeBytesMask) | kThisFreeShl2) >> 2) |
                    (orig & (kTagPrevHiMask | kTagThisFree));
-        LinkFreeTag(AsTag(tag));
+        LinkBlock(this, tag);                 // LinkFreeTag
 
         // … and the aligned remainder becomes the block we hand out.
         uint8_t* newTag = tag + (Tag(tag) & kTagSizeMask) * 4;
@@ -537,16 +639,16 @@ void* MemoryAllocator::Allocate(uint64_t size, int align) {
                 }
             }
         }
-        LinkFreeTag(AsTag(rem));
+        LinkBlock(this, rem);                 // LinkFreeTag
     }
 
-    // Inlined CommitToPage over the block we are handing out.
+    // Inlined CommitToPage over the block we are handing out (retail's DIV: RoundDownU64).
     {
         uint64_t page = pageSize;
         uint64_t have = range->committed;
-        uint64_t need = (((Tag(tag) & kTagSizeMask) * 4 -
-                          reinterpret_cast<uint64_t>(range->base) - 1 + page +  // CAST-OK: alloc_header
-                          reinterpret_cast<uint64_t>(tag)) / page) * page;  // CAST-OK: alloc_header
+        uint64_t need = RoundDownU64((Tag(tag) & kTagSizeMask) * 4 -
+                                         reinterpret_cast<uint64_t>(range->base) - 1 + page +  // CAST-OK: alloc_header
+                                         reinterpret_cast<uint64_t>(tag), page);  // CAST-OK: alloc_header
         if (have <= need && need - have != 0) {
             // EXT SEAM (NOT RETAIL, docs/extensions/handins/HEAPSLACK.md): as in CommitToPage.
             if (_extCommitSeam != nullptr)
@@ -591,7 +693,7 @@ void MemoryAllocator::Free(void* p) {
             back = static_cast<uint64_t>(static_cast<uint32_t>(tv >> 0x27) & 0x1c);
 
         blk = tag - back;
-        if (3 < (Tag(blk) & kTagSizeMask)) UnlinkFreeTag(AsNode(blk + 8), nullptr);
+        if (3 < (Tag(blk) & kTagSizeMask)) UnlinkNode(this, blk + 8);       // UnlinkFreeTag
         uint64_t pv = Tag(blk);
         Tag(blk) = ((((Tag(tag) + pv) & 0x3fffffffffffffffull) ^ pv) & kTagSizeMask) ^ pv;
     }
@@ -615,7 +717,7 @@ void MemoryAllocator::Free(void* p) {
         } else {
             // Forward coalesce, then repeat the bookkeeping on the block after.
             Tag(blk) = ((((nv + bv) & 0x3fffffffffffffffull) ^ bv) & kTagSizeMask) ^ bv;
-            if (3 < (Tag(next) & kTagSizeMask)) UnlinkFreeTag(AsNode(next + 8), nullptr);
+            if (3 < (Tag(next) & kTagSizeMask)) UnlinkNode(this, next + 8);  // UnlinkFreeTag
             next = next + (Tag(next) & kTagSizeMask) * 4;
             if (next != range->end) {
                 uint64_t n2 = Tag(next);
@@ -638,7 +740,7 @@ void MemoryAllocator::Free(void* p) {
         ReleaseToPage(range, blk + 0x10);
 
     Tag(blk) = (Tag(blk) & ~(kTagPrevSizeMask | kTagPrevFree)) | kTagThisFree;
-    LinkFreeTag(AsTag(blk));
+    LinkBlock(this, blk);                     // LinkFreeTag
 }
 
 // --- Startup (0x1800c7620) -------------------------------------------------
@@ -691,6 +793,22 @@ void MemoryAllocator::MemFree(void* p) {
     g_plat.lockLeave(&self->lock);
 }
 
+// NOT RETAIL (MemoryAllocator.h): `for (i) MemFree(ptrs[i])` with one lock hold.
+void MemoryAllocator::MemFreeBatch(void* const* ptrs, int count) {
+    if (System::g_memoryAllocatorInstrument.memFree) {               // STANDALONE DEVIATION
+        for (int i = 0; i < count; ++i)
+            System::g_memoryAllocatorInstrument.memFree(ptrs[i]);
+        return;
+    }
+    if (count <= 0) return;
+    MemoryAllocator* self = Get();
+    g_plat.lockEnter(&self->lock);
+    for (int i = 0; i < count; ++i) {
+        if (ptrs[i] != nullptr) self->Free(ptrs[i]);
+    }
+    g_plat.lockLeave(&self->lock);
+}
+
 // --- PointerOffset (0x180034e20) -------------------------------------------
 int64_t MemoryAllocator::PointerOffset(void* a, void* b) {
     return static_cast<uint8_t*>(a) - static_cast<uint8_t*>(b);  // CAST-OK: ptr_int
@@ -725,6 +843,7 @@ void Construct(MemoryAllocator* self) {
     self->freeTagCount = 0;
     g_plat.lockInit(&self->lock);
     std::memset(self->freeLists, 0, sizeof(self->freeLists));
+    self->binGroups = 0;                      // NOT RETAIL: the bin-group index, empty with the heads
     MemoryAllocator::_singleton = self;
     self->pageSize = 0;                       // inlined PlatformConstruct
 }
