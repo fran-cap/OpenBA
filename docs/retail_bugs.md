@@ -1690,12 +1690,19 @@ sibling of §14).
 - `CitizenAIComponent::State_Leisure` (`0x14010a560`) collects the reachable buildings in a 13 x 13 box
   into a scratch `Set<ComponentEntity*>` (keyed by pointer, the insert `0x140021a30`) and takes the
   `Rand(count)`-th of its in-order walk: one draw names a different building per address layout.
+- The Work leaves' Cleanup (slot 8; `TendArea` `0x1400f5830`, `GatherRawMaterials` `0x1400ec480` and
+  ten more) cancels every worker of a torn-down task by clearing the action stack of the citizen on
+  the LEFTMOST node of a set keyed by a pointer (the citizen; for `ClearArea` `0x1400e6650` the entity
+  being cleared), until the set is empty: the cancels, which set down loads and give back
+  reservations, run in address order.
 
 **Lever.** Order by the entity's EntityList id (`ComponentEntity::_entityId`, +0x18): unique at any
 moment, set only by the order of registrations and removals, saved and restored by
 `EntityList::Serialize` (`0x1400c44a0`). The update tree keeps its pointer key; the walk visits it by id.
 
-Fix: `fix.stable_order` (tier 1), default on, off under `/profile:faithful`. Three seams: the snapshot
+Fix: `fix.stable_order` (tier 1), default on, off under `/profile:faithful`. Seams: the snapshot
 walk of `EntityList::Update` (`src/game/Entity/entitylist.cpp`), `MoveTo::Enter`
-(`src/game/Action/moveto.cpp`), the leisure pick (`src/game/Component/citizenai_leisure.cpp`). Code
+(`src/game/Action/moveto.cpp`), the leisure pick (`src/game/Component/citizenai_leisure.cpp`), the
+twelve Work leaves' Cleanup picks (`src/game/Work/*.cpp`: the lowest entity id instead of the leftmost
+node; the sets and the save are unchanged). Code
 `src/ext/stable_order/`. Hand-in `docs/extensions/handins/STABLEORDER.md`.

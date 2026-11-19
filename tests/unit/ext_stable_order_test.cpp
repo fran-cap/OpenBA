@@ -164,6 +164,54 @@ UNIT_TEST(ext_stable_order_nth_by_id_ignores_the_set_shape) {
     CHECK(Ext::StableOrder::NthById<SetNode>(nullptr, 0) == nullptr);
 }
 
+namespace {
+// A component as the Work leaves' sets hold it: Component::_entity, then ComponentEntity::_entityId.
+struct EntRef {
+    Ent* e;
+    Ent* Get() const { return e; }
+};
+struct Comp {
+    EntRef _entity;
+};
+struct CompNode {
+    Comp* element;
+    CompNode* left;
+    CompNode* right;
+};
+}  // namespace
+
+UNIT_TEST(ext_stable_order_cleanup_takes_the_lowest_id) {
+    // The Work leaves' Cleanup cancels until the set is empty, each time from the node the seam
+    // picks. Three workers at two address layouts: the cancels run in the same (id) order.
+    Ent ids[3] = { {12}, {4}, {8} };
+    std::vector<int32_t> runs[2];
+    for (int layout = 0; layout < 2; ++layout) {
+        Comp c[3];
+        for (int k = 0; k < 3; ++k) c[k]._entity.e = &ids[layout == 0 ? k : 2 - k];
+        std::vector<Comp*> live = { &c[0], &c[1], &c[2] };   // ascending addresses
+        // Cancel = remove the picked key (the leaves' OnCancel); the set is rebuilt each step as
+        // a balanced-enough tree in pointer order (the middle key at the root).
+        while (!live.empty()) {
+            CompNode nodes[3];
+            const size_t n = live.size();
+            for (size_t k = 0; k < n; ++k) nodes[k] = CompNode{live[k], nullptr, nullptr};
+            CompNode* root = &nodes[n / 2];
+            if (n / 2 > 0) root->left = &nodes[0];
+            if (n / 2 + 1 < n) root->right = &nodes[n / 2 + 1];
+            Comp* pick = Ext::StableOrder::LowestIdKey(root);
+            runs[layout].push_back(pick->_entity.Get()->_entityId);
+            live.erase(std::find(live.begin(), live.end(), pick));
+        }
+        CHECK(Ext::StableOrder::LowestIdKey<CompNode>(nullptr) == nullptr);
+    }
+    const std::vector<int32_t> expect = { 4, 8, 12 };
+    CHECK(runs[0] == expect);
+    CHECK(runs[1] == expect);
+    // MinNodeById with a key of another type (ClearArea: the entity being cleared).
+    CompNode leaf{nullptr, nullptr, nullptr};
+    CHECK(Ext::StableOrder::MinNodeById(&leaf, [](const CompNode*) { return 0; }) == &leaf);
+}
+
 UNIT_TEST(ext_stable_order_ids_follow_the_add_remove_sequence) {
     // One sequence of registrations and removals at two address layouts gives every
     // entity the same id, and so the same visit order, though the ids move on removal.

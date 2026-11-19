@@ -122,5 +122,52 @@ inline auto NthById(const Node* root, uint32_t pick) -> decltype(root->element) 
     return keys[pick];
 }
 
+// A component's entity id (Component::_entity, then ComponentEntity::_entityId). A template so this
+// header needs neither type: the Work seams below pass a CitizenComponent.
+template <class C>
+inline int32_t EntityIdOf(const C* component) {
+    return component->_entity.Get()->_entityId;
+}
+
+// The Work leaves' Cleanup (slot 8: BuildStructure 0x1400e57a0, ClearArea 0x1400e6650, ClearStorage
+// 0x1400e72a0, FireWork 0x1400e99a0, ForesterWork 0x1400eb8a0, GatherRawMaterials 0x1400ec480,
+// HerbalistWork 0x1400eeae0, HuntWork 0x1400ef530, MarketWork 0x1400f1ca0, PastureWork 0x1400f2b90,
+// TendArea 0x1400f5830, TradeWork 0x1400f6be0) clears, until its set is empty, the action stack of
+// the citizen on the set's LEFTMOST node, and each set is keyed by a pointer (the citizen, or for
+// ClearArea the entity being cleared). The cancels run in address order, and a cancel acts on the
+// world (a carried load set down, a reservation given back, a path dropped). With the row on the
+// seam takes the node whose key has the lowest entity id: `idOf(node)` names it. Ties (never two
+// live entities) keep the first in the set's own order. Returns nullptr for an empty set. A whole
+// walk per pick over a set of a few workers; only when a task is torn down.
+template <class Node, class IdOf>
+inline Node* MinNodeById(Node* root, IdOf idOf) {
+    Node* best = nullptr;
+    int32_t bestId = 0;
+    std::vector<Node*> stack;
+    for (Node* n = root; n != nullptr || !stack.empty();) {
+        while (n != nullptr) {
+            stack.push_back(n);
+            n = n->left;
+        }
+        n = stack.back();
+        stack.pop_back();
+        const int32_t id = idOf(n);
+        if (best == nullptr || id < bestId) {
+            best = n;
+            bestId = id;
+        }
+        n = n->right;
+    }
+    return best;
+}
+
+// MinNodeById over a Collection::Set<T*> whose key is the component itself (the Work leaves'
+// `_citizens`): the key with the lowest entity id, or nullptr for an empty set.
+template <class Node>
+inline auto LowestIdKey(Node* root) -> decltype(root->element) {
+    Node* n = MinNodeById(root, [](const Node* x) { return EntityIdOf(x->element); });
+    return n != nullptr ? n->element : nullptr;
+}
+
 }  // namespace StableOrder
 }  // namespace Ext

@@ -42,6 +42,8 @@
 #include "Component/WorkPlaceComponent.h"
 #include "Entity/ComponentEntity.h"
 #include "Game/Map.h"
+#include "ext/registry.h"                    // Ext::Fix().stable_order
+#include "ext/stable_order/stable_order.h"   // FIX stable_order (NOT RETAIL): Cleanup's cancel order
 
 // ============================================================
 // Sub-functions, called by name
@@ -253,6 +255,12 @@ int TendArea::Cleanup() {
 
         // Cancel the work item
         CitizenComponent* citizen = leftmost->element;
+        // FIX stable_order (NOT RETAIL, docs/extensions/handins/STABLEORDER.md, docs/retail_bugs.md §36):
+        // the set is keyed by pointer, so retail (0x1400f5830) cancels the lowest ADDRESS first. With
+        // the row on, the citizen with the lowest entity id.
+        if (Ext::Fix().stable_order) {
+            citizen = Ext::StableOrder::LowestIdKey(_citizens._root);
+        }
 
         citizen->character->actionStack.Clear();
     }
