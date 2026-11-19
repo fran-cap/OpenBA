@@ -296,14 +296,6 @@ public:
     // ?MemFree@MemoryAllocator@System@@SAXPEAX@Z      0x1800c7ad0
     //   if (p) { Enter; Free(p); Leave; }. Consults g_memoryAllocatorInstrument.
     static void  MemFree(void* p);
-    // NOT RETAIL (no retail address): MemFree over `count` pointers under ONE lock hold.
-    //   The same Free calls in the same order as `for (i) MemFree(ptrs[i])`, nulls skipped,
-    //   so the heap ends identical; only the per-pointer lock / unlock pairs go. With an
-    //   instrument armed it is exactly that MemFree loop. For a caller that frees many
-    //   blocks at once (the work-search candidate tree). Another thread's allocation can no
-    //   longer land between two of these frees; that is one of the interleavings the
-    //   per-call lock already allowed, never a new one.
-    static void  MemFreeBatch(void* const* ptrs, int count);
     // ?Get@MemoryAllocator@System@@SAPEAV12@XZ        0x1800534e0
     static MemoryAllocator* Get();
     // ?PointerOffset@MemoryAllocator@System@@CA_JPEAX0@Z  0x180034e20 (retail: private)

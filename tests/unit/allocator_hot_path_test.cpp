@@ -488,35 +488,3 @@ UNIT_TEST(allocator_hot_path_matches_transcription_min_bin_walk) {
         CHECK(whole.ok);
     }
 }
-
-// ---- MemFreeBatch: the same Free calls, in order, under one lock hold ---------------------
-UNIT_TEST(allocator_mem_free_batch_matches_one_free_per_pointer) {
-    Pair pair("batch", 1);
-    std::mt19937_64 rng(4242);
-    System::MemoryAllocator* const savedSingleton = System::MemoryAllocator::_singleton;
-    const System::MemoryAllocatorInstrument savedSeat = System::g_memoryAllocatorInstrument;
-    System::g_memoryAllocatorInstrument = {nullptr, nullptr};
-    for (int round = 0; round < 200 && pair.ok; ++round) {
-        const int n = 1 + static_cast<int>(rng() % 300);
-        std::vector<Pair::Block> nodes;
-        for (int i = 0; i < n; ++i) nodes.push_back(pair.Alloc(0x30, 8));
-        std::vector<void*> ptrs;
-        for (const Pair::Block& b : nodes) {
-            ptrs.push_back(b.b);
-            if (rng() % 17 == 0) ptrs.push_back(nullptr);   // a null in the batch is skipped
-        }
-        // Reference: one oracle Free per pointer, in order.
-        g_active = &g_sides[0];
-        for (const Pair::Block& b : nodes) alloc_oracle::Free(pair.oracle, b.a);
-        // Under test: the batch entry point over the optimised allocator.
-        g_active = &g_sides[1];
-        System::MemoryAllocator::_singleton = &pair.opt;
-        System::MemoryAllocator::MemFreeBatch(ptrs.data(), static_cast<int>(ptrs.size()));
-        System::MemoryAllocator::_singleton = savedSingleton;
-        ++pair.step;
-        pair.Compare(nullptr, nullptr);
-    }
-    pair.CompareArenas();
-    System::g_memoryAllocatorInstrument = savedSeat;
-    CHECK(pair.ok);
-}

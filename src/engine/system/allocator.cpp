@@ -794,22 +794,6 @@ void MemoryAllocator::MemFree(void* p) {
     g_plat.lockLeave(&self->lock);
 }
 
-// NOT RETAIL (MemoryAllocator.h): `for (i) MemFree(ptrs[i])` with one lock hold.
-void MemoryAllocator::MemFreeBatch(void* const* ptrs, int count) {
-    if (System::g_memoryAllocatorInstrument.memFree) {               // STANDALONE DEVIATION
-        for (int i = 0; i < count; ++i)
-            System::g_memoryAllocatorInstrument.memFree(ptrs[i]);
-        return;
-    }
-    if (count <= 0) return;
-    MemoryAllocator* self = Get();
-    g_plat.lockEnter(&self->lock);
-    for (int i = 0; i < count; ++i) {
-        if (ptrs[i] != nullptr) self->Free(ptrs[i]);
-    }
-    g_plat.lockLeave(&self->lock);
-}
-
 // --- PointerOffset (0x180034e20) -------------------------------------------
 int64_t MemoryAllocator::PointerOffset(void* a, void* b) {
     return static_cast<uint8_t*>(a) - static_cast<uint8_t*>(b);  // CAST-OK: ptr_int
