@@ -250,14 +250,15 @@ inline void MarkBinNonEmpty(MemoryAllocator* self, int bin) {
 // Called after freeLists[bin] was set to null.
 inline void NoteBinEmptied(MemoryAllocator* self, int bin) {
     FreeTag* const* group = &self->freeLists[bin & ~((1 << kBinGroupShift) - 1)];
-    for (int i = 0; i < (1 << kBinGroupShift); ++i) {
-        if (group[i] != nullptr) return;
-    }
-    self->binGroups &= ~(1u << (bin >> kBinGroupShift));
+    uintptr_t any = 0;
+    for (int i = 0; i < (1 << kBinGroupShift); ++i)
+        any |= reinterpret_cast<uintptr_t>(group[i]);  // CAST-OK: ptr_int
+    if (any == 0) self->binGroups &= ~(1u << (bin >> kBinGroupShift));
 }
 
 inline int NextNonEmptyBin(const MemoryAllocator* self, int from) {
     if (from >= kFreeListBinCount) return kFreeListBinCount;
+    if (self->freeLists[from] != nullptr) return from;   // the common case: the exact bin
     const int group = from >> kBinGroupShift;
     uint32_t groups = self->binGroups;
     if ((groups & (1u << group)) != 0) {
