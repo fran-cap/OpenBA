@@ -59,6 +59,7 @@ SpriteSheet resource
 		{ String _name = "ExtensionsEntry_shadow_zoom_pulse";	String _source = "Sprite/Extensions/Entry_shadow_zoom_pulse.png"; }
 		{ String _name = "ExtensionsEntry_priority_after_load";	String _source = "Sprite/Extensions/Entry_priority_after_load.png"; }
 		{ String _name = "ExtensionsEntry_reflection_hills";	String _source = "Sprite/Extensions/Entry_reflection_hills.png"; }
+		{ String _name = "ExtensionsEntry_stable_order";	String _source = "Sprite/Extensions/Entry_stable_order.png"; }
 		{ String _name = "ExtensionsEntry_eye_camera";	String _source = "Sprite/Extensions/Entry_eye_camera.png"; }
 		{ String _name = "ExtensionsEntry_sharp_ui";	String _source = "Sprite/Extensions/Entry_sharp_ui.png"; }
 		{ String _name = "ExtensionsEntry_fast_paths";	String _source = "Sprite/Extensions/Entry_fast_paths.png"; }
@@ -167,6 +168,5 @@ SpriteSheet resource
 		{ String _name = "GameFilesIcon";		String _source = "Sprite/Extensions/GameFilesIcon.png"; }	// ext.phone_menu's Game files menu button (issue #96)
 		{ String _name = "ExtensionsEntry_fullscreen_mode";	String _source = "Sprite/Extensions/Entry_fullscreen_mode.png"; }
 		{ String _name = "ExtensionsEntry_render_backend";	String _source = "Sprite/Extensions/Entry_render_backend.png"; }
-		{ String _name = "ExtensionsEntry_work_cand";	String _source = "Sprite/Extensions/Entry_work_cand.png"; }
 	]
 }

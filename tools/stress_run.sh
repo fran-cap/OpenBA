@@ -39,7 +39,39 @@
 #   tools/stress_run.sh [--label NAME] [--speed N] [--citizens N] [--sets N] [--frames N]
 #                       [--interval N] [--seed N] [--map small|medium|large]
 #                       [--baseline CSV|none] [--no-build] [--debug] [--timeout SECS]
-#                       [--lock LANE] [--no-load] [--spread]
+#                       [--lock LANE] [--no-load] [--spread] [--inline-paths] [--hash N]
+#                       [--mode player|faithful|repeatable] [--no-houses] [--no-full-staff]
+#   --mode        WHAT IS MEASURED (ruled 2026-11-19; STRESS_MODE sets it too). `player`, the default:
+#                 the registry's default rows, i.e. what ships -- every `ext.` / `fix.` line is taken
+#                 out of settings.cfg for the run (restored at exit) and the exe runs per-entry.
+#                 `faithful`: /profile:faithful, every fix and extension off, the port's own code.
+#                 `repeatable`: player, plus fix.stable_order on and --inline-paths, so two runs build
+#                 the same town (same sim_hash in every row): the mode for a same-town A/B of two
+#                 exes. Check the report's WORKLOAD block says SAME TOWN before reading a delta.
+#                 The two have different bottlenecks (faithful is sim-bound; with the default rows
+#                 the main / render hand-off sets the pace). An explicit STRESS_PROFILE or STRESS_EXT
+#                 wins over the mode. Baselines cut before this date ran faithful, no houses,
+#                 default staff: the report's WORKLOAD block says so when they are compared
+#   --houses      the harness housing pass (BANISHED_STRESS_HOUSES=1): every 300 world frames from
+#                 frame 600 it places completed houses, by the founding town's siting, for the
+#                 households CitizenComponent::FindHome would move (grown children with a parent,
+#                 the homeless, hostel households) that no free house is waiting for.
+#                 perf/README.md "What the town is". ON by default since 2026-11-19
+#                 (--houses is accepted and does nothing); --no-houses turns it off
+#   --full-staff  the staffing pass seats every workplace up to its template's _maxWorkerCount
+#                 instead of _defaultWorkers (BANISHED_STRESS_FULL_STAFF=1). ON by default
+#                 since 2026-11-19; --no-full-staff turns it off
+#   --no-maximize do not maximise the window. By default the harness maximises a windowed game
+#                 window on the primary display once, when the town first ticks
+#                 (BANISHED_STRESS_MAXIMIZE=1), so every run draws the same back buffer
+#   --inline-paths every path request is searched on the main thread when it is made
+#                 (BANISHED_STRESS_PATH_INLINE=1) instead of by retail's worker, which answers
+#                 on wall-clock time. Removes ONE of the two sources that make two runs of a
+#                 seed different towns; the other (the entity update order follows heap
+#                 addresses) needs a game-side change: perf/README.md "Repeatable town".
+#                 Off by default: the searches then cost main-thread time
+#   --hash N      a [Stress::hash] sim-digest line every N world frames in standalone_error.log
+#                 (BANISHED_STRESS_HASH; 1 = every frame), to find the first frame two runs differ
 #   --spread      the PFBENCH spread layout: workplaces and storage a quarter map west of
 #                 the centre, houses a quarter map east (BANISHED_STRESS_SETS=-N, N = --sets
 #                 or 3), so path requests dominate the run
@@ -71,6 +103,8 @@ BUILDER="${BUILDER:-tools/build.sh}"   # the CMake build (2026-10-11; was mingw3
 ORIG_ARGS=("$@")
 LABEL="run"; SPEED=""; CITIZENS=""; SETS=""; FRAMES=""; INTERVAL=""; SEED=""; MAP=""
 BASELINE=""; BUILD=1; DEBUG=0; TIMEOUT=""; LOCK_LANE=""; LOAD=1; SPREAD=0
+PATH_INLINE=0; HASH=""; HOUSES=1; FULL_STAFF=1; MODE="${STRESS_MODE:-player}"
+MAXIMIZE=1   # --no-maximize: the view as settings.cfg and the desktop leave it (BANISHED_STRESS_MAXIMIZE)
 while [ $# -gt 0 ]; do
     case "$1" in
         --label)    LABEL="$2"; shift 2 ;;
@@ -86,6 +120,14 @@ while [ $# -gt 0 ]; do
         --lock)     LOCK_LANE="$2"; shift 2 ;;
         --no-load)  LOAD=0; shift ;;
         --spread)   SPREAD=1; shift ;;
+        --inline-paths) PATH_INLINE=1; shift ;;
+        --houses)   HOUSES=1; shift ;;
+        --no-houses) HOUSES=0; shift ;;
+        --no-maximize) MAXIMIZE=0; shift ;;
+        --full-staff) FULL_STAFF=1; shift ;;
+        --no-full-staff) FULL_STAFF=0; shift ;;
+        --mode)     MODE="$2"; shift 2 ;;
+        --hash)    HASH="$2"; shift 2 ;;
         --no-build) BUILD=0; shift ;;
         --debug)    DEBUG=1; BUILD=0; shift ;;
         -h|--help)  sed -n '2,30p' "$0"; exit 0 ;;
@@ -177,6 +219,16 @@ export BANISHED_STRESS=1
 [ -n "$INTERVAL" ] && export BANISHED_STRESS_INTERVAL="$INTERVAL"
 [ -n "$SEED" ]     && export BANISHED_SEED="$SEED"
 [ -n "$MAP" ]      && export BANISHED_MAP_SIZE="$MAP"
+[ -n "$HASH" ]     && export BANISHED_STRESS_HASH="$HASH"
+# --inline-paths (perf/README.md "Repeatable town"); an exported value wins, as for the knobs.
+if [ -z "${BANISHED_STRESS_PATH_INLINE:-}" ]; then export BANISHED_STRESS_PATH_INLINE="$PATH_INLINE"; fi
+# --houses / --full-staff (perf/README.md "What the town is"); an exported value wins, as above.
+if [ -z "${BANISHED_STRESS_HOUSES:-}" ]; then export BANISHED_STRESS_HOUSES="$HOUSES"; fi
+if [ -z "${BANISHED_STRESS_FULL_STAFF:-}" ]; then export BANISHED_STRESS_FULL_STAFF="$FULL_STAFF"; fi
+# The view: the window maximised on the primary display when the town first ticks, so the
+# back buffer does not depend on settings.cfg's VideoWindow* rect or on a window manager
+# (PowerToys FancyZones) acting on the new window. view_w / view_h in the CSV are the check.
+if [ -z "${BANISHED_STRESS_MAXIMIZE:-}" ]; then export BANISHED_STRESS_MAXIMIZE="$MAXIMIZE"; fi
 
 if tasklist 2>/dev/null | grep -qi 'OpenBA.exe'; then
     echo "OpenBA.exe is already running -- stop it first" >&2
@@ -235,7 +287,9 @@ fi
 # per frame because the window came up unfocused (the user was typing elsewhere). As
 # tools/linux_run.sh does: switch it off for the run and restore the file at exit.
 CFG="${BANISHED_USER_DIR:-${USERPROFILE:-$HOME}/Documents/Banished}/settings.cfg"; CFG_SAVED=""   # tools/game_dirs.sh
-if [ -f "$CFG" ] && { grep -q '^GameAutoPause=' "$CFG" || [ -n "${STRESS_EXT:-}" ] || [ -n "${STRESS_CPU_LIMIT:-}" ]; }; then
+# Always saved and restored when the file exists: the game writes settings.cfg back when it quits, and
+# a run that maximised its window (the default) would otherwise leave that size in the user's file.
+if [ -f "$CFG" ]; then
     CFG_SAVED="$(mktemp)"; cp -f "$CFG" "$CFG_SAVED"
     sed -i 's/^GameAutoPause=.*/GameAutoPause=false/' "$CFG"
     trap '[ -n "$CFG_SAVED" ] && cp -f "$CFG_SAVED" "$CFG" && rm -f "$CFG_SAVED"' EXIT
@@ -249,6 +303,39 @@ fi
 # fewer entities; STRESS_FIXES=keep restores the old behaviour), and the exe runs WITHOUT
 # /profile (per-entry), so exactly the listed extensions are on. The file is restored at exit
 # (the trap above).
+# --mode (the header): `player` runs the registry's default rows. A row with no line in settings.cfg
+# takes its registry default, so the run's file loses every `ext.` / `fix.` line (the valued keys
+# too: their defaults) and the exe runs per-entry. An explicit STRESS_PROFILE / STRESS_EXT wins.
+case "$MODE" in
+    player|faithful|repeatable) ;;
+    *) echo "unknown --mode $MODE (player, faithful or repeatable)" >&2; exit 1 ;;
+esac
+if [ "$MODE" = repeatable ] && [ ! -f "$CFG" ]; then
+    echo "--mode repeatable needs $CFG (it turns fix.stable_order on there for the run)" >&2
+    exit 1
+fi
+if [ "$MODE" != faithful ] && [ -z "${STRESS_PROFILE:-}" ] && [ -z "${STRESS_EXT:-}" ]; then
+    if [ -f "$CFG" ]; then
+        if [ -z "$CFG_SAVED" ]; then
+            CFG_SAVED="$(mktemp)"; cp -f "$CFG" "$CFG_SAVED"
+            trap '[ -n "$CFG_SAVED" ] && cp -f "$CFG_SAVED" "$CFG" && rm -f "$CFG_SAVED"' EXIT
+        fi
+        sed -i '/^\(ext\|fix\)\./d' "$CFG"
+    fi
+    STRESS_PROFILE=per-entry
+    if [ "$MODE" = player ]; then
+        echo "== mode player: the registry's default rows (ext. / fix. lines out of settings.cfg for this run)"
+    fi
+    # repeatable: the player's rows (the registry defaults, as above), plus fix.stable_order and the
+    # paths searched inline. Two runs then build one town: 10 of 10 runs, and two A B B A blocks of
+    # 9000 frames, held one sim digest in every row (2026-11-19, once the row also took the weather's
+    # clock-seeded noise out of the sim: STABLEORDER.md section 6).
+    if [ "$MODE" = repeatable ]; then
+        printf 'fix.stable_order=1\n' >> "$CFG"
+        export BANISHED_STRESS_PATH_INLINE=1
+        echo "== mode repeatable: the default rows, fix.stable_order=1, inline paths"
+    fi
+fi
 PROFILE_ARG="/profile:${STRESS_PROFILE:-faithful}"
 if [ -n "${STRESS_EXT:-}" ]; then
     [ -n "$CFG_SAVED" ] || { echo "STRESS_EXT needs $CFG" >&2; exit 1; }
@@ -307,7 +394,7 @@ if [ -n "${STRESS_CPU_LIMIT:-}" ]; then
     echo "== STRESS_CPU_LIMIT=$STRESS_CPU_LIMIT: sys.cpu_limit set for this run (settings.cfg restored at exit)"
 fi
 
-echo "== launching  label=$LABEL speed=${SPEED:-default} citizens=${CITIZENS:-default} sets=${SETS:-default} frames=$FRAMES_EFF debug=$DEBUG"
+echo "== launching  label=$LABEL profile=${STRESS_PROFILE:-faithful} speed=${SPEED:-default} citizens=${CITIZENS:-default} sets=${SETS:-default} frames=$FRAMES_EFF debug=$DEBUG paths=$([ "$BANISHED_STRESS_PATH_INLINE" = 0 ] && echo async || echo inline) houses=$([ "$BANISHED_STRESS_HOUSES" = 0 ] && echo off || echo on) fullstaff=$([ "$BANISHED_STRESS_FULL_STAFF" = 0 ] && echo off || echo on)"
 echo "   results -> $OUT"
 # STRESS_PROFILE (default faithful): the exe's /profile:<name> switch (docs/extensions/DESIGN.md);
 # `all` turns every fix and extension on for the everything-on comparison.

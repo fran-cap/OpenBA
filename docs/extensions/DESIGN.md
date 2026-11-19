@@ -30,7 +30,7 @@ never here.
 |---|---|---|---|---|
 | 0 Faithful | retail's behaviour | retail's | -- | here, and only here |
 | 1 Fix | a retail bug corrected at its faithful lever | retail's, unchanged | **ON** | boot/stress/quit only |
-| 2 Extension | a feature retail never had | by class (below) | **class A ON, B / C OFF** except the B / C rows ruled ON for 1.0.3 (2026-11-08: `path_workers`, `fast_paths`, `anim_batch`, `spread_warmth`, `drain_split`, `walk_batch_grid`, `restricted_foods`, `item_priority`, `tool_names`, `recipe_skip`, `high_limits`, `boat_lane`, `walk_on_ice`, `map_overlays`, and `better_camera` (Wider zoom, a desktop only: the Android first run seeds it off); `work_cand` ruled ON 2026-11-09 (WORKCAND.md); `terrain_edit`, `town_screenshot`, `family_tree` stay OFF; a new game's save lists each one as an `ext:` pseudo-mod, see below) (class A ruled 2026-10-18; `eye_camera` is class A but OFF: it changes how the game is played; `no_fog` was one too (it changes how the map looks), ON on a desktop since 1.0.3 at `ext.fog_distance` 0 = retail's fog, and `camera_angle` ships ON at tilt 50 = retail's pitch; so is `phone_menu`: it moves the desktop menu, and the Android first run turns it on; so is `fps_cap`: it caps a desktop's game, which retail leaves uncapped, and the Android first run turns it on at 60; `staggered_passes` was one too until 1.0.3, now ON on every platform, ruled 2026-11-08; so was `render_backend`, ON since 1.0.3 so the dual Windows exe starts on Vulkan, DirectX 11 as its fallback) | boot/stress/quit only |
+| 2 Extension | a feature retail never had | by class (below) | **class A ON, B / C OFF** except the B / C rows ruled ON for 1.0.3 (2026-11-08: `path_workers`, `fast_paths`, `anim_batch`, `spread_warmth`, `drain_split`, `walk_batch_grid`, `restricted_foods`, `item_priority`, `tool_names`, `recipe_skip`, `high_limits`, `boat_lane`, `walk_on_ice`, `map_overlays`, and `better_camera` (Wider zoom, a desktop only: the Android first run seeds it off); `work_cand` was one (ruled ON 2026-11-09) until it was ruled faithful perf work and retired 2026-11-18 (WORKCAND.md section 7.1, "Retiring a row" in section 3); `terrain_edit`, `town_screenshot`, `family_tree` stay OFF; a new game's save lists each one as an `ext:` pseudo-mod, see below) (class A ruled 2026-10-18; `eye_camera` is class A but OFF: it changes how the game is played; `no_fog` was one too (it changes how the map looks), ON on a desktop since 1.0.3 at `ext.fog_distance` 0 = retail's fog, and `camera_angle` ships ON at tilt 50 = retail's pitch; so is `phone_menu`: it moves the desktop menu, and the Android first run turns it on; so is `fps_cap`: it caps a desktop's game, which retail leaves uncapped, and the Android first run turns it on at 60; `staggered_passes` was one too until 1.0.3, now ON on every platform, ruled 2026-11-08; so was `render_backend`, ON since 1.0.3 so the dual Windows exe starts on Vulkan, DirectX 11 as its fallback) | boot/stress/quit only |
 
 A **fix** is one branch at the one site `retail_bugs.md` names as the lever, retail's path kept
 in the other arm. It never changes what is serialized. It may change sim outcomes (that is the
@@ -376,6 +376,34 @@ underscores dropped (`MYLIST`).
 | hand-in / block | `docs/extensions/handins/<ID>.md`; a follow-up block `<ID>2`, `<ID>-<PART>` (`FAA-SHADOW2`) |
 | unit tests | `tests/unit/ext_<id>_test.cpp`, cases `ext_<id>_<what_it_proves>` |
 | list / status rows | `docs/extensions/LIST.MD` (`Ext C | <display name> | ...`), `docs/runtime_port/STATUS.md` |
+| retired row | one line in `kRetired` (`src/ext/registry.cpp`): `{ "<id>", Tier::<tier>, <last formatVersion>, "<fate>" }`, append only; `Ext::RetiredSaveEntry` / `FindRetired` (`registry.h` RETIRED ROWS), `Ext::SaveTail::DropRetired`; tests in `tests/unit/ext_retired_test.cpp` |
+
+**Retiring a row (ruled 2026-11-18, first used by `work_cand`, WORKCAND.md section 7.1).** A row leaves the
+table when its behaviour becomes unconditional (a class B perf row ruled faithful perf work), or when it is
+dropped or folded into another row. The row, its bool, every `Ext()` / `Fix()` reader, its icon and its
+directory under `src/ext/` go; code that stays moves into the module it serves (the faithful-perf comment
+replaces the EXT SEAM one), and its tests move with it. What must not go is the id: it gets one line, append
+only, in the retired table `kRetired` (`src/ext/registry.cpp`, declared in `registry.h` "RETIRED ROWS"):
+the id, the tier (its old settings prefix), the last `formatVersion` any save carried for it (0 for a fix or
+a class A row, which no save names) and what became of it. The table is consulted at the three places that
+read a save's extension set, and only up to that last version:
+- block 0's mod list: `Ext::PseudoModLoadStatus` returns 0 and `Ext::PseudoModNoticeFor` None for its
+  `ext:<id>` entry, so `SaveLoadDialog::DoLoad` shows no notice;
+- block 1's manifest: `SaveTail::Validate` accepts its record, and `SaveTail::DropRetired` takes it out
+  (one `[ExtSave]` line) before `Ext::LockForGameWithSet` and `ApplyState`, so the game's B / C set is the
+  save's other rows and a class C row's payload is discarded with it. **A class C row is not retired
+  this way without a migration (ruled 2026-11-18):** its saved state moves first, to the row or the
+  module that takes it over, and only then does its id get a line here;
+- `settings.cfg`: `ext.<id>` / `fix.<id>` was never asked for by `Resolve` once the row left the table, and
+  `Persistence::WriteSettings` writes the whole settings map back, so the old line stays in the file, inert
+  (ruled 2026-11-18: it is kept, not cleaned out).
+New saves cannot name it (they are written from the live table), and it can never be a live row again
+(`ext_retired_table_shape`): an old save's record would read as the new row's. A version above the last one,
+or an id that is neither live nor retired, stays exactly as before: notice `NotInBuild`, then `UnknownId`,
+fatal. No notice is added for a save made with the row OFF: it carries no `ext:` entry and no record, so
+there is nothing for the save-compat mechanism (section 2) to report, and a behaviour ruled faithful perf
+work is tier 0 (as PATHDIST's region pool and the other faithful perf bodies), which loads every save,
+retail's included, without one. Its divergence is recorded once, in `docs/known_port_issues.md`.
 
 **Rules that carry over unchanged.** No doors (`tools/acceptance/acceptance.sh` at target: nothing
 registers or resolves a body by retail name or address). No null guard on a faithful crash. Every

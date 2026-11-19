@@ -38,6 +38,8 @@
 #include "Entity/CitizenBehavior.h"
 #include "Game/ProfessionList.h"
 #include "Game/Map.h"
+#include "ext/registry.h"                    // Ext::Fix().stable_order
+#include "ext/stable_order/stable_order.h"   // FIX stable_order (NOT RETAIL): Cleanup's cancel order
 #include <cstdint>
 #include <cstring>
 #include <cstddef>
@@ -425,6 +427,12 @@ int FireWork::Cleanup() {
 
         // CheckPtr on the node, read the citizen; its CharacterComponent's action list (+0x48)
         CitizenComponent* citizen = node2->element;
+        // FIX stable_order (NOT RETAIL, docs/extensions/handins/STABLEORDER.md, docs/retail_bugs.md §36):
+        // the set is keyed by pointer, so retail (0x1400e99a0) cancels the lowest ADDRESS first. With
+        // the row on, the citizen with the lowest entity id.
+        if (Ext::Fix().stable_order) {
+            citizen = Ext::StableOrder::LowestIdKey(_citizens._root);
+        }
         citizen->character->actionStack.Clear();
     }
 }

@@ -35,6 +35,13 @@ What the summary means:
                  are averaged over the steady windows. "n/a" = the CSV (or the baseline)
                  predates these columns.
 
+  WORKLOAD       (with --baseline) the two runs' population, entities and sim digest
+                 (sim_hash) matched by frame, and the '# paths' / '# houses' modes (flagged when
+                 the two runs differ in them). Two runs of one seed are not one town unless both
+                 ran with the repeatable town and the digest agrees; when the population differs
+                 by more than 2% at a compared row, the timing deltas are labelled workload and
+                 no REGRESSION / PLAN verdict is given (perf/README.md "Repeatable town").
+
 The header's `cpu` meta line (block CPULIMIT, docs/extensions/handins/CPULIMIT.md) is the
 leg's process affinity mask and the logical / physical cores inside it, with how settings.cfg's
 `sys.cpu_limit` was applied (applied / clamped / none): every A/B leg proves its mask there.
@@ -70,6 +77,9 @@ def load(path):
                 continue
             row = {}
             for k, v in zip(header, vals):
+                if k.startswith("sim_hash"):   # hex digests stay strings ("1e40" would parse as a float)
+                    row[k] = v
+                    continue
                 try:
                     row[k] = float(v)
                 except ValueError:
@@ -137,6 +147,11 @@ def summarise(rows, warmup):
         "private_mb_first": rows[0]["private_mb"],
         "private_mb_last": rows[-1]["private_mb"],
     }
+    # WORKLOAD (perf/README.md "Repeatable town"): the sim cost follows the population, so a
+    # comparison of two towns that differ is read per 1000 citizens beside the raw number.
+    s["citizens_mean"] = mean(g("citizens"))
+    s["per_iter_per_kcit"] = mean([r["update_ms_per_iter"] / r["citizens"] * 1000.0
+                                   for r in ss if r.get("citizens", 0) > 0])
     dt_min = (rows[-1]["wall_s"] - rows[0]["wall_s"]) / 60.0 if len(rows) > 1 else 0
     s["private_mb_per_min"] = (s["private_mb_last"] - s["private_mb_first"]) / dt_min if dt_min > 0 else 0
     s.update(summarise_pf(ss))
@@ -275,6 +290,122 @@ def print_pathfinding(s, b=None):
             print("  {:<22} {:>10} {:>10} {:>8}".format(label, fmt(bv), fmt(nv), "n/a"))
 
 
+# WORKLOAD (perf/README.md "Repeatable town"). Two runs of one exe with one seed are NOT one town
+# by default: the entity update order follows heap addresses (EntityList's update tree is keyed by
+# pointer, as in retail) and retail's path worker answers on wall-clock time, so the population
+# drifts apart from the first sim frame and the sim cost follows it. A delta between two towns that
+# differ is workload, not code or noise. This check matches the rows by frame and says so.
+WORKLOAD_POP_TOL_PCT = 2.0
+
+
+def paths_mode(meta):
+    for m in meta:
+        if m.startswith("paths "):
+            return m.split()[1]
+    return "async"   # a CSV from before the line: retail's worker, the only mode there was
+
+
+def houses_mode(meta):
+    """'on' when the harness housing pass ran (tools/stress_run.sh --houses), else 'off'."""
+    for m in meta:
+        if m.startswith("houses "):
+            return m.split()[1]
+    return "off"   # a CSV from before the line: no housing pass existed
+
+
+def staff_mode(meta):
+    """'full' when the staffing pass seated _maxWorkerCount (--full-staff), else 'default'."""
+    for m in meta:
+        if m.startswith("staff "):
+            return m.split()[1]
+    return "default"
+
+
+def workload_check(rows, brows):
+    """Match rows by frame: population, entities and the sim digest of both runs.
+    Returns (table, first_hash_diff_frame, first_pop_diff_frame, hashed)."""
+    by_frame = {int(r["frame"]): r for r in brows if isinstance(r.get("frame"), float)}
+    table, first_hash, first_pop = [], None, None
+    hashed = False
+    for r in rows:
+        f = int(r["frame"])
+        b = by_frame.get(f)
+        if b is None:
+            continue
+        ha, hb = r.get("sim_hash"), b.get("sim_hash")
+        both = isinstance(ha, str) and isinstance(hb, str) and ha and hb
+        hashed = hashed or both
+        same_hash = (ha == hb) if both else None
+        if both and not same_hash and first_hash is None:
+            first_hash = f
+        ca, cb = r.get("citizens", NAN), b.get("citizens", NAN)
+        dpop = (ca - cb) / cb * 100.0 if cb else NAN
+        if not math.isnan(dpop) and abs(dpop) > WORKLOAD_POP_TOL_PCT and first_pop is None:
+            first_pop = f
+        table.append((f, cb, ca, dpop, b.get("entities", NAN), r.get("entities", NAN), same_hash))
+    return table, first_hash, first_pop, hashed
+
+
+def view_of(rows):
+    """The camera distance and back buffer of a run's last row ("n/a": a CSV from before the columns)."""
+    if not rows or "cam_dist" not in rows[-1]:
+        return "n/a"
+    r = rows[-1]
+    return "dist {:.0f} {:.0f}x{:.0f}".format(r["cam_dist"], r["view_w"], r["view_h"])
+
+
+def print_workload(meta, bmeta, rows, brows, s, b):
+    """The WORKLOAD block of a baseline comparison. Returns True when the populations differ by
+    more than WORKLOAD_POP_TOL_PCT at some compared row: the timing verdicts are then withheld."""
+    table, first_hash, first_pop, hashed = workload_check(rows, brows)
+    ma, mb = paths_mode(meta), paths_mode(bmeta)
+    ha, hb = houses_mode(meta), houses_mode(bmeta)
+    sa, sb = staff_mode(meta), staff_mode(bmeta)
+    print("WORKLOAD  (is it the same town? perf/README.md \"Repeatable town\")")
+    print(f"  paths     baseline {mb}   now {ma}")
+    print(f"  houses    baseline {hb}   now {ha}")
+    if sa != sb:
+        print(f"  staff     baseline {sb}   now {sa}")
+    if ha != hb:
+        print(f"  !! the housing pass differs ({hb} vs {ha}): one town builds houses for its grown children "
+              f"(tools/stress_run.sh --houses), so the populations, entities and FindHome cost differ by design")
+    if sa != sb:
+        print(f"  !! the staffing differs ({sb} vs {sa}): --full-staff seats every workplace to its maximum")
+    va, vb = view_of(rows), view_of(brows)
+    print(f"  view      baseline {vb}   now {va}")
+    if "n/a" in (va, vb):
+        print("  the view is missing from one CSV: whether the camera and window matched is UNKNOWN")
+    elif va != vb:
+        print("  !! the views differ (camera distance / back buffer): draw and culling figures are not "
+              "comparable, and with the default rows neither is the sim (ext.render_culling)")
+    print("  {:>6} {:>9} {:>9} {:>7} {:>9} {:>9}  {}".format(
+        "frame", "cit base", "cit now", "delta", "ent base", "ent now", "sim_hash"))
+    for f, cb, ca, dpop, eb, ea, same in table:
+        h = "n/a" if same is None else ("same" if same else "DIFFERS")
+        print("  {:>6} {:>9} {:>9} {:>+6.1f}% {:>9} {:>9}  {}".format(
+            f, fmt(cb), fmt(ca), dpop if not math.isnan(dpop) else 0.0, fmt(eb), fmt(ea), h))
+    if hashed and first_hash is None:
+        print("  SAME TOWN: the sim digest agrees at every compared row; the deltas below are the code's")
+        return False
+    if hashed:
+        print(f"  DIFFERENT TOWNS from the row at frame {first_hash} (the sim digest differs)")
+    else:
+        print("  the sim digest is missing from one CSV: whether the towns are the same is UNKNOWN")
+    if first_pop is not None:
+        print(f"  !! population differs by more than {WORKLOAD_POP_TOL_PCT:.0f}% from frame {first_pop}: "
+              f"the steady-state deltas below are WORKLOAD, not code or noise")
+    if ma != mb:
+        print(f"  !! the path modes differ ({mb} vs {ma}): the main thread pays the searches in an inline run")
+    print("  (no two runs repeat a town today: the entity update order follows heap addresses; "
+          "--inline-paths removes only the worker race)")
+    pb, pn = b.get("per_iter_per_kcit", NAN), s.get("per_iter_per_kcit", NAN)
+    if not math.isnan(pb) and not math.isnan(pn) and pb:
+        print(f"  per 1000 citizens: sim ms/iter {fmt(pb)} -> {fmt(pn)} ({(pn - pb) / pb * 100.0:+.1f}%) "
+              f"at mean population {fmt(b.get('citizens_mean', NAN))} -> {fmt(s.get('citizens_mean', NAN))}"
+              f"  (a first-order correction only: the cost is not linear in the population)")
+    return first_pop is not None
+
+
 def fmt(v, unit=""):
     if isinstance(v, float):
         if math.isnan(v):
@@ -341,9 +472,15 @@ def main():
     ap.add_argument("--compprof")
     ap.add_argument("--warmup", type=int, default=2)
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--rows-to", type=int, default=0,
+                    help="use only the rows up to this frame, in the run and the baseline (the window "
+                         "before two towns drift apart; WORKLOAD says where that is)")
     a = ap.parse_args()
 
     meta, rows = load(a.csv)
+    if a.rows_to > 0:
+        rows = [r for r in rows if r.get("frame", 0) <= a.rows_to]
+        meta.append(f"rows to frame {a.rows_to} only (--rows-to)")
     if not rows:
         print(f"{a.csv}: no data rows (meta: {meta})")
         return 0
@@ -399,11 +536,15 @@ def main():
     b = None
     if a.baseline and os.path.exists(a.baseline):
         bmeta, brows = load(a.baseline)
+        if a.rows_to > 0:
+            brows = [r for r in brows if r.get("frame", 0) <= a.rows_to]
         b = summarise(brows, a.warmup) if brows else {}
     print()
     print_pathfinding(s, b)
 
     if b is not None:
+        print()
+        towns_differ = print_workload(meta, bmeta, rows, brows, s, b)
         print()
         print(f"VS BASELINE  {a.baseline}")
         for m in bmeta:
@@ -420,11 +561,18 @@ def main():
                 worse = (d < -thr) if hib else (d > thr)
                 better = (d > thr) if hib else (d < -thr)
                 tag = "  REGRESSION" if worse else ("  improved" if better else "")
-                regressions += worse
+                if towns_differ and tag:
+                    tag = "  (workload: different towns)"   # WORKLOAD: no verdict between two towns
+                else:
+                    regressions += worse
                 print("  {:<22} {:>10} {:>10} {:>+7.1f}%{}".format(label, fmt(bv), fmt(nv), d, tag))
             else:
                 print("  {:<22} {:>10} {:>10} {:>8}".format(label, fmt(bv), fmt(nv), "n/a"))
-        print(f"  {regressions} regression(s) over threshold")
+        if towns_differ:
+            print("  NO VERDICT: the towns differ (WORKLOAD above); compare the rows before the drift "
+                  "(--rows-to FRAME), the per-citizen line, or several runs a side")
+        else:
+            print(f"  {regressions} regression(s) over threshold")
 
         # PLAN gate (docs/runtime_port/PLAN.md, section 5): `sim ms / iteration`
         # within 5% of the baseline at each wave boundary. That is TIGHTER than
@@ -434,8 +582,10 @@ def main():
         bv, nv = b.get("per_iter_ms", float("nan")), s.get("per_iter_ms", float("nan"))
         if bv and not math.isnan(bv) and not math.isnan(nv):
             d = (nv - bv) / abs(bv) * 100.0
-            print("  PLAN 5%% gate (sim ms/iter): %+.1f%%  %s"
-                  % (d, "PASS" if d <= PLAN_GATE_PCT else "FAIL"))
+            verdict = "PASS" if d <= PLAN_GATE_PCT else "FAIL"
+            if towns_differ:
+                verdict = "NOT JUDGED (different towns)"
+            print("  PLAN 5%% gate (sim ms/iter): %+.1f%%  %s" % (d, verdict))
     return 0
 
 

@@ -1,7 +1,7 @@
 // ============================================================================
-// tests/unit/ext_work_cand_test.cpp -- ext.work_cand's candidate list
+// tests/unit/work_candidate_list_test.cpp -- the idle work search's candidate list (faithful perf work)
 // ============================================================================
-// src/ext/work_cand/work_cand.h without the game, against retail's insert written out again: the descent of
+// src/game/Component/WorkCandidateList.h without the game, against retail's insert written out again: the descent of
 // 0x1400f8000 (0x1400f80d0..0x1400f8130), compare for compare, into a plain binary tree. The rebalance
 // (0x14000e360) only rotates, which keeps the in-order sequence, and a search in a binary tree under a
 // strict order meets an equal key wherever the tree's shape puts it, so the plain tree walks and drops
@@ -9,7 +9,7 @@
 // one and two builds into one list.
 // ============================================================================
 #include "unit.h"
-#include "ext/work_cand/work_cand.h"
+#include "Component/WorkCandidateList.h"
 
 #include <climits>
 #include <cstdint>
@@ -27,7 +27,7 @@ struct FakeIdOf {
     int32_t operator()(const FakeWork* w) const { return w->id; }
 };
 
-using List = Ext::WorkCand::CandidateList<FakeWork, FakeIdOf>;
+using List = WorkCandidates::CandidateList<FakeWork, FakeIdOf>;
 
 // Retail's tree without the rebalance (the header says why that is enough).
 class RetailTree {
@@ -151,15 +151,15 @@ bool BuildBoth(List& list, RetailTree& tree, std::vector<FakeWork>& works,
 
 }  // namespace
 
-UNIT_TEST(ext_work_cand_key_is_retails_cost_then_id_order) {
+UNIT_TEST(work_candidate_list_key_is_retails_cost_then_id_order) {
     const int32_t values[] = {INT_MIN, INT_MIN + 1, -2, -1, 0, 1, 2, INT_MAX - 1, INT_MAX};
     for (int32_t c1 : values) {
         for (int32_t i1 : values) {
             for (int32_t c2 : values) {
                 for (int32_t i2 : values) {
                     const bool less = c1 < c2 || (c1 == c2 && i1 < i2);
-                    CHECK_EQ(Ext::WorkCand::Key(c1, i1) < Ext::WorkCand::Key(c2, i2), less);
-                    CHECK_EQ(Ext::WorkCand::Key(c1, i1) == Ext::WorkCand::Key(c2, i2), c1 == c2 && i1 == i2);
+                    CHECK_EQ(WorkCandidates::Key(c1, i1) < WorkCandidates::Key(c2, i2), less);
+                    CHECK_EQ(WorkCandidates::Key(c1, i1) == WorkCandidates::Key(c2, i2), c1 == c2 && i1 == i2);
                 }
             }
         }
@@ -168,7 +168,7 @@ UNIT_TEST(ext_work_cand_key_is_retails_cost_then_id_order) {
 
 // Many ties: costs and ids drawn from small ranges, so equal costs are broken by the id and equal pairs are
 // dropped (the first job of a pair stays).
-UNIT_TEST(ext_work_cand_one_build_walks_and_drops_as_retail) {
+UNIT_TEST(work_candidate_list_one_build_walks_and_drops_as_retail) {
     Lcg rng{12345};
     int mismatches = 0;
     int dropped = 0;
@@ -194,7 +194,7 @@ UNIT_TEST(ext_work_cand_one_build_walks_and_drops_as_retail) {
 // The shapes the game feeds it: ascending (fresh jobs: queue order and id both count up), descending, all
 // one key, the extremes of both fields, and an ascending run with a few re-posted jobs (an old cost, a new
 // id) mixed in.
-UNIT_TEST(ext_work_cand_input_shapes) {
+UNIT_TEST(work_candidate_list_input_shapes) {
     {
         std::vector<FakeWork> works(500);
         std::vector<std::pair<int, int32_t>> up;
@@ -259,7 +259,7 @@ UNIT_TEST(ext_work_cand_input_shapes) {
 // 0x1400f79b0 builds the workplace's jobs, walks, then builds the whole bucket into the SAME tree: the
 // second build merges, and a job already there is dropped again. A job whose cost changed between the builds
 // is a new key (the tree keeps the cost each node was inserted with) and appears twice, in retail as here.
-UNIT_TEST(ext_work_cand_second_build_merges_as_retail) {
+UNIT_TEST(work_candidate_list_second_build_merges_as_retail) {
     Lcg rng{99};
     int mismatches = 0;
     for (int round = 0; round < 1500; ++round) {
@@ -295,7 +295,7 @@ UNIT_TEST(ext_work_cand_second_build_merges_as_retail) {
 }
 
 // Clear starts a new walk: nothing of the previous one is left (the game reuses one list per nesting level).
-UNIT_TEST(ext_work_cand_clear_forgets_the_previous_walk) {
+UNIT_TEST(work_candidate_list_clear_forgets_the_previous_walk) {
     std::vector<FakeWork> works = {FakeWork{1}, FakeWork{2}, FakeWork{3}};
     List list;
     list.Stage(&works[2], 5);

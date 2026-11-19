@@ -81,6 +81,31 @@ struct Counters {
     uint64_t replayTool    = 0;   // real frames whose record carries the tool's overlay
     int64_t  gpuFrameUs    = -1;  // the GPU's time for the last completed frame, us (-1: the backend does not measure it)
     int64_t  gpuFrameMaxUs = -1;  // the largest one a replayed frame was planned with this window (-1: none)
+    // OVERLAP: the frame timeline on both threads (the [Stress::overlap] line; render thread only).
+    // A Frame tail closes one period (tail to tail); it is a STEP period when the Frame stepped
+    // (THE FENCE ran), else a PLAIN one. Sums in us over the window.
+    uint64_t tlStepFrames   = 0;   // pipelined tails of Frames that stepped
+    uint64_t tlPlainFrames  = 0;   // pipelined tails of Frames that did not
+    uint64_t tlStepPeriodUs = 0;   // the periods ending at those tails
+    uint64_t tlPlainPeriodUs = 0;
+    uint64_t tlStepsUs      = 0;   // the steps: THE FENCE's end to the tail
+    uint64_t tlFenceUs      = 0;   // THE FENCE's wait (the emit up to its release)
+    uint64_t tlFenceBeginUs = 0;   //   of which the emit had not passed BeginCommands (the GPU's / display's pace)
+    uint64_t tlHalfStepUs   = 0;   // the main half on step / plain Frames
+    uint64_t tlHalfPlainUs  = 0;
+    uint64_t tlHandoffUs    = 0;   // THE HAND-OFF's wait for the render thread
+    uint64_t tlHandoffBeginUs = 0; //   of which the emit had not passed BeginCommands
+    uint64_t tlHandoffN     = 0;   //   hand-offs that waited
+    uint64_t tlMainWakeUs   = 0;   // the render thread's Release / Done -> the main thread's wait returned
+    uint64_t tlMainWakeN    = 0;
+    uint64_t tlJobs         = 0;   // the render thread (handoff.h HandoffTimeline): jobs done
+    uint64_t tlWakeUs       = 0;   //   Publish -> WaitJob returned
+    uint64_t tlJobUs        = 0;   //   the emit's span
+    uint64_t tlBeginUs      = 0;   //   of which until BeginCommands returned
+    uint64_t tlTailUs       = 0;   //   of which Release -> Done
+    uint64_t tlIdleUs       = 0;   //   Done -> the next job
+    uint64_t tlGpuUs        = 0;   // the GPU's frame time (timestamps) read once per emit
+    uint64_t tlGpuN         = 0;
 };
 
 // True while the packet runs on the render thread (installed, >= 3 physical cores).

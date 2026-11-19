@@ -19,7 +19,10 @@
 //                 for this game (the save keeps the extensions it was made with).
 //
 // None is exactly PseudoModLoadStatus == 0 (the unit test pins that); the
-// checks below are the same as that function's, in the same order.
+// checks below are the same as that function's, in the same order. An entry a
+// retired row left (registry.h RETIRED ROWS) is None: the row's behaviour is
+// gone or unconditional, so there is nothing to warn about and its manifest
+// record is dropped on load.
 // ============================================================================
 #pragma once
 

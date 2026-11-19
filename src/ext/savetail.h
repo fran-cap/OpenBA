@@ -205,8 +205,15 @@ Status Decode(const uint8_t* data, size_t size, std::vector<Record>& out);
 
 // Check decoded records against the registry: every id a registered class B /
 // C extension, its formatVersion not newer than ours, no id twice. On failure
-// `offending` (when given) names the record.
+// `offending` (when given) names the record. A record a retired row left
+// (Ext::RetiredSaveEntry: the id retired, its version at or below the last one
+// written) passes; DropRetired then takes it out before the lock.
 Status Validate(const std::vector<Record>& records, std::string* offending);
+
+// Remove the records retired rows left (registry.h RETIRED ROWS), after Validate and before the lock
+// (Ext::LockForGameWithSet only takes live ids) and ApplyState; their payloads are discarded. Each removed
+// id is appended to `dropped` (when given). The other records keep their order.
+void DropRetired(std::vector<Record>& records, std::vector<std::string>* dropped);
 
 // Sort decoded records by kind: `extensions` (the lock set: Validate, the lock, ApplyState) and `hosts`
 // (ApplyHostState). A record of a kind this build does not have is dropped (its id named in `dropped`) unless

@@ -153,6 +153,7 @@ extern "C" void BuildingGoal_Probe(const char* templateName);  // src/game/Goal/
 #include "ext/ground_draw.h"   // EXT SEAM (NOT RETAIL, MAPOVERLAYS.md): the ground draw, Draw step 7
 #include "ext/scene_draw.h"    // EXT SEAM (NOT RETAIL, docs/extensions/DOF.md): the scene draw, Draw step 7
 #include "ext/radius_all/radius_all.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/RADIUSALL.md): ext.radius_all, Update after step 14
+#include "ext/stable_order/presentation_random.h"   // FIX SEAM (NOT RETAIL, docs/retail_bugs.md section 36): fix.stable_order, step 12's Random
 #include "load_time.h"   // [LoadTime] stamps (NOT RETAIL, print-only; block LOADSTAMP)
 #include "Game/cell_stamp.h"   // AMBMEMO: CellStamp::Invalidate at teardown
 #include "Component/AmbientEnvironmentComponent.h"   // AMBMEMO: ReportMemo at teardown
@@ -1247,8 +1248,13 @@ post_simulation:
             // earlier uint32_t cache typedef converted it (40.5f -> 40).
             System::Time audioNow;    audioNow._ticks    = time->_ticks;
             System::Time audioScaled; audioScaled._ticks = scaledTime._ticks;
+            // FIX stable_order (NOT RETAIL, docs/extensions/handins/STABLEORDER.md, docs/retail_bugs.md §36):
+            // retail hands the scene the WORLD Random (0x1400966aa MOV R9,[RDI+0xd8]; the call at
+            // 0x1400966bb), which it draws when a sample starts, and that follows the device's real
+            // playback. With the row on, the presentation Random.
+            System::Random* audioRng = Ext::Fix().stable_order ? &Ext::StableOrder::PresentationRandom() : m_random;
             m_audioScene->Update(
-                audioNow, audioScaled, *m_random,
+                audioNow, audioScaled, *audioRng,
                 listenerPos, windFactor);
         }
     }

@@ -205,6 +205,16 @@ void OptionsInit() {
     {   const char* v = Raw("BANISHED_STRESS_HITCH_MS");   // HITCH: the excess-over-median threshold
         if (v && v[0]) o.stressHitchMs = std::strtod(v, nullptr);   // not atof (F-087)
         if (o.stressHitchMs < 0) o.stressHitchMs = 0; }
+    o.stressHash = Int("BANISHED_STRESS_HASH", 0);   // the [Stress::hash] period (stress_harness.cpp)
+    if (o.stressHash < 0) o.stressHash = 0;
+    {   const char* v = Raw("BANISHED_STRESS_PATH_INLINE");   // the repeatable town (stress_harness.cpp)
+        o.stressPathInline = v && ClampedAtoi(v) != 0; }
+    {   const char* v = Raw("BANISHED_STRESS_HOUSES");   // the housing pass (stress_harness.cpp HousePass)
+        o.stressHouses = v && ClampedAtoi(v) != 0; }
+    {   const char* v = Raw("BANISHED_STRESS_FULL_STAFF");   // StaffPass seats _maxWorkerCount
+        o.stressFullStaff = v && ClampedAtoi(v) != 0; }
+    {   const char* v = Raw("BANISHED_STRESS_MAXIMIZE");   // the view (stress_harness.cpp MaximizeView)
+        o.stressMaximize = v && ClampedAtoi(v) != 0; }
     if (o.stressCitizens < 0) o.stressCitizens = 0;
     // stressSets < 0 is kept: |sets| sets in the spread layout (PFBENCH, stress_harness.h).
     // INT_MIN has no |sets|: StressHarness_Sets and the CSV header negate it (review F-299).

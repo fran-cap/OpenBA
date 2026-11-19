@@ -86,6 +86,7 @@
 #include "ext/better_clouds/better_clouds.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/BETTERCLOUDS.md): Ext::BetterClouds::SkyLoaded
 #include "ext/fast_paths/fast_paths.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/FASTPATHS.md): Ext::FastPaths::SelectForGame
 #include "ext/path_workers/path_workers.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/PATHWORKERS.md): Ext::PathWorkers::SelectForGame
+#include "ext/stable_order/weather_noise.h"   // FIX SEAM (NOT RETAIL, docs/retail_bugs.md §36): Ext::StableOrder::SeedWeatherNoise
 #include "load_time.h"   // [LoadTime] stamps (NOT RETAIL, print-only; block LOADSTAMP)
 
 // ============================================================
@@ -867,6 +868,10 @@ void GameUpdateLoop::Load() {
         void* mem = AllocSub<void>(0x78, 8);
         WeatherSimulation* weather = mem ? ::new (mem) WeatherSimulation() : nullptr;   // 0x140093f60
         m_weather = weather;
+        // FIX stable_order (NOT RETAIL, docs/retail_bugs.md §36): the ctor's temperature noise is seeded
+        // from the wall clock; with the row on it is rebuilt from the map seed (weather_noise.h).
+        if (weather != nullptr && Ext::Fix().stable_order)
+            Ext::StableOrder::SeedWeatherNoise(*weather, static_cast<uint32_t>(m_seed));
     }
 
     // Step 16 — env config: bind (envRes, climateGen) into the weather sim.
@@ -1336,6 +1341,11 @@ void GameUpdateLoop::Load() {
         RtSave_SavedState_Dtor(savedState);
         System::MemoryAllocator::MemFree(savedState);
         m_savedState = nullptr;
+        // FIX stable_order (NOT RETAIL, docs/retail_bugs.md §36): the noise is not in the save, and step 15
+        // ran with the load loop's seed (0); now that the save has restored the map seed, rebuild it from
+        // that, as the new game did (weather_noise.h).
+        if (m_weather != nullptr && Ext::Fix().stable_order)
+            Ext::StableOrder::SeedWeatherNoise(*m_weather, static_cast<uint32_t>(m_seed));
         fprintf(stderr, "[GUL::Load] LOAD-FROM-SAVE done\n");
         fflush(stderr);
 

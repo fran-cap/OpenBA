@@ -51,6 +51,7 @@
 #include "Game/Map.h"
 #include "ext/registry.h"                    // Ext::Fix().foundation_piles
 #include "ext/foundation_piles/foundation_piles.h"
+#include "ext/stable_order/stable_order.h"   // FIX stable_order (NOT RETAIL): Cleanup's cancel order
 #include "Component/ComponentDescription.h"   // B8 RT2: ::Object::SerializeExternal<ComponentDescription> (the downcast needs it complete)
 
 // ============================================================
@@ -216,6 +217,14 @@ int ClearArea::Cleanup() {
         // prev is the leftmost node; its value (+0x08) is the citizen's
         // InternalPtr<CitizenComponent>
         CitizenComponent* citizen = prev->element.citizen.Get();
+        // FIX stable_order (NOT RETAIL, docs/extensions/handins/STABLEORDER.md, docs/retail_bugs.md §36):
+        // the set is keyed by the entity being cleared (a pointer), so retail (0x1400e6650) cancels
+        // the lowest ADDRESS first. With the row on, the entry whose entity has the lowest id.
+        if (Ext::Fix().stable_order) {
+            WorkEntitySetNode* first = Ext::StableOrder::MinNodeById(
+                _entities._root, [](const WorkEntitySetNode* n) { return n->element.entity.Get()->_entityId; });
+            citizen = first->element.citizen.Get();
+        }
 
         // Remove the pending action from the citizen's CharacterComponent action list (+0x48)
         citizen->character->actionStack.Clear();
