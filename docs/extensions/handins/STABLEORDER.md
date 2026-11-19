@@ -6,7 +6,14 @@
 > **Built: `fix.stable_order` (tier 1, default ON, off under `/profile:faithful`), sim-visible.**
 > The entity update walk visits the update tree's entities by EntityList id instead of by heap address,
 > and the address-decided choices the digests found on the way (who follows whom on a path, which
-> nearby building a citizen visits in its free time) use the id too. Nothing new is saved.
+> nearby building a citizen visits in its free time, the order a torn-down task cancels its workers)
+> use the id too. The sound (the audio scene's sample picks, the music track pick) draws from a Random
+> of its own instead of the world's, so the wall clock of the audio device no longer moves the sim.
+> Nothing new is saved. **Result (section 6): with the row and `fix.alloc_tiebreak` on and inline
+> paths, every 9000-frame run of the stress town gives the same digest at every frame.**
+>
+> **The cost, in one sentence: with the row on, the sim's random sequence differs from retail's even
+> on the same machine and the same address layout, because the audio no longer consumes world draws.**
 
 Retail entry: `docs/retail_bugs.md` §36 (the sibling of §14, `fix.alloc_tiebreak`). Found by agent
 "repeat" (`perf/README.md` "Repeatable town"); the owner ruled a `fix.*` row keyed on a stable id, for a
@@ -55,9 +62,58 @@ reverse, across a save: nothing changes on disk; the order switches at the next 
 | `EntityList::Update` (0x1400c4090) step 3, the update tree walk (`entitylist.cpp`) | in-order walk of a `Set<ComponentEntity*>` keyed by pointer | the same entities, by ascending id |
 | `MoveTo::Enter` (0x1400c8970, `moveto.cpp`) | follow speed only behind a character at a HIGHER ADDRESS (`CMP [found], mover; JBE` at 0x1400c8a17) | behind a character with a higher id |
 | `CitizenAIComponent::State_Leisure` (0x14010a560, `citizenai_leisure.cpp`) | `Rand(count)`-th key of a scratch `Set<ComponentEntity*>` of nearby buildings, in pointer order | the `Rand(count)`-th by id (the same draw) |
+| The Work leaves' `Cleanup` (vtable slot 8), twelve classes (table below) | cancel the workers one by one, each time the citizen on the set's LEFTMOST node (the lowest key in pointer order), until the set is empty | the same loop and the same cancel; the node picked is the one whose key has the lowest entity id |
+| `GameUpdateLoop::Update` step 12, `Audio::Scene::Update` (`gameupdateloop.cpp`) | the scene gets the WORLD Random (0x1400966aa `MOV R9,[RDI+0xd8]`, the call at 0x1400966bb) and draws 2 per sample it starts (variant, pitch) | the presentation Random (`Ext::StableOrder::PresentationRandom`) |
+| `MusicPlayer::Update` (0x1400a40e0, `unreg_lane5_musicplayer.cpp`) | the next track `Rand(n)` from the WORLD Random when the current track stops | the presentation Random |
+
+**The sound's draws (a clock, not an address).** A sample starts when its window passes, but a channel
+is recycled, and an ambient effect restarts, only when the device reports the sample ENDED
+(`Scene::OnSoundEnded`, the audio thread, real playback time); the music track changes when
+`IsEffectPlaying` turns false, also real time. So the number of world draws the sound makes between two
+fixed simulation steps depends on the machine's timing, and the next simulation draw goes to another
+value. The traced pair that showed it: at the first tick of the split frame one run's world Random was
+4 draws ahead (2 samples), with no draw through `System::Random`'s methods in between (the audio inlines
+its own `RngDraw` over the same state). The presentation Random: a function-local static
+`System::Random` seeded once per process with a constant (`0x5eed0001`), in
+`src/ext/stable_order/presentation_random.h`; never serialized, never reset per world or per load, and
+read by nothing but those two consumers (variant, pitch, track: what is heard, nothing the sim reads).
+Row off: both consumers get `m_random` exactly as before.
 
 Each seam reads `Ext::Fix().stable_order` once per call (the walk: once per `EntityList::Update`), and
 the other arm is retail's code as it was.
+
+**The Cleanup picks.** Retail's loop is "while the set is not empty: take its first key, clear that
+citizen's action stack" (the clear runs the actions' cancels, and the leaf's `OnCancel` removes the
+key). "First" is the minimum of the set's order, and the set's order is the key's address. The row
+keeps the loop, the cancel and the set; it only changes which order "first" is the minimum of: the key's
+entity id (`ComponentEntity::_entityId`; for a citizen key, its entity's). So it is the same pick under
+a different order, not a different rule: retail takes min-by-address, the row takes min-by-id, and both
+visit every worker exactly once. Each site computes retail's leftmost node as before and, with the row
+on, replaces the pick by `Ext::StableOrder::LowestIdKey` / `MinNodeById` (a walk of the set, a handful of
+workers, only when a task is torn down: `WorkScheduler::TaskCleanup` and `GatherRawMaterials::Validate`).
+
+| Class | Retail Cleanup | Set (key) |
+|---|---|---|
+| `BuildStructure` | 0x1400e57a0 | `_citizens` (`CitizenComponent*`) |
+| `ClearArea` | 0x1400e6650 | `_entities` (the `ComponentEntity*` being cleared; value: the citizen) -- its second loop, over `_cells` (int key), is left |
+| `ClearStorage` | 0x1400e72a0 | `_citizens` |
+| `FireWork` | 0x1400e99a0 | `_citizens` |
+| `ForesterWork` | 0x1400eb8a0 | `_citizens` |
+| `GatherRawMaterials` | 0x1400ec480 | `_citizens` |
+| `HerbalistWork` | 0x1400eeae0 | `_citizens` |
+| `HuntWork` | 0x1400ef530 | `_citizens` |
+| `MarketWork` | 0x1400f1ca0 | `_claims` (keyed by the citizen) |
+| `PastureWork` | 0x1400f2b90 | `_citizens` |
+| `TendArea` | 0x1400f5830 | `_citizens` |
+| `TradeWork` | 0x1400f6be0 | `assignments` (keyed by the citizen) |
+
+The leaves whose Cleanup walks an int-keyed set (`HarvestArea`, `HarvestOrchard`, `PlantArea`,
+`PlantOrchard`: map cells) or an array (`ConsumeProduce`, `FishingWork`) or holds one citizen
+(`BuildRoad`, `LocationWork`, `Pickup`) are already address-free. The leaves' `Validate` walks (slot 9)
+over the same sets were read and are order-neutral: each tests one citizen with the pure
+`Work::ValidateTask` (0x1400f7100) and the invalid ones are removed by key, so the set that remains is
+the same whatever the walk order; `BuildStructure::Validate`'s slot list is a membership test. The sums
+over `_claims` / `assignments` in `MarketWork::Execute` / `TradeWork` are commutative.
 
 **Post-update tree (+0x78): left in pointer order, on purpose.** Its only visitor is
 `GrowthComponent::PostUpdate` (0x14011fea0): each entity eases its own model's displayed scale toward its
@@ -79,20 +135,29 @@ and every scratch tree whose n-th element is picked.
 | `EntityList::postUpdateTree` walk (0x1400c43d0) | GrowthComponent's own scale ease | order-neutral (section 2), left |
 | `CitizenBehavior` +0x100 / +0x160 bucket trees (`Profession*`, `ComponentDescription*` keys) | lookups by key; the walks go over the profession list's array | order-neutral, left |
 | `WorkScheduler` profession bucket tree (`Profession*` key), queue trees (int key) | lookups by key; ids are ints | order-neutral, left |
-| the Work leaves' `_citizens` sets (`Set<CitizenComponent*>`: BuildStructure, ClearStorage, FireWork, Forester, GatherRawMaterials, Herbalist, Hunt, Pasture, TendArea, Market) | walked in pointer order, e.g. `GatherRawMaterials::Validate` (0x1400ebb50) collects and drops the invalid ones in that order | **still open**: a live, serialized set; ordering it by id is a container change (the key moves with the id), past this row's one-comparator rule |
+| the Work leaves' pointer-keyed sets (`_citizens` x9, `ClearArea::_entities`, `MarketWork::_claims`, `TradeWork::assignments`) | Cleanup cancels in pointer order; Validate and the Execute sums walk them too | **covered**: the Cleanup pick by id (section 2), container and save unchanged; Validate / sums order-neutral. Found by reading, NOT proven by the digests: a 9000-frame pair with the pick forced back to retail's leftmost (experiment build) also repeated, with the same final digest (section 6) |
 | `PlayerToolManager` +0x60 entity tree, `TownHallUI` / `TradeUI` / `EntityUI` trees | UI state | presentation only |
 | `AmbientEnvironmentComponent` memo (`unordered_map` by pointer) | a lookup cache, never iterated for the sim | order-neutral |
 | `Object::InternalFactory::_random` (time-seeded) | handle generations | not the world Random; never reaches the sim |
 
-**Still open, measured.** With all three seams on and `--inline-paths`, two runs stay identical for 410 to
-940 frames and then part at a two-way event: the frame-850 digest of six runs took one of exactly two
-values in four of them (runs p1a = p2a, p1b = p2b), and those two classes split again at 890 / 950; the
-third pair split at 420 on the citizens alone. A per-draw log of the world Random (investigation build,
-not committed) shows the 850 and 887 splits are an extra `CitizenComponent::UpdateDisease` roll (plus,
-once, an `EntityAnchorCell` draw) at the very start of an Update, the RNG identical before it: one run
-gives a citizen one more update in the first tick than the other. Repeating, two-valued outcomes point
-at more address-decided choices of the kind above (the Work `_citizens` walks are the first suspect),
-not at a clock; it was not pinned within this block.
+**What the earlier "extra disease roll" was.** The previous block's open split (an extra
+`UpdateDisease` roll at the start of an Update, the RNG identical before it) was not a citizen getting
+an extra update: the traced RNG lines only covered `System::Random`'s methods, and the audio scene
+draws the same state through its own inlined `RngDraw` between two GameUpdateLoop steps. The disease
+roll was the first sim draw after it. With the sound on its own Random, the splits are gone (section 6).
+
+### The world Random on a presentation or wall-clock trigger (sweep of every `m_random` reader)
+
+| Reader | Trigger | Verdict |
+|---|---|---|
+| `Audio::Scene::Update` (step 12) | samples starting, channels recycled on the device's real playback end | **covered** (presentation Random); digests proved it |
+| `MusicPlayer::Update` (0x1400a40e0) | the track stops playing (real time) | **covered** (presentation Random); same shape, not separately proven (one draw per track change) |
+| `AnimAudioEvent::Construct` (0x140087e40) | an animation event (`Animation::ApplyEvents`), a sound's play chance | inside the sim step (AnimationManager step 3b and the model ticks), fixed time per step; `applyEvents` is its own argument, not the root-only / culled flag; deterministic, left |
+| `ModelComponent::Startup` random mesh group, `PlacementTool` mesh variant, `brush_tool` / `cancel_refund` / `recipe_skip` | entity creation inside a tick, or a player action | input- or sim-driven, not a clock; left (a player opening a placement tool draws once from the world Random: an input, not a clock) |
+| weather particles (`weather_particles.cpp`) | per frame | its own Random (retail's local `Random`), not the world's |
+| particle systems (`Graphics::Particle::_rng`, wave27/28) | per frame | their own static Random |
+| `weather_sim.cpp`, fire, tornado, disease, the Work leaves, citizen AI | inside the sim step | the sim itself |
+| `newgamedialog` / `mapparamsdialog` / `debugui` | before the world / debug UI | not in a running town |
 
 ## 4. How the walk is built, and the perf machinery
 
@@ -127,6 +192,12 @@ rocks and piles do not tick), the snapshot was rebuilt 1,815 times, the permutat
 entity headers and a 27,500-slot array: tens of microseconds, about once a frame. Every other walk
 pays one load per visit for `order[j]`; the timing A/B is the judge.
 
+The seams added in this block cost nothing on a tick: the Cleanup picks run only when a task is torn
+down (`WorkScheduler::TaskCleanup`, `GatherRawMaterials::Validate` finding an invalid worker), each pick
+a walk of the set (a handful of workers; k picks for k workers, so k * k / 2 node visits, no sort, a
+small `std::vector` stack); the sound seam is one row test per GameUpdateLoop step (per frame, not per
+tick) and one per track change.
+
 ## 5. Class, default, save
 
 - Tier 1 fix, no class (like `fix.alloc_tiebreak`): nothing serialized, so no class B / C record; the
@@ -137,10 +208,39 @@ pays one load per visit for `order[j]`; the timing A/B is the judge.
 
 ## 6. Determinism proof
 
-`tools/stress_run.sh --speed 50 --frames 3000 --hash 10 --no-build`, the default seed, the functional
-dir (`C:/GOG Games/Banished-B`), exe `0e9b74d2` (tip `1c4361d08`), every `fix.*` / `ext.*` line pinned
-to 0 and then `STRESS_EXT=none STRESS_FIXES=update_order,alloc_tiebreak` (now `stable_order`) (per-entry profile, every
-extension off) unless stated. Every pair's address order differed (`frame=0 ... order=`).
+### 6.1 The proof (2026-11-19, tip `82e377788`, perf exe md5 `d97a5fed`)
+
+`tools/stress_run.sh --speed 50 --frames 9000 --hash 10 --no-build --baseline none`, the default seed,
+the functional dir (`C:/GOG Games/Banished-B`), every `fix.*` / `ext.*` line pinned to 0 and then
+`STRESS_EXT=none STRESS_FIXES=stable_order,alloc_tiebreak` (per-entry profile, every extension off),
+unless stated. Every run's address order differed from its partner's (`frame=0 ... order=`). A digest
+every 10 frames: 906 lines per run, through frame 9060.
+
+| Pair | Profile | Paths | Frames identical | First differing digest |
+|---|---|---|---|---|
+| p1 | stable_order + alloc_tiebreak | inline | all 906 (to 9060) | none; final `39a68e1ca0b215d9` |
+| p2 | stable_order + alloc_tiebreak | inline | all 906 (to 9060) | none; final `39a68e1ca0b215d9` |
+| p3 | stable_order + alloc_tiebreak | inline | all 906 (to 9060) | none; final `39a68e1ca0b215d9` |
+| d1 | registry DEFAULTS (every fix/ext line removed, `STRESS_PROFILE=defaults`: `path_workers` and the other default-on rows on) | inline | all 906 (to 9060) | none; final `b3eaee077f3a3933` |
+| a1 | stable_order + alloc_tiebreak | async (3000 frames) | frame 0 only | frame 10: rng, pf and cit |
+| a2 | stable_order + alloc_tiebreak | async (3000 frames) | frame 0 only | frame 10: rng, pf and cit |
+| x1 (experiment, uncommitted build: the twelve Cleanup picks forced back to retail's leftmost) | stable_order + alloc_tiebreak | inline | all 906 (to 9060) | none; final `39a68e1ca0b215d9` |
+
+**Verdict: yes, a full 9000-frame run repeats** (six runs of three pairs give one digest sequence; the
+defaults pair repeats too). The async pairs part at the first digest line: the path worker's race
+alone moves the town at once, as before.
+
+### 6.2 The bisect that found the sound
+
+With the Cleanup picks and without the sound seam, a 3000-frame pair split at frame 150 and other pairs
+at 184 / 585 (a moving point, the mark of a clock). A per-draw trace (investigation build, never
+committed: every `System::Random` method logged its value and caller inside a tick window, the bucket
+visits and the tick boundaries too) showed the two runs equal up to the end of a GameUpdateLoop step
+and one run's world Random 4 draws ahead at the next step's first draw, with no traced draw between:
+the audio scene's inlined draws (section 2). With the sound seam the next 3000-frame pair repeated to
+the end, and the 9000-frame pairs above followed.
+
+### 6.3 Before this block (tip `1c4361d08`, 3000 frames, for the record)
 
 | Pair | Paths | Identical through | First differing digest | What split first |
 |---|---|---|---|---|
@@ -152,29 +252,40 @@ extension off) unless stated. Every pair's address order differed (`frame=0 ... 
 | async | async | frame 0 | frame 10 | everything: the path worker's race alone moves the town at once |
 | registry defaults (every default-on fix and extension, `path_workers` among them) | inline | 880 | 890 | everything by 890 |
 
-Before the row the towns differed from Update 1 (agent repeat's finding). With it the first 400 to 900
-frames (20,000 to 45,000 ticks) repeat, so the walk order and the two seams were the dominant sources;
-the remaining splits are listed in section 3. The default-profile pair repeats as long as the faithful
-one: under `--inline-paths` the `path_workers` threads do not move the town before frame 880 (whether
-every `path_workers` request honours `runInline` was not traced).
+Before the row the towns differed from Update 1 (agent repeat's finding). With the walk and the two
+first seams the first 400 to 900 frames repeated; the rest was the sound (6.2).
 
-**Async paths.** Making the worker deterministic would take the result's arrival tick out of the
-wall clock: stamp each request with the tick it was made and have `MoveTo::Execute` accept a result
-only at a fixed tick later (request tick + N, waiting for the worker if it is late), i.e. a lockstep
-latency instead of a ready byte polled every tick. Out of scope here.
+**Async paths (described, not built).** The worker answers on wall-clock time and `MoveTo::Execute`
+(0x1400c8570) polls the ready byte every tick, so the tick a path lands on is a race. A lockstep design:
+stamp each request with the sim tick it was made (the pathfinder token already orders them), and make a
+result visible to the sim only at a fixed tick after the request (request tick + N, N about the
+worker's typical latency in ticks); if the result is not ready at that tick, the main thread waits for
+the worker (or runs that one search inline) instead of moving on. The worker keeps its parallelism;
+only the hand-over tick becomes a function of the sim. Results must also be delivered in token order at
+a tick, not in completion order. Under `ext.path_workers` the same applies per worker queue.
 
 ## 7. Open choices
 
 - **The id.** Ruled: renamed `update_order` -> `stable_order` before it ships (done).
-- **The Work `_citizens` sets** (section 3) need a container change to be ordered by id; a separate
-  block if the remaining splits are traced there.
+- **The sound seam inside this row, or its own fix row?** It is a clock, not an address, but it is
+  part of the same promise ("one seed, one town") and the proof needs it. Recommendation: keep it in
+  `fix.stable_order` (one switch for a repeatable town; a separate row would be a second switch every
+  benchmark and mod must remember). Its cost is the sentence at the top: with the row on, the sim's
+  random sequence is no longer retail's even on one machine.
+- **The twelve Cleanup picks: keep, or drop as unproven?** The digests do not need them in the stress
+  town (pair x1). They are address-ordered by construction and act on the world (cancels), and a town
+  where work is torn down with several workers on it reaches them (demolitions, a destroyed field, a
+  fire put out). Recommendation: keep (a set walk of a few workers at teardown only, nothing on a tick).
+- **Default ON**: recommended, on section 6.1 (three faithful pairs and the defaults pair repeat for the
+  benchmark's full length).
 
 ## 8. Tests and gates
 
 - `tests/unit/ext_stable_order_test.cpp`: the visit is the id order at two address layouts; a snapshot
   with id gaps; ids outside the master range or duplicated still tick (last, in pointer order); scratch
   reuse; the follow test by id; the n-th by id of a pointer-keyed set at two layouts; the ids of one
-  add / remove sequence (with RemoveEntity's swap) are the same at two address layouts.
+  add / remove sequence (with RemoveEntity's swap) are the same at two address layouts; the Cleanup pick
+  (`LowestIdKey`) cancels three workers in id order at two address layouts.
 - `tests/unit/ext_registry_test.cpp` `ext_registry_table_shape`: the row is a fix, no class, default ON.
 - Row icon `Entry_stable_order.png` (`tools/ext_icons/fixes.py` `draw_stable_order`, baked).
 - The gate and the resave gate run `/profile:faithful`, which forces the row off: retail's order.

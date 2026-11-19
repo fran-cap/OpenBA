@@ -1695,6 +1695,11 @@ sibling of §14).
   the LEFTMOST node of a set keyed by a pointer (the citizen; for `ClearArea` `0x1400e6650` the entity
   being cleared), until the set is empty: the cancels, which set down loads and give back
   reservations, run in address order.
+- Not an address but a clock: `GameUpdateLoop::Update` hands `Audio::Scene::Update` the WORLD Random
+  (`0x1400966aa` `MOV R9,[RDI+0xd8]`, the call at `0x1400966bb`), which draws twice per sound sample it
+  starts, and the MusicPlayer (`0x1400a40e0`) draws the next track from it. Both follow the audio
+  device's real playback (a channel is recycled when its samples report ended), so the number of world
+  draws between two simulation steps depends on the machine, and the next simulation draw changes.
 
 **Lever.** Order by the entity's EntityList id (`ComponentEntity::_entityId`, +0x18): unique at any
 moment, set only by the order of registrations and removals, saved and restored by
@@ -1704,5 +1709,7 @@ Fix: `fix.stable_order` (tier 1), default on, off under `/profile:faithful`. Sea
 walk of `EntityList::Update` (`src/game/Entity/entitylist.cpp`), `MoveTo::Enter`
 (`src/game/Action/moveto.cpp`), the leisure pick (`src/game/Component/citizenai_leisure.cpp`), the
 twelve Work leaves' Cleanup picks (`src/game/Work/*.cpp`: the lowest entity id instead of the leftmost
-node; the sets and the save are unchanged). Code
+node; the sets and the save are unchanged), and the sound's Random (`gameupdateloop.cpp` step 12 and
+`unreg_lane5_musicplayer.cpp`: a presentation Random of its own, never saved). With the row on the
+sim's random sequence is therefore not retail's even on one machine. Code
 `src/ext/stable_order/`. Hand-in `docs/extensions/handins/STABLEORDER.md`.
