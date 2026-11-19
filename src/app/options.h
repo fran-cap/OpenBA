@@ -147,6 +147,13 @@ struct Options {
                                                //   drains the path worker and sets the pathfinder's runInline byte, so every
                                                //   path request is searched on the main thread when it is made (no wall-clock
                                                //   race). NOT RETAIL TIMING (perf/README.md "Repeatable town"); stress only
+    bool        stressHouses         = false;  // BANISHED_STRESS_HOUSES — tools/stress_run.sh --houses: the harness housing pass
+                                               //   (stress_harness.cpp HousePass) places COMPLETED houses, by the founding
+                                               //   town's siting, for the adults FindHome would move (perf/README.md "Houses");
+                                               //   off by default so older baselines stay comparable
+    bool        stressFullStaff      = false;  // BANISHED_STRESS_FULL_STAFF — tools/stress_run.sh --full-staff: the staffing
+                                               //   pass raises every workplace to its template's _maxWorkerCount (the panel
+                                               //   spinner's SetMaxWorkers) and seats that many instead of _defaultWorkers
 
     // ── perf: profiling and frame pacing ─────────────────────────────────────
     int         sample               = 0;      // tools/sample_report.py, perf/README.md — sampling profiler Hz; 0 = off

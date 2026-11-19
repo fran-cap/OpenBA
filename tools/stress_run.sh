@@ -40,6 +40,14 @@
 #                       [--interval N] [--seed N] [--map small|medium|large]
 #                       [--baseline CSV|none] [--no-build] [--debug] [--timeout SECS]
 #                       [--lock LANE] [--no-load] [--spread] [--inline-paths] [--hash N]
+#                       [--houses] [--full-staff]
+#   --houses      the harness housing pass (BANISHED_STRESS_HOUSES=1): every 300 world frames from
+#                 frame 600 it places completed houses, by the founding town's siting, for the
+#                 households CitizenComponent::FindHome would move (grown children with a parent,
+#                 the homeless, hostel households) that no free house is waiting for.
+#                 perf/README.md "What the town is". Off by default: older baselines stay comparable
+#   --full-staff  the staffing pass seats every workplace up to its template's _maxWorkerCount
+#                 instead of _defaultWorkers (BANISHED_STRESS_FULL_STAFF=1). Off by default
 #   --inline-paths every path request is searched on the main thread when it is made
 #                 (BANISHED_STRESS_PATH_INLINE=1) instead of by retail's worker, which answers
 #                 on wall-clock time. Removes ONE of the two sources that make two runs of a
@@ -79,7 +87,7 @@ BUILDER="${BUILDER:-tools/build.sh}"   # the CMake build (2026-10-11; was mingw3
 ORIG_ARGS=("$@")
 LABEL="run"; SPEED=""; CITIZENS=""; SETS=""; FRAMES=""; INTERVAL=""; SEED=""; MAP=""
 BASELINE=""; BUILD=1; DEBUG=0; TIMEOUT=""; LOCK_LANE=""; LOAD=1; SPREAD=0
-PATH_INLINE=0; HASH=""
+PATH_INLINE=0; HASH=""; HOUSES=0; FULL_STAFF=0
 while [ $# -gt 0 ]; do
     case "$1" in
         --label)    LABEL="$2"; shift 2 ;;
@@ -96,7 +104,9 @@ while [ $# -gt 0 ]; do
         --no-load)  LOAD=0; shift ;;
         --spread)   SPREAD=1; shift ;;
         --inline-paths) PATH_INLINE=1; shift ;;
-        --hash)     HASH="$2"; shift 2 ;;
+        --houses)   HOUSES=1; shift ;;
+        --full-staff) FULL_STAFF=1; shift ;;
+        --hash)    HASH="$2"; shift 2 ;;
         --no-build) BUILD=0; shift ;;
         --debug)    DEBUG=1; BUILD=0; shift ;;
         -h|--help)  sed -n '2,30p' "$0"; exit 0 ;;
@@ -191,6 +201,9 @@ export BANISHED_STRESS=1
 [ -n "$HASH" ]     && export BANISHED_STRESS_HASH="$HASH"
 # --inline-paths (perf/README.md "Repeatable town"); an exported value wins, as for the knobs.
 if [ -z "${BANISHED_STRESS_PATH_INLINE:-}" ]; then export BANISHED_STRESS_PATH_INLINE="$PATH_INLINE"; fi
+# --houses / --full-staff (perf/README.md "What the town is"); an exported value wins, as above.
+if [ -z "${BANISHED_STRESS_HOUSES:-}" ]; then export BANISHED_STRESS_HOUSES="$HOUSES"; fi
+if [ -z "${BANISHED_STRESS_FULL_STAFF:-}" ]; then export BANISHED_STRESS_FULL_STAFF="$FULL_STAFF"; fi
 
 if tasklist 2>/dev/null | grep -qi 'OpenBA.exe'; then
     echo "OpenBA.exe is already running -- stop it first" >&2
@@ -321,7 +334,7 @@ if [ -n "${STRESS_CPU_LIMIT:-}" ]; then
     echo "== STRESS_CPU_LIMIT=$STRESS_CPU_LIMIT: sys.cpu_limit set for this run (settings.cfg restored at exit)"
 fi
 
-echo "== launching  label=$LABEL speed=${SPEED:-default} citizens=${CITIZENS:-default} sets=${SETS:-default} frames=$FRAMES_EFF debug=$DEBUG paths=$([ "$BANISHED_STRESS_PATH_INLINE" = 0 ] && echo async || echo inline)"
+echo "== launching  label=$LABEL speed=${SPEED:-default} citizens=${CITIZENS:-default} sets=${SETS:-default} frames=$FRAMES_EFF debug=$DEBUG paths=$([ "$BANISHED_STRESS_PATH_INLINE" = 0 ] && echo async || echo inline) houses=$([ "$BANISHED_STRESS_HOUSES" = 0 ] && echo off || echo on) fullstaff=$([ "$BANISHED_STRESS_FULL_STAFF" = 0 ] && echo off || echo on)"
 echo "   results -> $OUT"
 # STRESS_PROFILE (default faithful): the exe's /profile:<name> switch (docs/extensions/DESIGN.md);
 # `all` turns every fix and extension on for the everything-on comparison.

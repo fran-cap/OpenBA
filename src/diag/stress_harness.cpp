@@ -22,6 +22,8 @@
 //      cbf0->ca20->c5f0->c4b0 chain a spinner click runs). Nothing is assigned by hand;
 //      after the seat everything is organic. A workplace that is not yet accepting
 //      (state-13 enter for the ResourceProduce family) is simply retried next pass.
+//      The food top-up (FoodPass) and, with --houses, the housing pass (HousePass) keep the
+//      town fed and housed the same way: the harness plays the missing player.
 //
 // Everything here is fprintf(stderr)-based so it survives the release log strip.
 #include "stress_harness.h"
@@ -90,6 +92,7 @@
 #include "Game/Map.h"                       // REPEATABLE: Map::pathfinder (the sim digest, the inline arm)
 #include "Game/PathfinderThread.h"          // REPEATABLE: nextToken, runInline, DrainQueue
 #include "system/Value.h"                   // REPEATABLE: System::Random (the sim digest's rng part)
+#include "Game/starttown_stress.h"          // HOUSES: the founding stress town's siting (HousePass)
 #define WIN32_LEAN_AND_MEAN
 #if defined(_WIN32)
 #include <windows.h>
@@ -1397,6 +1400,13 @@ void StaffPass(GameUpdateLoop* gw, int worldFrame) {
                 const int mx   = wd->_maxWorkerCount;   // +0x2c
                 want = dflt > 0 ? dflt : 1;
                 if (mx > 0 && want > mx) want = mx;
+                // --full-staff (Opt().stressFullStaff): the panel spinner's "+" pressed up to the
+                // template's maximum (WorkPlaceUI::AdjustJobCount -> SetMaxWorkers 0x14012fb00,
+                // which only writes the capacity when it grows), then seat that many.
+                if (Opt().stressFullStaff && mx > want) {
+                    if (wc->workState < mx) wpc->SetMaxWorkers(mx);
+                    want = mx;
+                }
             }
             // Effective capacity as the panel enforces it (workComp+0x30), when computed.
             const int cap = wc->workState;
@@ -1625,6 +1635,128 @@ void FoodPass(GameUpdateLoop* gw) {
     if (deficit > 0) ++s_foodShort;
 }
 
+// ── housing pass (Opt().stressHouses, tools/stress_run.sh --houses) ──────────
+// The stress town never builds: its houses are the founding ones, so the children who grow
+// up stay with a parent, and every one of them runs CitizenComponent::FindHome (a loop over
+// every citizen, then every residence) on each idle update for the rest of the run. Like
+// FoodPass, the harness plays the missing player: every kHousePeriod world frames it counts
+// the households FindHome would move and, for those no free household slot is waiting for,
+// places COMPLETED houses through the founding stress town's own siting
+// (StressTown::Siting::PlaceHouse, starttown_stress.h: the same wood / stone alternation,
+// instant-build placement, 1-tile lanes, learned doors and pocket flood, plus a live-world
+// test: no resource, crop or walker on a footprint cell). The citizens move in by themselves.
+//
+// "Waiting" is CitizenComponent::Update's own gate for its FindHome calls
+// (citizencomponent.cpp, the adult section after the child / student test), minus the
+// transient idle test (the action stack empty):
+//   * an adult (age >= description->adultAge) out of school with NO home, or with a home and
+//     a parent (a grown child in a parent's house): FindHome(&slot, home == null);
+//   * a household in a residence of more than one household slot (the hostel): the
+//     shared-home re-search FindHome(&slot, false), which moves it to a free single house.
+// Free = an empty household slot of a single-household residence (what both calls take).
+constexpr int kHouseFirst      = 600;   // world frame of the first pass (the staffing pass's first)
+constexpr int kHousePeriod     = 300;   // world frames between passes
+constexpr int kHouseMaxPerPass = 32;    // houses one pass places at most
+
+struct HouseNeed {
+    int noHome = 0;       // adults out of school with no home
+    int withParent = 0;   // adults out of school housed with a parent
+    int shared = 0;       // households in a multi-household residence
+    int freeSlots = 0;    // empty household slots of single-household residences
+    int Waiting() const { return noHome + withParent + shared; }
+};
+
+HouseNeed CountHouseNeed(CitizenBehavior* townMgr) {
+    HouseNeed need;
+    const int nCit = townMgr->citizens._size;
+    for (int i = 0; i < nCit; ++i) {
+        CitizenComponent* c = townMgr->citizens._data[i].Get();
+        if (!c || !c->description) continue;
+        if (c->age < c->description->adultAge || c->school != nullptr) continue;
+        if (c->home == nullptr) {
+            ++need.noHome;
+        } else if (c->_parent != nullptr) {
+            ++need.withParent;
+        }
+    }
+    const int nRes = townMgr->residences._size;
+    for (int i = 0; i < nRes; ++i) {
+        ComponentEntity* e = townMgr->residences._data[i].Get();
+        if (!e || (e->_entityFlags & Bits(ComponentFlags::MarkedForRemoval))) continue;
+        ResidenceComponent* rc = e->FindComponent<ResidenceComponent>();
+        if (!rc) continue;
+        const int slots = rc->residentSlots._size;
+        for (int s = 0; s < slots; ++s) {
+            const bool empty = rc->residentSlots[s]._size < 1;
+            if (slots == 1 && empty) ++need.freeSlots;
+            if (slots > 1 && !empty) ++need.shared;
+        }
+    }
+    return need;
+}
+
+// Window counters (reset by HouseReport) and totals.
+int s_housePasses = 0, s_housePlaced = 0, s_housePlacedWin = 0;
+int s_houseNoSite = 0, s_houseNoSiteWin = 0, s_housePlaceNullWin = 0;
+int s_houseRejWin[5] = {0};   // unworkable, live, unreachable, door, pocket (candidate footprints)
+double s_houseMsWin = 0.0;
+
+void HousePass(GameUpdateLoop* gw) {
+    CitizenBehavior* townMgr = gw->m_citizenList;
+    StressTown::Siting* st = StressTown::Current();
+    if (!townMgr || !st) return;
+    const HouseNeed need = CountHouseNeed(townMgr);
+    const int deficit = std::min(need.Waiting() - need.freeSlots, kHouseMaxPerPass);
+    if (deficit <= 0) return;
+    const long long t0 = QpcNow();
+    st->log = false;   // counted here, one line per CSV row
+    st->BeginPass();
+    const int r0[5] = { st->rejUnworkable, st->rejLive, st->reachRejects, st->rejDoor, st->rejPocket };
+    int placed = 0;
+    for (int i = 0; i < deficit; ++i) {
+        if (st->PlaceHouse()) {
+            ++placed;
+            continue;
+        }
+        if (st->lastFail == StressTown::Fail::PlaceNull) {
+            ++s_housePlaceNullWin;
+            continue;
+        }
+        ++s_houseNoSite;   // no free footprint (or the template did not resolve): stop this pass
+        ++s_houseNoSiteWin;
+        break;
+    }
+    const int r1[5] = { st->rejUnworkable, st->rejLive, st->reachRejects, st->rejDoor, st->rejPocket };
+    for (int k = 0; k < 5; ++k) s_houseRejWin[k] += r1[k] - r0[k];
+    ++s_housePasses;
+    s_housePlaced += placed;
+    s_housePlacedWin += placed;
+    s_houseMsWin += QpcMs(QpcNow() - t0);
+}
+
+// One [Stress::house] line per CSV row, with or without the pass (the census is read-only):
+// the households FindHome would move, the free slots, and the pass's window.
+void HouseReport(GameUpdateLoop* gw, int worldFrame) {
+    CitizenBehavior* townMgr = gw->m_citizenList;
+    if (!townMgr) return;
+    const HouseNeed need = CountHouseNeed(townMgr);
+    std::fprintf(stderr, "[Stress::house] worldFrame=%d pass=%s citizens=%d waiting=%d (noHome=%d withParent=%d "
+                         "shared=%d) freeSlots=%d residences=%d | placed=%d (total %d, passes %d) "
+                         "noSite=%d (total %d) placeNull=%d rejects unworkable=%d live=%d unreachable=%d "
+                         "door=%d pocket=%d ms=%.1f\n",
+                 worldFrame, Opt().stressHouses ? "on" : "off", townMgr->citizens._size, need.Waiting(),
+                 need.noHome, need.withParent, need.shared, need.freeSlots, townMgr->residences._size,
+                 s_housePlacedWin, s_housePlaced, s_housePasses, s_houseNoSiteWin, s_houseNoSite,
+                 s_housePlaceNullWin, s_houseRejWin[0], s_houseRejWin[1], s_houseRejWin[2], s_houseRejWin[3],
+                 s_houseRejWin[4], s_houseMsWin);
+    std::fflush(stderr);
+    s_housePlacedWin = 0;
+    s_houseNoSiteWin = 0;
+    s_housePlaceNullWin = 0;
+    for (int& r : s_houseRejWin) r = 0;
+    s_houseMsWin = 0.0;
+}
+
 // ── CSV row ──────────────────────────────────────────────────────────────────
 void OpenCsv() {
     if (s_csv) return;
@@ -1654,6 +1786,10 @@ void OpenCsv() {
     // REPEATABLE: stress_report.py reads this line to say whether two runs CAN build one town.
     std::fprintf(s_csv, "# paths %s\n", Opt().stressPathInline ? "inline (searched on the main thread; no worker race)"
                                                                 : "async (retail's worker: arrival follows wall-clock time)");
+    // HOUSES: stress_report.py's WORKLOAD block says so when two compared runs differ in it.
+    std::fprintf(s_csv, "# houses %s\n", Opt().stressHouses ? "on (the harness housing pass places houses for FindHome's waiting households)"
+                                                            : "off (the founding houses only)");
+    if (Opt().stressFullStaff) std::fprintf(s_csv, "# staff full (every workplace seated to its _maxWorkerCount)\n");
     std::fprintf(s_csv, "wall_s,world,frame,speed,sim_iters,fps,frame_ms_mean,frame_ms_p95,"
                         "update_ms_mean,update_ms_p95,update_ms_per_iter,draw_ms_mean,"
                         "ph_paircache_ms,ph_animation_ms,ph_entitylist_ms,ph_weather_ms,"
@@ -1983,9 +2119,9 @@ extern "C" void StressHarness_Init() {
     // unset") now runs in src/app/options.cpp's ApplyStressDefaults(), called
     // from OptionsInit() before anything else reads the environment.
     std::fprintf(stderr, "[Stress] ENABLED citizens=%d sets=%d speed=%d frames=%d interval=%d "
-                         "foodMult=%d staff=%d compprof=%d csv=%s\n",
+                         "foodMult=%d staff=%d compprof=%d csv=%s houses=%s fullStaff=%s\n",
                  s_citizens, s_sets, s_speed, s_frames, s_interval, s_foodMult, s_staff,
-                 g_compProfOn, s_csvPath);
+                 g_compProfOn, s_csvPath, Opt().stressHouses ? "on" : "off", Opt().stressFullStaff ? "on" : "off");
     std::fflush(stderr);
 }
 
@@ -2066,6 +2202,7 @@ extern "C" void StressHarness_UpdateEnd(GameUpdateLoop* gul, int frameNum) {
     }
     if (s_worldFrame % s_interval == 0) EmitRow(gul, frameNum);
     if (gw && s_worldFrame % s_interval == 0) FoodCensus(gw, s_worldFrame);
+    if (gw && s_worldFrame % s_interval == 0) HouseReport(gw, s_worldFrame);
     if (s_worldFrame % s_interval == 0 && Ext::SpreadWarmth::g_on) {   // HITCH_PFBURST: ext.spread_warmth, cumulative
         const Ext::SpreadWarmth::Stats& w = Ext::SpreadWarmth::GetStats();
         std::fprintf(stderr, "[Stress::warmth] frame=%d scans=%lld candidates=%lld searches=%lld maxFrameSearches=%d deferrals=%lld framesDeferring=%d maxStreak=%d budget=%d/%d\n",
@@ -2082,6 +2219,10 @@ extern "C" void StressHarness_UpdateEnd(GameUpdateLoop* gul, int frameNum) {
                      d.idleChanged);
     }
     if (gw && s_worldFrame >= kFoodFirst && (s_worldFrame - kFoodFirst) % kFoodPeriod == 0) FoodPass(gw);
+    if (Opt().stressHouses && gw && s_worldFrame >= kHouseFirst &&
+        (s_worldFrame - kHouseFirst) % kHousePeriod == 0) {
+        HousePass(gw);
+    }
 
     if (s_staff && gw && s_worldFrame >= kStaffFirst) {
         const int since = s_worldFrame - kStaffFirst;

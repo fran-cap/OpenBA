@@ -63,6 +63,27 @@ normal Easy founding town, on a **medium (384) map**, seed 31337 (12345's town a
   Citizens still fetch it and carry it home. Each CSV row is followed by a `[Stress::food]`
   line: storage / house / other food, the units topped up, and each food store's
   food/used/capacity.
+- **Houses** (`--houses`, `BANISHED_STRESS_HOUSES=1`, **off by default** so older baselines stay
+  comparable): the town never builds, so the children who grow up stay with a parent and each
+  of them runs `CitizenComponent::FindHome` (every citizen, then every residence) on every idle
+  update; that cost grows with the square of the population. With `--houses` a **housing pass**
+  (`HousePass` in `src/diag/stress_harness.cpp`) runs every 300 world frames from frame 600: it
+  counts the households FindHome would move, by `CitizenComponent::Update`'s own gate (an adult
+  out of school with no home, or housed with a parent; a household in a hostel, which the
+  shared-home re-search moves to a free single house), subtracts the empty single-household
+  slots, and places that many COMPLETED houses (at most 32 a pass) through the founding stress
+  town's own siting (`StressTown::Siting`, `src/game/Game/starttown_stress.h`): wood / stone
+  alternating, the instant-build bracket, 1-tile lanes around the founding houses' anchor, the
+  learned door cells and the pocket flood, plus a live-world test (no tree, rock, crop or walker
+  on a footprint cell). The citizens move in by themselves. Each CSV row is followed by a
+  `[Stress::house]` line, with or without the pass: the households waiting (no home / with a
+  parent / shared), free slots, houses placed in the window and in total, footprints rejected
+  by reason, and the pass's own ms. The CSV header says `# houses on|off`, and
+  `stress_report.py`'s WORKLOAD block flags two compared runs that differ in it.
+- **Full staff** (`--full-staff`, `BANISHED_STRESS_FULL_STAFF=1`, off by default): the staffing
+  pass raises every workplace to its template's `_maxWorkerCount` (the panel spinner's
+  `SetMaxWorkers`, 0x14012fb00) and seats that many instead of `_defaultWorkers`, so new adults
+  are employed instead of joining the idle labourers.
 
 Every building is COMPLETED (instant-build bracket), sited 1 tile apart on workable
 ground around the founding cluster. Placement is deterministic per seed. Siting rules

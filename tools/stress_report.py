@@ -36,7 +36,8 @@ What the summary means:
                  predates these columns.
 
   WORKLOAD       (with --baseline) the two runs' population, entities and sim digest
-                 (sim_hash) matched by frame. Two runs of one seed are not one town unless both
+                 (sim_hash) matched by frame, and the '# paths' / '# houses' modes (flagged when
+                 the two runs differ in them). Two runs of one seed are not one town unless both
                  ran with the repeatable town and the digest agrees; when the population differs
                  by more than 2% at a compared row, the timing deltas are labelled workload and
                  no REGRESSION / PLAN verdict is given (perf/README.md "Repeatable town").
@@ -304,6 +305,22 @@ def paths_mode(meta):
     return "async"   # a CSV from before the line: retail's worker, the only mode there was
 
 
+def houses_mode(meta):
+    """'on' when the harness housing pass ran (tools/stress_run.sh --houses), else 'off'."""
+    for m in meta:
+        if m.startswith("houses "):
+            return m.split()[1]
+    return "off"   # a CSV from before the line: no housing pass existed
+
+
+def staff_mode(meta):
+    """'full' when the staffing pass seated _maxWorkerCount (--full-staff), else 'default'."""
+    for m in meta:
+        if m.startswith("staff "):
+            return m.split()[1]
+    return "default"
+
+
 def workload_check(rows, brows):
     """Match rows by frame: population, entities and the sim digest of both runs.
     Returns (table, first_hash_diff_frame, first_pop_diff_frame, hashed)."""
@@ -334,8 +351,18 @@ def print_workload(meta, bmeta, rows, brows, s, b):
     more than WORKLOAD_POP_TOL_PCT at some compared row: the timing verdicts are then withheld."""
     table, first_hash, first_pop, hashed = workload_check(rows, brows)
     ma, mb = paths_mode(meta), paths_mode(bmeta)
+    ha, hb = houses_mode(meta), houses_mode(bmeta)
+    sa, sb = staff_mode(meta), staff_mode(bmeta)
     print("WORKLOAD  (is it the same town? perf/README.md \"Repeatable town\")")
     print(f"  paths     baseline {mb}   now {ma}")
+    print(f"  houses    baseline {hb}   now {ha}")
+    if sa != sb:
+        print(f"  staff     baseline {sb}   now {sa}")
+    if ha != hb:
+        print(f"  !! the housing pass differs ({hb} vs {ha}): one town builds houses for its grown children "
+              f"(tools/stress_run.sh --houses), so the populations, entities and FindHome cost differ by design")
+    if sa != sb:
+        print(f"  !! the staffing differs ({sb} vs {sa}): --full-staff seats every workplace to its maximum")
     print("  {:>6} {:>9} {:>9} {:>7} {:>9} {:>9}  {}".format(
         "frame", "cit base", "cit now", "delta", "ent base", "ent now", "sim_hash"))
     for f, cb, ca, dpop, eb, ea, same in table:

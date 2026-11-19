@@ -24,6 +24,10 @@
 //                                  (barn volume caps what lands; the town is kept fed by
 //                                  the harness food top-up pass, FoodPass, not by this)
 //   BANISHED_STRESS_STAFF=0        skip the staffing pass (everyone stays a laborer)
+//   BANISHED_STRESS_FULL_STAFF=1   the staffing pass seats each workplace's _maxWorkerCount
+//                                  (tools/stress_run.sh --full-staff), default off
+//   BANISHED_STRESS_HOUSES=1       the housing pass: completed houses for the households
+//                                  FindHome would move (tools/stress_run.sh --houses), default off
 //   BANISHED_STRESS_COMPPROF=N     per-component-type Update profile level, default 0 (off)
 //   BANISHED_STRESS_CSV=<path>     CSV output path, default standalone_stress.csv
 //
