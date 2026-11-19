@@ -58,6 +58,9 @@
 #   --full-staff  the staffing pass seats every workplace up to its template's _maxWorkerCount
 #                 instead of _defaultWorkers (BANISHED_STRESS_FULL_STAFF=1). ON by default
 #                 since 2026-11-19; --no-full-staff turns it off
+#   --no-maximize do not maximise the window. By default the harness maximises a windowed game
+#                 window on the primary display once, when the town first ticks
+#                 (BANISHED_STRESS_MAXIMIZE=1), so every run draws the same back buffer
 #   --inline-paths every path request is searched on the main thread when it is made
 #                 (BANISHED_STRESS_PATH_INLINE=1) instead of by retail's worker, which answers
 #                 on wall-clock time. Removes ONE of the two sources that make two runs of a
@@ -98,6 +101,7 @@ ORIG_ARGS=("$@")
 LABEL="run"; SPEED=""; CITIZENS=""; SETS=""; FRAMES=""; INTERVAL=""; SEED=""; MAP=""
 BASELINE=""; BUILD=1; DEBUG=0; TIMEOUT=""; LOCK_LANE=""; LOAD=1; SPREAD=0
 PATH_INLINE=0; HASH=""; HOUSES=1; FULL_STAFF=1; MODE="${STRESS_MODE:-player}"
+MAXIMIZE=1   # --no-maximize: the view as settings.cfg and the desktop leave it (BANISHED_STRESS_MAXIMIZE)
 while [ $# -gt 0 ]; do
     case "$1" in
         --label)    LABEL="$2"; shift 2 ;;
@@ -116,6 +120,7 @@ while [ $# -gt 0 ]; do
         --inline-paths) PATH_INLINE=1; shift ;;
         --houses)   HOUSES=1; shift ;;
         --no-houses) HOUSES=0; shift ;;
+        --no-maximize) MAXIMIZE=0; shift ;;
         --full-staff) FULL_STAFF=1; shift ;;
         --no-full-staff) FULL_STAFF=0; shift ;;
         --mode)     MODE="$2"; shift 2 ;;
@@ -217,6 +222,10 @@ if [ -z "${BANISHED_STRESS_PATH_INLINE:-}" ]; then export BANISHED_STRESS_PATH_I
 # --houses / --full-staff (perf/README.md "What the town is"); an exported value wins, as above.
 if [ -z "${BANISHED_STRESS_HOUSES:-}" ]; then export BANISHED_STRESS_HOUSES="$HOUSES"; fi
 if [ -z "${BANISHED_STRESS_FULL_STAFF:-}" ]; then export BANISHED_STRESS_FULL_STAFF="$FULL_STAFF"; fi
+# The view: the window maximised on the primary display when the town first ticks, so the
+# back buffer does not depend on settings.cfg's VideoWindow* rect or on a window manager
+# (PowerToys FancyZones) acting on the new window. view_w / view_h in the CSV are the check.
+if [ -z "${BANISHED_STRESS_MAXIMIZE:-}" ]; then export BANISHED_STRESS_MAXIMIZE="$MAXIMIZE"; fi
 
 if tasklist 2>/dev/null | grep -qi 'OpenBA.exe'; then
     echo "OpenBA.exe is already running -- stop it first" >&2

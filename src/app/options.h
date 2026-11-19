@@ -154,6 +154,11 @@ struct Options {
     bool        stressFullStaff      = false;  // BANISHED_STRESS_FULL_STAFF — tools/stress_run.sh --full-staff: the staffing
                                                //   pass raises every workplace to its template's _maxWorkerCount (the panel
                                                //   spinner's SetMaxWorkers) and seats that many instead of _defaultWorkers
+    bool        stressMaximize       = false;  // BANISHED_STRESS_MAXIMIZE — tools/stress_run.sh (default on; --no-maximize
+                                               //   turns it off): the harness maximizes a windowed game window once, when
+                                               //   the town's world first ticks, so every run draws the same view whatever
+                                               //   settings.cfg's window rect is or an outside window manager did at boot
+                                               //   (perf/README.md "Repeatable town"); stress only
 
     // ── perf: profiling and frame pacing ─────────────────────────────────────
     int         sample               = 0;      // tools/sample_report.py, perf/README.md — sampling profiler Hz; 0 = off
