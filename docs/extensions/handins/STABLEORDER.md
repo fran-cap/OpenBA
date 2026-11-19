@@ -3,7 +3,7 @@
 > Renamed from `fix.update_order` (hand-in UPDATEORDER.md) before it shipped, by the owner's ruling: the
 > row covers more than the update order. It never shipped, so no retired id.
 
-> **Built: `fix.stable_order` (tier 1, default ON, off under `/profile:faithful`), sim-visible.**
+> **Built: `fix.stable_order` (tier 1, default OFF by the ruling of 2026-11-19, section 5), sim-visible.**
 > The entity update walk visits the update tree's entities by EntityList id instead of by heap address,
 > and the address-decided choices the digests found on the way (who follows whom on a path, which
 > nearby building a citizen visits in its free time, the order a torn-down task cancels its workers)
@@ -202,8 +202,12 @@ tick) and one per track change.
 
 - Tier 1 fix, no class (like `fix.alloc_tiebreak`): nothing serialized, so no class B / C record; the
   save format is retail's and a save made either way loads in retail and in either mode.
-- Default ON (recommended): it is the precondition of the owner's repeatable benchmark and of any
-  deterministic mod, a fix's default is ON (DESIGN.md §2), and the faithful profile still forces it off.
+- Default OFF (ruled 2026-11-19; this block recommended ON). The reasons: with the row on the town's
+  random sequence is no longer retail's even on one machine (sound stops drawing from the world Random),
+  and a player's town still does not repeat, because path results arrive on the worker's clock (the async
+  pairs of section 6 part at frame 10). So a player would pay the difference from retail and see nothing
+  for it. The stress harness turns the row on, with inline paths, for the repeatable benchmark. Revisit
+  the default when the path worker is made deterministic (the lockstep design at the end of section 6).
 - Live toggle: the order switches at the next walk; both orders are valid towns.
 
 ## 6. Determinism proof

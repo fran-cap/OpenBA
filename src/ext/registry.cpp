@@ -349,7 +349,10 @@ const Entry kEntries[] = {
     // (the tree keeps retail's key; the walk's snapshot is visited through an id permutation), and the
     // sim's other address-decided choices use the id too. Sim-visible: which citizen gets which random
     // draw. Nothing saved: the ids are retail's own, already in the save.
-    { "stable_order", Tier::Fix, Class::None, true,
+    // Default OFF (ruled 2026-11-19): with it on the town's random sequence is no longer retail's (sound
+    // stops drawing from the world Random), and a player's town still does not repeat while path results
+    // arrive on the worker's clock. The stress harness turns it on; revisit with deterministic paths.
+    { "stable_order", Tier::Fix, Class::None, false,
       "Repeatable turn order",
       "Citizens, animals and buildings act in a fixed order, not by where they sit in memory, so "
       "the same start or the same save does not play out differently for that reason.",
