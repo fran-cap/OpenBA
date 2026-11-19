@@ -41,6 +41,8 @@
 #include "Component/WorkPlaceComponent.h"
 #include "Entity/ComponentEntity.h"
 #include "Entity/CitizenBehavior.h"
+#include "ext/registry.h"                    // Ext::Fix().stable_order
+#include "ext/stable_order/stable_order.h"   // FIX stable_order (NOT RETAIL): Cleanup's cancel order
 
 // ============================================================
 // Sub-functions, called by name
@@ -462,6 +464,15 @@ int TradeWork::Cleanup() {
 
         // Cancel the work item
         CitizenComponent* citizen = leftmost->value.citizen.Get();
+        // FIX stable_order (NOT RETAIL, docs/extensions/handins/STABLEORDER.md, docs/retail_bugs.md §36):
+        // the assignments are keyed by the citizen's pointer, so retail (0x1400f6be0) cancels the
+        // lowest ADDRESS first. With the row on, the assignment whose citizen has the lowest entity id.
+        if (Ext::Fix().stable_order) {
+            Node* first = Ext::StableOrder::MinNodeById(assignments.root, [](const Node* n) {
+                return Ext::StableOrder::EntityIdOf(n->value.citizen.Get());
+            });
+            citizen = first->value.citizen.Get();
+        }
         citizen->character->actionStack.Clear();
     }
     return 0;

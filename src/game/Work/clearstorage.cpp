@@ -38,6 +38,8 @@
 #include "Component/Description.h"
 #include "Action/PathSearch.h"   // RawArray (PickBestDropTarget)
 #include "Component/find_components3.h"   // PERF: Execute's three component scans in one walk
+#include "ext/registry.h"                    // Ext::Fix().stable_order
+#include "ext/stable_order/stable_order.h"   // FIX stable_order (NOT RETAIL): Cleanup's cancel order
 
 // Sub-functions, called by name (B3R): 0x140025520 WorkBST_BSTFindRemove_25520,
 // 0x1400c5400 ActionStack::Clear; 0x140014c30 is retail's node free inside the dtor's ~Set (below).
@@ -464,6 +466,12 @@ int ClearStorage::Cleanup() {
 
         // The node's citizen; cancel its CharacterComponent's action list (+0x48)
         CitizenComponent* citizen = leftmost->element;
+        // FIX stable_order (NOT RETAIL, docs/extensions/handins/STABLEORDER.md, docs/retail_bugs.md §36):
+        // the set is keyed by pointer, so retail (0x1400e72a0) cancels the lowest ADDRESS first. With
+        // the row on, the citizen with the lowest entity id.
+        if (Ext::Fix().stable_order) {
+            citizen = Ext::StableOrder::LowestIdKey(_citizens._root);
+        }
         citizen->character->actionStack.Clear();
     }
     return 0;
