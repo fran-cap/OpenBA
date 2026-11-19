@@ -130,6 +130,23 @@ game by PID only.
 `BANISHED_MAP_SIZE=small|medium|large`, `BANISHED_CLIMATE=mild|fair|harsh`,
 `BANISHED_CAMERA_PIN=town[,dist]`. All flags: `src/app/options.h`.
 
+## Reading an A/B: time AND counts
+Two runs of one seed are different towns from frame 1 (perf/README.md "Repeatable town"), and late in a
+9000-frame run two runs of ONE exe have differed by 30% in sim ms per iteration. So:
+- Compare timing only where the towns still match: the frame-600 row (`--rows-to 600`), or rows whose
+  populations the report's WORKLOAD block shows within 2%. State the population beside every timing.
+- A change that only pays late in the run (a cost that grows with the town) is judged by COUNTS: a
+  `BANISHED_SAMPLE=2000` run per side and the share of main-thread samples in a matching window
+  (`tools/sample_report.py <samples> --exe <the exe that ran> --from 100000 --to 160000 --top 300`).
+  Shares do not move with the frame time.
+- "Neutral" means neutral by time and by counts (ruled 2026-11-18). An exact change whose share falls by
+  count is kept even when time cannot resolve it: the allocator hot path and the `work_cand` retirement
+  were indistinguishable by time while the candidate tree went from 7.1% of main-thread samples to 0.
+- `/profile:faithful` (the default) turns every fix and extension off: its profile is not a player's.
+  For the registry's default rows use `STRESS_PROFILE=per-entry` with a `BANISHED_USER_DIR` whose
+  settings.cfg has no `ext.` / `fix.` lines. `--houses` and `--full-staff` remove two artefacts of the
+  town itself (grown children with no house to move to; 215 jobs for 1,000 adults).
+
 ## Keep the measurement clean
 Nothing else heavy may run during an A/B (no repo-wide searches, no second build). Trace
 flags are a struct load via `Opt()`, so a per-call `if (Opt().someTrace)` in tick code is

@@ -68,6 +68,7 @@
 #include "application/Application.h"   // Application::IsPaused (Update)
 #include "Game/GameSettings.h"          // g_gameSettings->autoPause (Update)
 #include "showroom.h"                   // HARNESS: Showroom_Enabled (Update, the paused arm)
+#include "options.h"                    // HARNESS: Opt().cameraPin (Update, the paused arm)
 #include "ext/toolbar/toolbar.h"         // EXT SEAM (NOT RETAIL, docs/extensions/handins/EXTHOSTS.md): RestoreWindow
 #include "ext/registry.h"                // Ext::Ext().touch_pointer (the Update seam below)
 #include "ext/touch_pointer/touch_pointer.h"   // EXT SEAM (NOT RETAIL, docs/android/P11B_POINTER.md): HoldToolAim
@@ -869,7 +870,11 @@ int32_t PlayerToolManager::Update(System::Time time, bool inputFlag) {
         // left in the background kept its camera wherever it was while its shot sequence went on
         // (whole passes of the same frame). Under the showroom only, the camera still follows the
         // harness's pin; no input is read (inputFlag 0). Normal play keeps retail's arm unchanged.
-        if (Showroom_Enabled())
+        // The same for BANISHED_CAMERA_PIN (tools/stress_run.sh): a stress run started while the user
+        // worked in another window never zoomed out to its pinned distance, so its draw and culling
+        // figures were those of the start camera.
+        const char* pin = Opt().cameraPin;
+        if (Showroom_Enabled() || (pin != nullptr && pin[0] != '\0'))
             UpdateCamera(0, time._ticks);
         return 1;
     }
