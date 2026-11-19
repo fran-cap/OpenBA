@@ -53,6 +53,8 @@
 #include "Entity/ComponentEntity.h"
 #include "Entity/CitizenBehavior.h"
 #include "Game/Map.h"
+#include "ext/registry.h"                    // Ext::Fix().stable_order
+#include "ext/stable_order/stable_order.h"   // FIX stable_order (NOT RETAIL): Cleanup's cancel order
 
 // ============================================================
 // Sub-functions, called by name (B3R; the module exe_bodies.h headers)
@@ -701,6 +703,12 @@ int ForesterWork::Cleanup() {
 
         // Cancel the work item: the citizen's action list (CharacterComponent +0x48)
         CitizenComponent* citizenEntity = leftmost->element;
+        // FIX stable_order (NOT RETAIL, docs/extensions/handins/STABLEORDER.md, docs/retail_bugs.md §36):
+        // the set is keyed by pointer, so retail (0x1400eb8a0) cancels the lowest ADDRESS first. With
+        // the row on, the citizen with the lowest entity id.
+        if (Ext::Fix().stable_order) {
+            citizenEntity = Ext::StableOrder::LowestIdKey(_citizens._root);
+        }
         citizenEntity->character->actionStack.Clear();
 
         count = _citizens._count;

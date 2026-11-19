@@ -1,0 +1,245 @@
+// ============================================================================
+// tests/unit/ext_stable_order_test.cpp -- fix.stable_order's id permutation
+// ============================================================================
+// src/ext/stable_order/stable_order.h without the world. The walk snapshot is in
+// pointer order (the update tree's key); BuildIdOrder gives the visit order by
+// EntityList id. Proved here: the visit order is the id order whatever the address
+// layout; a snapshot holding only some ids is ordered by them; an entity with no
+// usable id still ticks (last, in snapshot order); and the ids themselves, kept the
+// way EntityList keeps them (RegisterEntity appends, RemoveEntity swaps the last into
+// the hole), come out the same for one sequence of adds and removes at any addresses.
+// ============================================================================
+#include "unit.h"
+#include "ext/stable_order/stable_order.h"
+
+#include <algorithm>
+#include <cstdint>
+#include <functional>
+#include <vector>
+
+namespace {
+
+using Ext::StableOrder::BuildIdOrder;
+
+struct Ent {
+    int32_t _entityId;
+};
+
+// The snapshot as the tree walk builds it: the entities in ascending pointer order.
+std::vector<Ent*> PointerSorted(std::vector<Ent*> v) {
+    std::sort(v.begin(), v.end(), std::less<Ent*>());
+    return v;
+}
+
+// The ids in visit order.
+std::vector<int32_t> VisitIds(const std::vector<Ent*>& snap, const std::vector<uint32_t>& order) {
+    std::vector<int32_t> ids;
+    for (uint32_t i : order) ids.push_back(snap[i]->_entityId);
+    return ids;
+}
+
+// EntityList's id keeping (RegisterEntity 0x1400c48a0 / RemoveEntity 0x1400c38e0): the
+// master array, the id = the slot, a removal swaps the last entity into the hole.
+struct Master {
+    std::vector<Ent*> slots;
+    void Register(Ent* e) {
+        e->_entityId = static_cast<int32_t>(slots.size());
+        slots.push_back(e);
+    }
+    void Remove(Ent* e) {
+        const int32_t last = static_cast<int32_t>(slots.size()) - 1;
+        const int32_t idx = e->_entityId;
+        if (idx != last) {
+            slots[static_cast<size_t>(idx)] = slots[static_cast<size_t>(last)];
+            slots[static_cast<size_t>(idx)]->_entityId = idx;
+        }
+        slots.pop_back();
+    }
+};
+
+}  // namespace
+
+UNIT_TEST(ext_stable_order_visits_by_id_at_any_layout) {
+    // The same five entities at two address layouts: the snapshots differ, the visit does not.
+    Ent ascending[5] = { {0}, {1}, {2}, {3}, {4} };
+    Ent scrambled[5] = { {3}, {0}, {4}, {2}, {1} };
+    std::vector<int32_t> visits[2];
+    Ent* layouts[2] = { ascending, scrambled };
+    for (int l = 0; l < 2; ++l) {
+        std::vector<Ent*> all;
+        for (int k = 0; k < 5; ++k) all.push_back(&layouts[l][k]);
+        const std::vector<Ent*> snap = PointerSorted(all);
+        std::vector<uint32_t> order;
+        std::vector<int32_t> slot;
+        CHECK_EQ(BuildIdOrder(snap.data(), snap.size(), 5, order, slot), (size_t)0);
+        CHECK_EQ(order.size(), snap.size());
+        visits[l] = VisitIds(snap, order);
+    }
+    const std::vector<int32_t> expect = { 0, 1, 2, 3, 4 };
+    CHECK(visits[0] == expect);
+    CHECK(visits[1] == expect);
+}
+
+UNIT_TEST(ext_stable_order_subset_of_ids) {
+    // The update tree holds only the ticking entities: ids with gaps, out of a master of 10.
+    Ent e[4] = { {7}, {2}, {9}, {4} };
+    const std::vector<Ent*> snap = PointerSorted({ &e[0], &e[1], &e[2], &e[3] });
+    std::vector<uint32_t> order;
+    std::vector<int32_t> slot;
+    CHECK_EQ(BuildIdOrder(snap.data(), snap.size(), 10, order, slot), (size_t)0);
+    const std::vector<int32_t> expect = { 2, 4, 7, 9 };
+    CHECK(VisitIds(snap, order) == expect);
+    // Every snapshot index exactly once: a permutation.
+    std::vector<uint32_t> sorted = order;
+    std::sort(sorted.begin(), sorted.end());
+    for (size_t i = 0; i < sorted.size(); ++i) CHECK_EQ(sorted[i], (uint32_t)i);
+}
+
+UNIT_TEST(ext_stable_order_unusable_ids_tick_last) {
+    // -1 (never registered), past the master count, and a duplicate: none is dropped.
+    Ent e[5] = { {3}, {-1}, {1}, {12}, {3} };
+    const std::vector<Ent*> snap = PointerSorted({ &e[0], &e[1], &e[2], &e[3], &e[4] });
+    std::vector<uint32_t> order;
+    std::vector<int32_t> slot;
+    CHECK_EQ(BuildIdOrder(snap.data(), snap.size(), 5, order, slot), (size_t)3);
+    CHECK_EQ(order.size(), snap.size());
+    // The placed ones first, by id; then the rest in snapshot (pointer) order.
+    CHECK_EQ(snap[order[0]]->_entityId, 1);
+    CHECK_EQ(snap[order[1]]->_entityId, 3);
+    for (size_t j = 3; j < order.size(); ++j) CHECK(order[j - 1] < order[j]);
+    std::vector<uint32_t> sorted = order;
+    std::sort(sorted.begin(), sorted.end());
+    for (size_t i = 0; i < sorted.size(); ++i) CHECK_EQ(sorted[i], (uint32_t)i);
+}
+
+UNIT_TEST(ext_stable_order_empty_and_reuse) {
+    std::vector<uint32_t> order = { 9, 9 };
+    std::vector<int32_t> slot = { 5 };
+    CHECK_EQ(BuildIdOrder<Ent>(nullptr, 0, 0, order, slot), (size_t)0);
+    CHECK(order.empty());
+    // The scratch from a larger call does not leak into a smaller one.
+    Ent big[3] = { {2}, {0}, {1} };
+    const std::vector<Ent*> s1 = PointerSorted({ &big[0], &big[1], &big[2] });
+    BuildIdOrder(s1.data(), s1.size(), 3, order, slot);
+    Ent small[1] = { {0} };
+    Ent* s2[1] = { &small[0] };
+    CHECK_EQ(BuildIdOrder(s2, 1, 1, order, slot), (size_t)0);
+    CHECK_EQ(order.size(), (size_t)1);
+    CHECK_EQ(order[0], (uint32_t)0);
+}
+
+UNIT_TEST(ext_stable_order_follow_test_ignores_addresses) {
+    // MoveTo::Enter's "the other character comes after the mover": by id at either address order.
+    Ent pair[2] = { {7}, {3} };
+    Ent* lo = &pair[0];   // the lower address carries the higher id
+    Ent* hi = &pair[1];
+    CHECK(lo < hi);
+    CHECK(Ext::StableOrder::FollowsAfter(hi, hi->_entityId, lo, lo->_entityId));    // 3 before 7
+    CHECK(!Ext::StableOrder::FollowsAfter(lo, lo->_entityId, hi, hi->_entityId));
+    // Equal ids (never two live entities): the address decides, as retail.
+    CHECK(Ext::StableOrder::FollowsAfter(lo, 5, hi, 5));
+    CHECK(!Ext::StableOrder::FollowsAfter(hi, 5, lo, 5));
+}
+
+namespace {
+struct SetNode {
+    Ent* element;
+    SetNode* left;
+    SetNode* right;
+};
+}  // namespace
+
+UNIT_TEST(ext_stable_order_nth_by_id_ignores_the_set_shape) {
+    // Three buildings in a pointer-keyed set, at two address layouts: the k-th by id is the same.
+    Ent a[3] = { {30}, {10}, {20} };   // ascending addresses carry ids 30, 10, 20
+    Ent b[3] = { {10}, {20}, {30} };
+    // A balanced set of three: the middle address at the root.
+    SetNode la{&a[0], nullptr, nullptr}, ra{&a[2], nullptr, nullptr}, rootA{&a[1], &la, &ra};
+    SetNode lb{&b[0], nullptr, nullptr}, rb{&b[2], nullptr, nullptr}, rootB{&b[1], &lb, &rb};
+    for (uint32_t k = 0; k < 3; ++k) {
+        CHECK_EQ(Ext::StableOrder::NthById(&rootA, k)->_entityId, static_cast<int32_t>(10 * (k + 1)));
+        CHECK_EQ(Ext::StableOrder::NthById(&rootB, k)->_entityId, static_cast<int32_t>(10 * (k + 1)));
+    }
+    CHECK(Ext::StableOrder::NthById(&rootA, 3) == nullptr);
+    CHECK(Ext::StableOrder::NthById<SetNode>(nullptr, 0) == nullptr);
+}
+
+namespace {
+// A component as the Work leaves' sets hold it: Component::_entity, then ComponentEntity::_entityId.
+struct EntRef {
+    Ent* e;
+    Ent* Get() const { return e; }
+};
+struct Comp {
+    EntRef _entity;
+};
+struct CompNode {
+    Comp* element;
+    CompNode* left;
+    CompNode* right;
+};
+}  // namespace
+
+UNIT_TEST(ext_stable_order_cleanup_takes_the_lowest_id) {
+    // The Work leaves' Cleanup cancels until the set is empty, each time from the node the seam
+    // picks. Three workers at two address layouts: the cancels run in the same (id) order.
+    Ent ids[3] = { {12}, {4}, {8} };
+    std::vector<int32_t> runs[2];
+    for (int layout = 0; layout < 2; ++layout) {
+        Comp c[3];
+        for (int k = 0; k < 3; ++k) c[k]._entity.e = &ids[layout == 0 ? k : 2 - k];
+        std::vector<Comp*> live = { &c[0], &c[1], &c[2] };   // ascending addresses
+        // Cancel = remove the picked key (the leaves' OnCancel); the set is rebuilt each step as
+        // a balanced-enough tree in pointer order (the middle key at the root).
+        while (!live.empty()) {
+            CompNode nodes[3];
+            const size_t n = live.size();
+            for (size_t k = 0; k < n; ++k) nodes[k] = CompNode{live[k], nullptr, nullptr};
+            CompNode* root = &nodes[n / 2];
+            if (n / 2 > 0) root->left = &nodes[0];
+            if (n / 2 + 1 < n) root->right = &nodes[n / 2 + 1];
+            Comp* pick = Ext::StableOrder::LowestIdKey(root);
+            runs[layout].push_back(pick->_entity.Get()->_entityId);
+            live.erase(std::find(live.begin(), live.end(), pick));
+        }
+        CHECK(Ext::StableOrder::LowestIdKey<CompNode>(nullptr) == nullptr);
+    }
+    const std::vector<int32_t> expect = { 4, 8, 12 };
+    CHECK(runs[0] == expect);
+    CHECK(runs[1] == expect);
+    // MinNodeById with a key of another type (ClearArea: the entity being cleared).
+    CompNode leaf{nullptr, nullptr, nullptr};
+    CHECK(Ext::StableOrder::MinNodeById(&leaf, [](const CompNode*) { return 0; }) == &leaf);
+}
+
+UNIT_TEST(ext_stable_order_ids_follow_the_add_remove_sequence) {
+    // One sequence of registrations and removals at two address layouts gives every
+    // entity the same id, and so the same visit order, though the ids move on removal.
+    constexpr int kN = 8;
+    std::vector<std::vector<int32_t>> runs;
+    for (int layout = 0; layout < 2; ++layout) {
+        std::vector<Ent> storage(kN);
+        // layout 0: entity k at storage[k]; layout 1: at storage[kN - 1 - k] (the reverse address order).
+        auto ent = [&](int k) { return &storage[static_cast<size_t>(layout == 0 ? k : kN - 1 - k)]; };
+        Master m;
+        for (int k = 0; k < 6; ++k) m.Register(ent(k));
+        m.Remove(ent(1));     // entity 5 takes id 1
+        m.Register(ent(6));   // id 5
+        m.Remove(ent(5));     // entity 6 moves from id 5 to id 1
+        m.Register(ent(7));   // id 5
+        std::vector<int32_t> byEntity;
+        for (int k : { 0, 2, 3, 4, 6, 7 }) byEntity.push_back(ent(k)->_entityId);
+        runs.push_back(byEntity);
+        // The visit order of the live ones is the master array's order.
+        std::vector<Ent*> live;
+        for (int k : { 0, 2, 3, 4, 6, 7 }) live.push_back(ent(k));
+        const std::vector<Ent*> snap = PointerSorted(live);
+        std::vector<uint32_t> order;
+        std::vector<int32_t> slot;
+        BuildIdOrder(snap.data(), snap.size(), static_cast<int32_t>(m.slots.size()), order, slot);
+        for (size_t j = 0; j < order.size(); ++j) CHECK(snap[order[j]] == m.slots[j]);
+    }
+    CHECK(runs[0] == runs[1]);
+    const std::vector<int32_t> expect = { 0, 2, 3, 4, 1, 5 };
+    CHECK(runs[0] == expect);
+}

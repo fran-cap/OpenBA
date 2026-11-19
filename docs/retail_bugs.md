@@ -1671,3 +1671,45 @@ map's boxes are retail's. Render only; nothing saved. The scene grid's node boxe
 `0x18016176c` / `0x1801616ec`) are not changed: no object was lost to them in the runs above. It costs the
 reflection the chunks retail dropped (about 8x the chunks at distance 8 in the test with a box to +200).
 Row off: retail's box. `src/ext/reflection_hills/`.
+
+## 36. Who acts first, and some choices between equals, follow memory addresses
+
+**Symptom.** None a player can point at in one game: the town is valid either way. Two games started
+from the same seed, or two loads of one save, are two different towns from the first simulation step:
+the same random draws go to different citizens. It is a determinism defect, not a rule defect (the
+sibling of §14).
+
+**Retail mechanism.**
+- `EntityList::Update` (`0x1400c4090`) ticks every entity of its update tree (+0x68), a
+  `Set<InternalPtr<ComponentEntity>>` whose key is the entity pointer compared unsigned (the search in
+  `RemoveEntity` `0x1400c38e0`, the insert `0x140021a30`), in key order. Which citizen ticks first, and
+  so which one draws which value of the world Random, follows where the allocator placed each entity.
+- `MoveTo::Enter` (`0x1400c8970`) gives a mover the follow speed only when the nearest character within
+  0.5 lies at a higher address than the mover (`CMP [found], mover; JBE` at `0x1400c8a17`, unsigned,
+  before the facing dot).
+- `CitizenAIComponent::State_Leisure` (`0x14010a560`) collects the reachable buildings in a 13 x 13 box
+  into a scratch `Set<ComponentEntity*>` (keyed by pointer, the insert `0x140021a30`) and takes the
+  `Rand(count)`-th of its in-order walk: one draw names a different building per address layout.
+- The Work leaves' Cleanup (slot 8; `TendArea` `0x1400f5830`, `GatherRawMaterials` `0x1400ec480` and
+  ten more) cancels every worker of a torn-down task by clearing the action stack of the citizen on
+  the LEFTMOST node of a set keyed by a pointer (the citizen; for `ClearArea` `0x1400e6650` the entity
+  being cleared), until the set is empty: the cancels, which set down loads and give back
+  reservations, run in address order.
+- Not an address but a clock: `GameUpdateLoop::Update` hands `Audio::Scene::Update` the WORLD Random
+  (`0x1400966aa` `MOV R9,[RDI+0xd8]`, the call at `0x1400966bb`), which draws twice per sound sample it
+  starts, and the MusicPlayer (`0x1400a40e0`) draws the next track from it. Both follow the audio
+  device's real playback (a channel is recycled when its samples report ended), so the number of world
+  draws between two simulation steps depends on the machine, and the next simulation draw changes.
+
+**Lever.** Order by the entity's EntityList id (`ComponentEntity::_entityId`, +0x18): unique at any
+moment, set only by the order of registrations and removals, saved and restored by
+`EntityList::Serialize` (`0x1400c44a0`). The update tree keeps its pointer key; the walk visits it by id.
+
+Fix: `fix.stable_order` (tier 1), default on, off under `/profile:faithful`. Seams: the snapshot
+walk of `EntityList::Update` (`src/game/Entity/entitylist.cpp`), `MoveTo::Enter`
+(`src/game/Action/moveto.cpp`), the leisure pick (`src/game/Component/citizenai_leisure.cpp`), the
+twelve Work leaves' Cleanup picks (`src/game/Work/*.cpp`: the lowest entity id instead of the leftmost
+node; the sets and the save are unchanged), and the sound's Random (`gameupdateloop.cpp` step 12 and
+`unreg_lane5_musicplayer.cpp`: a presentation Random of its own, never saved). With the row on the
+sim's random sequence is therefore not retail's even on one machine. Code
+`src/ext/stable_order/`. Hand-in `docs/extensions/handins/STABLEORDER.md`.
