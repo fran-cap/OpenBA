@@ -391,10 +391,12 @@ read a save's extension set, and only up to that last version:
   `ext:<id>` entry, so `SaveLoadDialog::DoLoad` shows no notice;
 - block 1's manifest: `SaveTail::Validate` accepts its record, and `SaveTail::DropRetired` takes it out
   (one `[ExtSave]` line) before `Ext::LockForGameWithSet` and `ApplyState`, so the game's B / C set is the
-  save's other rows and a class C row's payload is discarded with it (retiring a class C row whose state a
-  town still needs is therefore not this path: its state must move first);
+  save's other rows and a class C row's payload is discarded with it. **A class C row is not retired
+  this way without a migration (ruled 2026-11-18):** its saved state moves first, to the row or the
+  module that takes it over, and only then does its id get a line here;
 - `settings.cfg`: `ext.<id>` / `fix.<id>` was never asked for by `Resolve` once the row left the table, and
-  `Persistence::WriteSettings` writes the whole settings map back, so the old line stays in the file, inert.
+  `Persistence::WriteSettings` writes the whole settings map back, so the old line stays in the file, inert
+  (ruled 2026-11-18: it is kept, not cleaned out).
 New saves cannot name it (they are written from the live table), and it can never be a live row again
 (`ext_retired_table_shape`): an old save's record would read as the new row's. A version above the last one,
 or an id that is neither live nor retired, stays exactly as before: notice `NotInBuild`, then `UnknownId`,
