@@ -202,6 +202,7 @@ namespace System { class Time; class String; }
 namespace Save   { class SavedState; }
 namespace UI     { class DialogInstance; class Dialog; }
 namespace Object { class ExternalList; }
+namespace RtIO   { struct Mod; }
 
 namespace Engine {
 
@@ -278,6 +279,14 @@ public:
         std::atomic<int32_t> lists{0};   // LoadResources calls finished
     };
     static ExtLoadProgress* _extLoadProgress;   // defined in updateloop_loadresources.cpp
+
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/RENAMEDMODS.md): ext.renamed_mods -- null by
+    // default. LoadResources (LOADER THREAD) loads an enabled mod's list by the name of its .pkm file
+    // (`<file name>Resources.rsc:resource`); for a mod whose package does not hold that list it asks
+    // this hook, which returns true with `spec` set to the list to load instead (the package's own).
+    // Retail's body is otherwise unchanged and pays one null test per mod whose list is missing.
+    // Defined in updateloop_loadresources.cpp.
+    static bool (*_extModRoot)(const RtIO::Mod& mod, System::String& spec);
 };
 
 // ============================================================================

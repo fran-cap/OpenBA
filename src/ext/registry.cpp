@@ -965,6 +965,16 @@ const Entry kEntries[] = {
       "A new game can start on a map file made in a map editor instead of a generated map. Takes effect at "
       "the next new game.",
       0, [](State& s) -> bool& { return s.ext.custom_maps; } },
+    // RENAMEDMODS (docs/extensions/handins/RENAMEDMODS.md): the game finds a mod's content list by the
+    // name of its .pkm file, so a renamed file's new content never appears. With the row on, a mod
+    // whose list is not found by that name is loaded by the list its package holds. Class B: no
+    // serialized state, but the town holds content that only loaded because of the row, so it is
+    // locked for the game and recorded in the save. Read once at boot (next start).
+    { "renamed_mods", Tier::Extension, Class::B, false,
+      "Load renamed mods",
+      "A mod whose .pkm file was renamed still loads: when the package has no content list named after the "
+      "file, the list it carries is used. Takes effect at the next start.",
+      1, [](State& s) -> bool& { return s.ext.renamed_mods; } },
     // Issue #253 (graphics/stagger_hold.h): the sun's shadow map and the water's reflection may each keep
     // last frame's image on a near-still view, rendering at least every ext.staggered_passes_shadow /
     // _reflection frames (2: one frame held at most, the two passes on alternate frames) and at once on a
