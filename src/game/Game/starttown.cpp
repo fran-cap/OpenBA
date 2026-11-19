@@ -1547,6 +1547,7 @@ static int StartTown_StressSpawnStructures(MapGenerator* startConfig, Map* game,
     int& anchorX = st.anchorX;
     int& anchorY = st.anchorY;
     int& ringMax = st.ringMax;
+    const uint32_t tidCPD = CreatePlacedDescription::TypeId();   // the showroom's footprint test
     const uint32_t tidRes = ResidenceComponent::TypeId();
     struct Tally { const char* tag; int n; };
     std::vector<Tally> tally;
