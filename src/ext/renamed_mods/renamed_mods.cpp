@@ -4,7 +4,9 @@
 // Class B (docs/extensions/handins/RENAMEDMODS.md); renamed_mods_math.h has the choice and its
 // tests. The hook runs on the LOADER THREAD, inside Engine::UpdateLoop::LoadResources, once per
 // enabled mod whose list the file name does not find. It reads the mod's path set (filled by the
-// mod scan, never changed while a loop loads).
+// mod scan, never changed while a loop loads). It does NOT read the row: Sync() reads it ONCE at boot
+// and the hook uses that latched value for the whole run, so a toggle (or the lock a loaded save takes)
+// never changes which mods load their list after the boot.
 // ============================================================================
 
 #include "ext/renamed_mods/renamed_mods.h"
@@ -16,6 +18,7 @@
 #include "system/Filename.h"
 #include "system/String.h"
 
+#include <atomic>
 #include <cstdio>
 #include <mutex>
 #include <set>
@@ -26,6 +29,9 @@ namespace Ext {
 namespace RenamedMods {
 
 namespace {
+
+// The row as it was at boot (Sync). Written once, before any loader thread starts; read on the loader thread.
+std::atomic<bool> g_latched{false};
 
 // One log line per mod and outcome for the whole run (LoadResources runs once per loop that loads).
 bool FirstTime(const std::string& key) {
@@ -56,7 +62,7 @@ std::vector<std::string> EntryNames(const RtIO::Mod& mod) {
 }
 
 bool ModRoot(const RtIO::Mod& mod, System::String& spec) {
-    if (!Ext().renamed_mods) {
+    if (!g_latched.load(std::memory_order_relaxed)) {
         return false;
     }
     const System::Filename leaf(mod.file.GetPathFilename(true));
@@ -79,8 +85,8 @@ bool ModRoot(const RtIO::Mod& mod, System::String& spec) {
         case Kind::None:
             if (FirstTime(stem + "|none")) {
                 std::fprintf(stderr,
-                             "[RenamedMods] %s: no %sResources.rsc and no list of its own at the root of the "
-                             "package: its new content is not loaded\n",
+                             "[RenamedMods] %s: no %sResources.rsc and no content list of its own at the "
+                             "root of the package; nothing to load (a mod of replacement files has none)\n",
                              file.c_str(), stem.c_str());
             }
             return false;
@@ -102,7 +108,8 @@ bool ModRoot(const RtIO::Mod& mod, System::String& spec) {
 
 void Sync() {
     const bool faithful = CurrentProfile() == Profile::Faithful;
-    Engine::UpdateLoop::_extModRoot = faithful ? nullptr : &ModRoot;
+    g_latched.store(!faithful && Ext().renamed_mods, std::memory_order_relaxed);
+    Engine::UpdateLoop::_extModRoot = g_latched.load(std::memory_order_relaxed) ? &ModRoot : nullptr;
 }
 
 }  // namespace RenamedMods

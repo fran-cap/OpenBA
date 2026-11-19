@@ -242,8 +242,8 @@ void InitFromSettings() {
     // ext.menu_entry: the IO::Modification mod-scan / remount seams and IO::FileSystem::_extPackagesClosed
     // (null under the faithful profile); the hooks read the row at each scan and remount.
     MenuEntry::Sync();
-    // ext.renamed_mods: the Engine::UpdateLoop::_extModRoot seam (null under the faithful profile);
-    // the hook reads the row each time the loader finds a mod's list missing.
+    // ext.renamed_mods: the Engine::UpdateLoop::_extModRoot seam, installed only when the row is on at
+    // boot (the value is latched here; the hook never reads the row again).
     RenamedMods::Sync();
     // The save's pseudo-mods (EXT SEAM, Save::SaveLoad::_extExtraMods). Installed
     // ONCE here: the profile is fixed for the run (settings key or /profile at

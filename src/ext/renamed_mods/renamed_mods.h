@@ -12,8 +12,8 @@
 namespace Ext {
 namespace RenamedMods {
 
-// Boot only (registry_boot.cpp): installs Engine::UpdateLoop::_extModRoot (null under the faithful
-// profile). The hook reads the row.
+// Boot only (registry_boot.cpp): reads the row ONCE and installs Engine::UpdateLoop::_extModRoot only when
+// it is on (null otherwise, and under the faithful profile). The hook uses that boot value for the whole run.
 void Sync();
 
 }  // namespace RenamedMods
