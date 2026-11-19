@@ -142,8 +142,14 @@ struct Pair {
         savedSeam = System::MemoryAllocator::_extCommitSeam;
         System::MemoryAllocator::_extCommitSeam = nullptr;
         RtSysMemPlatformInstall(&kFake);
-        g_arenaStore.assign(2 * kSideSpan + 0x10000, 0);
-        uint8_t* base = Side::Align(g_arenaStore.data());
+        // Side 0's arena starts at an absolute address that is a multiple of kCongruence, so the pads
+        // retail derives from the absolute address are the same in every run. With the base left where
+        // the vector happened to land, the heap's fragmentation changed from run to run, and in about
+        // 3 runs in 100 the random script needed one more range than the 64 MB arena holds: the
+        // oracle's FatalOutOfMemory aborted the test with no output (exit 127; CI, 2026-11-19).
+        g_arenaStore.assign(2 * kSideSpan + kCongruence, 0);
+        const uintptr_t start = reinterpret_cast<uintptr_t>(g_arenaStore.data());  // CAST-OK: ptr_int
+        uint8_t* base = g_arenaStore.data() + ((kCongruence - (start % kCongruence)) % kCongruence);
         g_sides[0].Init(base);
         g_sides[1].Init(base + kSideSpan);
         oracle.self = &ref;
