@@ -104,6 +104,12 @@ bool IsVisible(void* window);
 // (src/platform/sdl/window_sdl.cpp): ShowWindow(SW_SHOW) on Windows, which does not ask
 // for the STARTUPINFO show state SW_SHOWDEFAULT honoured (known_port_issues row 1277).
 void ShowDefault(void* window);
+// NOT RETAIL, harness only (src/diag/stress_harness.cpp, Opt().stressMaximize): a shown, windowed
+// game window is restored if minimised or maximised, its client origin moved into the primary
+// display's usable bounds, then maximised there, and the call waits until the window system has
+// applied it. `display` receives that display's bounds, in engine pixels (zeros without one).
+// False when there is no window, it is hidden or fullscreen, or the maximise was refused.
+bool MaximizeOnPrimaryDisplay(void* window, Rect* display);
 // The two window styles AdjustDisplay sets (W4; were GetStyle / SetStyle on GWL_STYLE):
 // framed = WS_OVERLAPPEDWINDOW (caption, border, sizing frame, system menu, min / max
 // boxes), not framed = WS_POPUP with none of those.

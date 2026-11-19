@@ -58,6 +58,7 @@
 #include "Game/PlayerToolManager.h"         // B4: GameUpdateLoop::m_toolManager
 #include "Game/PlayerController.h"          // the CSV's view columns: the camera distance
 #include "video/Device.h"                   // the CSV's view columns: the back buffer size
+#include "platform_window.h"                // THE VIEW: MaximizeOnPrimaryDisplay (Opt().stressMaximize)
 #include "ext/fast_paths/fast_paths.h"      // PFBENCH: shadow mode switch (COMPPROF level 3)
 #include "Component/ModelComponent.h"       // OFFSCREEN: the character's transform / yaw
 #include "Action/MoveTo.h"                  // OFFSCREEN: the class of a character's top chain
@@ -1858,6 +1859,34 @@ static void EntityCensus(GameUpdateLoop* gw, int frame) {
         std::fprintf(stderr, "[Census]   %6d  %s + %s\n", kinds[i].count, kinds[i].a ? kinds[i].a : "?", kinds[i].b ? kinds[i].b : "?");
 }
 
+// THE VIEW (Opt().stressMaximize, tools/stress_run.sh; --no-maximize turns it off): once per
+// process, when the town's world first ticks, the windowed game window is maximised on the
+// primary display. Without it the view is whatever settings.cfg's VideoWindow* rect and an outside
+// window manager made of the new window (PowerToys FancyZones maximised it on the active monitor
+// in about half the runs of 2026-11-18 and left it at the persisted 2528 x 1345 in the rest). The
+// WM_SIZE this makes reaches Video::Device::SizeWindow, and the next frame resizes the swap chain,
+// before the first CSV row. One line says what the window became; the CSV's view_w / view_h
+// columns stay the per-row check.
+void MaximizeView() {
+    static bool s_done = false;
+    if (!Opt().stressMaximize || s_done) return;
+    s_done = true;
+    ::Video::Device* dev = ::Video::Device::_singleton;
+    if (dev == nullptr) return;
+    Platform::Rect before;
+    Platform::Window::GetClientRect(dev->windowHandle, &before);
+    Platform::Rect display;
+    const bool ok = Platform::Window::MaximizeOnPrimaryDisplay(dev->windowHandle, &display);
+    Platform::Rect after;
+    Platform::Window::GetClientRect(dev->windowHandle, &after);
+    std::fprintf(stderr, "[Stress] view: maximize %s, client %dx%d -> %dx%d on display (%d,%d %dx%d)\n",
+                 ok ? "applied" : "NOT applied (hidden, fullscreen or refused)",
+                 before.right - before.left, before.bottom - before.top,
+                 after.right - after.left, after.bottom - after.top,
+                 display.left, display.top, display.right - display.left, display.bottom - display.top);
+    std::fflush(stderr);
+}
+
 void EmitRow(GameUpdateLoop* gul, int frame) {
     s_hCur.markers |= kHmRow;   // HITCH: the harness's own row work lands in this period
     if (g_compProfOn >= 1) EntityCensus(GameUpdateLoop::_singleton, frame);
@@ -2196,6 +2225,7 @@ extern "C" void StressHarness_UpdateEnd(GameUpdateLoop* gul, int frameNum) {
         HitchReset(); s_hCur.markers |= kHmNewWorld;        // HITCH
         std::fprintf(stderr, "[Stress] world#%d %p first ticked at process frame %d\n",
                      s_worldNo, (void*)gw, frameNum);
+        MaximizeView();   // THE VIEW: once, before the first row
     }
     s_worldFrame = frameNum - s_worldSeenAt + 1;
     s_hCur.frame = s_worldFrame;                               // HITCH

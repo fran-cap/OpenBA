@@ -213,6 +213,8 @@ void OptionsInit() {
         o.stressHouses = v && ClampedAtoi(v) != 0; }
     {   const char* v = Raw("BANISHED_STRESS_FULL_STAFF");   // StaffPass seats _maxWorkerCount
         o.stressFullStaff = v && ClampedAtoi(v) != 0; }
+    {   const char* v = Raw("BANISHED_STRESS_MAXIMIZE");   // the view (stress_harness.cpp MaximizeView)
+        o.stressMaximize = v && ClampedAtoi(v) != 0; }
     if (o.stressCitizens < 0) o.stressCitizens = 0;
     // stressSets < 0 is kept: |sets| sets in the spread layout (PFBENCH, stress_harness.h).
     // INT_MIN has no |sets|: StressHarness_Sets and the CSV header negate it (review F-299).
