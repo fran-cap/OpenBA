@@ -276,6 +276,7 @@ using Ext::RenderPipe::Counters;
 using Ext::RenderPipe::Driver;
 using Ext::RenderPipe::EmitResult;
 using Ext::RenderPipe::Handoff;
+using Ext::RenderPipe::HandoffTimeline;
 
 struct FakeHost {
     Driver<FakeHost>* driver = nullptr;
@@ -483,6 +484,8 @@ Counters RunScripted(bool threaded, int frames, int loseEvery, uint32_t seed, Fa
         const Counters c = driver.TakeWindow();
         CHECK(c.discarded <= 1);
         CHECK(c.discarded <= c.recoveries + (threaded ? 0 : c.emits));   // a discard only follows a loss
+        CHECK(c.tlStepFrames + c.tlPlainFrames == c.pipelined);   // OVERLAP: every pipelined tail is one kind
+        if (!steps) CHECK(c.tlStepFrames == 0);
         if (!threaded) CHECK(c.waits == 0);
         sum.pipelined += c.pipelined; sum.sequential += c.sequential; sum.emits += c.emits;
         sum.drainStep += c.drainStep; sum.drainOther += c.drainOther; sum.discarded += c.discarded;
@@ -521,6 +524,27 @@ UNIT_TEST(ext_render_pipe_handoff_parks_and_stops) {
     h.Stop();
     t.join();
     CHECK(ran.load() == 1000);
+}
+
+// OVERLAP: the render thread's timeline counts every job once, and a take clears it.
+UNIT_TEST(ext_render_pipe_handoff_timeline_counts_jobs) {
+    Handoff h;
+    std::thread t([&] { while (h.WaitJob()) { h.Release(); h.Done(); } });
+    for (int i = 0; i < 100; ++i) {
+        h.Publish();
+        h.WaitIdle();
+    }
+    h.Stop();
+    t.join();
+    const HandoffTimeline a = h.TakeTimeline();
+    CHECK(a.jobs == 100);
+    CHECK(a.tailUs <= a.jobUs);
+    CHECK(a.beginUs == 0);   // no job called NoteBegun
+    CHECK(h.DoneUs() != 0);
+    CHECK(h.ReleasedUs() != 0);
+    const HandoffTimeline b = h.TakeTimeline();
+    CHECK(b.jobs == 0);
+    CHECK(b.wakeUs == 0);
 }
 
 // RENDERPIPE_FENCE: WaitReleased returns once the job released itself, before it

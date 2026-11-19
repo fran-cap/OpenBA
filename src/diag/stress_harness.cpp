@@ -2069,6 +2069,33 @@ void EmitRow(GameUpdateLoop* gul, int frame) {
                          split[PassSplit::kP1Main], split[PassSplit::kP1Shadow], split[PassSplit::kP1Refl],
                          split[PassSplit::kP2Shadow], split[PassSplit::kP2Refl], split[PassSplit::kP2Main]);
         }
+        // OVERLAP (ext.render_pipe, render thread only): the frame timeline on both threads, per
+        // Frame kind (step: the Frame ran fixed steps behind THE FENCE; plain: it did not) and per
+        // render-thread job. "begin" = the part of a wait the emit spent before its BeginCommands
+        // returned (the GPU's / display's pace). Periods run Frame tail to Frame tail.
+        if (Ext::RenderPipe::Threaded() && (rp.tlStepFrames != 0 || rp.tlPlainFrames != 0)) {
+            const auto per = [](uint64_t us, uint64_t n) {
+                return n > 0 ? static_cast<double>(us) / 1000.0 / static_cast<double>(n) : 0.0;
+            };
+            std::fprintf(stderr, "[Stress::overlap] step frames=%llu period=%.3fms fence=%.3fms (begin %.3f) "
+                                 "steps=%.3fms half=%.3fms | plain frames=%llu period=%.3fms half=%.3fms "
+                                 "handoff=%.3fms/frame (begin %.3f, waited %llu) | main wake=%.1fus | "
+                                 "render jobs=%llu wake=%.1fus emit=%.3fms begin=%.3fms tail=%.3fms "
+                                 "idle=%.3fms /job | gpu=%.3fms (n=%llu)\n",
+                         static_cast<unsigned long long>(rp.tlStepFrames),
+                         per(rp.tlStepPeriodUs, rp.tlStepFrames), per(rp.tlFenceUs, rp.tlStepFrames),
+                         per(rp.tlFenceBeginUs, rp.tlStepFrames), per(rp.tlStepsUs, rp.tlStepFrames),
+                         per(rp.tlHalfStepUs, rp.tlStepFrames),
+                         static_cast<unsigned long long>(rp.tlPlainFrames),
+                         per(rp.tlPlainPeriodUs, rp.tlPlainFrames), per(rp.tlHalfPlainUs, rp.tlPlainFrames),
+                         per(rp.tlHandoffUs, rp.tlPlainFrames), per(rp.tlHandoffBeginUs, rp.tlPlainFrames),
+                         static_cast<unsigned long long>(rp.tlHandoffN),
+                         1000.0 * per(rp.tlMainWakeUs, rp.tlMainWakeN),
+                         static_cast<unsigned long long>(rp.tlJobs), 1000.0 * per(rp.tlWakeUs, rp.tlJobs),
+                         per(rp.tlJobUs, rp.tlJobs), per(rp.tlBeginUs, rp.tlJobs), per(rp.tlTailUs, rp.tlJobs),
+                         per(rp.tlIdleUs, rp.tlJobs), per(rp.tlGpuUs, rp.tlGpuN),
+                         static_cast<unsigned long long>(rp.tlGpuN));
+        }
     }
     // SMOOTHREPLAY: ext.render_pipe's replayed frames, printed while a claim had the display clock on.
     if (rp.replayClaims != 0) {
@@ -2190,6 +2217,10 @@ extern "C" void StressHarness_UpdateEnd(GameUpdateLoop* gul, int frameNum) {
         s_runT0 = now; s_lastRow = 0; s_staffPasses = 0;
         s_updMsSum = s_drawMsSum = 0; s_updN = s_drawN = 0; s_simIters = 0;
         PipeWindowReset();
+        // OVERLAP: the render pipe's own window starts with the world too: its counters run from
+        // install (the menu and the load: every frame there is "sequential"), and the first row's
+        // [Stress::pipe] line counted them.
+        (void)Ext::RenderPipe::TakeWindow();
         s_updSamples.clear(); s_frameSamples.clear();
         s_simTicks = 0; s_lastGameTime = gul->m_gameTime;   // PFBENCH
         PfResetWindow();

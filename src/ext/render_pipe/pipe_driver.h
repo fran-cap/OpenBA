@@ -124,11 +124,23 @@ public:
         _stepSpanUs = 0;
         _replay    = false;
         _replaySnapshot = false;
+        _tlTailUs  = 0;
+        _tlPeriodUs = 0;
+        _tlStepped = false;
     }
 
     Counters TakeWindow() {
         Counters c = _counters;
         _counters = Counters{};
+        if (_handoff != nullptr) {   // OVERLAP: the render thread's side of the timeline
+            const HandoffTimeline t = _handoff->TakeTimeline();
+            c.tlJobs    = t.jobs;
+            c.tlWakeUs  = t.wakeUs;
+            c.tlJobUs   = t.jobUs;
+            c.tlBeginUs = t.beginUs;
+            c.tlTailUs  = t.tailUs;
+            c.tlIdleUs  = t.idleUs;
+        }
         c.governorOn            = _governor.On();
         c.governorRemovableUs   = _governor.RemovableUs();
         c.governorIdleUs        = _governor.IdleUs();
@@ -215,6 +227,11 @@ public:
     // kExtFrameTail. True: the extension was switched off -- uninstall now (the
     // render thread is idle and joined).
     bool Tail(Host& host, const TailInputs& in) {
+        // OVERLAP: this tail closes one period of the timeline (counted when it pipelines).
+        const int64_t tailUs = NowUs();
+        _tlStepped = _stepped;
+        _tlPeriodUs = _tlTailUs != 0 ? tailUs - _tlTailUs : 0;
+        _tlTailUs = tailUs;
         // SMOOTHREPLAY: replayed frames need a packet with copies in flight when a long step starts,
         // and the governor turns the copies off where they do not shorten the frame (a GPU-bound
         // town). So while the row's replay is asked for and the last steps ran at least
@@ -295,11 +312,20 @@ private:
         const int64_t t0 = NowUs();
         const bool waited = _handoff->WaitIdle();
         if (waited) {
-            const int64_t us = NowUs() - t0;
+            const int64_t t1 = NowUs();
+            const int64_t us = t1 - t0;
             ++_counters.waits;
             if (!handoff) ++_counters.waitsFence;
             if (handoff) _idleUs += us;
             _counters.waitUs += static_cast<uint64_t>(us);
+            // OVERLAP: the hand-off's wait, the part the emit spent before BeginCommands returned,
+            // and the main thread's wake latency after the render thread's Done.
+            if (handoff) {
+                _counters.tlHandoffUs += static_cast<uint64_t>(us);
+                _counters.tlHandoffBeginUs += static_cast<uint64_t>(Span(t0, Earlier(_handoff->BegunUs(), t1)));
+                ++_counters.tlHandoffN;
+            }
+            NoteMainWake(t0, _handoff->DoneUs(), t1);
         }
     }
 
@@ -331,6 +357,8 @@ private:
         const int64_t blockedUs = Span(t0, Earlier(_handoff->BegunUs(), t1));
         _removableUs += waitUs - blockedUs;
         _idleUs += blockedUs;
+        _counters.tlFenceUs += static_cast<uint64_t>(waitUs);        // OVERLAP
+        _counters.tlFenceBeginUs += static_cast<uint64_t>(blockedUs);
     }
 
     // `until` when the job had not begun yet (0), else the earlier of the two.
@@ -347,8 +375,10 @@ private:
     int64_t FenceReleased(Host& host) {
         const int64_t t0 = NowUs();
         const bool waited = _handoff->WaitReleased();   // ACQUIRE: the emit's writes up to PostDraw
-        const int64_t waitUs = waited ? NowUs() - t0 : 0;
+        const int64_t t1 = NowUs();
+        const int64_t waitUs = waited ? t1 - t0 : 0;
         if (waited) {
+            NoteMainWake(t0, _handoff->ReleasedUs(), t1);   // OVERLAP (a job that never released: Done's)
             ++_counters.waits;
             ++_counters.waitsFence;
             _counters.waitUs += static_cast<uint64_t>(waitUs);
@@ -375,6 +405,30 @@ private:
         return !res.failed && !res.lost;
     }
 
+    // OVERLAP: one pipelined tail's period, steps and main half into the timeline.
+    void NoteTimeline(int64_t halfUs) {
+        const uint64_t half = halfUs > 0 ? static_cast<uint64_t>(halfUs) : 0;
+        const uint64_t period = _tlPeriodUs > 0 ? static_cast<uint64_t>(_tlPeriodUs) : 0;
+        if (_tlStepped) {
+            ++_counters.tlStepFrames;
+            _counters.tlStepPeriodUs += period;
+            _counters.tlStepsUs += _stepSpanUs > 0 ? static_cast<uint64_t>(_stepSpanUs) : 0;
+            _counters.tlHalfStepUs += half;
+        } else {
+            ++_counters.tlPlainFrames;
+            _counters.tlPlainPeriodUs += period;
+            _counters.tlHalfPlainUs += half;
+        }
+    }
+
+    // OVERLAP: the main thread's wake latency after a wait that returned at `stampUs` (the render
+    // thread's Release / Done; ignored when it is from before the wait began).
+    void NoteMainWake(int64_t waitStartUs, int64_t stampUs, int64_t returnedUs) {
+        if (stampUs < waitStartUs || returnedUs < stampUs) return;
+        _counters.tlMainWakeUs += static_cast<uint64_t>(returnedUs - stampUs);
+        ++_counters.tlMainWakeN;
+    }
+
     void Pipelined(Host& host, const TailPlan& plan) {
         const bool pending = _state.Pending();
         Packet next;
@@ -390,7 +444,9 @@ private:
         next.snapshot   = _handoff != nullptr && (_governor.On() || _replaySnapshot);
         next.replay     = _replay;
 
+        const int64_t halfUs = NowUs();   // OVERLAP
         host.MainHalf(next, plan);   // threaded: concurrent with the emit of _held (or its tail)
+        NoteTimeline(NowUs() - halfUs);
         if (next.overlap) _governor.Copy(next.copyUs);
         _idleUs += next.idleUs;
         ++_counters.pipelined;
@@ -430,6 +486,10 @@ private:
     Handoff*   _handoff   = nullptr;
     int64_t    _publishUs = 0;
     Counters   _counters;          // main thread only
+    // OVERLAP: the timeline (main thread only)
+    int64_t    _tlTailUs   = 0;    // the last Frame tail (NowUs; 0: none yet)
+    int64_t    _tlPeriodUs = 0;    // this tail's period (0: the first)
+    bool       _tlStepped  = false; // this tail's Frame stepped
 };
 
 }  // namespace RenderPipe
