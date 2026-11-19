@@ -74,6 +74,12 @@
 //            under the lock); NoteBegun, when its BeginCommands returned (stored
 //            under the lock, read after WaitReleased / OpenGate, whose locks order
 //            it). ClaimSteps waits for NoteBegun (above); the rest only measure.
+//   timeline OVERLAP (the [Stress::overlap] line, stress_harness.cpp): measures only, nothing
+//            waits on them. Publish stamps the job under the lock; WaitJob (render thread)
+//            sums its wake latency from that stamp; Release / Done stamp when they ran and Done
+//            sums the job's span, its wait until BeginCommands returned and its tail. The sums
+//            are relaxed atomics read and cleared by TakeTimeline (main thread, any time: a
+//            window may split one job's numbers, which a window of thousands does not see).
 // ============================================================================
 #pragma once
 
@@ -88,6 +94,17 @@
 
 namespace Ext {
 namespace RenderPipe {
+
+// OVERLAP: the render thread's side of the frame timeline (sums over the jobs since the last
+// TakeTimeline, us).
+struct HandoffTimeline {
+    uint64_t jobs     = 0;   // jobs done
+    uint64_t wakeUs   = 0;   // Publish -> WaitJob returned (the render thread's wake latency)
+    uint64_t jobUs    = 0;   // WaitJob returned -> Done (the emit's whole span)
+    uint64_t beginUs  = 0;   // WaitJob returned -> BeginCommands returned (the GPU's / display's pace)
+    uint64_t tailUs   = 0;   // Release -> Done (EndCommands, the frame index, Present)
+    uint64_t idleUs   = 0;   // Done -> the next WaitJob returned (parked or between jobs)
+};
 
 class Handoff {
 public:
@@ -104,6 +121,7 @@ public:
             _begunUs.store(0, std::memory_order_relaxed);
             _busy.store(true, std::memory_order_relaxed);
             _released.store(false, std::memory_order_relaxed);
+            _publishedUs = SteadyUs();   // OVERLAP: the render thread's wake latency starts here
         }
         _work.notify_one();
     }
@@ -178,6 +196,10 @@ public:
         _work.wait(lk.Native(), [this]() REQUIRES(_m) { return _ready || _stop; });
         if (_ready) {
             _ready = false;
+            // OVERLAP: the wake latency and the idle span before this job (render thread only).
+            _jobStartUs = SteadyUs();
+            Add(_tlWakeUs, _jobStartUs - _publishedUs);
+            if (_jobDoneUs != 0) Add(_tlIdleUs, _jobStartUs - _jobDoneUs);
             return true;
         }
         return false;
@@ -234,24 +256,58 @@ public:
         {
             Sys::MutexLock lk(_m);
             _released.store(true, std::memory_order_release);
+            _releasedUs.store(SteadyUs(), std::memory_order_relaxed);   // OVERLAP: the fence's wake latency
         }
         _idle.notify_one();
     }
 
     // The job and its result are complete. busy first: see the ordering banner.
     void Done() {
+        // OVERLAP: the job's span, its wait at BeginCommands and its tail (render thread only).
+        const int64_t now = SteadyUs();
+        const int64_t begun = _begunUs.load(std::memory_order_relaxed);
+        const int64_t releasedUs = _releasedUs.load(std::memory_order_relaxed);
+        Add(_tlJobUs, now - _jobStartUs);
+        if (begun >= _jobStartUs) Add(_tlBeginUs, begun - _jobStartUs);
+        if (releasedUs >= _jobStartUs) Add(_tlTailUs, now - releasedUs);
+        _tlJobs.fetch_add(1, std::memory_order_relaxed);
+        _jobDoneUs = now;
         {
             Sys::MutexLock lk(_m);
             _busy.store(false, std::memory_order_release);
             _released.store(true, std::memory_order_release);
+            _doneUs.store(now, std::memory_order_relaxed);
         }
         _idle.notify_one();
+    }
+
+    // ---- OVERLAP: the timeline's measures -----------------------------------
+    // When the last job's Release / Done ran (steady clock, us; 0: never). Read by the main thread
+    // after the wait that their lock ordered.
+    int64_t ReleasedUs() const { return _releasedUs.load(std::memory_order_relaxed); }
+    int64_t DoneUs() const { return _doneUs.load(std::memory_order_relaxed); }
+
+    // The render thread's sums since the last call, cleared (main thread).
+    HandoffTimeline TakeTimeline() {
+        HandoffTimeline t;
+        t.jobs    = _tlJobs.exchange(0, std::memory_order_relaxed);
+        t.wakeUs  = _tlWakeUs.exchange(0, std::memory_order_relaxed);
+        t.jobUs   = _tlJobUs.exchange(0, std::memory_order_relaxed);
+        t.beginUs = _tlBeginUs.exchange(0, std::memory_order_relaxed);
+        t.tailUs  = _tlTailUs.exchange(0, std::memory_order_relaxed);
+        t.idleUs  = _tlIdleUs.exchange(0, std::memory_order_relaxed);
+        return t;
     }
 
 private:
     static int64_t SteadyUs() {
         return std::chrono::duration_cast<std::chrono::microseconds>(
                    std::chrono::steady_clock::now().time_since_epoch()).count();
+    }
+
+    // OVERLAP: one span into a timeline sum (a negative span, a clock oddity, is dropped).
+    static void Add(std::atomic<uint64_t>& sum, int64_t us) {
+        if (us > 0) sum.fetch_add(static_cast<uint64_t>(us), std::memory_order_relaxed);
     }
 
     // The main thread's wait on _idle until `done` (lk held): see SENT MESSAGES in the banner.
@@ -288,6 +344,19 @@ private:
     std::atomic<bool>       _busy{false};
     std::atomic<bool>       _released{true};   // RENDERPIPE_FENCE: false from Publish to Release / Done
     std::atomic<int64_t>    _begunUs{0};        // P13_OVERLAP: when BeginCommands returned (NoteBegun)
+    // OVERLAP: the timeline (banner). Stamps: Publish's under the lock, the job's start and end on
+    // the render thread alone, Release / Done for the main thread's wake latency.
+    int64_t                 _publishedUs GUARDED_BY(_m) = 0;
+    int64_t                 _jobStartUs = 0;    // render thread only
+    int64_t                 _jobDoneUs  = 0;    // render thread only (0: no job yet)
+    std::atomic<int64_t>    _releasedUs{0};
+    std::atomic<int64_t>    _doneUs{0};
+    std::atomic<uint64_t>   _tlJobs{0};
+    std::atomic<uint64_t>   _tlWakeUs{0};
+    std::atomic<uint64_t>   _tlJobUs{0};
+    std::atomic<uint64_t>   _tlBeginUs{0};
+    std::atomic<uint64_t>   _tlTailUs{0};
+    std::atomic<uint64_t>   _tlIdleUs{0};
 };
 
 }  // namespace RenderPipe
