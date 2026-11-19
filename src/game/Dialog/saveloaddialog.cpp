@@ -905,7 +905,8 @@ void SaveLoadDialog::DoLoad() {
     // own: 0 when this build has the extension and the player has it requested,
     // else 1 -> our own notice in modsMissing's shape that says EXTENSION and
     // why (block EXTNOTICE, src/ext/load_notice.h: not in this build / saved by
-    // a newer version / turned off); Yes loads, No aborts. On Yes the game's
+    // a newer version / turned off); Yes loads, No aborts. An entry a retired
+    // row left (registry.h RETIRED ROWS) is status 0: no notice. On Yes the game's
     // B / C set is still the save's: the block-1 manifest locks it
     // (GameUpdateLoop::SaveRestore), or fails the load if it is unknown.
     std::vector<int> modOrder;
@@ -942,7 +943,7 @@ void SaveLoadDialog::DoLoad() {
             }
             printf("[ExtSave] DoLoad: save pseudo-mod \"%s\" v%u -> %s\n",
                    em.path._data ? em.path._data : "(null)", (unsigned)em.versionMinor,
-                   modStatus == 0 ? "present and requested"
+                   modStatus == 0 ? "present and requested, or a retired row's"
                                   : Ext::PseudoModNoticeDialog(extNotice));
         }
         {

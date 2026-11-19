@@ -201,7 +201,6 @@ struct Extensions {
     bool staggered_passes = false; // class A, live: src/ext/staggered_passes/, seams Graphics::SunLight::_extStaggerEvery + Graphics::ReflectionImageBuffer::_extStaggerEvery (graphics/stagger_hold.h; issue #253)
     bool fullscreen_mode = true; // class A, next video reset: src/ext/fullscreen_mode/, the Options Video tab's Fullscreen cell + the DX11 swap chain's seams (src/render/dx11/devicedata.cpp)
     bool render_backend = false; // class A, next video reset: src/ext/render_backend/, the Options Video tab's Renderer combo + the seam Video::Device::_extInterfaceRetry; the dual Windows exe only (BANISHED_RENDER_BACKEND=dx11+vulkan)
-    bool work_cand = false; // class B: src/ext/work_cand/, seam Helper_sub_79b0 in Component/citizenai_housing_idle.cpp (docs/extensions/handins/WORKCAND.md)
 #ifdef BANISHED_UNIT_TEST
     // tests/unit/ext_registry_test.cpp only: one extension per class, so the
     // lock semantics are tested before a real extension exists. Not in the exe.
@@ -360,7 +359,8 @@ struct LoadReport {
 // The values `lookup` gives every registered entry, under the profile:
 // `commandLineProfile` (null / "" = not given) wins over the settings key
 // `profile`, which wins over the per-entry keys. Keys of ids not in the table
-// are never asked for, so an unknown `fix.<x>` / `ext.<x>` is ignored.
+// are never asked for, so an unknown `fix.<x>` / `ext.<x>` is ignored (a
+// retired row's key among them: RETIRED ROWS below).
 // Valued keys: under PerEntry each is parsed with ParseValue (absent =
 // default); the faithful and all profiles leave EVERY valued key at its
 // default (a profile is a statement about the toggles; a number has no
@@ -508,10 +508,43 @@ bool Experimental(const Entry& e);
 // reach Save::SaveLoad::CheckMod. PseudoModLoadStatus is the CheckMod-shaped
 // verdict DoLoad turns into retail's modal: 0 = this build has the extension
 // (a class B / C entry), the player has it requested, and the saved format
-// version is not newer than ours; 1 (modsMissing) otherwise.
+// version is not newer than ours; 0 too for an entry a retired row left
+// (RetiredSaveEntry below: no notice, nothing to load); 1 (modsMissing) otherwise.
 constexpr const char* kPseudoModPrefix = "ext:";
 bool IsPseudoModPath(const char* path);
 int PseudoModLoadStatus(const char* path, int32_t savedFormatVersion);
+
+// ---------------------------------------------------------------------------
+// RETIRED ROWS (docs/extensions/DESIGN.md §3 "Retiring a row")
+// ---------------------------------------------------------------------------
+// A row that left the table: its behaviour became unconditional (faithful perf work), or it was
+// dropped or folded into another row. Its id stays reserved here for good, so the saves and
+// settings.cfg files it left behind keep loading as before it went, with no notice:
+//   * a save's `ext:<id>` pseudo-mod (block 0's mod list) gets PseudoModLoadStatus 0 and no
+//     notice (load_notice.h None);
+//   * a save's block-1 manifest record of it (savetail.h) passes SaveTail::Validate and is then
+//     dropped by SaveTail::DropRetired before the lock takes the save's set, so the game's B / C set
+//     is the save's other rows; its payload (a class C row's state) goes with it;
+//   * `ext.<id>` / `fix.<id>` in settings.cfg is never asked for (Resolve reads the table's ids only)
+//     and stays in the file untouched (WriteSettings writes the whole settings map back).
+// All of that only at or below `lastFormatVersion`: a higher version was never written by any build,
+// so it stays what an unknown id is (status 1, NotInBuild, SaveTail UnknownId: fatal). An id that is
+// neither in the table nor retired is unchanged by this table.
+// A retired id is never a live row again (the unit tests check both tables; reusing an id would read
+// an old save's record as the new row's). New saves never name one: they are written from the table.
+struct RetiredEntry {
+    const char* id;                 // the old settings id ([a-z0-9_]+)
+    Tier        tier;               // Fix or Extension: its old settings prefix
+    int32_t     lastFormatVersion;  // the newest formatVersion a save carried for it (>= 1 for an old class
+                                    // B / C row); 0 for a fix or a class A row, which no save ever names
+    const char* fate;               // what became of it (one line, for the log and the docs)
+};
+int RetiredCount();
+const RetiredEntry& RetiredAt(int index);
+const RetiredEntry* FindRetired(const char* id);   // null when the id was never retired
+// True when a save entry naming `id` at `savedFormatVersion` is one a retired B / C row left: `id` is a
+// retired extension and 1 <= savedFormatVersion <= its lastFormatVersion.
+bool RetiredSaveEntry(const char* id, int32_t savedFormatVersion);
 
 // ---------------------------------------------------------------------------
 // Engine glue (registry_boot.cpp; the exe only, not the unit tests)

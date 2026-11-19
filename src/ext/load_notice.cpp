@@ -9,6 +9,9 @@ namespace Ext {
 
 PseudoModNotice PseudoModNoticeFor(const char* path, int32_t savedFormatVersion) {
     if (!IsPseudoModPath(path)) return PseudoModNotice::NotInBuild;
+    // A retired row's entry: no notice (registry.h RETIRED ROWS), as PseudoModLoadStatus says 0.
+    if (RetiredSaveEntry(path + std::strlen(kPseudoModPrefix), savedFormatVersion))
+        return PseudoModNotice::None;
     const Entry* e = FindEntry(path + std::strlen(kPseudoModPrefix));
     if (e == nullptr || e->tier != Tier::Extension || !IsLockedClass(e->cls))
         return PseudoModNotice::NotInBuild;

@@ -805,6 +805,8 @@ void GameUpdateLoop::SerializeAllBody(IO::Stream& stream, SerializeScope& scope)
 // ExtensionsDialog::ReloadGame) keeps the request lock too: its manifest is the
 // set the player just changed. The records of extensions turned off are dropped
 // (the missing-mod paradigm); one turned on starts with empty state.
+// A record of a retired row (src/ext/registry.h RETIRED ROWS) at or below the
+// last formatVersion it was written at is logged and dropped before the lock.
 // A manifest this build cannot honour -- an unknown id, a formatVersion newer
 // than ours, a damaged chunk -- is FATAL through retail's own error box
 // (System::Error::SetText(.., true) + Display: the box, then exit), because the
@@ -866,6 +868,15 @@ static void ExtSave_ReadTail(GameUpdateLoop* owner, IO::CompressedMemoryStream* 
         text += ").";
         ExtSave_Fatal(text);
         return;
+    }
+    // EXT SEAM (NOT RETAIL, docs/extensions/DESIGN.md section 3 "Retiring a row"): the records of retired rows
+    // (src/ext/registry.h RETIRED ROWS) passed Validate; they are not in the lock set and carry nothing to apply.
+    std::vector<std::string> retired;
+    Ext::SaveTail::DropRetired(records, &retired);
+    for (const std::string& id : retired) {
+        const Ext::RetiredEntry* r = Ext::FindRetired(id.c_str());
+        fprintf(stderr, "[ExtSave] record ext:%s of a retired row -- ignored (%s)\n", id.c_str(),
+                r != nullptr ? r->fate : "?");
     }
     if (Ext::LockKeepsRequest()) {
         // An in-game B / C change: the request lock from Load stands. Only the records of
