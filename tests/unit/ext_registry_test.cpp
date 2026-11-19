@@ -78,6 +78,14 @@ UNIT_TEST(ext_registry_table_shape) {
         CHECK(e.displayName != nullptr && e.displayName[0] != '\0');
         CHECK(e.description != nullptr && e.description[0] != '\0');
     }
+    // stable_order is a fix that ships OFF (ruled 2026-11-19): on, the town's random sequence is no
+    // longer retail's, and a town only repeats with deterministic paths too (STABLEORDER.md section 5).
+    {
+        const Ext::Entry& e = E("stable_order");
+        CHECK(e.tier == Ext::Tier::Fix);
+        CHECK(e.cls == Ext::Class::None);
+        CHECK(!e.defaultOn);
+    }
     // Every id is [a-z0-9_]+ (never a `.`: `ext:<id>` must not name a file),
     // unique, and every B / C entry carries a formatVersion (SAVETAIL).
     for (int i = 0; i < Ext::EntryCount(); ++i) {

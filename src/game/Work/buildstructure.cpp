@@ -49,6 +49,8 @@
 #include "Action/PathSearch.h"   // RegionGraph::PathLength
 #include "Action/CompleteTask.h"
 #include "Action/Action.h"
+#include "ext/registry.h"                    // Ext::Fix().stable_order
+#include "ext/stable_order/stable_order.h"   // FIX stable_order (NOT RETAIL): Cleanup's cancel order
 
 // ============================================================
 // Ctor (0x1400e5a90)
@@ -147,6 +149,12 @@ int BuildStructure::Cleanup() {
 
         // The node's citizen; its CharacterComponent's action list (+0x48)
         CitizenComponent* citizen = node2->element;
+        // FIX stable_order (NOT RETAIL, docs/extensions/handins/STABLEORDER.md, docs/retail_bugs.md §36):
+        // the set is keyed by pointer, so retail (0x1400e57a0) cancels the lowest ADDRESS first. With
+        // the row on, the citizen with the lowest entity id.
+        if (Ext::Fix().stable_order) {
+            citizen = Ext::StableOrder::LowestIdKey(_citizens._root);
+        }
 
         citizen->character->actionStack.Clear();
     }
