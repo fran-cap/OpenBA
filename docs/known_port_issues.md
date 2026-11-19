@@ -1267,3 +1267,43 @@ combo's row, and statistic `0x1b` returns its number, for a map that has another
 
 **Fix.** Where the game was made on a custom map, show the map's real size in the dialog and in the
 statistic. Not done.
+
+## 17. A loaded save loads every resource its reference table lists, referenced or not — CONFIRMED
+
+**Where.** `GameUpdateLoop`'s master serializer (`src/game/Game/gameupdateloop_serialize.cpp`, retail
+`0x140095a90`), the `[PreloadRefs]` block right after `ExternalFactory::SerializeReferenceTable`.
+
+**What the code does.** On a save, `SerializeReferenceTable` (retail `0x1800bcb60`,
+`src/engine/object/external_reftable.cpp`, faithful) writes an id and a path for EVERY resource the
+factory holds at that moment, whether the town refers to it or not. On a load, the port's preload block
+walks that whole table and calls `FindOrLoad` on each path before any reference is resolved. So a loaded
+save brings back every resource the saving session had loaded and whose path the mounted packages still
+answer.
+
+**What retail does.** No preload. The serializer goes from `SerializeReferenceTable` straight to
+`ResetPersistState` and the first section (the calls at `0x140095ae3`, `0x140095af6`, `0x140095b09`,
+`0x140095b18`: no loop between them), and inside `Runtime-x64.dll` `GetPathForReferenceId`
+(`0x1800bf1d0`) is called only from the `ExternalPtr` / `ExternalPtrArray` serializers, one reference at
+a time. A table entry nothing refers to is never loaded. The exe's own callers of the import were not
+listed.
+
+**Effect.** Resources retail would leave unloaded are loaded. Visible case: a mod's content list is not
+loaded in the loading session (its `.pkm` was renamed after the save, or `ext.renamed_mods` was on when
+the save was made and off at this boot) while its package is still mounted. Retail would restore what the
+town refers to (placed buildings and their templates) and none of the mod's toolbar buttons; the port
+restores everything, and the toolbar shows every button, because `ToolbarDialog` lists every loaded
+`Toolbar` object (`src/game/Dialog/toolbardialog.cpp`).
+
+**Evidence.** 2026-11-19, debug build of `main` `3b8cf1da0`, a copy of The North 7 named
+`North7Renamed.pkm`, seed 12345, placeable buildings counted by `BANISHED_TEMPLATE_DUMP=*`: a new game with
+`ext.renamed_mods` on at boot, 154 (then an autosave); a new game with it off, 40; that save loaded with it
+off, 154, with `[PreloadRefs] preloaded 13506/13506 referenced externals (0 not found)` and no
+`[RenamedMods]` line. Retail's side is read from the disassembly, not run.
+
+**Why the block is there.** A resource whose first parse happens while reference mode is on is read with
+the wrong shape (the block's own comment: the tutorial save's `RiverEffect.rsc`). Its claim that every
+entry "is about to be loaded anyway" holds only for entries the save refers to.
+
+**Fix.** Load only what the stream resolves, with the first parse of a lazily loaded resource done with
+reference mode off, as retail's order of loads gives it; the table does not say which entries are
+referred to, so the preload cannot simply be narrowed. Not done.
