@@ -18,6 +18,7 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 9. Custom maps: a new game can start on a map file (`.bmap`) made in a map editor; its ground, water paths, resources and town start replace the generated ones, picked with a Load custom map row in New Game (`ext.custom_maps`).
 10. Load renamed mods: a mod whose `.pkm` file was renamed gets its new content, by the content list its package holds (its files that replace the game's own already applied), and the log notes a mod that has no content list of its own; off by default, from the next start (`ext.renamed_mods`).
 11. Item limits on more buildings (`ext.item_limits`): a workshop without a product choice (a clay or sand pit, a mod's butcher) gets a limit row for each item it makes; a pasture gets one for each item its animals give, and a slaughter yields only the items still under their limits; a gatherer gets one for each item its plants give (a mod's gatherer with many items gets an item picker) and passes by the plants of an item at its limit.
+12. Quick loading screens: the list of saves in the Load and Save windows appears sooner; it no longer takes three frames per save (40 saves: about 2.2 s down to 0.55 s) (`ext.quick_screens`).
 **Fixes:**
 1. Map data views: no crash when "Show overlay on terrain" shows the Land view in a second game of one session (`ext.map_overlays`).
 2. No red cell left where stone, iron or a tree was cleared with the Remove Resources tool on uneven ground (`fix.terrain_resort`).

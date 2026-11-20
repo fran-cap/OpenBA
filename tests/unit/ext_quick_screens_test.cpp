@@ -95,6 +95,68 @@ UNIT_TEST(ext_quick_screens_on_waits_for_the_work) {
                 CHECK(SplashHoldOver(true, 100, 100, fadeOut, pending, fade));
 }
 
+// The save list's in-frame loop: a fake clock that each wait and step advances.
+UNIT_TEST(ext_quick_screens_list_pump_steps_within_the_budget) {
+    using Ext::QuickScreens::PumpListSteps;
+    // Every wait takes 1 ms and succeeds, every step advances: the loop runs
+    // until the budget is spent and never starts a wait after it.
+    {
+        double now = 100.0;
+        int waits = 0;
+        const int steps = PumpListSteps(
+            8.0, [&] { return now; },
+            [&](double left) { CHECK(left > 0.0); ++waits; now += 1.0; return true; },
+            [&] { return true; });
+        CHECK(steps == 8);
+        CHECK(waits == 8);
+    }
+    // A zero budget takes no step (the faithful arm never calls it at all).
+    {
+        int waits = 0;
+        const int steps = PumpListSteps(
+            0.0, [] { return 5.0; }, [&](double) { ++waits; return true; }, [] { return true; });
+        CHECK(steps == 0);
+        CHECK(waits == 0);
+    }
+}
+
+UNIT_TEST(ext_quick_screens_list_pump_stops_on_busy_worker_or_finished_list) {
+    using Ext::QuickScreens::PumpListSteps;
+    // The worker is still busy when the wait ends: no step is taken on it.
+    {
+        double now = 0.0;
+        int stepped = 0;
+        const int steps = PumpListSteps(
+            8.0, [&] { return now; },
+            [&](double left) { now += left; return false; },
+            [&] { ++stepped; return true; });
+        CHECK(steps == 0);
+        CHECK(stepped == 0);
+    }
+    // The list finishes (or a step changes nothing) on the third step: the loop
+    // ends there with budget left.
+    {
+        double now = 0.0;
+        int stepped = 0;
+        const int steps = PumpListSteps(
+            8.0, [&] { return now; },
+            [&](double) { now += 0.5; return true; },
+            [&] { return ++stepped < 3; });
+        CHECK(steps == 3);
+        CHECK(now < 8.0);
+    }
+    // The wait is offered only the time that is left.
+    {
+        double now = 0.0;
+        double lastLeft = 0.0;
+        PumpListSteps(
+            8.0, [&] { return now; },
+            [&](double left) { lastLeft = left; now += 3.0; return true; },
+            [] { return true; });
+        CHECK(lastLeft == 2.0);
+    }
+}
+
 // Save::SaveLoad's gates wait while `_elapsed <= _minOperationTime`; the first
 // SaveLoad::Update adds a positive frame delta before it dispatches, so a zero
 // minimum never holds. A constant, so a static_assert, not a test.

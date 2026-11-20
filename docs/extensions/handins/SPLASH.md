@@ -72,7 +72,26 @@ minimum time). Nothing reads it per frame.
 - **Not touched:** `AutoSaveDialog` (its own 1.0 s; not "the save dialog" of ruling 3), and the
   menu's own stage-C fade (`menu.stageC`, presentation, stays retail).
 
-### 2.3 Nothing else reads the floors' clocks
+### 2.3 The save list's one step per frame (added after the hand-in)
+
+- **Where.** `Save::SaveLoad::UpdateList` (`saveload_update.cpp`) takes one step per `Update`, and
+  three steps per save: ask the worker to verify the file (the whole-file CRC of
+  `PersistenceWorker::GetSaveInfoJob`), ask it for the header block, build the row. `Update` runs once
+  per frame, so the list costs three frames per save even when the worker answers in under a
+  millisecond, and scales with the frame time (worse from the pause menu of a big town).
+- **What ON does.** `SaveLoadDialog::OnUpdate` calls `QuickScreens::PumpSaveList` while the list
+  operation runs (`src/ext/quick_screens/list_pump.cpp`): it waits on the worker's finished event and
+  calls `Save::SaveLoad::Update` with a zero delta again, until `kListPumpBudgetMs` (8 ms) of the frame
+  is spent, the list is done, or a step changes nothing. The toggle is latched in `OnOpened`. The engine
+  body is untouched: the same steps in the same order, so the rows, their order and the Corrupt marks
+  are retail's.
+- **Measured** (perf exe, main menu, 40 saves / 359 MB, file cache warm, `dialog opened` to the rows
+  built): OFF 2.17 s to 2.20 s (123 list ticks), ON 0.54 s to 0.56 s. What is left is the worker's CRC
+  of every save (0.6 s for these files in a stand-alone loop).
+- **Cost.** While the "please wait" page is up, a frame may spend up to the budget blocked on the
+  worker; a wait that times out can overrun it by the OS timer's granularity.
+
+### 2.4 Nothing else reads the floors' clocks
 
 - `SaveLoad::_elapsed` / `_minOperationTime`: read only by the three gates above (grep of `src/`).
 - `GameLoadDialogLoopT::_elapsedTicks`: the hold, the ChunkedSceneLoader reveal cap (0.25 s, unchanged),
