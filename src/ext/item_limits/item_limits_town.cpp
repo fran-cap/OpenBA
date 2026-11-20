@@ -5,7 +5,14 @@
 #include "ext/item_limits/item_limits.h"
 
 #include "Component/ComponentDescription.h"
+#include "Component/AnimalComponent.h"
+#include "Component/AnimalDescription.h"
+#include "Component/CitizenComponent.h"
 #include "Component/ConsumeProduceDescription.h"
+#include "Component/HerbalistDescription.h"
+#include "Component/NaturalResourceDescription.h"
+#include "Component/LivestockComponent.h"
+#include "Component/PastureComponent.h"
 #include "Component/RawMaterialDescription.h"
 #include "Component/StorageComponent.h"
 #include "Entity/CitizenBehavior.h"
@@ -111,6 +118,63 @@ bool RecipeAtLimitSlow(const ConsumeProduceDescription* desc, bool allRecipes, i
         }
     }
     return false;
+}
+
+const AnimalDescription* SlaughterCandidate(const PastureComponent* pasture) {
+    // PastureWork::Execute's branch A, up to the description it hands RemoveAnimalActions.
+    if (pasture == nullptr || pasture->capacity >= pasture->animals._size) {
+        return nullptr;
+    }
+    const int slot = pasture->FindOldestLivestock();
+    if (slot < 0) {
+        return nullptr;
+    }
+    LivestockComponent* livestock = pasture->animals[slot].Get();
+    AnimalComponent* animal = livestock != nullptr ? livestock->_entity->FindComponent<AnimalComponent>() : nullptr;
+    if (animal == nullptr || ((animal->_flags >> 0x14) & 1) != 0) {
+        return nullptr;
+    }
+    Description* desc = animal->_description;
+    if (!::Object::IsDerivedFromNullSafe(desc, AnimalDescription::TypeId())) {
+        return nullptr;
+    }
+    return static_cast<const AnimalDescription*>(desc);
+}
+
+bool SlaughterAtLimitSlow(const AnimalDescription* animal) {
+    if (animal == nullptr) {
+        return false;
+    }
+    return AllAtLimit(animal->_rawMaterialCount, [animal](int32_t i) {
+        return static_cast<const void*>(animal->_rawMaterials[i]);
+    });
+}
+
+bool SlaughterSkipsYieldSlow(const CitizenComponent* citizen, const void* item) {
+    if (citizen == nullptr || !AtLimit(item)) {
+        return false;
+    }
+    ComponentEntity* workplace = citizen->workplace.Get();
+    return SkipsYield(workplace != nullptr && workplace->FindComponent<PastureComponent>() != nullptr, item);
+}
+
+const ComponentDescription* HerbItem(const ComponentDescription* herb) {
+    const NaturalResourceDescription* plant =
+        herb != nullptr ? herb->FindDescription<NaturalResourceDescription>() : nullptr;
+    return plant != nullptr ? plant->_building : nullptr;
+}
+
+bool HerbAtLimitSlow(const ComponentDescription* herb) {
+    return AtLimit(HerbItem(herb));   // false for a plant that names no item
+}
+
+bool HerbsAtLimitSlow(const HerbalistDescription* desc) {
+    if (desc == nullptr) {
+        return false;
+    }
+    return AllAtLimit(desc->_herbCount, [desc](int32_t i) {
+        return static_cast<const void*>(HerbItem(desc->_herbs[i]));
+    });
 }
 
 }  // namespace ItemLimits

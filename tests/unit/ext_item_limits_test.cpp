@@ -5,8 +5,10 @@
 // by default), the list of item limits (template paths, case-insensitive, one limit per item), the save-tail
 // codec (round trip, empty state, every kind of damaged payload, a refused payload leaving the old list
 // alone), the resolution into the flat array the seams scan, the count and the limit test, `g_on` following
-// the row and the list, and the lock-owner rule for the reset. The seams, the factory walk and the panel row
-// are the exe's (item_limits_town.cpp, panel_row.cpp); PanelsForget is a counting stand-in here.
+// the row and the list, the lock-owner rule for the reset, and the producers' tests the seams call (a
+// slaughter's and a gatherer's AllAtLimit, the per-yield SkipsYield, the rows' once-per-item FirstOfEach).
+// The seams, the factory walk and the panel rows are the exe's (item_limits_town.cpp, panel_row.cpp,
+// pasture_rows.cpp); PanelsForget is a counting stand-in here.
 // ============================================================================
 #include "unit.h"
 #include "ext/item_limits/item_limits.h"
@@ -369,4 +371,87 @@ UNIT_TEST(ext_item_limits_g_on_follows_the_row_and_the_list) {
     CHECK(g_on);
     ResetState();                                                      // the game ends: everything is cleared
     CHECK(!g_on && !PanelActive() && g_items.empty());
+}
+
+namespace {
+
+// The game's items for the producer tests: meat, leather and wool limited, honey not.
+struct Producers {
+    int meat = 0, leather = 0, wool = 0, honey = 0;
+    std::vector<Candidate> Game() const {
+        return {
+            { &meat, "Template\\RawMaterialMeat.rsc:rawmaterial" },
+            { &leather, "Template\\RawMaterialLeather.rsc:rawmaterial" },
+            { &wool, "Template\\RawMaterialWool.rsc:rawmaterial" },
+            { &honey, "Template\\RawMaterialHoney.rsc:rawmaterial" },
+        };
+    }
+    void Limit() {
+        ResetState();
+        CHECK(SetLimit("Template\\RawMaterialMeat.rsc:rawmaterial", 10));
+        CHECK(SetLimit("Template\\RawMaterialLeather.rsc:rawmaterial", 4));
+        CHECK(SetLimit("Template\\RawMaterialWool.rsc:rawmaterial", 0));
+        Resolve(1, Game());
+        BeginCount();
+    }
+};
+
+bool AllOf(const std::vector<const void*>& items) {
+    return AllAtLimit(static_cast<int32_t>(items.size()), [&items](int32_t i) { return items[static_cast<size_t>(i)]; });
+}
+
+}  // namespace
+
+UNIT_TEST(ext_item_limits_a_slaughter_is_held_only_when_every_yield_is_at_its_limit) {
+    Producers g;
+    g.Limit();
+    const std::vector<const void*> cattle = { &g.meat, &g.leather };
+    CHECK(!AllOf(cattle));                                             // both under: slaughter
+    Tally(&g.leather, 4);
+    CHECK(!AllOf(cattle));                                             // meat still under: slaughter, no leather
+    Tally(&g.meat, 10);
+    CHECK(AllOf(cattle));                                              // every yield at its limit: held
+    CHECK(!AllOf({}));                                                 // an animal with no yield: never held
+    CHECK(!AllOf({ &g.meat, &g.honey }));                              // an unlimited yield keeps it going
+    CHECK(!AllOf({ &g.meat, nullptr }));                               // so does a yield that names no item
+    CHECK(AllOf({ &g.wool }));                                         // a limit of 0 holds at once
+    ResetState();
+}
+
+UNIT_TEST(ext_item_limits_a_slaughter_skips_only_a_herders_limited_yields) {
+    Producers g;
+    g.Limit();
+    Tally(&g.leather, 4);
+    CHECK(SkipsYield(true, &g.leather));                               // a herder's slaughter: no leather
+    CHECK(!SkipsYield(true, &g.meat));                                 // the meat is still made
+    CHECK(!SkipsYield(true, &g.honey) && !SkipsYield(true, nullptr));  // unlimited, or no item
+    CHECK(!SkipsYield(false, &g.leather));                             // a hunter's kill yields everything
+    ResetState();
+}
+
+UNIT_TEST(ext_item_limits_a_gatherer_passes_by_limited_plants_and_stops_when_all_are) {
+    Producers g;
+    g.Limit();
+    // a gatherer's list: two plants give one item (wild and planted), one plant another
+    const std::vector<const void*> plants = { &g.meat, &g.wool, &g.meat };
+    CHECK(AtLimit(&g.wool) && !AtLimit(&g.meat));                      // one plant passed by, the others gathered
+    CHECK(!AllOf(plants));
+    Tally(&g.meat, 10);
+    CHECK(AllOf(plants));                                              // every item at its limit: no gathering
+    CHECK(!AllOf({ &g.meat, &g.wool, nullptr }));                      // a plant with no item keeps it going
+    CHECK(!AllOf({ &g.meat, &g.honey }));                              // so does an unlimited item
+    BeginCount();
+    CHECK(!AllOf(plants));                                             // the next tick counts from zero
+    ResetState();
+}
+
+UNIT_TEST(ext_item_limits_rows_show_each_item_once) {
+    int a = 0, b = 0, c = 0;
+    using V = std::vector<int32_t>;
+    CHECK(FirstOfEach({}, 16) == V{});
+    CHECK(FirstOfEach({ &a, &b, &c }, 16) == (V{ 0, 1, 2 }));
+    CHECK(FirstOfEach({ &a, &b, &a, &c, &b }, 16) == (V{ 0, 1, 3 }));  // a product of two recipes: one row
+    CHECK(FirstOfEach({ nullptr, &a, nullptr, &a }, 16) == V{ 1 });    // not an item: no row
+    CHECK(FirstOfEach({ &a, &b, &c }, 2) == (V{ 0, 1 }));              // at most `max` rows
+    CHECK(FirstOfEach({ &a, &a, &a, &b }, 2) == (V{ 0, 3 }));          // duplicates do not use up the rows
 }

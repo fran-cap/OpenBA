@@ -49,6 +49,8 @@
 #include "Entity/ComponentEntity.h"
 #include "Entity/CitizenBehavior.h"
 #include "Game/Map.h"
+// EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMLIMITS.md): ext.item_limits (class C), the gatherer's tests
+#include "ext/item_limits/item_limits.h"
 #include "ext/registry.h"                    // Ext::Fix().stable_order
 #include "ext/stable_order/stable_order.h"   // FIX stable_order (NOT RETAIL): Cleanup's cancel order
 
@@ -211,6 +213,13 @@ int HerbalistWork::Execute(CitizenComponent** citizenIBP, System::Time* /*contex
     const ProfessionResourceEntry& resEntry = gameWorld->m_citizenList->professionResources._data[materialIdx];
     bool atCapacity = resEntry.maxCount <= resEntry.currentCount;
 
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMLIMITS.md): ext.item_limits (class C). When every item
+    // of the gatherer's list is at its own item limit, it gathers nothing, as at the category limit, and the
+    // status icon shows the limit.
+    if (!atCapacity && Ext::ItemLimits::HerbsAtLimit(radiusComp)) {
+        atCapacity = true;
+    }
+
     // Set the status icon's flag 2 from the capacity (0x140002f90, 0x14012c3f0)
     StatusIconComponent* statusIcon = _entity->FindComponent<StatusIconComponent>();
     statusIcon->SetFlag(2, atCapacity ? 1 : 0);
@@ -343,6 +352,12 @@ int HerbalistWork::Execute(CitizenComponent** citizenIBP, System::Time* /*contex
                 Object::External* resDescRef = resourceEntity->_description;
                 Object::External* herbTypeRef = herbTypeList[herbIdx];
                 if (resDescRef != herbTypeRef) {
+                    continue;
+                }
+
+                // EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMLIMITS.md): ext.item_limits (class C). A
+                // plant whose item is at its own item limit is passed by; the search goes on.
+                if (Ext::ItemLimits::HerbAtLimit(herbTypeList[herbIdx])) {
                     continue;
                 }
 

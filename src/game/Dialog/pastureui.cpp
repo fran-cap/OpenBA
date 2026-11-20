@@ -31,6 +31,8 @@
 #include "Component/Component.h"   // B.3.x W0: Component::Command by name
 #include "Component/PastureComponent.h"
 #include "Component/ComponentDescription.h"
+// EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMLIMITS.md): ext.item_limits (class C), the item rows
+#include "ext/item_limits/item_limits.h"
 
 // ============================================================
 // PastureUI::UpdateSlider (FUN_1400b4fa0)
@@ -115,6 +117,8 @@ void PastureUI::OnCreated() {
 
     // Update slider display with current/max animal counts
     UpdateSlider();
+
+    Ext::ItemLimits::PastureOpened(this);   // EXT SEAM (NOT RETAIL, ITEMLIMITS.md): the item limit rows
 }
 
 // ============================================================
@@ -162,6 +166,8 @@ void PastureUI::OnUpdateLayout() {
         System::String fmtStr = System::String::Format("%i", comp->capacity);
         sliderElem->SetParameter(1, fmtStr);
     }
+
+    Ext::ItemLimits::PastureLayout(this);   // EXT SEAM (NOT RETAIL, ITEMLIMITS.md): follow the livestock
 }
 
 // ============================================================
@@ -249,6 +255,7 @@ ComponentDescription** PastureUI::GetResource(ComponentDescription** param2) {
 void PastureUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, UI::EventId param3, int32_t param4,
                                int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
     pastureui_sa::Trace("Slot9(event)", this);
+    if (Ext::ItemLimits::PastureEvent(this, param3, param4)) return;   // EXT SEAM (NOT RETAIL, ITEMLIMITS.md)
 
     if (param3 == UI::EventId::SelectionChanged && param4 == 500) {
         // Combo selection: get selected resource, call Slot11 via vtable

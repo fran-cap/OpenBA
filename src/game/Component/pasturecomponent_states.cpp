@@ -68,6 +68,7 @@
 #include "Game/exe_constants.h"
 #include "Game/terrain_sidecar.h"     // [terrain sidecar] NoteWrite after the +0x29 store
 #include "Game/cell_stamp.h"   // AMBMEMO: CellStamp::NoteWrite after a cell store
+#include "ext/item_limits/item_limits.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMLIMITS.md): ext.item_limits
 #include "ext/map_overlays/map_overlays.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/MAPOVERLAYS.md): ext.map_overlays
 
 // ============================================================
@@ -402,7 +403,12 @@ void PastureProduce(PastureComponent* self) {
 
     const ProfessionResourceEntry& row =
         w->m_citizenList->professionResources._data[static_cast<int>(lsDesc->_type)];       // +0x170, +0x28
-    const bool full = row.currentCount >= row.maxCount;                                       // SETGE, kept in [rbp+0x7f]
+    bool full = row.currentCount >= row.maxCount;                                             // SETGE, kept in [rbp+0x7f]
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMLIMITS.md): ext.item_limits (class C). The byproduct
+    // at its own item limit is "full" too: the production is spent with no pile, as retail's category test.
+    if (!full && Ext::ItemLimits::ByproductAtLimit(produced)) {
+        full = true;
+    }
 
     const bool mapOverlays = Ext::MapOverlays::g_on;   // ext.map_overlays: tested once, above the loop
     while (self->production > rawDesc->_lowCreateCount) {
