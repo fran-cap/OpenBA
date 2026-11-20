@@ -311,6 +311,7 @@ struct Scenario {
     int types;         // 0 = no type field use
     bool badOccupancy; // perturb occupancy counts
     bool leafOnly = false;   // LEAFWALK: every character in a leaf cell (the game's grid)
+    bool leafOccJitter = false;   // LEAFGATHER: some leaf counts off their list length (still >= 1)
 };
 
 // LEAFWALK: 1 = the fast side runs the production order (QueryLeaves when no character sits
@@ -383,6 +384,16 @@ void RunScenario(const Scenario& sc, uint64_t seed, int grids, int queriesPerGri
             if (s.cell < LevelBase(sc.levels > 0 ? sc.levels - 1 : 0)) ++nonLeaf;
         }
         if (sc.badOccupancy) nonLeaf = 1;   // QueryLeaves needs Link's counts: never offered these
+        if (sc.leafOccJitter) {
+            // a leaf's count understated (the interleaved gather runs past it and declines) or
+            // overstated (a short segment); every listed leaf keeps a count >= 1, as retail's
+            // visit test needs, and the ancestors keep Link's
+            const int leafBase = LevelBase(sc.levels - 1);
+            for (int c = leafBase; c < cells; ++c) {
+                int32_t& occ = g.cellOccupancy[static_cast<size_t>(c)];
+                if (occ > 0 && r.Chance(30)) occ = 1 + r.Below(occ + 2);
+            }
+        }
 
         for (int qi = 0; qi < queriesPerGrid; ++qi) {
             float point[3];
@@ -452,6 +463,8 @@ const Scenario kLeafEdge  {2048.0f, 8, 300, 1100.0f, 0.0f, 10, 0, false, true}; 
 const Scenario kLeafSmall {128.0f, 4, 150, 40.0f, 1.0f, 50, 0, false, true};      // a small power-of-two world
 const Scenario kLeafRoot  {64.0f, 1, 50, 20.0f, 0.5f, 0, 0, false, true};         // one level: the root is the leaf
 const Scenario kLeafOdd   {2047.3f, 6, 300, 80.0f, 0.0f, 30, 0, false, true};     // inexact centers: not offered
+const Scenario kLeafJitter{2048.0f, 8, 800, 50.0f, 0.5f, 20, 0, false, true, true};  // gather declines / short segments
+const Scenario kLeafCrowd {2048.0f, 8, 2000, 20.0f, 0.25f, 10, 0, false, true};   // more than kGather candidates
 
 }  // namespace
 
@@ -540,6 +553,23 @@ UNIT_TEST(charactergrid_nearest_leaf_walk_identical_to_retail) {
     CHECK(root.leafHandled * 10 > root.queries * 9);
     CHECK(town.found > 3000);
     CHECK(town.ties + dense.ties > 1000);
+}
+
+UNIT_TEST(charactergrid_nearest_leaf_gather_fallbacks_identical_to_retail) {
+    // LEAFGATHER: leaf counts off their list length and cells holding more than kGather
+    // candidates take the cell-by-cell scoring; the answer is retail's either way.
+    g_mutation = 0;
+    g_leafMode = 1;
+    Totals jitter, crowd;
+    RunScenario(kLeafJitter, 121, 30, 400, jitter);
+    RunScenario(kLeafCrowd, 131, 6, 300, crowd);
+    g_leafMode = 0;
+    Report("leaf jitter", jitter);
+    Report("leaf crowd", crowd);
+    CHECK_EQ(jitter.mismatches, 0LL);
+    CHECK_EQ(crowd.mismatches, 0LL);
+    CHECK(jitter.leafHandled * 10 > jitter.queries * 7);
+    CHECK(crowd.candidates > crowd.queries * CharGridNearest::kGather);   // the overflow path ran
 }
 
 UNIT_TEST(charactergrid_nearest_leaf_walk_declines_inexact_worlds) {
