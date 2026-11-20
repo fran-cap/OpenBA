@@ -1525,6 +1525,12 @@ ComponentEntity* CitizenComponent::FindHome(int32_t* slot, bool anyHousehold) {
     // runs beside it under the COMPPROF=4 shadow ("HomePrescan").
     auto prescanBails = [&](bool fast) -> bool {
         ResidenceComponent* ownStore = home->FindComponent<ResidenceComponent>();
+        // PERF (NOT RETAIL): the last home walked and its ResidenceComponent. The adults of a
+        // household share a home and sit together in the citizen list often enough; the walk is a
+        // pure read of a component array fixed at the entity's construction, so a repeat of the
+        // same home takes the answer the walk gave (the same pointer). Nothing in the loop writes.
+        ComponentEntity* lastWp = nullptr;
+        ResidenceComponent* lastStore = nullptr;
         int citCount = townMgr->citizens._size;
         for (int64_t i = 0; i < citCount; i++) {
             CitizenComponent* other = townMgr->citizens._data[i].Get();
@@ -1536,7 +1542,11 @@ ComponentEntity* CitizenComponent::FindHome(int32_t* slot, bool anyHousehold) {
                 }
                 if (fast && ownStore->residentSlots._size != 1) continue;
                 ComponentEntity* otherWp = other->home.Get();
-                ResidenceComponent* otherStore = otherWp->FindComponent<ResidenceComponent>();   // 0x140008090
+                if (otherWp != lastWp) {
+                    lastStore = otherWp->FindComponent<ResidenceComponent>();   // 0x140008090
+                    lastWp = otherWp;
+                }
+                ResidenceComponent* otherStore = lastStore;
                 if (ownStore->residentSlots._size == 1) {
                     if (1 < otherStore->residentSlots._size) {
                         return true;   // LAB_140111497
