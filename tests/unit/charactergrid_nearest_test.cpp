@@ -310,10 +310,17 @@ struct Scenario {
     int stalePct;      // characters listed in a neighbouring / random cell
     int types;         // 0 = no type field use
     bool badOccupancy; // perturb occupancy counts
+    bool leafOnly = false;   // LEAFWALK: every character in a leaf cell (the game's grid)
+    bool leafOccJitter = false;   // LEAFGATHER: some leaf counts off their list length (still >= 1)
 };
+
+// LEAFWALK: 1 = the fast side runs the production order (QueryLeaves when no character sits
+// above the leaves, as CharacterGrid::AllLinkedAtLeaves says; Query when it returns false).
+int g_leafMode = 0;
 
 struct Totals {
     long long queries = 0, found = 0, mismatches = 0, ties = 0, candidates = 0, nodes = 0;
+    long long leafHandled = 0;
 };
 
 void RunScenario(const Scenario& sc, uint64_t seed, int grids, int queriesPerGrid, Totals& t) {
@@ -356,7 +363,7 @@ void RunScenario(const Scenario& sc, uint64_t seed, int grids, int queriesPerGri
             s.character = &chars[static_cast<size_t>(i)];
             const TChar& c = chars[static_cast<size_t>(i)];
             int level = sc.levels > 0 ? sc.levels - 1 : 0;
-            if (r.Chance(15)) level = r.Below(sc.levels > 0 ? sc.levels : 1);   // a bigger character
+            if (!sc.leafOnly && r.Chance(15)) level = r.Below(sc.levels > 0 ? sc.levels : 1);   // a bigger character
             float px = c.pos.x, py = c.pos.y;
             if (r.Chance(sc.stalePct)) {   // listed where it was, not where it is
                 px += r.Uniform(-6.0f, 6.0f);
@@ -369,6 +376,22 @@ void RunScenario(const Scenario& sc, uint64_t seed, int grids, int queriesPerGri
             for (int k = 0; k < 40; ++k) {
                 const int c = r.Below(cells);
                 g.cellOccupancy[static_cast<size_t>(c)] = r.Chance(50) ? 0 : r.Below(3) - 1;
+            }
+        }
+        // CharacterGrid::AllLinkedAtLeaves' count: characters listed above the leaf level
+        int nonLeaf = 0;
+        for (const TSlot& s : g.slots) {
+            if (s.cell < LevelBase(sc.levels > 0 ? sc.levels - 1 : 0)) ++nonLeaf;
+        }
+        if (sc.badOccupancy) nonLeaf = 1;   // QueryLeaves needs Link's counts: never offered these
+        if (sc.leafOccJitter) {
+            // a leaf's count understated (the interleaved gather runs past it and declines) or
+            // overstated (a short segment); every listed leaf keeps a count >= 1, as retail's
+            // visit test needs, and the ancestors keep Link's
+            const int leafBase = LevelBase(sc.levels - 1);
+            for (int c = leafBase; c < cells; ++c) {
+                int32_t& occ = g.cellOccupancy[static_cast<size_t>(c)];
+                if (occ > 0 && r.Chance(30)) occ = 1 + r.Below(occ + 2);
             }
         }
 
@@ -394,9 +417,18 @@ void RunScenario(const Scenario& sc, uint64_t seed, int grids, int queriesPerGri
             TChar* ref = reinterpret_cast<TChar*>(uintptr_t{1});
             RefQuery(g, &ref, point, &radius, typeId, &exclude, st);
             TChar* fast = reinterpret_cast<TChar*>(uintptr_t{1});
-            const bool handled = CharGridNearest::Query<TPolicy>(&fast, point, radius.v, typeId, &exclude,
-                                                                 g.slots.data(), g.cellHead.data(),
-                                                                 g.cellOccupancy.data(), g.worldSize, g.levels);
+            bool handled = false;
+            if (g_leafMode == 1 && nonLeaf == 0) {
+                handled = CharGridNearest::QueryLeaves<TPolicy>(&fast, point, radius.v, typeId, &exclude,
+                                                                g.slots.data(), g.cellHead.data(),
+                                                                g.cellOccupancy.data(), g.worldSize, g.levels);
+                if (handled) ++t.leafHandled;
+                else if (fast != reinterpret_cast<TChar*>(uintptr_t{1})) ++t.mismatches;   // false writes nothing
+            }
+            if (!handled)
+                handled = CharGridNearest::Query<TPolicy>(&fast, point, radius.v, typeId, &exclude,
+                                                          g.slots.data(), g.cellHead.data(),
+                                                          g.cellOccupancy.data(), g.worldSize, g.levels);
             ++t.queries;
             if (ref) ++t.found;
             t.ties += st.ties;
@@ -413,14 +445,26 @@ void RunScenario(const Scenario& sc, uint64_t seed, int grids, int queriesPerGri
 }
 
 void Report(const char* name, const Totals& t) {
-    std::printf("  %s: %lld queries, %lld found, %lld mismatches, %lld ties, %lld candidates, %lld nodes\n",
-                name, t.queries, t.found, t.mismatches, t.ties, t.candidates, t.nodes);
+    std::printf("  %s: %lld queries, %lld found, %lld mismatches, %lld ties, %lld candidates, %lld nodes, "
+                "%lld leaf-walked\n",
+                name, t.queries, t.found, t.mismatches, t.ties, t.candidates, t.nodes, t.leafHandled);
 }
 
 const Scenario kTown   {2048.0f, 8, 600, 60.0f, 0.5f, 10, 0, false};   // the game's grid, a dense town
 const Scenario kTyped  {2048.0f, 8, 400, 40.0f, 0.25f, 20, 3, false};  // HuntAnimal's type filter
 const Scenario kOdd    {2047.3f, 6, 300, 80.0f, 0.0f, 30, 2, true};    // inexact centers, bad occupancy
 const Scenario kSmall  {100.7f, 4, 120, 30.0f, 1.0f, 50, 0, true};     // shallow grid, coarse lattice, stale
+
+// LEAFWALK: every character in a leaf cell, Link's occupancy counts.
+const Scenario kLeafTown  {2048.0f, 8, 600, 60.0f, 0.5f, 10, 0, false, true};     // the game's grid
+const Scenario kLeafDense {2048.0f, 8, 1200, 100.0f, 0.25f, 30, 0, false, true};  // the stress town, stale cells
+const Scenario kLeafTyped {2048.0f, 8, 400, 40.0f, 0.25f, 20, 3, false, true};    // HuntAnimal's filter
+const Scenario kLeafEdge  {2048.0f, 8, 300, 1100.0f, 0.0f, 10, 0, false, true};   // out to and past the edges
+const Scenario kLeafSmall {128.0f, 4, 150, 40.0f, 1.0f, 50, 0, false, true};      // a small power-of-two world
+const Scenario kLeafRoot  {64.0f, 1, 50, 20.0f, 0.5f, 0, 0, false, true};         // one level: the root is the leaf
+const Scenario kLeafOdd   {2047.3f, 6, 300, 80.0f, 0.0f, 30, 0, false, true};     // inexact centers: not offered
+const Scenario kLeafJitter{2048.0f, 8, 800, 50.0f, 0.5f, 20, 0, false, true, true};  // gather declines / short segments
+const Scenario kLeafCrowd {2048.0f, 8, 2000, 20.0f, 0.25f, 10, 0, false, true};   // more than kGather candidates
 
 }  // namespace
 
@@ -476,4 +520,89 @@ UNIT_TEST(charactergrid_nearest_deep_grid_falls_back) {
                                                                nullptr, 2048.0f, CharGridNearest::kMaxLevels + 1);
     CHECK(!handled);
     CHECK(best == reinterpret_cast<TChar*>(uintptr_t{1}));
+}
+
+UNIT_TEST(charactergrid_nearest_leaf_walk_identical_to_retail) {
+    // LEAFWALK: QueryLeaves (then Query when it declines) against retail's walker, ties included.
+    g_mutation = 0;
+    g_leafMode = 1;
+    Totals town, dense, typed, edge, small, root;
+    RunScenario(kLeafTown, 51, 40, 400, town);
+    RunScenario(kLeafDense, 61, 20, 600, dense);
+    RunScenario(kLeafTyped, 71, 30, 300, typed);
+    RunScenario(kLeafEdge, 81, 30, 300, edge);
+    RunScenario(kLeafSmall, 91, 40, 300, small);
+    RunScenario(kLeafRoot, 101, 20, 200, root);
+    g_leafMode = 0;
+    Report("leaf town", town);
+    Report("leaf dense", dense);
+    Report("leaf typed", typed);
+    Report("leaf edge", edge);
+    Report("leaf small", small);
+    Report("leaf root", root);
+    CHECK_EQ(town.mismatches, 0LL);
+    CHECK_EQ(dense.mismatches, 0LL);
+    CHECK_EQ(typed.mismatches, 0LL);
+    CHECK_EQ(edge.mismatches, 0LL);
+    CHECK_EQ(small.mismatches, 0LL);
+    CHECK_EQ(root.mismatches, 0LL);
+    // the leaf walk took most queries (radius 8 and 40 are wider than a cell: Query's)
+    CHECK(town.leafHandled * 10 > town.queries * 7);
+    CHECK(dense.leafHandled * 10 > dense.queries * 7);
+    CHECK(edge.leafHandled * 10 > edge.queries * 7);
+    CHECK(root.leafHandled * 10 > root.queries * 9);
+    CHECK(town.found > 3000);
+    CHECK(town.ties + dense.ties > 1000);
+}
+
+UNIT_TEST(charactergrid_nearest_leaf_gather_fallbacks_identical_to_retail) {
+    // LEAFGATHER: leaf counts off their list length and cells holding more than kGather
+    // candidates take the cell-by-cell scoring; the answer is retail's either way.
+    g_mutation = 0;
+    g_leafMode = 1;
+    Totals jitter, crowd;
+    RunScenario(kLeafJitter, 121, 30, 400, jitter);
+    RunScenario(kLeafCrowd, 131, 6, 300, crowd);
+    g_leafMode = 0;
+    Report("leaf jitter", jitter);
+    Report("leaf crowd", crowd);
+    CHECK_EQ(jitter.mismatches, 0LL);
+    CHECK_EQ(crowd.mismatches, 0LL);
+    CHECK(jitter.leafHandled * 10 > jitter.queries * 7);
+    CHECK(crowd.candidates > crowd.queries * CharGridNearest::kGather);   // the overflow path ran
+}
+
+UNIT_TEST(charactergrid_nearest_leaf_walk_declines_inexact_worlds) {
+    // A world size that is not a power of two has inexact centers: QueryLeaves declines
+    // (writes nothing) and Query answers.
+    g_mutation = 0;
+    g_leafMode = 1;
+    Totals odd;
+    RunScenario(kLeafOdd, 111, 20, 300, odd);
+    g_leafMode = 0;
+    Report("leaf odd", odd);
+    CHECK_EQ(odd.mismatches, 0LL);
+    CHECK_EQ(odd.leafHandled, 0LL);
+    CHECK(!CharGridNearest::LeafWalkExact(2047.3f, 8));
+    CHECK(!CharGridNearest::LeafWalkExact(-2048.0f, 8));
+    CHECK(!CharGridNearest::LeafWalkExact(2048.0f, 0));
+    CHECK(!CharGridNearest::LeafWalkExact(2048.0f, CharGridNearest::kLeafMaxLevels + 1));
+    CHECK(CharGridNearest::LeafWalkExact(2048.0f, 8));
+}
+
+UNIT_TEST(charactergrid_nearest_leaf_walk_mutations_are_caught) {
+    // The leaf walk's order is retail's: the reference with its tie rule or child order changed
+    // disagrees with it.
+    Totals tie, order;
+    g_leafMode = 1;
+    g_mutation = 1;
+    RunScenario(kLeafTown, 51, 40, 400, tie);
+    g_mutation = 2;
+    RunScenario(kLeafTown, 51, 40, 400, order);
+    g_mutation = 0;
+    g_leafMode = 0;
+    Report("leaf mutation ties-to-later", tie);
+    Report("leaf mutation child-order", order);
+    CHECK(tie.mismatches > 500);
+    CHECK(order.mismatches > 30);
 }
