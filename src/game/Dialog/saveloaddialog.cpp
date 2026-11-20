@@ -87,6 +87,7 @@
 #include "ext/load_notice.h"  // EXT SEAM (NOT RETAIL, docs/extensions/handins/EXTNOTICE.md): their notices, Dialog/Extensions.rsc:extension*
 #include "ext/resources/text_provider.h"  // EXT SEAM (NOT RETAIL, docs/extensions/KITFREE.md): InitText, the notices' provider
 #include "ext/quick_screens/quick_screens.h"  // EXT SEAM (NOT RETAIL, docs/extensions/handins/SPLASH.md): ext.quick_screens' minimum operation time
+#include "ext/quick_screens/list_pump.h"      // EXT SEAM (NOT RETAIL, docs/extensions/handins/SPLASH.md): ext.quick_screens' save-list stepping
 #include <vector>
 #include "ui/ButtonElement.h"
 
@@ -392,6 +393,10 @@ void SaveLoadDialog::PopulateFileList() {
 // Copies the container's SaveLoadEmpty sprite (+0xB8) to the SaveLoad singleton.
 // Calls SetMinOperationTime(0.75f) and SetOperation(kOpList, mode).
 
+// EXT SEAM (NOT RETAIL, docs/extensions/handins/SPLASH.md): ext.quick_screens, latched by OnOpened
+// for the dialog's list operations (the first one and the one after a delete).
+static bool g_quickList = false;
+
 void SaveLoadDialog::OnOpened() {
     // --- Find all named elements ---
     labelLoad      = FindDialogElem<UI::Element>(this, "labelLoad");
@@ -429,7 +434,8 @@ void SaveLoadDialog::OnOpened() {
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/SPLASH.md): ext.quick_screens ends the list's
     // floor once the scan is done (SaveLoad::Update runs it only with the
     // persistence worker idle). docs/extensions/handins/SPLASH.md.
-    if (Ext::Ext().quick_screens) timeVal._ticks = Ext::QuickScreens::kNoMinOperationTime;
+    g_quickList = Ext::Ext().quick_screens;   // read once per dialog; OnUpdate's list stepping follows it
+    if (g_quickList) timeVal._ticks = Ext::QuickScreens::kNoMinOperationTime;
     ::Save::SaveLoad::_singleton->SetMinOperationTime(timeVal);
 
     // --- Start operation: kOpList (list/scan), param = -2 or -3 based on mode ---
@@ -612,6 +618,12 @@ void SaveLoadDialog::OnUpdate(const System::Time& time) {
     if (operation != Save::SaveLoad::kOpNone) {
         float elapsed = time.AsSeconds();
         rotation += elapsed * 180.0f;
+    }
+
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/SPLASH.md §2.3): ext.quick_screens takes the
+    // list's further steps inside this frame instead of one per frame (three frames per save).
+    if (g_quickList && operation == Save::SaveLoad::kOpList) {
+        Ext::QuickScreens::PumpSaveList(saveLoad);
     }
 
     // Re-check — may have just completed this frame
