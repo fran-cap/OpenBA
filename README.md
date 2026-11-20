@@ -38,7 +38,7 @@ Fixes default **on**; non-gameplay changing class A extensions default **on**, c
 
 Extensions include performance tweaks, graphical enhancements, and bug fixes for the base game.  
 (i.e. Advanced graphics settings can be found in the **Enhanced** tab of Options).  
-For a list of extensions see: [docs/extensions/LIST.md](docs/extensions/LIST.md).  
+For a list of extensions see: [docs/extensions/LIST.MD](docs/extensions/LIST.MD).  
 For extension design see: [docs/extensions/DESIGN.md](docs/extensions/DESIGN.md).  
 
 ## Versioning
