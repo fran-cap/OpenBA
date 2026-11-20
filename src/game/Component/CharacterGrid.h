@@ -59,6 +59,10 @@ public:
     void    QueryNearestCharacterRetail(CharacterComponent** best, const float* point,
                                         const Math::Scalar* radius, int typeId,
                                         CharacterComponent* const* exclude) const;
+    // LEAFWALK (charmanager.cpp): true while every character linked into this grid sits in a
+    // leaf cell (depth levels - 1), the precondition of CharGridNearest::QueryLeaves. Kept by
+    // Link / Unlink in a port-side tally (no field: the class is retail's 0x60 bytes).
+    bool    AllLinkedAtLeaves() const;
     // 0x140092990: every character within `radius` of `pos` (type filter `typeId`) appended
     // to `outArr`; *out = 0 (citizen_updatehealth.cpp).
     void*   RadiusQuery(void** out, float* pos, float* radius, int typeId,
@@ -81,8 +85,9 @@ public:
     // The port-only seed (charmanager_seed.cpp): every field zero, as its memset was.
     CharacterGrid() : worldSize(0.0f), centerX(0.0f), centerY(0.0f), levels(0) {}
     // 0x140018220: the five ~Array, +0x50 down to +0x10 (reverse declaration order; trivial
-    // elements: MemFree, data = 0, the size + capacity qword = 0). No body.
-    ~CharacterGrid() = default;
+    // elements: MemFree, data = 0, the size + capacity qword = 0). Retail has no body; the
+    // port's (charmanager.cpp) only drops this grid's LEAFWALK tally entry.
+    ~CharacterGrid();
 
     // [PREFETCHCOV] Place's rect memo (PERF 2026-09-05, charmanager.cpp), one entry per
     // character index. It was a function-local static in Place; PREFETCHCOV moved it here

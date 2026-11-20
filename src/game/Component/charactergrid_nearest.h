@@ -38,7 +38,9 @@
 // hold; the caller then runs the retail body. The game grid has levels == 8 (22 nodes at
 // most on the stack).
 // ============================================================================
+#include <cmath>
 #include <cstdint>
+#include <cstring>
 #include "math/Math.h"   // Math::Vector3 / Scalar / Dot: the retail dsq expression
 
 namespace CharGridNearest {
@@ -92,11 +94,46 @@ inline void MakeChildren(const Node& p, Node* out) {
     out[3] = Node{hx * one + p.cx, hy * one + p.cy, p.ez * one + p.cz, hx, hy, p.ez, p.cell * 4 + 4, d};
 }
 
+// One cell's list from `head` (>= 0), retail's order and scoring: the slots gathered through
+// `prev` a chunk at a time, prefetched, then scored in that order (skip *exclude, the type
+// filter, dsq = Dot(diff, diff), keep on a strict `dsq < *fr2`). Query and QueryLeaves both
+// score through this one body.
+template <class P, class Slot>
+inline void ScoreCell(int head, const Slot* slots, const float* point, int typeId,
+                      typename P::Char* const* exclude, typename P::Char** best, float* fr2) {
+    using Char = typename P::Char;
+    int ent = head;
+    do {
+        Char* buf[kChunk];
+        int cnt = 0;
+        do {
+            buf[cnt++] = P::Get(slots[ent]);
+            ent = slots[ent].prev;
+        } while (ent != head && cnt < kChunk);
+        for (int k = 0; k < cnt; ++k) P::Prefetch(buf[k]);
+        if (typeId == 0) {
+            for (int k = 0; k < cnt; ++k)
+                if (buf[k] != *exclude) P::PrefetchPos(buf[k]);
+        }
+        for (int k = 0; k < cnt; ++k) {
+            Char* c = buf[k];
+            if (c == *exclude) continue;
+            if (typeId != 0 && !P::Keep(c, typeId)) continue;
+            const Math::Vector3& pos = P::Pos(c);
+            Math::Vector3 diff(pos.x - point[0], pos.y - point[1], pos.z - point[2]);
+            const float dsq = diff.Dot(diff).v;
+            if (dsq < *fr2) {
+                *best = c;
+                *fr2 = dsq;
+            }
+        }
+    } while (ent != head);
+}
+
 template <class P, class Slot>
 bool Query(typename P::Char** best, const float* point, float radius, int typeId,
            typename P::Char* const* exclude, const Slot* slots, const int32_t* cellHead,
            const int32_t* cellOccupancy, float worldSize, int levels) {
-    using Char = typename P::Char;
     if (levels > kMaxLevels) return false;
 
     *best = nullptr;
@@ -119,34 +156,7 @@ bool Query(typename P::Char** best, const float* point, float radius, int typeId
         const Node n = stack[top--];
 
         const int head = cellHead[n.cell];
-        if (-1 < head) {
-            int ent = head;
-            do {
-                Char* buf[kChunk];
-                int cnt = 0;
-                do {
-                    buf[cnt++] = P::Get(slots[ent]);
-                    ent = slots[ent].prev;
-                } while (ent != head && cnt < kChunk);
-                for (int k = 0; k < cnt; ++k) P::Prefetch(buf[k]);
-                if (typeId == 0) {
-                    for (int k = 0; k < cnt; ++k)
-                        if (buf[k] != *exclude) P::PrefetchPos(buf[k]);
-                }
-                for (int k = 0; k < cnt; ++k) {
-                    Char* c = buf[k];
-                    if (c == *exclude) continue;
-                    if (typeId != 0 && !P::Keep(c, typeId)) continue;
-                    const Math::Vector3& pos = P::Pos(c);
-                    Math::Vector3 diff(pos.x - point[0], pos.y - point[1], pos.z - point[2]);
-                    const float dsq = diff.Dot(diff).v;
-                    if (dsq < fr2) {
-                        *best = c;
-                        fr2 = dsq;
-                    }
-                }
-            } while (ent != head);
-        }
+        if (-1 < head) ScoreCell<P, Slot>(head, slots, point, typeId, exclude, best, &fr2);
 
         if (n.depth + 1 < levels) {
             Node kids[4];
@@ -155,6 +165,144 @@ bool Query(typename P::Char** best, const float* point, float radius, int typeId
                 if (0 < cellOccupancy[kids[k].cell] && NodeHits(q, kids[k])) stack[++top] = kids[k];
             }
         }
+    }
+    return true;
+}
+
+// ----------------------------------------------------------------------------
+// LEAFWALK (perf, byte-identical): Query's answer without its node walk, for a grid whose
+// linked characters all sit in leaf cells (depth levels - 1) and whose occupancy counts are
+// the ones Link / Unlink keep (occupancy[c] = the characters linked in c's subtree). The
+// caller checks the first (CharacterGrid::AllLinkedAtLeaves); the second holds by
+// construction (Link / Unlink are the only writers of cellHead and cellOccupancy).
+//
+// Why it is the same answer:
+//  * Retail visits a leaf when it and every ancestor have occupancy > 0 and every one of
+//    their loose boxes hits the query box. A leaf with a list has occupancy >= 1, so do its
+//    ancestors; a leaf without one adds nothing. An ancestor's loose box holds its child's
+//    (child center = parent center +/- e/2, child half-width = e, parent half-width = 2e: a
+//    margin of e/2, never less than 4 units against a float ulp of 2^-12 at 2048), so the
+//    leaf's own box test decides. The z bound is the same (-1, +1) for every node: the root's
+//    test is its test. Internal nodes hold no list (the precondition), so they add nothing.
+//  * Order: Query pushes children 4i+1..4i+4 and pops them 4..1, a pre-order walk with the
+//    children in descending index, so the leaves come in descending cell index. Here the hit
+//    leaves are sorted the same way and each list is scored by ScoreCell, Query's own body.
+//  * Floats: for worldSize = 2^k (LeafWalkExact) every Subdivide center is an odd multiple of
+//    the leaf extent e = worldSize / 2^levels with at most 15 significant bits, so the leaf
+//    center (2 ix + 1 - 2^D) * e, ext = 2 * e and both bounds are exact: the same bits as the
+//    chain of halvings and adds Query computes. The compares are NodeHits' per axis.
+// Returns false (and writes nothing) when the grid is not of that shape or a hit range is
+// wider than kLeafAxis cells (a radius above a cell); the caller then runs Query.
+// ----------------------------------------------------------------------------
+constexpr int kLeafMaxLevels = 15;   // 4^14 leaves: every cell index fits an int32
+constexpr int kLeafAxis = 3;         // a 0.5 probe hits 2 or 3 leaves of 16 per axis
+
+inline bool LeafWalkExact(float worldSize, int levels) {
+    if (levels < 1 || levels > kLeafMaxLevels) return false;
+    uint32_t b;
+    std::memcpy(&b, &worldSize, sizeof b);
+    if ((b & 0x807fffffu) != 0) return false;   // negative, or not a power of two
+    const int exp = static_cast<int>((b >> 23) & 0xffu);
+    if (exp == 0 || exp == 0xff) return false;
+    return exp - levels >= 1;   // the leaf extent is a normal float
+}
+
+// NodeHits' compares on one axis for a node at center c, extent e.
+inline bool AxisHits(float qlo, float qhi, float c, float e) {
+    const float ext = 2.0f * e;
+    const float lo = 0.0f + (c - ext);
+    const float hi = 0.0f + (ext + c);
+    return qlo <= hi && lo <= qhi;
+}
+
+// The leaves 0..n-1 on one axis whose box hits [qlo, qhi], ascending, into out[kLeafAxis].
+// False when more than kLeafAxis hit, or when a leaf at the edge of the scanned window hits
+// (the window is the exact range widened by one each side, so that never happens; the test
+// keeps the answer independent of the estimate's arithmetic).
+inline bool AxisRange(float qlo, float qhi, float e, int n, int* out, int* count) {
+    double dlo = std::ceil((static_cast<double>(qlo) / e + (n - 3)) * 0.5) - 1.0;
+    double dhi = std::floor((static_cast<double>(qhi) / e + (n + 1)) * 0.5) + 1.0;
+    if (dlo < 0.0) dlo = 0.0;
+    if (dlo > n) dlo = n;
+    if (dhi > n - 1) dhi = n - 1;
+    if (dhi < -1.0) dhi = -1.0;
+    *count = 0;
+    if (!(dlo <= dhi)) return true;
+    const int lo = static_cast<int>(dlo);
+    const int hi = static_cast<int>(dhi);
+    for (int i = lo; i <= hi; ++i) {
+        const float c = static_cast<float>(2 * i + 1 - n) * e;
+        if (!AxisHits(qlo, qhi, c, e)) continue;
+        if ((i == lo && lo > 0) || (i == hi && hi < n - 1)) return false;
+        if (*count == kLeafAxis) return false;
+        out[(*count)++] = i;
+    }
+    return true;
+}
+
+// The Morton index of leaf (ix, iy): x in the even bits (child k - 1 = xbit + 2 * ybit).
+inline uint32_t LeafMorton(uint32_t ix, uint32_t iy) {
+    auto spread = [](uint32_t v) {
+        v &= 0xffffu;
+        v = (v | (v << 8)) & 0x00ff00ffu;
+        v = (v | (v << 4)) & 0x0f0f0f0fu;
+        v = (v | (v << 2)) & 0x33333333u;
+        v = (v | (v << 1)) & 0x55555555u;
+        return v;
+    };
+    return spread(ix) | (spread(iy) << 1);
+}
+
+template <class P, class Slot>
+bool QueryLeaves(typename P::Char** best, const float* point, float radius, int typeId,
+                 typename P::Char* const* exclude, const Slot* slots, const int32_t* cellHead,
+                 const int32_t* cellOccupancy, float worldSize, int levels) {
+    if (!LeafWalkExact(worldSize, levels)) return false;
+
+    float fr2 = radius * radius;
+    float q[6];
+    q[0] = point[0] - radius; q[1] = point[1] - radius; q[2] = point[2] - radius;
+    q[3] = radius + point[0]; q[4] = radius + point[1]; q[5] = radius + point[2];
+
+    const float half = worldSize * 0.5f;
+    const Node root{0.0f, 0.0f, 0.0f, half, half, 0.0f, 0, 0};
+    if (!(0 < cellOccupancy[0] && NodeHits(q, root))) {
+        *best = nullptr;
+        return true;
+    }
+
+    const int depth = levels - 1;
+    const int n = 1 << depth;
+    float e = half;
+    for (int d = 0; d < depth; ++d) e = e * 0.5f;   // Subdivide's halvings (exact)
+
+    int xs[kLeafAxis];
+    int ys[kLeafAxis];
+    int nx = 0;
+    int ny = 0;
+    if (!AxisRange(q[0], q[3], e, n, xs, &nx)) return false;
+    if (!AxisRange(q[1], q[4], e, n, ys, &ny)) return false;
+
+    *best = nullptr;
+    const int32_t base = static_cast<int32_t>(((int64_t{1} << (2 * depth)) - 1) / 3);
+    int32_t cells[kLeafAxis * kLeafAxis];
+    int nc = 0;
+    for (int j = 0; j < ny; ++j) {
+        for (int i = 0; i < nx; ++i) {
+            const int32_t cell = base + static_cast<int32_t>(LeafMorton(static_cast<uint32_t>(xs[i]),
+                                                                        static_cast<uint32_t>(ys[j])));
+            int k = nc++;
+            while (k > 0 && cells[k - 1] < cell) {   // descending: Query's visit order
+                cells[k] = cells[k - 1];
+                --k;
+            }
+            cells[k] = cell;
+        }
+    }
+    int32_t heads[kLeafAxis * kLeafAxis];
+    for (int k = 0; k < nc; ++k) heads[k] = cellHead[cells[k]];
+    for (int k = 0; k < nc; ++k) {
+        if (-1 < heads[k]) ScoreCell<P, Slot>(heads[k], slots, point, typeId, exclude, best, &fr2);
     }
     return true;
 }

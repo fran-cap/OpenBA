@@ -68,6 +68,70 @@ inline float RadiusEps() { float f; const uint32_t b = kRdata_1401720b8; std::me
 // [PREFETCHCOV] Place's rect memo, one entry per character index (CharacterGrid.h).
 std::vector<CharacterGrid::RectMemo> CharacterGrid::s_rectMemo;
 
+// [LEAFWALK -- faithful perf work, exact; Component/charactergrid_nearest.h QueryLeaves]
+// Per grid, the number of linked characters whose cell is not a leaf (depth levels - 1).
+// Link / Unlink are the only writers of the cell lists, so the count is exact. An entry is
+// made by the first non-leaf Link of a grid and dropped by ~CharacterGrid; a grid without one
+// has linked none. When no entry is free the leaf walk is off for every grid for the rest of
+// the process (s_leafLost): the answer stays right, only slower. A grid freed without its
+// destructor leaves a count >= 0 that a new grid at that address adds to: the count then
+// overstates, never understates, so "zero" still means none. Main thread only, as Link is.
+namespace {
+
+struct LeafTally {
+    const CharacterGrid* grid;
+    int64_t nonLeaf;
+};
+constexpr int kLeafTallies = 8;
+LeafTally s_leafTally[kLeafTallies] = {};
+int s_leafBusy = 0;        // entries with nonLeaf != 0
+bool s_leafLost = false;   // an untracked non-leaf link happened
+
+bool IsLeafCell(int cell, int levels) {
+    if (levels < 1 || levels > 31) return false;
+    const int64_t leafBase = ((int64_t{1} << (2 * (levels - 1))) - 1) / 3;
+    return cell >= leafBase;
+}
+
+LeafTally* FindLeafTally(const CharacterGrid* g) {
+    for (int i = 0; i < kLeafTallies; ++i) {
+        if (s_leafTally[i].grid == g) return &s_leafTally[i];
+    }
+    return nullptr;
+}
+
+void LeafTallyAdd(const CharacterGrid* g, int cell, int levels, int delta) {
+    if (IsLeafCell(cell, levels)) return;
+    LeafTally* t = FindLeafTally(g);
+    if (t == nullptr && delta > 0) t = FindLeafTally(nullptr);
+    if (t == nullptr) {
+        s_leafLost = true;
+        return;
+    }
+    t->grid = g;
+    const bool wasBusy = t->nonLeaf != 0;
+    t->nonLeaf += delta;
+    const bool isBusy = t->nonLeaf != 0;
+    s_leafBusy += (isBusy ? 1 : 0) - (wasBusy ? 1 : 0);
+}
+
+}  // namespace
+
+bool CharacterGrid::AllLinkedAtLeaves() const {
+    if (s_leafLost) return false;
+    if (s_leafBusy == 0) return true;
+    const LeafTally* t = FindLeafTally(this);
+    return t == nullptr || t->nonLeaf == 0;
+}
+
+CharacterGrid::~CharacterGrid() {
+    LeafTally* t = FindLeafTally(this);
+    if (t == nullptr) return;
+    if (t->nonLeaf != 0) --s_leafBusy;
+    t->grid = nullptr;
+    t->nonLeaf = 0;
+}
+
 // ===========================================================================
 // 0x1400928c0  helper_28c0 — character bounding rectangle.
 //   param_1 = &slot (slot[0] = InternalBasePtr -> CharacterComponent)
@@ -117,6 +181,7 @@ void CharacterGrid::Link(int idx) {
         c = static_cast<uint32_t>((static_cast<int>(c) - 1) >> 2);
         occ[static_cast<int>(c)] += 1;
     }
+    LeafTallyAdd(this, slot->cell, levels, +1);   // [LEAFWALK] port-side, no retail state
 }
 
 // ===========================================================================
@@ -151,6 +216,7 @@ void CharacterGrid::Unlink(int idx) {
         c = static_cast<uint32_t>((static_cast<int>(c) - 1) >> 2);
         occ[static_cast<int>(c)] -= 1;
     }
+    LeafTallyAdd(this, slot->cell, levels, -1);   // [LEAFWALK] port-side, no retail state
 }
 
 // ===========================================================================

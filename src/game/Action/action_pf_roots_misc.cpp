@@ -415,6 +415,14 @@ void VerifyNearest(const CharacterGrid* grid, CharacterComponent* fast, const fl
 
 void CharacterGrid::QueryNearestCharacter(CharacterComponent** best, const float* point,
                            const Math::Scalar* radius, int typeId, CharacterComponent* const* exclude) const {
+    // LEAFWALK: with every character in a leaf cell, the hit leaves are found directly and
+    // scored in Query's order (charactergrid_nearest.h QueryLeaves); otherwise the walk.
+    if (AllLinkedAtLeaves() &&
+        CharGridNearest::QueryLeaves<GridPolicy>(best, point, radius->v, typeId, exclude, slots._data,
+                                                 cellHead._data, cellOccupancy._data, worldSize, levels)) {
+        if (g_verifyOn) VerifyNearest(this, *best, point, radius, typeId, exclude);
+        return;
+    }
     if (!CharGridNearest::Query<GridPolicy>(best, point, radius->v, typeId, exclude, slots._data,
                                             cellHead._data, cellOccupancy._data, worldSize, levels)) {
         QueryNearestCharacterRetail(best, point, radius, typeId, exclude);
