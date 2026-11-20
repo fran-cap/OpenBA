@@ -1961,7 +1961,19 @@ void CitizenComponent::SetWorkplace(ComponentEntity* newWorkplace) {
 //   0 = accepted
 int g_sub40f0_exit = 0, g_sub40f0_count = 0, g_sub40f0_cap = 0, g_sub40f0_attTid = 0;
 
+// PERF (NOT RETAIL): `known` is the candidate's WorkPlaceComponent when the caller already holds
+// it (FindAttendance has just walked FindComponent<WorkPlaceComponent> on the same entity: a pure
+// walk over a component array fixed at the entity's construction), else null and the body walks
+// it as retail does. Every other read, store and return is retail's, in retail's order.
+static bool CitizenComp_sub_40f0_Core(AttendanceComponent* att, CitizenComponent* citizen,
+                                      WorkPlaceComponent* known);
+
 bool CitizenComp_sub_40f0(AttendanceComponent* att, CitizenComponent* citizen) {
+    return CitizenComp_sub_40f0_Core(att, citizen, nullptr);
+}
+
+static bool CitizenComp_sub_40f0_Core(AttendanceComponent* att, CitizenComponent* citizen,
+                                      WorkPlaceComponent* known) {
     // AttendanceComponent's body (LEFT free: its header is COMP-a's).
     g_sub40f0_exit = 0;
     Description* obj = att->_description;
@@ -1974,7 +1986,8 @@ bool CitizenComp_sub_40f0(AttendanceComponent* att, CitizenComponent* citizen) {
     g_sub40f0_count  = att->queue._size;
     if (att->queue._size >= cap) { g_sub40f0_exit = 1; return false; }
 
-    WorkPlaceComponent* bldg = att->_entity->FindComponent<WorkPlaceComponent>();
+    WorkPlaceComponent* bldg =
+        known != nullptr ? known : att->_entity->FindComponent<WorkPlaceComponent>();
     if (bldg->workers._size == 0) { g_sub40f0_exit = 2; return false; }
 
     Map* mapInfo = GameUpdateLoop::_singleton->m_game;
@@ -2046,7 +2059,8 @@ AttendanceComponent* CitizenComponent::FindAttendance(AttendanceComponent* exclu
         if (wp->profession != key) continue;
         ++g_sub1930_profMatch;
 
-        if (!CitizenComp_sub_40f0(cand, this)) {
+        // PERF: 40f0 with the WorkPlaceComponent this loop just found on cand's entity.
+        if (!CitizenComp_sub_40f0_Core(cand, this, wp)) {
             ++g_sub1930_reject40f0;
             g_sub1930_lastExit  = g_sub40f0_exit;
             g_sub1930_lastCount = g_sub40f0_count;
