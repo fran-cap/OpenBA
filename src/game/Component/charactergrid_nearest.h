@@ -98,21 +98,6 @@ inline void MakeChildren(const Node& p, Node* out) {
 // `prev` a chunk at a time, prefetched, then scored in that order (skip *exclude, the type
 // filter, dsq = Dot(diff, diff), keep on a strict `dsq < *fr2`). Query and QueryLeaves both
 // score through this one body.
-// One candidate, retail's tests in retail's order.
-template <class P>
-inline void ScoreOne(typename P::Char* c, const float* point, int typeId, typename P::Char* const* exclude,
-                     typename P::Char** best, float* fr2) {
-    if (c == *exclude) return;
-    if (typeId != 0 && !P::Keep(c, typeId)) return;
-    const Math::Vector3& pos = P::Pos(c);
-    Math::Vector3 diff(pos.x - point[0], pos.y - point[1], pos.z - point[2]);
-    const float dsq = diff.Dot(diff).v;
-    if (dsq < *fr2) {
-        *best = c;
-        *fr2 = dsq;
-    }
-}
-
 template <class P, class Slot>
 inline void ScoreCell(int head, const Slot* slots, const float* point, int typeId,
                       typename P::Char* const* exclude, typename P::Char** best, float* fr2) {
@@ -130,7 +115,18 @@ inline void ScoreCell(int head, const Slot* slots, const float* point, int typeI
             for (int k = 0; k < cnt; ++k)
                 if (buf[k] != *exclude) P::PrefetchPos(buf[k]);
         }
-        for (int k = 0; k < cnt; ++k) ScoreOne<P>(buf[k], point, typeId, exclude, best, fr2);
+        for (int k = 0; k < cnt; ++k) {
+            Char* c = buf[k];
+            if (c == *exclude) continue;
+            if (typeId != 0 && !P::Keep(c, typeId)) continue;
+            const Math::Vector3& pos = P::Pos(c);
+            Math::Vector3 diff(pos.x - point[0], pos.y - point[1], pos.z - point[2]);
+            const float dsq = diff.Dot(diff).v;
+            if (dsq < *fr2) {
+                *best = c;
+                *fr2 = dsq;
+            }
+        }
     } while (ent != head);
 }
 
@@ -257,66 +253,6 @@ inline uint32_t LeafMorton(uint32_t ix, uint32_t iy) {
     return spread(ix) | (spread(iy) << 1);
 }
 
-// LEAFGATHER (perf, byte-identical): the hit leaves' lists are independent chains through
-// `prev`, so they are walked side by side (one step of each in turn: their slot loads overlap
-// instead of queueing behind one another), each into its own segment of one buffer; then
-// every candidate is prefetched and the buffer is scored front to back: cell by cell in
-// `heads` order, each list in its `prev` order, which is the order ScoreCell scores them in,
-// with ScoreCell's tests. A leaf's occupancy is its list length (Link / Unlink), which sizes
-// its segment. Returns false, having written nothing, when the lists need more than kGather
-// slots or a list runs past its occupancy; the caller then scores cell by cell.
-constexpr int kGather = 256;
-
-template <class P, class Slot>
-bool ScoreLeavesInterleaved(const int32_t* heads, const int32_t* lens, int nc, const Slot* slots,
-                            const float* point, int typeId, typename P::Char* const* exclude,
-                            typename P::Char** best, float* fr2) {
-    using Char = typename P::Char;
-    constexpr int kCells = kLeafAxis * kLeafAxis;
-    int off[kCells];
-    int cnt[kCells];
-    int ent[kCells];
-    int live[kCells];
-    int nlive = 0;
-    int total = 0;
-    for (int k = 0; k < nc; ++k) {
-        off[k] = total;
-        cnt[k] = 0;
-        if (heads[k] < 0) continue;
-        if (lens[k] < 1 || lens[k] > kGather - total) return false;
-        total += lens[k];
-        ent[k] = heads[k];
-        live[nlive++] = k;
-    }
-    Char* buf[kGather];
-    while (nlive > 0) {
-        int keep = 0;
-        for (int a = 0; a < nlive; ++a) {
-            const int k = live[a];
-            if (cnt[k] == lens[k]) return false;   // longer than its occupancy
-            buf[off[k] + cnt[k]] = P::Get(slots[ent[k]]);
-            ++cnt[k];
-            ent[k] = slots[ent[k]].prev;
-            if (ent[k] != heads[k]) live[keep++] = k;
-        }
-        nlive = keep;
-    }
-    for (int k = 0; k < nc; ++k) {
-        for (int i = 0; i < cnt[k]; ++i) P::Prefetch(buf[off[k] + i]);
-    }
-    if (typeId == 0) {
-        for (int k = 0; k < nc; ++k) {
-            for (int i = 0; i < cnt[k]; ++i) {
-                if (buf[off[k] + i] != *exclude) P::PrefetchPos(buf[off[k] + i]);
-            }
-        }
-    }
-    for (int k = 0; k < nc; ++k) {
-        for (int i = 0; i < cnt[k]; ++i) ScoreOne<P>(buf[off[k] + i], point, typeId, exclude, best, fr2);
-    }
-    return true;
-}
-
 template <class P, class Slot>
 bool QueryLeaves(typename P::Char** best, const float* point, float radius, int typeId,
                  typename P::Char* const* exclude, const Slot* slots, const int32_t* cellHead,
@@ -364,11 +300,7 @@ bool QueryLeaves(typename P::Char** best, const float* point, float radius, int 
         }
     }
     int32_t heads[kLeafAxis * kLeafAxis];
-    int32_t lens[kLeafAxis * kLeafAxis];
     for (int k = 0; k < nc; ++k) heads[k] = cellHead[cells[k]];
-    for (int k = 0; k < nc; ++k) lens[k] = cellOccupancy[cells[k]];
-    if (ScoreLeavesInterleaved<P, Slot>(heads, lens, nc, slots, point, typeId, exclude, best, &fr2))
-        return true;
     for (int k = 0; k < nc; ++k) {
         if (-1 < heads[k]) ScoreCell<P, Slot>(heads[k], slots, point, typeId, exclude, best, &fr2);
     }
