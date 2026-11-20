@@ -509,11 +509,14 @@ int EntityAnchorCell(ComponentEntity* const* entityIBP, float* param_2) {
 
     bool handled = false;
     if (interact != nullptr) {
+        // PERF (NOT RETAIL): retail asks NodeCount (0x140123070) three times here; it is a pure
+        // read of the description and the use locations, and nothing writes between the asks,
+        // so the one answer serves all three (the same count reaches Rand).
         int n = interact->NodeCount(0);   // 0x140123070
         if (0 < n) {
-            int n2 = interact->NodeCount(0);
+            int n2 = n;   // retail's second NodeCount(0)
             if (1 < n2) {
-                uint32_t n3 = static_cast<uint32_t>(interact->NodeCount(0));
+                uint32_t n3 = static_cast<uint32_t>(n);   // retail's third NodeCount(0)
                 world->m_random->Rand(static_cast<uint32_t>(n3)); // result discarded
             }
             Math::Vector3 pos;   // local_28/24/20
