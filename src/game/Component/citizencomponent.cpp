@@ -1506,7 +1506,8 @@ ComponentEntity* CitizenComponent::FindHome(int32_t* slot, bool anyHousehold) {
             uint32_t ctid = TypeCache::TypeOf(comp);   // slot 2 (PERF TYPECACHE: the same answer)
             if (ctid == tid) {
                 Component* resolved = arr[i].Get();
-                return resolved->IsDerivedFrom(tid) ? resolved : nullptr;
+                // PERF TYPECACHE: IsDerivedFrom after its own Type() matched is true (the shadow asks the real call)
+                return TypeCache::IsDerivedFromOwnType(resolved, tid) ? resolved : nullptr;
             }
         }
         return nullptr;
