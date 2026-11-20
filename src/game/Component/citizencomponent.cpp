@@ -1506,7 +1506,8 @@ ComponentEntity* CitizenComponent::FindHome(int32_t* slot, bool anyHousehold) {
             uint32_t ctid = TypeCache::TypeOf(comp);   // slot 2 (PERF TYPECACHE: the same answer)
             if (ctid == tid) {
                 Component* resolved = arr[i].Get();
-                return resolved->IsDerivedFrom(tid) ? resolved : nullptr;
+                // PERF TYPECACHE: IsDerivedFrom after its own Type() matched is true (the shadow asks the real call)
+                return TypeCache::IsDerivedFromOwnType(resolved, tid) ? resolved : nullptr;
             }
         }
         return nullptr;
@@ -1525,6 +1526,12 @@ ComponentEntity* CitizenComponent::FindHome(int32_t* slot, bool anyHousehold) {
     // runs beside it under the COMPPROF=4 shadow ("HomePrescan").
     auto prescanBails = [&](bool fast) -> bool {
         ResidenceComponent* ownStore = home->FindComponent<ResidenceComponent>();
+        // PERF (NOT RETAIL): the last home walked and its ResidenceComponent. The adults of a
+        // household share a home and sit together in the citizen list often enough; the walk is a
+        // pure read of a component array fixed at the entity's construction, so a repeat of the
+        // same home takes the answer the walk gave (the same pointer). Nothing in the loop writes.
+        ComponentEntity* lastWp = nullptr;
+        ResidenceComponent* lastStore = nullptr;
         int citCount = townMgr->citizens._size;
         for (int64_t i = 0; i < citCount; i++) {
             CitizenComponent* other = townMgr->citizens._data[i].Get();
@@ -1536,7 +1543,11 @@ ComponentEntity* CitizenComponent::FindHome(int32_t* slot, bool anyHousehold) {
                 }
                 if (fast && ownStore->residentSlots._size != 1) continue;
                 ComponentEntity* otherWp = other->home.Get();
-                ResidenceComponent* otherStore = otherWp->FindComponent<ResidenceComponent>();   // 0x140008090
+                if (otherWp != lastWp) {
+                    lastStore = otherWp->FindComponent<ResidenceComponent>();   // 0x140008090
+                    lastWp = otherWp;
+                }
+                ResidenceComponent* otherStore = lastStore;
                 if (ownStore->residentSlots._size == 1) {
                     if (1 < otherStore->residentSlots._size) {
                         return true;   // LAB_140111497
@@ -1961,7 +1972,19 @@ void CitizenComponent::SetWorkplace(ComponentEntity* newWorkplace) {
 //   0 = accepted
 int g_sub40f0_exit = 0, g_sub40f0_count = 0, g_sub40f0_cap = 0, g_sub40f0_attTid = 0;
 
+// PERF (NOT RETAIL): `known` is the candidate's WorkPlaceComponent when the caller already holds
+// it (FindAttendance has just walked FindComponent<WorkPlaceComponent> on the same entity: a pure
+// walk over a component array fixed at the entity's construction), else null and the body walks
+// it as retail does. Every other read, store and return is retail's, in retail's order.
+static bool CitizenComp_sub_40f0_Core(AttendanceComponent* att, CitizenComponent* citizen,
+                                      WorkPlaceComponent* known);
+
 bool CitizenComp_sub_40f0(AttendanceComponent* att, CitizenComponent* citizen) {
+    return CitizenComp_sub_40f0_Core(att, citizen, nullptr);
+}
+
+static bool CitizenComp_sub_40f0_Core(AttendanceComponent* att, CitizenComponent* citizen,
+                                      WorkPlaceComponent* known) {
     // AttendanceComponent's body (LEFT free: its header is COMP-a's).
     g_sub40f0_exit = 0;
     Description* obj = att->_description;
@@ -1974,7 +1997,8 @@ bool CitizenComp_sub_40f0(AttendanceComponent* att, CitizenComponent* citizen) {
     g_sub40f0_count  = att->queue._size;
     if (att->queue._size >= cap) { g_sub40f0_exit = 1; return false; }
 
-    WorkPlaceComponent* bldg = att->_entity->FindComponent<WorkPlaceComponent>();
+    WorkPlaceComponent* bldg =
+        known != nullptr ? known : att->_entity->FindComponent<WorkPlaceComponent>();
     if (bldg->workers._size == 0) { g_sub40f0_exit = 2; return false; }
 
     Map* mapInfo = GameUpdateLoop::_singleton->m_game;
@@ -2046,7 +2070,8 @@ AttendanceComponent* CitizenComponent::FindAttendance(AttendanceComponent* exclu
         if (wp->profession != key) continue;
         ++g_sub1930_profMatch;
 
-        if (!CitizenComp_sub_40f0(cand, this)) {
+        // PERF: 40f0 with the WorkPlaceComponent this loop just found on cand's entity.
+        if (!CitizenComp_sub_40f0_Core(cand, this, wp)) {
             ++g_sub1930_reject40f0;
             g_sub1930_lastExit  = g_sub40f0_exit;
             g_sub1930_lastCount = g_sub40f0_count;

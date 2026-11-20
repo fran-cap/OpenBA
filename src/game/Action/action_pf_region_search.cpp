@@ -113,6 +113,76 @@ struct RegionOpenBuckets {
 
 RegionOpenBuckets s_regionOpen;
 
+// NOT RETAIL (faithful perf): each region's edges as the search reads them, in one contiguous
+// pool: the neighbour id, the edge length int(sqrtf(dy*dy + dx*dx)) between the two centroids
+// (the very expression FindPath evaluates per edge), and the neighbour's centroid (the heuristic's
+// input). Negative neighbour ids are left out: the search skips them with no other effect.
+// The values depend on the centroids and neighbour lists only, and every write to those happens
+// inside RegionGraph::Flush 0x1400a8a90, which ends in NoteGraphChanged (region_search.h); so a
+// region's slice stays valid until the graph epoch moves (or another graph, a moved or resized
+// region array asks). A slice is built the first time the search expands its region.
+struct RegionEdge {
+    int32_t vertex;   // the neighbour id (>= 0)
+    int32_t length;   // int(sqrtf(dy*dy + dx*dx)), u's centroid minus the neighbour's
+    int32_t x;        // the neighbour's centroid
+    int32_t y;
+};
+
+uint64_t s_graphEpoch = 0;   // bumped by NoteGraphChanged
+
+struct RegionAdjacency {
+    const void*       graph = nullptr;
+    const RegionNode* data = nullptr;
+    int32_t           size = -1;
+    uint64_t          epoch = ~0ull;
+    std::vector<uint8_t>    built;   // per region: its slice is in `edges`
+    std::vector<int32_t>    first;   // per region: its slice's start in `edges`
+    std::vector<int32_t>    count;   // per region: its slice's length
+    std::vector<RegionEdge> edges;
+
+    void Sync(const void* g, const RegionNode* d, int32_t n) {
+        if (g == graph && d == data && n == size && epoch == s_graphEpoch) {
+            return;
+        }
+        graph = g;
+        data = d;
+        size = n;
+        epoch = s_graphEpoch;
+        const size_t slots = n > 0 ? static_cast<size_t>(n) : 0;
+        built.assign(slots, 0);
+        first.resize(slots);
+        count.resize(slots);
+        edges.clear();
+    }
+
+    // Region u's slice. The pointer holds until the next call (the pool may grow then).
+    const RegionEdge* Edges(int32_t u, int32_t* n) {
+        if (built[u] == 0) {
+            const RegionNode& from = data[u];
+            first[u] = static_cast<int32_t>(edges.size());
+            const int32_t* nb = from.neighbours._data;
+            const int32_t total = from.neighbours._size;
+            for (int32_t k = 0; k < total; ++k) {
+                const int32_t v = nb[k];
+                if (v < 0) {
+                    continue;
+                }
+                const RegionNode& to = data[v];
+                const int dy = from.y - to.y;
+                const int dx = from.x - to.x;
+                const float d = __builtin_sqrtf(static_cast<float>(dy * dy + dx * dx));   // 0x140132010, inline
+                edges.push_back(RegionEdge{v, static_cast<int>(d), to.x, to.y});
+            }
+            count[u] = static_cast<int32_t>(edges.size()) - first[u];
+            built[u] = 1;
+        }
+        *n = count[u];
+        return edges.data() + first[u];
+    }
+};
+
+RegionAdjacency s_regionAdj;
+
 }  // namespace
 
 namespace RegionSearch {
@@ -141,6 +211,8 @@ uint64_t RegionGraph::FindPath(int start, int goal) {
     int iVar8 = regions14[start].y - regions14[lVar17].y;
     int iVar12 = regions14[start].x - regions14[lVar17].x;
     float fVar20 = __builtin_sqrtf(static_cast<float>(iVar8 * iVar8 + iVar12 * iVar12));   // PERF: 0x140132010 is our sqrtf; bit-identical inline
+    s_regionAdj.Sync(this, regions.data, regions.size);   // NOT RETAIL: the edge pool's validity
+    const RegionNode& goalNode = regions14[lVar17];
 
     // PathSearch::Relax 0x14001d320, the open-set half replaced: the vertex node's stores
     // in retail's order, then the push (retail: delete the old entry, insert the new key).
@@ -174,27 +246,28 @@ uint64_t RegionGraph::FindPath(int start, int goal) {
         PathSearchNode* cur = &nodes[lVar14];
         cur->openStamp = cur->openStamp + -1;
         cur->closedStamp = generation;
-        const RegionNode* lVar4 = regions.data;
-        const int64_t uVar11 = static_cast<int64_t>(lVar4[lVar14].neighbours._size);
-        const int32_t* nb = lVar4[lVar14].neighbours._data;
-        for (int64_t lVar15 = 0; lVar15 < uVar11; ++lVar15) {
-            const int iVar12n = nb[lVar15];
-            const int64_t lVar19 = static_cast<int64_t>(iVar12n);
-            if (iVar12n < 0) {
-                continue;
-            }
-            int iVar9 = lVar4[lVar14].y - lVar4[lVar19].y;
-            int iVar13 = lVar4[lVar14].x - lVar4[lVar19].x;
-            fVar20 = __builtin_sqrtf(static_cast<float>(iVar9 * iVar9 + iVar13 * iVar13));   // PERF: inline, bit-identical
-            iVar9 = static_cast<int>(fVar20) + nodes[lVar14].gCost;
-            PathSearchNode* n = &nodes[lVar19];
+        // PERF (NOT RETAIL): the region's edges from the adjacency pool (s_regionAdj above): the same
+        // neighbours in the same order, negative ids left out, each with the edge length retail
+        // computes here (`int(sqrtf(dy*dy + dx*dx))`, u's centroid minus the neighbour's) and the
+        // neighbour's centroid. cur->gCost is read once: no relaxation in this loop can write it (a
+        // self edge has length >= 0 and cur is closed this generation, so `gCost <= t` skips it).
+        const int32_t goalX = goalNode.x;
+        const int32_t goalY = goalNode.y;
+        const int curG = cur->gCost;
+        int32_t uVar11 = 0;
+        const RegionEdge* nb = s_regionAdj.Edges(iVar8, &uVar11);
+        for (int32_t lVar15 = 0; lVar15 < uVar11; ++lVar15) {
+            const RegionEdge& e = nb[lVar15];
+            const int iVar12n = e.vertex;
+            int iVar9 = e.length + curG;
+            PathSearchNode* n = &nodes[iVar12n];
             if (n->closedStamp == generation) {
                 if (n->gCost <= iVar9) continue;
                 n->closedStamp = n->closedStamp + -1;
             }
             if ((n->openStamp != generation) || (iVar9 < n->gCost)) {
-                iVar13 = lVar4[lVar19].y - lVar4[lVar17].y;
-                const int iVar16 = lVar4[lVar19].x - lVar4[lVar17].x;
+                const int iVar13 = e.y - goalY;
+                const int iVar16 = e.x - goalX;
                 fVar20 = __builtin_sqrtf(static_cast<float>(iVar13 * iVar13 + iVar16 * iVar16));   // 0x140132010, inline
                 relax(iVar12n, iVar8, iVar9, static_cast<int>(fVar20) + iVar9);
             }
@@ -271,6 +344,7 @@ namespace RegionSearch {
 const MemoStats& Stats() { return s_memo.stats; }
 
 void NoteGraphChanged() {
+    ++s_graphEpoch;   // FindPath's edge pool (s_regionAdj) is rebuilt slice by slice from here on
     ++s_memo.stats.graphChanges;
     s_memo.Drop();
 }
