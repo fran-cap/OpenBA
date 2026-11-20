@@ -168,6 +168,19 @@ struct Production {
         rg->regions.data = regions;
         rg->regions.size = n;
         rg->regions.capacity = n;
+        // A new graph is a graph change, as the game's every build ends in Flush 0x1400a8a90
+        // (calloc can hand back the last graph's addresses: FindPath's edge pool keys on the epoch).
+        RegionSearch::NoteGraphChanged();
+    }
+    // The game's Flush after it rewrote centroids / neighbour lists in place.
+    void Refresh(Graph& g) {
+        for (int i = 0; i < n; ++i) {
+            regions[i].x = g.x[i];
+            regions[i].y = g.y[i];
+            regions[i].neighbours._data = g.adj[i].empty() ? nullptr : g.adj[i].data();
+            regions[i].neighbours._size = static_cast<int32_t>(g.adj[i].size());
+        }
+        RegionSearch::NoteGraphChanged();
     }
     ~Production() {
         std::free(nodes);
@@ -187,13 +200,22 @@ struct Tally {
 };
 
 // One graph, `queries` queries on one persistent state; adds the mismatches to t.
+void RunQueries(Graph& g, Production& prod, RefSearch& ref, Rng& r, int queries, Tally& t, const char* label);
+
 void RunGraph(Graph& g, Rng& r, int queries, Tally& t, const char* label) {
     Production prod(g);
     RefSearch ref;
     ref.g = &g;
     ref.nodes.assign(g.Size(), RefSearch::Node{});
-    std::vector<int32_t> pRef(0x2000), pProd(0x2000);
     ++t.graphs;
+    RunQueries(g, prod, ref, r, queries, t, label);
+}
+
+void RunQueries(Graph& g, Production& prod, RefSearch& ref, Rng& r, int queries, Tally& t, const char* label) {
+    std::vector<int32_t> pRef(0x2000), pProd(0x2000);
+    struct {
+        long long tiePops, rekeys, reopens, fDrops;
+    } base = {ref.tiePops, ref.rekeys, ref.reopens, ref.fDrops};
     for (int q = 0; q < queries; ++q) {
         const int start = r.Below(g.Size());
         const int goal = r.Chance(5) ? start : r.Below(g.Size());
@@ -231,10 +253,10 @@ void RunGraph(Graph& g, Rng& r, int queries, Tally& t, const char* label) {
             ++t.mismatches;
         }
     }
-    t.tiePops += ref.tiePops;
-    t.rekeys += ref.rekeys;
-    t.reopens += ref.reopens;
-    t.fDrops += ref.fDrops;
+    t.tiePops += ref.tiePops - base.tiePops;
+    t.rekeys += ref.rekeys - base.rekeys;
+    t.reopens += ref.reopens - base.reopens;
+    t.fDrops += ref.fDrops - base.fDrops;
 }
 
 void AddEdge(Graph& g, int a, int b, bool both) {
@@ -375,6 +397,53 @@ UNIT_TEST(region_search_long_corridor_and_clamp) {
     std::printf("  corridor: 9000 regions, 5 queries, %lld mismatches, first path clamped to %d, "
                 "scratch %lld bytes\n", bad, 0x2000, static_cast<long long>(RegionSearch::ScratchBytes()));
     CHECK_EQ(bad, 0LL);
+}
+
+// FindPath's edge pool (the per-region edge lengths and neighbour centroids it keeps until the
+// graph changes): one record whose graph is edited IN PLACE between query batches (centroids
+// moved, edges added, removed and redirected, -1 entries), each edit followed by the Flush's
+// NoteGraphChanged. Every batch must match the reference reading the edited graph.
+UNIT_TEST(region_search_edge_pool_follows_graph_changes) {
+    Rng r(0x5EED0004);
+    Tally t;
+    for (int i = 0; i < 60; ++i) {
+        Graph g = r.Chance(50) ? MakeBlockGraph(r, 2 + r.Below(10))
+                               : MakeWildGraph(r, 2 + r.Below(120), 6 + r.Below(300));
+        Production prod(g);
+        RefSearch ref;
+        ref.g = &g;
+        ref.nodes.assign(g.Size(), RefSearch::Node{});
+        ++t.graphs;
+        for (int batch = 0; batch < 6; ++batch) {
+            RunQueries(g, prod, ref, r, 8, t, "edited");
+            const int edits = 1 + r.Below(1 + g.Size() / 4);
+            for (int e = 0; e < edits; ++e) {
+                const int a = r.Below(g.Size());
+                switch (r.Below(4)) {
+                    case 0:
+                        g.x[a] = r.Below(400);
+                        g.y[a] = r.Below(400);
+                        break;
+                    case 1:
+                        g.adj[a].push_back(r.Below(g.Size()));
+                        break;
+                    case 2:
+                        if (!g.adj[a].empty()) g.adj[a].pop_back();
+                        break;
+                    default:
+                        if (!g.adj[a].empty()) {
+                            const int k = r.Below(static_cast<int>(g.adj[a].size()));
+                            g.adj[a][k] = r.Chance(10) ? -1 : r.Below(g.Size());
+                        }
+                        break;
+                }
+            }
+            prod.Refresh(g);
+        }
+    }
+    Report("edited graphs", t);
+    CHECK_EQ(t.mismatches, 0LL);
+    CHECK(t.found > 500);
 }
 
 // HITCH_PAIRSPREAD: the PathLength memo (region_search.h). Stores and finds by
