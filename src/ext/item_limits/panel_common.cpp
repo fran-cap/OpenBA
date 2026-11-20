@@ -56,6 +56,10 @@ void ShowLimit(Row& row, bool has, int32_t value) {
 
 }  // namespace
 
+const void* AsItem(const ComponentDescription* item) {
+    return item != nullptr && item->FindDescription<RawMaterialDescription>() != nullptr ? item : nullptr;
+}
+
 const UI::Dialog* WindowDialog() {
     const ::Object::External* ext =
         ::Object::ExternalFactory::_singleton->FindOrLoad(System::Filename(kWindowRsc));

@@ -72,11 +72,6 @@ PastureComponent* PastureOf(const PastureUI* panel) {
     return static_cast<ComponentEntity*>(source)->FindComponent<PastureComponent>();
 }
 
-// An item template, or null when `item` is not one (no RawMaterialDescription).
-const void* AsItem(const ComponentDescription* item) {
-    return item != nullptr && item->FindDescription<RawMaterialDescription>() != nullptr ? item : nullptr;
-}
-
 // What a livestock gives: its slaughter yield, then its byproduct, each item once (FirstOfEach).
 std::vector<const ComponentDescription*> ProductsOf(const ComponentDescription* livestock) {
     std::vector<const ComponentDescription*> out;
@@ -85,12 +80,12 @@ std::vector<const ComponentDescription*> ProductsOf(const ComponentDescription* 
     const AnimalDescription* animal = livestock->FindDescription<AnimalDescription>();
     if (animal != nullptr) {
         for (int32_t i = 0; i < animal->_rawMaterialCount; ++i) {
-            items.push_back(AsItem(animal->_rawMaterials[i]));
+            items.push_back(PanelRows::AsItem(animal->_rawMaterials[i]));
         }
     }
     const LivestockDescription* herd = livestock->FindDescription<LivestockDescription>();
     if (herd != nullptr) {
-        items.push_back(AsItem(herd->_byproduct));
+        items.push_back(PanelRows::AsItem(herd->_byproduct));
     }
     for (int32_t i : FirstOfEach(items, kMaxRows)) {
         out.push_back(static_cast<const ComponentDescription*>(items[static_cast<size_t>(i)]));

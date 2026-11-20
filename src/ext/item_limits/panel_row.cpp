@@ -155,11 +155,6 @@ void PointAtEntry(const Entry& e, PanelRows::Row& row) {
     PanelRows::PointAt(row, e.product, e.label, PanelRows::CategoryLimit(e.category));
 }
 
-// An item template, or null when `item` is not one (no RawMaterialDescription).
-const void* AsItem(const ComponentDescription* item) {
-    return item != nullptr && item->FindDescription<RawMaterialDescription>() != nullptr ? item : nullptr;
-}
-
 // The recipes the rows show: the combo's one, else the first recipe of each product (a product two recipes
 // make from different inputs gets one row: the limit is the item's).
 std::vector<int> RecipesToShow(const ConsumeProduceComponent* component, const ConsumeProduceDescription* desc,
@@ -172,7 +167,7 @@ std::vector<int> RecipesToShow(const ConsumeProduceComponent* component, const C
     }
     std::vector<const void*> products;
     for (int i = 0; i < desc->_recipeCount; ++i) {
-        products.push_back(AsItem(desc->_recipes[i].product));
+        products.push_back(PanelRows::AsItem(desc->_recipes[i].product));
     }
     for (int32_t i : FirstOfEach(products, kMaxRows)) {
         out.push_back(static_cast<int>(i));
@@ -207,7 +202,7 @@ std::vector<Entry> GathererEntries(Object::Base* source) {
     if (desc == nullptr) return out;
     std::vector<const void*> items;
     for (int32_t i = 0; i < desc->_herbCount; ++i) {
-        items.push_back(AsItem(HerbItem(desc->_herbs[i])));
+        items.push_back(PanelRows::AsItem(HerbItem(desc->_herbs[i])));
     }
     for (int32_t i : FirstOfEach(items, items.size())) {
         const ComponentDescription* item = static_cast<const ComponentDescription*>(items[static_cast<size_t>(i)]);

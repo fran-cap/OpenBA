@@ -38,6 +38,8 @@ struct Row {
     std::string path;                // its RawMaterialDescription's template path
 };
 
+// An item template, or null when `item` is not one (no RawMaterialDescription).
+const void* AsItem(const ComponentDescription* item);
 // The window our descriptions are instanced against (ExtensionsWindow.rsc); null when it did not load.
 const UI::Dialog* WindowDialog();
 // One of our element descriptions by its rsc path; null when it did not load.
