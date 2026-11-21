@@ -580,7 +580,8 @@ target_link_options(OpenBA PRIVATE ${FLAVOUR_FLAGS} ${PGO_LINK_FLAGS} ${LTO_FLAG
 # SDL3's own system libraries still bring it.
 # gdi32: the run-time font rasteriser (src/platform/win/font_raster_win.cpp, KITFREE RSCFONT).
 # comdlg32: GetOpenFileNameW (ext.custom_maps: the New Game dialog's Load custom map button).
-target_link_libraries(OpenBA PRIVATE user32 dbghelp shell32 gdi32 comdlg32)
+# winhttp: Platform::Net::HttpsGet (src/platform/win/net_win.cpp, ext.update_check), a system DLL.
+target_link_libraries(OpenBA PRIVATE user32 dbghelp shell32 gdi32 comdlg32 winhttp)
 # SDL3 static: the target carries its include directory and its system libraries
 target_link_libraries(OpenBA PRIVATE SDL3::SDL3-static)
 # The backend's own link libraries (dx11: none; vulkan: dxbc_spv, the loader is opened by SDL).

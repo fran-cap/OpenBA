@@ -46,7 +46,7 @@ supported on this platform` line and does nothing.
 
 | Platform | Twin | Body |
 |---|---|---|
-| Windows | `src/platform/win/net_win.cpp` | not supported yet |
+| Windows | `src/platform/win/net_win.cpp` | WinHTTP (`winhttp`, a system DLL), async session: the caller waits on one event against the deadline and closes the request when it passes; Schannel and the system trust store, nothing ignored; the system's automatic proxy (8.1+), else the default proxy; cookies and authentication off |
 | Linux | `src/platform/posix/net_posix.cpp` | not supported yet |
 | macOS | the posix twin, or `src/platform/darwin/net_darwin.cpp` | not supported yet |
 | Android | the posix twin, or `src/platform/android/net_android.cpp` | not supported yet |
