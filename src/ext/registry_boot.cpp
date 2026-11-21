@@ -40,6 +40,7 @@
 #include "ext/visit_replay/visit_replay.h"         // ext.visit_replay: the ExternalFactory::_extVisitReplay seam, at boot
 #include "ext/find_fastpath/find_fastpath.h"       // ext.find_fastpath: the ExternalFactory::_extFindFast seam, at boot
 #include "ext/heap_slack/heap_slack.h"             // ext.heap_slack: the MemoryAllocator::_extCommitSeam seam, at boot
+#include "ext/update_check/update_check.h"         // ext.update_check: the day's release request, at boot
 #include "ext/outline_with_panel/outline_with_panel.h"   // fix.outline_with_panel: the EdgeMeshInstance::_extHoldDraw seam
 #include "ext/save_failure_notice/save_failure_notice.h"   // fix.save_failure_notice: the save job / SaveLoad seams
 #include "ext/resources/text_provider.h"        // the Extensions dialog / Enhanced tab resources from the exe's text (KITFREE)
@@ -354,6 +355,9 @@ void InitFromSettings() {
     // (object/resource_ext.h), once, before the boot's first load. Off under the faithful profile.
     Ext::VisitReplay::Sync();
     Ext::FindFastpath::Sync();
+    // ext.update_check (class A, next start): the cached answer read, and today's request started on
+    // its worker thread. Off under the faithful profile (the row is off): no thread, no connection.
+    Ext::UpdateCheck::Boot();
     // The extension resources built in the exe (docs/extensions/KITFREE.md): the
     // providers register here, never under a COMMAND-LINE faithful profile
     // (`/profile:faithful`: the gate run, no Extensions button, no Enhanced tab,

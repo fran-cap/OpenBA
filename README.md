@@ -52,6 +52,9 @@ retail: `1.0.7 17Se10` OpenBA: `OpenBA v1.0.0 2424a9093 2026-10-19`:
   (`project(banished_reimpl VERSION X.Y.Z ...)`), compiled in as `OPENBA_VERSION`.     
   Releases are tagged `v<version>` in git (ie `v1.0.0`) and the zip on the releases page matches the tag.    
 - **`2424a9093 2026-10-19`** is the git commit the exe was built from and the build date (UTC).  
+- **` - vX.Y.Z available`** follows when a newer release is out: once a day at most, the game asks GitHub's  
+  releases page for the newest version. It is the only connection the game opens; the "New release notice"  
+  row in Extensions turns it off.  
 
 A release bumps the CMake `VERSION`, adds its section to `CHANGELOG.md` and pushes the tag `v<version>`;   
 the Release workflow (`.github/workflows/release.yml`) then builds the Windows zip, the Linux tarball and the   

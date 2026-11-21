@@ -205,6 +205,7 @@ struct Extensions {
     bool staggered_passes = false; // class A, live: src/ext/staggered_passes/, seams Graphics::SunLight::_extStaggerEvery + Graphics::ReflectionImageBuffer::_extStaggerEvery (graphics/stagger_hold.h; issue #253)
     bool fullscreen_mode = true; // class A, next video reset: src/ext/fullscreen_mode/, the Options Video tab's Fullscreen cell + the DX11 swap chain's seams (src/render/dx11/devicedata.cpp)
     bool render_backend = false; // class A, next video reset: src/ext/render_backend/, the Options Video tab's Renderer combo + the seam Video::Device::_extInterfaceRetry; the dual Windows exe only (BANISHED_RENDER_BACKEND=dx11+vulkan)
+    bool update_check = false; // class A, next start: src/ext/update_check/, the main menu's build line + Platform::Net::HttpsGet (docs/extensions/handins/UPDATECHECK.md)
 #ifdef BANISHED_UNIT_TEST
     // tests/unit/ext_registry_test.cpp only: one extension per class, so the
     // lock semantics are tested before a real extension exists. Not in the exe.
