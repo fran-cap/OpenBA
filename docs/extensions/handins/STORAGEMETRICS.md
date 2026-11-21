@@ -9,7 +9,7 @@ stockpiles, storage barns and trading posts. One class A row, **off by default**
 With the row on, the Town Hall window (`Dialog/TownHall.rsc`) gets one more tab after the game's own, "Storage".
 It lists, top to bottom:
 
-| Line | Buildings | Used / capacity | Full |
+| Line | Buildings | Used / Capacity Weight | Full |
 | --- | --- | --- | --- |
 | Stockpiles | how many stand finished | e.g. `12,400 / 15,000` | e.g. `82.7%` |
 | Storage barns | | | |
