@@ -49,7 +49,7 @@ supported on this platform` line and does nothing.
 | Windows | `src/platform/win/net_win.cpp` | not supported yet |
 | Linux | `src/platform/posix/net_posix.cpp` | the system's libcurl, opened at run time (`libcurl.so.4`, then `libcurl-gnutls.so.4`) with its TLS library and CA bundle; not shipped, no link-time dependency, no curl headers at build time. Without it, not supported |
 | macOS | the posix twin (no darwin twin) | the same file: the OS's own `/usr/lib/libcurl.4.dylib` (Apple's build, LibreSSL with `/etc/ssl/cert.pem`) |
-| Android | the posix twin, or `src/platform/android/net_android.cpp` | not supported yet |
+| Android | `src/platform/android/net_android.cpp` | JNI to `org.openba.game.NetGet.get` (found through the activity's class loader), `HttpsURLConnection` on its own daemon thread, the wait bounded by the timeout; the manifest gains `android.permission.INTERNET` |
 
 ## 5. Tests
 `tests/unit/ext_update_check_test.cpp`: a tag packed and printed, the tag found in an answer (compact,
