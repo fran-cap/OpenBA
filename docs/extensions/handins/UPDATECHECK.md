@@ -49,7 +49,7 @@ supported on this platform` line and does nothing.
 | Windows | `src/platform/win/net_win.cpp` | not supported yet |
 | Linux | `src/platform/posix/net_posix.cpp` | not supported yet |
 | macOS | the posix twin, or `src/platform/darwin/net_darwin.cpp` | not supported yet |
-| Android | the posix twin, or `src/platform/android/net_android.cpp` | not supported yet |
+| Android | `src/platform/android/net_android.cpp` | JNI to `org.openba.game.NetGet.get` (found through the activity's class loader), `HttpsURLConnection` on its own daemon thread, the wait bounded by the timeout; the manifest gains `android.permission.INTERNET` |
 
 ## 5. Tests
 `tests/unit/ext_update_check_test.cpp`: a tag packed and printed, the tag found in an answer (compact,
