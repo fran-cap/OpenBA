@@ -1726,3 +1726,27 @@ noise (`gameupdateloop_load.cpp` step 15: rebuilt from a Random seeded with the 
 `src/ext/stable_order/weather_noise.h`). With the row on the
 sim's random sequence is therefore not retail's even on one machine. Code
 `src/ext/stable_order/`. Hand-in `docs/extensions/handins/STABLEORDER.md`.
+
+## 37. The camera slides up and to the left while the game window has no focus
+
+**Symptom.** With Edge Scroll on, the view is found moved up and to the left after the player looked at
+another window, or after clicking out of the game and back. In a borderless window that keeps running
+when another window is clicked, it keeps sliding until the map's corner. Reported by a player
+(2026-11-18): the view "sometimes moved a bit to the upper left", never while actively playing.
+
+**Retail mechanism.** `Input::Device::PlatformGetMouseState` (`0x1800e1e10`) reads the DirectInput
+mouse, which is acquired `DISCL_FOREGROUND`: while the game window is not the foreground window the
+read fails, the function answers true, and the caller's zeroed scratch record becomes the mouse state,
+the absolute position included (the `GetCursorPos` arm is behind the failed read). The cursor is then
+at (0, 0). `PlayerToolManager::UpdateCamera` (`0x1400feec0`) tests the position for edge scrolling with
+no test of the window: `x < 4` pans left and `y < 4` pans up. `PlayerToolManager::Update`
+(`0x1401026a0`) skips the camera while the application is paused (`WM_KILLFOCUS` clears
+`Application +0x11`), so the pan runs on the frames where the window is not foreground and the
+application is not paused: around a focus change, and for as long as the two disagree. The retail
+ordering of the two around a focus change was not timed; the port's poller and pause are retail's.
+
+**Fix.** `fix.edge_scroll_focus` (default ON, camera only, live; nothing is saved; off under the
+faithful profile). The edge-scroll arm of `UpdateCamera` is skipped on a frame where the game window is
+not the foreground window (`Platform::Input::IsForeground`, the mouse poller's own test); the keys and
+the wheel read zero on such a frame as before. Code `src/ext/edge_scroll_focus/`. Unit tests:
+`ext_edge_scroll_focus_*` (`tests/unit/ext_edge_scroll_focus_test.cpp`).

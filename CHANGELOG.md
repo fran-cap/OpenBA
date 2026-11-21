@@ -32,6 +32,7 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 9. A tall hill across a lake or river no longer disappears from the water's reflection when the camera is close to the ground (retail bug, `fix.reflection_hills`).
 10. Wider zoom: fully zoomed out at a flat camera angle, distant ground is no longer cut off behind nearer mountains, in the view and in the water's reflection (`ext.better_camera`).
 11. Citizens, animals and buildings act in a fixed order instead of one set by memory layout, and the sounds no longer draw from the town's random numbers, so the same start or save plays out the same way every time (retail bug, `fix.stable_order`). Off by default: the town only repeats fully once pathfinding results are timed the same way too.
+12. The camera no longer slides up and to the left while another window has the focus, or for a moment when switching away from the game and back, with Edge Scroll on (retail bug, `fix.edge_scroll_focus`).
 
 **Changes:**
 1. Faster job search is no longer an extension: it is always on, in every profile. Its row "Faster job search" (`ext.work_cand`) leaves the Extensions dialog; saves made with it load as before, with no notice, and an old `ext.work_cand` line in settings.cfg is ignored.

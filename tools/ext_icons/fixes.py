@@ -594,7 +594,26 @@ def draw_stable_order(px):
     ])
 
 
+def draw_edge_scroll_focus(px):
+    # a window frame with a dot held at its centre, a small arrow toward the top left corner crossed out
+    _paint(px, [
+        "############",
+        "#++........#",
+        "#+.+.......#",
+        "#+..+......#",
+        "#....+.....#",
+        "#.....##...#",
+        "#.....##...#",
+        "#..........#",
+        "#..........#",
+        "#..........#",
+        "#..........#",
+        "############",
+    ])
+
+
 ICONS = {
+    "edge_scroll_focus": ("fix", draw_edge_scroll_focus),   # a view held in its frame, an arrow to the top left corner
     "stable_order": ("fix", draw_stable_order),     # three figures, numbered 1 2 3
     "reflection_hills": ("fix", draw_reflection_hills),   # a hill and its reflection under a water line
     "icon_slide": ("fix", draw_slide),              # "!" marker over a ground line
