@@ -1014,6 +1014,17 @@ const Entry kEntries[] = {
       "The Video tab's Renderer lists DirectX 11 and Vulkan; the game restarts its graphics on the one you "
       "pick. If Vulkan cannot start on this computer, DirectX 11 is used.",
       0, [](State& s) -> bool& { return s.ext.render_backend; } },
+    // UPDATECHECK (src/ext/update_check/update_check.h, docs/extensions/handins/UPDATECHECK.md): once a day
+    // at most, a worker thread asks the project's releases page for the newest release tag
+    // (Platform::Net::HttpsGet), and the main menu's build line says so when it is newer than this exe.
+    // Class A: the menu's text only. ON by default (maintainer ruling 2026-11-21): it is how a player
+    // learns of a release. It is the game's only network call; off, the game opens no connection.
+    { "update_check", Tier::Extension, Class::A, true,
+      "New release notice",
+      "Once a day, asks the OpenBA releases page on GitHub for the newest version and says so on the "
+      "main menu's version line when it is newer than yours. Nothing is sent but that request. Takes "
+      "effect at the next start.",
+      0, [](State& s) -> bool& { return s.ext.update_check; } },
 
 #ifdef BANISHED_UNIT_TEST
     // The unit tests' three classes (registry.h). Not compiled into the exe.

@@ -402,6 +402,12 @@ the owner; nothing of it is in the repository.
 The manifest files the app as a game (`android:appCategory="game"`, and the older `android:isGame`), which is
 what the system's game list, Game Mode and the vendors' game launchers read.
 
+The permissions are `VIBRATE` and `INTERNET`, both normal permissions (granted at install, no prompt). `INTERNET`
+is for `ext.update_check` only: once a day at most one HTTPS GET of the project's newest release tag
+(`src/platform/android/net_android.cpp`, `NetGet.java`; docs/extensions/handins/UPDATECHECK.md). The answer is
+a text line on the main menu; nothing is downloaded or installed. Without the permission the request fails
+with one `[Net]` line in `standalone_error.log` and the menu shows no notice.
+
 A local check of the same commands with the debug key (`adb install` replaces a debug install: same key):
 ```bash
 tools/android.sh build release --jobs 8

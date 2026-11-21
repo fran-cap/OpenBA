@@ -28,6 +28,7 @@
 #include "Dialog/ExtensionsDialog.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/EXTSCAFFOLD.md): the Extensions button
 #include "ext/phone_menu/phone_menu.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/PHONEMENU.md): the menu safe area
 #include "platform/common/platform_app.h"   // EXT SEAM (NOT RETAIL, issue #96): Platform::App::OpenGameFilesScreen
+#include "ext/update_check/update_check.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/UPDATECHECK.md): the build line's notice
 #include "ext/registry.h"                // Ext::Fix().mods_persist
 #include "ext/mods_persist/mods_in_game_warning.h"   // fix.mods_persist: the in-game Mods warning
 #include "Dialog/NewGameDialog.h"
@@ -540,6 +541,9 @@ void MainMenuDialog::OnOpened() {
         // CMake project VERSION; the commit and date come from the header the
         // openba-build-info target regenerates on every build.
         buildIdStr += "  OpenBA v" OPENBA_VERSION " " OPENBA_GIT_HASH " " OPENBA_BUILD_DATE;
+        // EXT SEAM (NOT RETAIL, docs/extensions/handins/UPDATECHECK.md): ext.update_check's
+        // " - v1.0.5 available" when a newer release is known; "" with the row off (the gate).
+        buildIdStr += Ext::UpdateCheck::MenuNotice().c_str();
         printf("[BuildId] build text \"%s\"\n", buildIdStr._data);
         textBuildNotice->SetParameter(1, buildIdStr);
     }
