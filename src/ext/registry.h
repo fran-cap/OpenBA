@@ -92,6 +92,7 @@ struct Fixes {
     bool reflection_hills = true;   // docs/retail_bugs.md §35, src/ext/reflection_hills/ (seam WorldGeometry::AddDrawItems' chunk box): render only; a tall hill across the water stays in the reflection at a low camera
     bool priority_after_load = true;  // docs/retail_bugs.md §34, src/ext/priority_after_load/ (seam WorkScheduler::Serialize, goals_serialize.cpp): sim-visible; a load rebuilds the queue-order tree, so Increase Priority ranks ahead of the priorities given before the save
     bool shadow_zoom_pulse = true;   // docs/retail_bugs.md §33, SunLight::_extSteadySunBox (sun_camera.cpp): render only, live; the sun box's size steps on a ladder, so a zoom does not move the shadow grid every frame
+    bool edge_scroll_focus = true;   // docs/retail_bugs.md §37, src/ext/edge_scroll_focus/: UI only, live; the camera's edge scroll is skipped while the game window is not the foreground window
     bool stable_order      = false;  // default OFF (ruled 2026-11-19); docs/retail_bugs.md §36, src/ext/stable_order/ (docs/extensions/handins/STABLEORDER.md): sim-visible, the entity update walk and the sim's address-decided choices go by entity id, not by heap address
 };
 

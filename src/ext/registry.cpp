@@ -357,6 +357,14 @@ const Entry kEntries[] = {
       "Citizens, animals and buildings act in a fixed order, not by where they sit in memory, so "
       "the same start or the same save does not play out differently for that reason.",
       0, [](State& s) -> bool& { return s.fix.stable_order; } },
+    // EDGESCROLLFOCUS (docs/retail_bugs.md section 37): while the game window is not the foreground window
+    // the mouse poller reports the cursor at 0, 0, which the camera's edge scroll reads as the left and top
+    // edges. With the row on the edge-scroll arm is skipped on such a frame. Camera only; nothing saved.
+    { "edge_scroll_focus", Tier::Fix, Class::None, true,
+      "No camera drift without focus",
+      "The camera no longer slides up and to the left while another window has the focus, or for a "
+      "moment when you switch away from the game and back.",
+      0, [](State& s) -> bool& { return s.fix.edge_scroll_focus; } },
 
     // Extensions. Each one adds a field to Ext::Extensions and a row here:
     // Tier::Extension, its Class, default true for class A / false for B or C, and for class B or C its

@@ -51,6 +51,7 @@
 #include "Entity/ComponentEntity.h"   // B4 S4 RT2: InternalPtr<ComponentEntity>::Get() needs the class complete
 #include "Player/Tool.h"            // UpdateHotkeys: the current tool's OnKey / OnCancel
 #include "ext/registry.h"             // EXT SEAM (NOT RETAIL, docs/extensions/handins/EYECAM.md, BETTERCAM.md): Ext::Ext()
+#include "ext/edge_scroll_focus/edge_scroll_focus.h"   // EXT SEAM (NOT RETAIL, docs/retail_bugs.md §37): fix.edge_scroll_focus
 #include "ext/eye_camera/eye_camera.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/EYECAM.md): ext.eye_camera's zoom
 #include "ext/camera_angle/camera_angle.h"     // EXT SEAM (NOT RETAIL, docs/extensions/handins/CAMERAANGLE.md): ext.camera_angle's far pitch pair
 #include "ext/better_camera/better_camera.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/BETTERCAM.md): ext.better_camera's zoom range + steady tilt
@@ -156,7 +157,13 @@ void PlayerToolManager::UpdateCamera(int inputFlag, int64_t timeTicks) {
     float panX = 0.0f; // left/right axis
     float panY = 0.0f; // forward/back axis
     // Game-settings byte +0x14 (DAT_1401c3de0 -> settings base): edge-scroll enabled.
-    if (g_gameSettings != nullptr && g_gameSettings->edgeScroll != 0) {
+    // EXT SEAM (NOT RETAIL, docs/retail_bugs.md §37): fix.edge_scroll_focus skips the arm on a frame where the
+    // game window is not the foreground window (the mouse poller then reports the cursor at 0, 0, which the
+    // tests below read as the left and top edges). Row off: retail's test alone.
+    const bool edgeScrollOn = g_gameSettings != nullptr && g_gameSettings->edgeScroll != 0;
+    const bool edgeFix = Ext::Fix().edge_scroll_focus;
+    if (Ext::EdgeScrollFocus::ReadsPointer(edgeScrollOn, edgeFix,
+                                           !edgeFix || Ext::EdgeScrollFocus::WindowIsForeground())) {
         int sw, sh; ScreenSize(sw, sh);
         unsigned mx = (unsigned)(uint16_t)keyMap->GetValue(0, ToUnderlying(GameKey::MouseX));
         unsigned my = (unsigned)(uint16_t)keyMap->GetValue(0, ToUnderlying(GameKey::MouseY));
