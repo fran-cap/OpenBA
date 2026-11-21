@@ -47,8 +47,8 @@ supported on this platform` line and does nothing.
 | Platform | Twin | Body |
 |---|---|---|
 | Windows | `src/platform/win/net_win.cpp` | not supported yet |
-| Linux | `src/platform/posix/net_posix.cpp` | not supported yet |
-| macOS | the posix twin, or `src/platform/darwin/net_darwin.cpp` | not supported yet |
+| Linux | `src/platform/posix/net_posix.cpp` | the system's libcurl, opened at run time (`libcurl.so.4`, then `libcurl-gnutls.so.4`) with its TLS library and CA bundle; not shipped, no link-time dependency, no curl headers at build time. Without it, not supported |
+| macOS | the posix twin (no darwin twin) | the same file: the OS's own `/usr/lib/libcurl.4.dylib` (Apple's build, LibreSSL with `/etc/ssl/cert.pem`) |
 | Android | the posix twin, or `src/platform/android/net_android.cpp` | not supported yet |
 
 ## 5. Tests
