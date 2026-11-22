@@ -271,7 +271,7 @@ bool RoadTool::CalcPath(int startCell, int endCell) {
         return false;
     }
     uint32_t mapDescVal = mapDesc->_cellType;
-    // +0x20 is the bool CreateRoadDescription serializes; retail reads its byte (0 or 1).
+    // +0x20 is the road type byte CreateRoadDescription serializes (the unsigned char overload, 0..255).
     const uint8_t roadType       = static_cast<uint8_t>(roadDesc->_index);
     ComponentDescription* const roadDescExtra = roadDesc->_created;
 
