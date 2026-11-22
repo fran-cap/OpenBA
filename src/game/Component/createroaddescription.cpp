@@ -36,7 +36,7 @@
 // the defaults.
 CreateRoadDescription::CreateRoadDescription()
     : Description(),
-      _index(false),
+      _index(0),
       _created(nullptr) {}
 
 // [5] 0x140119c80: stream order as retail.
