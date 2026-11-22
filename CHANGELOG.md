@@ -4,7 +4,21 @@ One section per release, newest first. The section of the version being tagged i
 release's notes (`.github/workflows/release.yml` reads it with `tools/release/changelog_section.py`).
 Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CMakeLists.txt`.
 
-## Unreleased
+## v1.0.4 (2026-11-22)
+
+**Major Changes:**
+1. Custom maps: a new game can start on a map made in a map editor (`ext.custom_maps`, #319).
+2. Upgrade Roads drag tool (`ext.road_upgrade`, #296); request a trader at a trading post (`ext.trader_request`, #297).
+3. Item limits on pits, pastures and gatherers (`ext.item_limits`, #311).
+4. Work circles of every building of a kind with Shift+click (`ext.radius_all`, #301); Traffic view filters (`ext.map_overlays`, #302).
+5. Map edge fade, and the wide zoom reaches the map's rim without cut-off ground (`ext.map_edge_fade`, `ext.better_camera`, #320, #321).
+6. Better water on river bends and lake rims (`ext.better_water`, #298, #308); wider thin rivers, off by default (`ext.river_channel`, #299).
+7. Experimental tab: smoother motion at high game speed (`ext.render_pipe_replay`, #312, #317), terrain drawn last (`ext.terrain_late`, #304).
+8. New release notice on the main menu (`ext.update_check`, #337); the save list opens sooner (`ext.quick_screens`, #336).
+9. Mods: a renamed `.pkm` still loads (`ext.renamed_mods`, #323); a mod's road types keep their own textures (#340).
+10. Faster simulation: the flat job search is always on (#324), cuts to pathfinding, citizen scans, the draw sort and the allocator (#305, #307, #325, #335).
+11. The autosave repeats at its interval, and four more differences from the original game corrected; a seed's map changes where its rivers join (#315).
+12. Retail bugs fixed as `fix.*` rows: priority after a load, hills in reflections, edge scroll without focus, fixed sim order (off by default) (#295, #320, #327, #339).
 
 **Extensions:**
 1. Upgrade Roads tool in the roads menu: drag a rectangle and its dirt roads are rebuilt as stone (`ext.road_upgrade`).
@@ -35,12 +49,22 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 12. Storage tab in the Town Hall: the space column is headed "Used / Capacity Weight", since its figures are weights (an item's count times its weight), not item counts (`ext.storage_metrics`).
 13. The camera no longer slides up and to the left while another window has the focus, or for a moment when switching away from the game and back, with Edge Scroll on (retail bug, `fix.edge_scroll_focus`).
 14. A mod with many road types (MegaMod) draws each road with its own texture again: every road type had come out as type 1 and shared one texture, so placing one road repainted all the others. A road's type byte is read whole instead of as a yes/no.
+15. The autosave runs at every interval again; it had run once per opened dialog. A dialog's timers repeat as in the original game.
+16. Map generation joins separate groups of river points as the original game does. A map made from a seed differs from v1.0.3's wherever its rivers formed more than one group.
+17. A tombstone whose countdown has run out is removed instead of getting a new lifetime; the citizen panel updates once a frame; the tutorial's goal button keeps only a real button.
+18. Render thread: Windows no longer swaps the game's window for a "Not Responding" ghost a few seconds into a long wait (`ext.render_pipe`).
+19. Render thread: no stale building outline read while the next frame is drawn (`ext.render_pipe`).
 
 **Changes:**
 1. Faster job search is no longer an extension: it is always on, in every profile. Its row "Faster job search" (`ext.work_cand`) leaves the Extensions dialog; saves made with it load as before, with no notice, and an old `ext.work_cand` line in settings.cfg is ignored.
+2. Faster simulation and drawing with the same results: a radix draw sort, a parallel render-thread snapshot copy, cached type ids, and exact cuts to the nearest-character query, the region path search, the home and attendance scans and the memory allocator.
+3. Storage tab in the Town Hall: the list sits in the framed box and the tab strip fits the page frame; the map's view buttons are centred on the map (`ext.storage_metrics`, `ext.map_overlays`).
+4. The Windows and Android profile sets are retrained for this version.
 
-**Changes:**
-1. Faster job search is no longer an extension: it is always on, in every profile. Its row "Faster job search" (`ext.work_cand`) leaves the Extensions dialog; saves made with it load as before, with no notice, and an old `ext.work_cand` line in settings.cfg is ignored.
+**Thanks:**
+Thanks to kralyerg (#308, #319, #323, #334, #340) and myungjoo (#311) for their pull requests,
+Karl 19825 for the overlay crash report and priority tool reports,
+and to RinHayashi for bug testing.
 
 ## v1.0.3 (2026-11-10)
 

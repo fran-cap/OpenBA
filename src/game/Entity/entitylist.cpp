@@ -793,11 +793,13 @@ static bool WalkUpdateTreeSnapshot(EntityList* self, const System::Time* time, b
 }
 
 // FIX stable_order (NOT RETAIL, docs/extensions/handins/STABLEORDER.md): the id-ordered walk, out of
-// line so EntityList::Update's faithful walk (inlined there) compiles as it did before the row, and
-// flattened so the per-entity visit inside it is inlined as the faithful walk's is.
+// line so EntityList::Update's faithful walk (inlined there) compiles as it did before the row.
+// Not gnu::flatten: under LTO that attribute inlines every reachable callee of the whole program into
+// this one function (134,786 inline copies, down to the allocator and the error dialog), and the
+// release link's partition holding it ran past 12 GB without finishing.
 template <int kWalk>
-[[gnu::noinline, gnu::flatten]] static bool WalkUpdateTreeSnapshotById(EntityList* self, const System::Time* time,
-                                                                     bool prof) {
+[[gnu::noinline]] static bool WalkUpdateTreeSnapshotById(EntityList* self, const System::Time* time,
+                                                         bool prof) {
     return WalkUpdateTreeSnapshot<kWalk, true>(self, time, prof);
 }
 
