@@ -3,12 +3,12 @@
 //
 // CreateRoadDescription (0x30 bytes) — road-drawing placement tool.
 // Extends Object::External (0x20 base). Vtable at 0x140162df0. Parent "Description".
-//   +0x20: bool         (default 0)
+//   +0x20: uchar        (the road type, default 0)
 //   +0x28: ExternalPtr  (created-resource description ref, default null)
 //
 // Factory  : MemAlloc 0x30 + External ctor + vtable + field defaults.
 // Serialize (vtable +0x28, 0x140119c80), stream order:
-//   bool        @ +0x20
+//   uchar       @ +0x20   (import 0x140152410, Serializer::Serialize(unsigned char&): not the bool overload)
 //   ExternalPtr @ +0x28   (Object::SerializeExternal<ComponentDescription>)
 // GetVersion (vtable +0x18, 0x140119ce0): mov eax,2; ret -> version 2.
 // Dtor (vtable +0x00, 0x140032e50): External::~External + free.

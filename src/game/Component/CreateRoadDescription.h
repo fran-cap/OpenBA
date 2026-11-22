@@ -36,7 +36,9 @@ public:
     virtual Object::External* Construct();                                 // [9] 0x140032da0
 
     // ---- fields (PUBLIC: the components read them at raw offsets today) ----
-    uint8_t _index;                               // +0x20 the road type byte, 0..255 (not a bool: the bool reader keeps only byte != 0)
+    // The road type, 0..255. Retail serializes it through the unsigned char overload (0x140119cad calls
+    // import 0x140152410), not the bool one: the bool reader keeps only byte != 0.
+    uint8_t _index;                             // +0x20
     uint8_t _pad21[7];                          // +0x21 never written by the ctor
     class ComponentDescription* _created;       // +0x28 ExternalPtr (created-resource description: the BuildRoad work's +0x50)
 };

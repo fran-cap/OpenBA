@@ -190,8 +190,9 @@ UNIT_TEST(k1_array_and_string_description_leaves) {
     CHECK_EQ(CheckDescriptionLeaf<ValueDescription>(0x50), 0);
 }
 
-// A road's type is a byte (a mod such as MegaMod numbers its roads 0..175; the road tool keys the road texture batches by it). The bool reader keeps only
-// byte != 0 (review F-048), so a bool member would make every road type 1.
+// A road's type is a byte (a mod such as MegaMod numbers its roads 0..175; the road tool keys the road
+// texture batches by it). The bool reader keeps only byte != 0 (review F-048), so a bool member would
+// make every road type 1.
 UNIT_TEST(k1_create_road_index_is_a_byte) {
     CHECK((std::is_same<decltype(CreateRoadDescription::_index), uint8_t>::value));
 }
