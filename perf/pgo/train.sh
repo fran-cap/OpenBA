@@ -70,11 +70,13 @@ if [ "$KEEP" = 0 ]; then
     rm -f "$PROFILE"/*.gcda
 fi
 cp -f "$GEN/OpenBA.exe" "$GAME_DIR/OpenBA.exe" || { echo "deploy failed (exe busy?)" >&2; exit 1; }
-# 2a. The faithful profile (every fix and extension off, DirectX 11): the retail paths.
+# 2a. The faithful profile (every fix and extension off, DirectX 11): the retail paths. The mode is
+# named: stress_run.sh's default is `player` (the registry's default rows), which would make these two
+# a repeat of 2b and leave the set without a faithful run.
 BANISHED_PANEL_HOLD=StorageComponent BANISHED_PANEL_HOLD_FRAME=1200 \
-    tools/stress_run.sh --no-build --label pgo_train_10x --frames 3000 --timeout 580 --baseline none || exit 1
+    tools/stress_run.sh --no-build --mode faithful --label pgo_train_10x --frames 3000 --timeout 580 --baseline none || exit 1
 BANISHED_PANEL_HOLD=MarketComponent BANISHED_PANEL_HOLD_FRAME=1500 \
-    tools/stress_run.sh --no-build --label pgo_train_50x --speed 50 --frames 3000 --timeout 580 --baseline none || exit 1
+    tools/stress_run.sh --no-build --mode faithful --label pgo_train_50x --speed 50 --frames 3000 --timeout 580 --baseline none || exit 1
 # 2b. What a player runs: the registry's defaults (every default-on row, the Vulkan renderer), then the
 # same with the Experimental tab's replayed frames. A user dir of its own, so the rows are the registry's
 # and not this machine's settings.cfg: the real file's lines less every `ext.` / `fix.` one (the video

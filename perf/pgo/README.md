@@ -61,6 +61,12 @@ aliases (`DEFINE_EXE_VTABLE`, a vtable named by its assembler symbol); they were
   `CMAKE_EXTRA="-DBANISHED_PGO=off" tools/build.sh build release` (a cache variable: it sticks in
   `build/cmake-release` until set back). The owner's ruling 2026-10-26: releases are infrequent,
   drift between them is accepted.
+- **No `gnu::flatten` in the tree.** Only the release flavour links with LTO, and there the attribute
+  inlines every reachable callee of the whole program into the one function. On 2026-11-22 a flattened
+  `WalkUpdateTreeSnapshotById` (`src/game/Entity/entitylist.cpp`) held 134,786 inline copies and its link
+  partition ran past 12 GB without finishing; no other flavour and no PR check shows it. To find such a
+  function: `lto1 -fltrans -fdump-ipa-cgraph` on the stuck `*.ltrans<N>.o`, then count
+  `is inline copy in` per host.
 - **Only the release flavour reads the set by default.** `perf` stays plain so `perf/baselines/`
   keeps comparing like with like; measure a PGO exe with an explicit `-DBANISHED_PGO=use`.
 - The training runs are the harness towns, not a saved game: no game content is involved and the
@@ -80,6 +86,10 @@ aliases (`DEFINE_EXE_VTABLE`, a vtable named by its assembler symbol); they were
 Runs 1 and 2 use the faithful profile (every fix and extension off, DirectX 11). Runs 3 and 4 use a
 user dir of their own (`build/pgo_userdir`, `BANISHED_USER_DIR`): this machine's `settings.cfg` less
 every `ext.` / `fix.` line, so the rows are the registry's defaults and not the trainer's own.
+
+All four are the stress harness's current town: the housing pass and full staffing are on (its defaults
+since 2026-11-19). `train.sh` names `--mode faithful` on runs 1 and 2: `tools/stress_run.sh` defaults
+to `player` (the registry's default rows), and without the switch the set has no faithful run.
 
 The counters of all runs are summed (GCC merges on exit). Trained on the 50x run alone the
 profile gave only -4% at 10x; the mix gives -10% at 10x with nothing lost at 50x.
