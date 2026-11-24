@@ -4,6 +4,11 @@ One section per release, newest first. The section of the version being tagged i
 release's notes (`.github/workflows/release.yml` reads it with `tools/release/changelog_section.py`).
 Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CMakeLists.txt`.
 
+## Unreleased
+
+**Extensions:**
+1. Storage filter: a storage building's window (barn, yard, cart, a mod's storage) gets an Accepts tab with a check box and a number for each item it can store. An unchecked item, or one at its number, is no longer delivered there; what is inside stays and citizens still take it; 0 means no limit. The choices are recorded in the save (`ext.storage_filter`, off by default).
+
 ## v1.0.4 (2026-11-22)
 
 **Major Changes:**

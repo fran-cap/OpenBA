@@ -39,7 +39,7 @@ bool ParseEmbedded(const char* path, File& f) {
 }  // namespace
 
 UNIT_TEST(ext_rsc_text_embedded_files) {
-    CHECK(kEmbeddedCount == 26);
+    CHECK(kEmbeddedCount == 27);
     CHECK(Embedded("Dialog/Extensions.rsc") != nullptr);
     CHECK(Embedded("Dialog/EnhancedOptions.rsc") != nullptr);
     CHECK(Embedded("Dialog/ExtensionsStringTable.rsc") != nullptr);
@@ -48,6 +48,7 @@ UNIT_TEST(ext_rsc_text_embedded_files) {
     CHECK(Embedded("Dialog/ItemPriorityPage.rsc") != nullptr);
     CHECK(Embedded("Dialog/ItemLimitsPanel.rsc") != nullptr);
     CHECK(Embedded("Dialog/TraderRequestPanel.rsc") != nullptr);
+    CHECK(Embedded("Dialog/StorageFilterTab.rsc") != nullptr);
     CHECK(Embedded("Dialog/FamilyTreePage.rsc") != nullptr);
     CHECK(Embedded("Dialog/FamilyTreeWindow.rsc") != nullptr);
     CHECK(Embedded("Dialog/FamilyTreeSummary.rsc") != nullptr);
@@ -228,8 +229,9 @@ UNIT_TEST(ext_rsc_text_parse_enhanced_and_strings) {
     // + 5 for the map window's Land view (caption, tip, the three key texts), + 10 for
     // ext.storage_metrics' Town Hall tab, + 2 for ext.road_upgrade's button (its tooltip's title and text),
     // + 5 for ext.trader_request's Orders tab row (label, tip, any trader, the two modes), + 6 for the map
-    // window's Traffic filter buttons (three captions, three tips)
-    CHECK(strings && strings->blocks.size() == 142 + 18 + 52 + 4 + 1 + 3 + 5 + 10 + 2 + 5 + 6);
+    // window's Traffic filter buttons (three captions, three tips), + 5 for ext.storage_filter's Accepts tab
+    // (caption, hint, the item's "@0", the box's tip, the number's tip)
+    CHECK(strings && strings->blocks.size() == 142 + 18 + 52 + 4 + 1 + 3 + 5 + 10 + 2 + 5 + 6 + 5);
     if (strings) {
         // The Extensions dialog's three tab captions.
         int tabKeys = 0;
@@ -352,6 +354,29 @@ UNIT_TEST(ext_rsc_text_parse_trader_request_panel) {
         CHECK(vertical && !vertical->tokens.empty() && vertical->tokens[0].text == "true");
     }
     CheckKnownTypes(f, "TraderRequestPanel.rsc");
+}
+
+UNIT_TEST(ext_rsc_text_parse_storage_filter_tab) {
+    File f;
+    CHECK(ParseEmbedded("Dialog/StorageFilterTab.rsc", f));
+    CHECK(f.Find("resource") == nullptr);   // a page, not a dialog: the root object is pageStorageFilter
+    // The objects panel_tab.cpp loads and looks up by name.
+    const Object* button = f.Find("buttonStorageFilterTab");
+    CHECK(button && button->type == "ButtonDescription");
+    const Object* page = f.Find("pageStorageFilter");
+    CHECK(page && page->type == "RibbonDescription");
+    const Object* table = f.Find("tableStorageFilter");
+    CHECK(table && table->type == "TableDescription");
+    const Object* cell = f.Find("ribbonStorageFilterCell");
+    CHECK(cell && cell->type == "RibbonDescription");
+    if (cell) {
+        const Field* els = cell->body.Find("_elements");
+        CHECK(els && els->tokens.size() == 2 && els->tokens[0].text == "checkStorageFilterRow" &&
+              els->tokens[1].text == "labelStorageFilterRow");
+    }
+    CHECK(f.Find("checkStorageFilterRow") != nullptr);
+    CHECK(f.Find("labelStorageFilterRow") != nullptr);
+    CheckKnownTypes(f, "StorageFilterTab.rsc");
 }
 
 UNIT_TEST(ext_rsc_text_parse_item_priority_page) {
