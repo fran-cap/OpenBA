@@ -1,6 +1,6 @@
 # TRADERREQUEST hand-in
 
-`ext.trader_request`: a trading post can ask for one trader instead of taking whoever turns up; a requested trader's goods cost double. One class C toggle (locked for the game, per-town state recorded in the save), on by default, `formatVersion` 1. It follows the shape `ext.item_limits` set: the pure list, the save-state codec, a row added to a retail panel.
+`ext.trader_request`: a trading post can ask for one trader instead of taking whoever turns up; a requested trader's goods cost double. One class C toggle (locked for the game, per-town state recorded in the save), on by default, `formatVersion` 2. It follows the shape `ext.item_limits` set: the pure list, the save-state codec, a row added to a retail panel.
 
 ## 1. What it does
 
@@ -33,12 +33,13 @@ Each seam tests the row's locked value (`Ext::Ext().trader_request`) once. The d
 
 | | |
 |---|---|
-| row | `trader_request`, `Tier::Extension`, `Class::C`, default ON (the user, 2026-11-11), `formatVersion` 1 (`registry.cpp`) |
+| row | `trader_request`, `Tier::Extension`, `Class::C`, default ON (the user, 2026-11-11), `formatVersion` 2 (`registry.cpp`) |
 | record | the row's own record in the tail chunk; written whenever the row is active for the game, even with an empty list; zero bytes for a faithful game |
 | codec | `Ext::TraderRequest::Codec()` (`src/ext/trader_request/save_state.cpp`), registered in `src/ext/state_codecs.cpp` |
-| key | the post's entity id (`ComponentEntity::_entityId`, stable across a save and a load, as `ext.tool_names` names a citizen) and the trader's name key (`TradeMerchant::name`). Never the merchant index: mods change the list between sessions. A trader the game no longer has is never arriving: the post gets retail's roll, the request stays, and the row shows "Any trader" |
-| wire format v1 | little-endian: `u32 count`, then `count` x { `i32 post`, `u32 mode` (1 next visit, 2 every visit), `u32 length`, `u8 trader[length]` } |
-| decode | accepts exactly what encode writes; refuses a count the payload cannot hold or above 4096, a negative post, a post twice, an unknown mode, an empty, over-long (more than 255 bytes) or control-character trader, bytes left over, or a cut-short payload. A refused payload changes nothing |
+| key | the corner tile of the post's footprint (`MapComponent` `tileX0` / `tileY0`: a building never moves and no two share a corner) and the trader's name key (`TradeMerchant::name`). Not the entity id: `ComponentEntity::_entityId` is the entity's index in `EntityList`'s master array, and removing any entity moves the last one into the hole and re-stamps it, so a standing post's id changes during play (format 1 keyed on it and lost the request when it did). Never the merchant index: mods change the list between sessions. A trader the game no longer has is never arriving: the post gets retail's roll, the request stays, and the row shows "Any trader" |
+| wire format v2 | little-endian: `u32 count`, then `count` x { `i32 tileX`, `i32 tileY`, `u32 mode` (1 next visit, 2 every visit), `u32 length`, `u8 trader[length]` } |
+| wire format v1 (read only) | as v2 with one `i32 post` (the post's entity id) in place of the tile. The ids are the ones the save's entities carry at load, and the record is decoded after the entities are read, so each is turned into the post's tile then (`LegacyPostKey`, `trader_request_town.cpp`). A request whose id names no trading post, or a post an earlier request already named, is dropped with a `[TraderRequest]` line: the id had moved before the save was made. The next save writes v2 |
+| decode | accepts exactly what encode writes; refuses a count the payload cannot hold or above 4096, a negative tile or post, a post twice, an unknown mode, an empty, over-long (more than 255 bytes) or control-character trader, bytes left over, or a cut-short payload. A refused payload changes nothing |
 | reset | `SaveTail::ResetAllState()` (new game, load) and `Ext::UnlockForGame` for the lock's owner; it also forgets every open window's row (`PanelsForget`) |
 
 ## 4. The Orders tab row
