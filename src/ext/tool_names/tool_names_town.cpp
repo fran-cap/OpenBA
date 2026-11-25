@@ -85,11 +85,11 @@ const RawMaterialDescription* ToolFor(const CitizenComponent* citizen, int32_t u
     return item;
 }
 
-void BeginFrame() {
-    static int countdown = kPruneFrames;
-    const bool loaded = TakeLoadFlag();   // the first frame after a load looks at the waiting records at once
-    if (!loaded && --countdown > 0) return;
-    countdown = kPruneFrames;
+namespace {
+
+// Drops the notes, and the records a load left waiting, of citizens who are gone. With `refresh`, every
+// living citizen's note also takes the citizen's entity id as it is now.
+void Sweep(bool refresh) {
     if (LiveCount() == 0 && SavedCount() == 0) return;
     GameUpdateLoop* g = GameUpdateLoop::_singleton;
     if (g == nullptr || g->m_citizenList == nullptr) return;
@@ -101,10 +101,29 @@ void BeginFrame() {
         if (c == nullptr) continue;
         alive.insert(c);
         living.push_back(WhoIs(c));
+        if (refresh) {
+            Refresh(c, living.back());
+        }
     }
     Prune(alive);
     // a town with no citizens at all is a game that has not finished loading (or is over): keep the records
     if (!living.empty()) PruneSaved(living);
+}
+
+}  // namespace
+
+void BeginFrame() {
+    static int countdown = kPruneFrames;
+    const bool loaded = TakeLoadFlag();   // the first frame after a load looks at the waiting records at once
+    if (!loaded && --countdown > 0) return;
+    countdown = kPruneFrames;
+    Sweep(false);
+}
+
+// A note's entity id is the one the citizen had at the pick-up; the save must carry the one it has now
+// (tool_names.h, Refresh). The sweep also keeps a citizen who died since the last prune out of the save.
+void BeforeSave() {
+    Sweep(true);
 }
 
 }  // namespace ToolNames

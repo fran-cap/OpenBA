@@ -47,7 +47,7 @@ namespace ToolNames {
 
 // Who a note belongs to, the way the save can name a citizen.
 struct Citizen {
-    int32_t entity = -1;     // the citizen's entity id (stable across a save and a load)
+    int32_t entity = -1;     // the citizen's entity id: right at a save and the load of it, it can move in between
     std::string name;
     uint8_t gender = 0;      // 0 female, 1 male (the family tree's numbering)
 };
@@ -78,6 +78,12 @@ const void* Lookup(const void* citizen, int32_t uses);
 // A record from a save for the citizen `who` carrying a tool of `uses` uses: removed from the list of saved
 // records, its item path returned. False when none matches.
 bool Claim(const Citizen& who, int32_t uses, std::string& path);
+
+// The citizen's live note, when it has one, is now `who`'s. An entity id is the entity's index in the entity
+// list, and removing any entity moves the last one into the hole, so the id a note took at the pick-up may
+// not be the citizen's at the save. The game side calls this for every citizen just before a save is written
+// (BeforeSave), so the record carries the id the save's entities carry.
+void Refresh(const void* citizen, const Citizen& who);
 
 // Drops every live note whose citizen is not in `alive` (citizens who died or left).
 void Prune(const std::unordered_set<const void*>& alive);
@@ -112,6 +118,10 @@ void RememberPickup(const CitizenComponent* citizen, const RawMaterialDescriptio
 const RawMaterialDescription* ToolFor(const CitizenComponent* citizen, int32_t uses);
 // GameUpdateLoop::Update, once per frame: drops the notes of citizens who are gone.
 void BeginFrame();
+// GameUpdateLoop::SerializeAllHead, a save is about to be written (main thread, before the save worker
+// starts): drops the notes of citizens who are gone and gives every other note its citizen's entity id as
+// it is now (Refresh).
+void BeforeSave();
 
 }  // namespace ToolNames
 }  // namespace Ext

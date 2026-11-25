@@ -8,6 +8,7 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 
 **Fixes:**
 1. Request a trader: a trading post no longer forgets its request during play. The request was filed under a number the game reassigns when other things on the map are removed; it is now filed under the post's place on the map. Saves from v1.0.4 load as before; saves made with this version do not load in v1.0.4 (`ext.trader_request`).
+2. Tool names: after loading a save, a citizen's panel no longer falls back to "iron" or "steel" for a tool whose name it showed before the save (`ext.tool_names`).
 
 ## v1.0.4 (2026-11-22)
 
