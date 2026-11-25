@@ -7,6 +7,7 @@
 // ============================================================================
 #include "unit.h"
 #include "ext/registry.h"
+#include "ext/fullscreen_mode/toggle_size.h"
 #include "io/settings_file.h"
 
 #include <string>
@@ -45,6 +46,41 @@ UNIT_TEST(ext_fullscreen_mode_registry_row) {
     CHECK(ResolveText("").ext.fullscreen_mode);
     CHECK(!ResolveText("ext.fullscreen_mode=0\n").ext.fullscreen_mode);
     CHECK(!ResolveText("profile=faithful\n").ext.fullscreen_mode);
+}
+
+// Alt+Enter out of fullscreen opens a window that fits the display (toggle_size.h).
+UNIT_TEST(ext_fullscreen_mode_toggle_window_fits_the_display) {
+    using Ext::FullscreenMode::WindowSizeForToggle;
+    int32_t w = 0;
+    int32_t h = 0;
+    // A saved window that fits is kept.
+    WindowSizeForToggle(1600, 900, 2560, 1440, 2560, 1440, &w, &h);
+    CHECK_EQ(w, 1600);
+    CHECK_EQ(h, 900);
+    // So is one as wide as the display (a window that was maximised).
+    WindowSizeForToggle(2560, 1377, 2560, 1440, 2560, 1440, &w, &h);
+    CHECK_EQ(w, 2560);
+    CHECK_EQ(h, 1377);
+    // Never saved (-1), and the mode is the display's own size: no room for a frame, three quarters.
+    WindowSizeForToggle(-1, -1, 2560, 1440, 2560, 1440, &w, &h);
+    CHECK_EQ(w, 1920);
+    CHECK_EQ(h, 1080);
+    // Never saved, a smaller mode: the mode's size, as the Options dialog opens it.
+    WindowSizeForToggle(-1, -1, 1280, 720, 2560, 1440, &w, &h);
+    CHECK_EQ(w, 1280);
+    CHECK_EQ(h, 720);
+    // A scaled 4K display (2560 x 1440 to the process) with the mode and a saved window in physical
+    // pixels: neither fits.
+    WindowSizeForToggle(3840, 2160, 3840, 2160, 2560, 1440, &w, &h);
+    CHECK_EQ(w, 1920);
+    CHECK_EQ(h, 1080);
+    // No display known: nothing is filtered; nothing at all known: 1280 x 720.
+    WindowSizeForToggle(-1, -1, 3840, 2160, 0, 0, &w, &h);
+    CHECK_EQ(w, 3840);
+    CHECK_EQ(h, 2160);
+    WindowSizeForToggle(-1, -1, 0, 0, 0, 0, &w, &h);
+    CHECK_EQ(w, 1280);
+    CHECK_EQ(h, 720);
 }
 
 UNIT_TEST(ext_fullscreen_borderless_key_defaults_to_exclusive) {

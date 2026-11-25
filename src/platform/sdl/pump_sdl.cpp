@@ -198,6 +198,21 @@ void SetMessageObserver(MessageObserver observer) {
     g_observer = observer;
 }
 
+namespace {
+// NOT RETAIL (platform_window.h SetFullscreenChordHandler). Main thread (the pump).
+FullscreenChordHandler g_fullscreenChord = nullptr;
+
+bool IsFullscreenChord(const SDL_Event& ev) {
+    if (ev.type != SDL_EVENT_KEY_DOWN || ev.key.repeat) return false;
+    if (ev.key.scancode != SDL_SCANCODE_RETURN && ev.key.scancode != SDL_SCANCODE_KP_ENTER) return false;
+    return (ev.key.mod & SDL_KMOD_ALT) != 0 && (ev.key.mod & (SDL_KMOD_CTRL | SDL_KMOD_GUI)) == 0;
+}
+}  // namespace
+
+void SetFullscreenChordHandler(FullscreenChordHandler handler) {
+    g_fullscreenChord = handler;
+}
+
 }  // namespace Window
 
 namespace {
@@ -242,6 +257,11 @@ bool Pump(Window::MessageHandler handler) {
         if (Diag::TweakOverlay::OnSdlEvent(ev)) continue;
 #endif
         if (Input::ConsumePumpEvent(ev)) continue;
+        // NOT RETAIL (ext.fullscreen_mode): Alt+Enter. No handler: retail's path.
+        if (g_fullscreenChord != nullptr && IsFullscreenChord(ev)) {
+            g_fullscreenChord();
+            continue;
+        }
         WindowMessage msgs[kMaxMessagesPerEvent];
         const int n = TranslateWindowEvent(FromSdl(ev), window, msgs);
         for (int i = 0; i < n; ++i) {

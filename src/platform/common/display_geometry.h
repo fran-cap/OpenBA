@@ -49,6 +49,14 @@ void OuterToClient(int32_t x, int32_t y, int32_t w, int32_t h, const FrameBorder
 // nothing.
 bool RectTouchesAnyDisplay(const Rect& rect, const Rect* displays, int count);
 
+// The size of a fullscreen window on a renderer that sets no display mode (the Vulkan backend: a
+// borderless window over the display): the display's own size, in the units its rect is in, which
+// are the window system's. A display mode's size is in physical pixels and is not that size on a
+// scaled display (Windows at 150%: a 3840 x 2160 mode on a 2560 x 1440 desktop for this
+// DPI-unaware process), nor when the player picked a mode other than the desktop's. An empty rect
+// (no display found) leaves *width / *height as they were.
+void FullscreenWindowSize(const Rect& display, int32_t* width, int32_t* height);
+
 
 // ---------------------------------------------------------------------------
 // Points <-> pixels (macOS Retina). SDL positions and sizes windows, and reports the
