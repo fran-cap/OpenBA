@@ -11,17 +11,21 @@ A citizen's shirt colour is one of 8 cells of a 1024 x 128 texture strip (`Model
 CitizenTexture` for the men, `CitizenTextureF` for the women). A mod that retextures the citizens ships its own copy of
 that file; the last package mounted wins and only its 8 colours are ever drawn.
 
-With the row on, every mounted package's copy is read. The strips become one wider texture side by side (the first
-package's, which is vanilla's, then each different mod's, at most 16 in all: up to 128 colours; vanilla's own
-strip is left out as soon as any mod brings one, so a village with one skin mod on wears only that mod's sets) and each citizen wears
-the strip that scores highest for its name. The citizen's saved variant (0..7) is untouched; the strip is a function
-of the name and the sets, so a citizen keeps its look in every load and nothing is written to the save. Each set is
+With the row on, every mounted package's copy is read. The strips become one wider texture side by side (each
+different mod's, at most 16 in all: up to 128 colours) and each citizen wears the strip that scores highest for its name. The citizen's saved variant (0..7) is untouched; the
+strip is a function of the name and the sets, so a citizen keeps its look in every load and nothing is written to the save. Each set is
 identified by its pixels, not by its place in the mount order: every set scores `hash(name, identity)` and the
 highest wins (highest random weight). Taking a mod out moves only the citizens who wore its set; putting one in
 attracts about 1 in N; a mod that moves up or down the list changes nobody.
 
-Which strips become sets is decided in one place, `ChooseSets` (`skin_math.cpp`):
-- The first package with a citizen texture is set 0 and must have both strips; without both the row does nothing.
+Vanilla's own strips are only a fallback: as soon as any mod brings a citizen texture, vanilla's pair is not a set
+(`GatherPackages`), so a village with one skin mod on wears only that mod's sets, not that mod and some vanilla. Vanilla's
+strips still lend the half a mod lacks. With no mod, vanilla's is the only pair and the row does nothing.
+
+Which strips become sets is decided in one place, `ChooseSets` (`skin_math.cpp`), over the packages `GatherPackages`
+passes it (the mods' pairs, in mount order; vanilla's when there is no mod):
+- The first of them is set 0 and must have both strips (`GatherPackages` has filled a mod's missing half from
+  vanilla's); without both the row does nothing.
 - A package that carries only one of the two textures wears the first package's for the other.
 - Two packages with the same pixels count once.
 - A strip not of the first package's size is left out (logged).
@@ -61,7 +65,8 @@ no leading zero.
 - **Order.** Everything that can be checked is checked before anything is changed: the strips decoded, the chains
   built, the blobs patched on copies. Then the two textures are made, then each program is written and made again.
   If the device refuses one of those steps, the programs already written get their own bytes back and both textures
-  are made again from the first package's strip alone, so the game is left as vanilla's look, never half changed;
+  are made again from the first package's strip alone (the first mod's when there is one: what the game itself
+  drew), so the game is left as it was, never half changed;
   then the first 8 sets are tried. If a restore itself fails, the log says so. A game without the row, or one that
   could not join the strips, is exactly retail.
 

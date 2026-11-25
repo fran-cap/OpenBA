@@ -203,8 +203,22 @@ std::vector<PackSkin> GatherPackages() {
     // Vanilla's own look is only the fallback: once a mod brings citizen textures, the village wears the mods'
     // sets alone (a player who turns Cyberpunk on wants every citizen in Cyberpunk, not one in five in vanilla's
     // clothes). The first strips are kept only to size-check the rest, which is done by now.
+    // Vanilla's strips still lend the half a mod lacks (a mod with only the men's texture wears vanilla's women).
     if (haveBase && found.size() > baseCount) {
+        const PackSkin base = found.front();
         found.erase(found.begin(), found.begin() + static_cast<std::ptrdiff_t>(baseCount));
+        for (PackSkin& skin : found) {
+            if (!skin.hasMale && base.hasMale) {
+                skin.male = base.male;
+                skin.hashMale = base.hashMale;
+                skin.hasMale = true;
+            }
+            if (!skin.hasFemale && base.hasFemale) {
+                skin.female = base.female;
+                skin.hashFemale = base.hashFemale;
+                skin.hasFemale = true;
+            }
+        }
     }
     return found;
 }
