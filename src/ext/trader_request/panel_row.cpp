@@ -152,10 +152,11 @@ TradeComponent* PostOf(const TradeUI* panel) {
     return static_cast<ComponentEntity*>(source)->FindComponent<TradeComponent>();
 }
 
-int32_t PostIdOf(const TradeUI* panel) {
+// The key of the window's post (its footprint corner); not valid when the window shows no entity.
+PostKey PostKeyOf(const TradeUI* panel) {
     Object::Base* source = panel->_dataSource;
-    if (!::Object::IsDerivedFromNullSafe(source, ComponentEntity::TypeId())) return -1;
-    return static_cast<ComponentEntity*>(source)->_entityId;
+    if (!::Object::IsDerivedFromNullSafe(source, ComponentEntity::TypeId())) return PostKey();
+    return KeyOfEntity(static_cast<ComponentEntity*>(source));
 }
 
 const TradeDescription* DescriptionOf(const TradeComponent* post) {
@@ -190,7 +191,7 @@ void Select(UI::ComboElement* combo, int32_t item) {
 // Shows the post's request: the trader's item (or "Any trader") and, for a request, its mode.
 void Refresh(const TradeUI* panel, Row& row) {
     Request request;
-    if (!RequestOf(PostIdOf(panel), request)) {
+    if (!RequestOf(PostKeyOf(panel), request)) {
         Select(row.trader, 0);
         return;
     }
@@ -210,9 +211,9 @@ void Refresh(const TradeUI* panel, Row& row) {
 void PanelOpenedSlow(TradeUI* panel) {
     g_rows.erase(panel);
     const TradeDescription* desc = DescriptionOf(PostOf(panel));
-    if (PostIdOf(panel) < 0) {
-        // A request is keyed by the post's entity id: a post without one could not keep it.
-        std::fprintf(stderr, "[TraderRequest] the trading post has no entity id: no request row\n");
+    if (!PostKeyIsValid(PostKeyOf(panel))) {
+        // A request is keyed by the post's footprint corner: a post without one could not keep it.
+        std::fprintf(stderr, "[TraderRequest] the trading post has no footprint tile: no request row\n");
         return;
     }
     UI::ComboElement* order = panel->_comboOrder;
@@ -286,18 +287,18 @@ bool PanelEventSlow(TradeUI* panel, UI::EventId msg, int32_t id) {
     if (it == g_rows.end()) return false;
     if (msg != UI::EventId::SelectionChanged) return true;
     const Row& row = it->second;
-    const int32_t post = PostIdOf(panel);
+    const PostKey post = PostKeyOf(panel);
     const int32_t item = row.trader->GetCurrentItem();
     if (item < 1 || static_cast<std::size_t>(item) > row.traders.size()) {
         ClearRequest(post);
-        std::fprintf(stderr, "[TraderRequest] post %d: any trader\n", post);
+        std::fprintf(stderr, "[TraderRequest] post (%d, %d): any trader\n", post.tileX, post.tileY);
         return true;
     }
     const uint8_t mode = row.mode->GetCurrentItem() == 1 ? kModeAlways : kModeOnce;
     const std::string& trader = row.traders[static_cast<std::size_t>(item) - 1];
     const bool changed = SetRequest(post, trader, mode);
-    std::fprintf(stderr, "[TraderRequest] post %d: requests \"%s\" (%s)%s\n", post, trader.c_str(),
-                 mode == kModeOnce ? "next visit" : "every visit", changed ? "" : ", unchanged");
+    std::fprintf(stderr, "[TraderRequest] post (%d, %d): requests \"%s\" (%s)%s\n", post.tileX, post.tileY,
+                 trader.c_str(), mode == kModeOnce ? "next visit" : "every visit", changed ? "" : ", unchanged");
     return true;
 }
 

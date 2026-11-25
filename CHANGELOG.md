@@ -4,6 +4,11 @@ One section per release, newest first. The section of the version being tagged i
 release's notes (`.github/workflows/release.yml` reads it with `tools/release/changelog_section.py`).
 Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CMakeLists.txt`.
 
+## Unreleased
+
+**Fixes:**
+1. Request a trader: a trading post no longer forgets its request during play. The request was filed under a number the game reassigns when other things on the map are removed; it is now filed under the post's place on the map. Saves from v1.0.4 load as before; saves made with this version do not load in v1.0.4 (`ext.trader_request`).
+
 ## v1.0.4 (2026-11-22)
 
 **Major Changes:**

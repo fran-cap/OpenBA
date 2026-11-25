@@ -20,10 +20,17 @@
 // survives a save and a load with no state of ours.
 //
 // CLASS C. The requests are the town's own state: they travel in the row's record in the save tail (Codec;
-// format version 1). A request names its post by the post's entity id (stable across a save and a load, as
-// ext.tool_names and ext.family_tree name a citizen) and its trader by the trader's name key in the
-// TradeDescription (TradeMerchant::name), never by index: mods change the list between sessions. A trader
-// the game no longer has is never "arriving": the post gets retail's roll and the request stays.
+// format version 2). A request names its post by the corner tile of the post's footprint (MapComponent
+// tileX0 / tileY0: a building never moves, and no two buildings share a corner) and its trader by the
+// trader's name key in the TradeDescription (TradeMerchant::name), never by index: mods change the list
+// between sessions. A trader the game no longer has is never "arriving": the post gets retail's roll and the
+// request stays.
+//
+// NOT THE ENTITY ID. Format version 1 named a post by ComponentEntity::_entityId. That is the entity's index
+// in EntityList's master array, and removing any entity moves the last one into the hole and re-stamps it,
+// so a standing post's id changes during play and its request was left under the old id. A version 1 record
+// is still read: its ids are the ones the save's entities carry at load, so each is turned into the post's
+// tile then (LegacyPostKey), and one that names no trading post is dropped.
 //
 // THE PANEL. The trading post window's Orders tab gets one row at its foot: "Request trader
 // (price mult)", a combo of the traders ("Any trader" first) and a combo of the mode.
@@ -42,6 +49,7 @@
 
 namespace Ext { namespace SaveTail { struct StateCodec; } }
 
+class ComponentEntity;
 class TradeComponent;
 class TradeDescription;
 class TradeUI;
@@ -61,8 +69,20 @@ constexpr std::size_t kMaxTraderBytes = 255;
 
 // ---- the list (the town's state) -------------------------------------------------------------------------
 
+// A trading post's key: the corner tile of its footprint. Both are 0 or more for a post on the map.
+struct PostKey {
+    int32_t tileX = -1;
+    int32_t tileY = -1;
+};
+inline bool operator==(const PostKey& a, const PostKey& b) {
+    return a.tileX == b.tileX && a.tileY == b.tileY;
+}
+inline bool PostKeyIsValid(const PostKey& key) {
+    return key.tileX >= 0 && key.tileY >= 0;
+}
+
 struct Request {
-    int32_t post = -1;      // the trading post's entity id
+    PostKey post;           // the trading post's footprint corner
     std::string trader;     // TradeMerchant::name, the trader's key in the post's TradeDescription
     uint8_t mode = kModeOnce;
 };
@@ -70,12 +90,12 @@ struct Request {
 // The live list, in the order the requests were first made. One request per post.
 const std::vector<Request>& Requests();
 // The post's request into `out`; false when it has none.
-bool RequestOf(int32_t post, Request& out);
-// Sets (or changes) the post's request. A negative post, an empty or over-long trader or an unknown mode is
-// refused. Returns whether the list changed.
-bool SetRequest(int32_t post, const std::string& trader, uint8_t mode);
+bool RequestOf(const PostKey& post, Request& out);
+// Sets (or changes) the post's request. A post with no tile, an empty or over-long trader or an unknown mode
+// is refused. Returns whether the list changed.
+bool SetRequest(const PostKey& post, const std::string& trader, uint8_t mode);
 // Removes the post's request. Returns whether the list changed.
-bool ClearRequest(int32_t post);
+bool ClearRequest(const PostKey& post);
 // Replaces the whole list (the codec's decode).
 void ReplaceRequests(const std::vector<Request>& requests);
 // A new game, or the game ends: no requests, every panel row forgotten.
@@ -87,7 +107,7 @@ bool TraderIsValid(const std::string& trader);
 // A boat docks at `post`, whose description lists `traders` (TradeMerchant::name, in order). Returns the
 // index of the requested trader, or -1 when the post has no request or its trader is not in the list. A
 // kModeOnce request that is honoured is removed.
-int TakeArrival(int32_t post, const std::vector<std::string>& traders);
+int TakeArrival(const PostKey& post, const std::vector<std::string>& traders);
 
 // A trader's line in the row's combo: its display name without a trailing " Merchant" or " Trader" (compared
 // without case; "General Goods Merchant" is cut off in the combo), then the price multiple: "Food (2x)".
@@ -99,6 +119,14 @@ std::string ComboLabel(const std::string& displayName);
 int32_t RequestedPrice(int32_t price);
 
 // ---- the game side (trader_request_town.cpp, panel_row.cpp; not in the unit build) -----------------------
+
+// The key of the trading post this entity is: its MapComponent's footprint corner. Not valid (PostKeyIsValid)
+// for a null entity or one with no footprint.
+PostKey KeyOfEntity(const ComponentEntity* entity);
+// A format version 1 record's post (an entity id, as the save's entities carry it at load) to its key.
+// False when the id names no trading post. Called by the codec's decode, which the loader runs after the
+// entities are read (GameUpdateLoop's save-tail arm). The unit build has its own stand-in.
+bool LegacyPostKey(int32_t entityId, PostKey& out);
 
 // TradeComponent::BuildMerchantManifest, right after retail's roll: the trader that arrives at this post.
 // Returns true when the post's request was honoured (`merchantIdx` is then the requested trader and the

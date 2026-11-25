@@ -625,7 +625,7 @@ const Entry kEntries[] = {
       "Request a trader",
       "Lets a trading post ask for one trader, for the next visit or every visit, from its Orders tab. "
       "A requested trader's goods cost double. Play diverges; the requests are recorded in the save.",
-      1, [](State& s) -> bool& { return s.ext.trader_request; } },
+      2, [](State& s) -> bool& { return s.ext.trader_request; } },
 
     // TERRAINEDIT (docs/extensions/handins/TERRAINEDIT.md): a brush tool, started from the Terrain page of
     // the extension window, that edits the terrain under the mouse. Class B: play diverges (the map is no
