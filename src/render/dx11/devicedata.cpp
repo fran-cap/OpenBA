@@ -1331,6 +1331,13 @@ bool DeviceData::CreateDevice() {
         System::Error::SetText("VideoDX11: Could not initialize the swap chain!", false);
         return false;
     }
+    // EXT SEAM (NOT RETAIL, src/ext/fullscreen_mode/fullscreen_mode.h): Alt+Enter is the extension's.
+    // Step 13's association is made before the swap chain exists and DXGI still answers the chord
+    // itself: it enlarges the window, and the WM_SIZE that follows puts it back (the window jumps and
+    // returns). Made again now, with the chord named, DXGI leaves the key to the window.
+    if (Ext::FullscreenMode::OwnsAltEnter()) {
+        factory->MakeWindowAssociation(WindowOf(dev), DXGI_MWA_NO_WINDOW_CHANGES | DXGI_MWA_NO_ALT_ENTER);
+    }
 
     // 15 — adapter, output and factory are done with. The factory field is left
     // pointing at the released object (see slot 3's note).

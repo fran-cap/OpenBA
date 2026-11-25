@@ -583,6 +583,20 @@ bool CreateSwapchain(SDL_Window* window, std::string* why) {
     return true;
 }
 
+// Fullscreen on this backend sets no display mode: the window is a borderless one at the desktop's
+// origin (Device::AdjustDisplay's fullscreen branch with no monitor), so its size is the primary
+// display's, in the window system's units, not the picked mode's. The mode list is not the
+// display's either (Enumerate), and on a scaled Windows display the mode GetDefaultResolution picks
+// is in physical pixels: a 3840 x 2160 window on what this DPI-unaware process sees as a
+// 2560 x 1440 desktop put the menu off the screen. Nothing to do where the surface is the whole
+// screen already (Android).
+void TakeFullscreenSize(Video::Device* dev) {
+    if (Platform::Window::FixedDisplaySurface()) return;
+    Platform::Rect display = { 0, 0, 0, 0 };
+    Platform::Window::GetPrimaryDisplayRect(&display);
+    Platform::Window::FullscreenWindowSize(display, &dev->backBufferWidth, &dev->backBufferHeight);
+}
+
 // Options Apply (resolution / fullscreen) and a user drag-resize raise settingsChanged. The DX11
 // backend answers with Dx11_DeviceData_Resize: Device::AdjustDisplay sizes the real window to the
 // engine's back buffer, then the buffers are rebuilt. Here (as on Metal): size the window if the
@@ -598,6 +612,8 @@ void ApplyEngineSettingsChange(Video::Device* dev) {
     Platform::Window::Sdl::WindowSizeInEnginePixels(w, &cw, &ch);
     const bool fsFlip = lastFullscreen >= 0 && lastFullscreen != fs;
     lastFullscreen = fs;
+    // ApplyChangedSettings copied the picked mode's size: a fullscreen window takes the display's.
+    if (fs) TakeFullscreenSize(dev);
     if (fsFlip || dev->backBufferWidth != cw || dev->backBufferHeight != ch) {
         const int wantW = dev->backBufferWidth;
         const int wantH = dev->backBufferHeight;
@@ -1149,6 +1165,8 @@ bool DeviceData::CreateDevice() {
     if (cfg && cfg->fullscreen == 0) {
         if (cfg->windowWidth >= 0) dev->backBufferWidth = cfg->windowWidth;
         if (cfg->windowHeight >= 0) dev->backBufferHeight = cfg->windowHeight;
+    } else {
+        TakeFullscreenSize(dev);
     }
     if (Opt().background) {
         dev->backBufferWidth = 640;

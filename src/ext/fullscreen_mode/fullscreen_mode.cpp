@@ -2,12 +2,14 @@
 // contract)
 
 #include "ext/fullscreen_mode/fullscreen_mode.h"
+#include "ext/fullscreen_mode/toggle_size.h"
 
 #include "ext/registry.h"
 
 #include "object/External.h"
 #include "object/TypeInfo.h"
-#include "platform_window.h"   // Platform::Window::GetMonitorRect
+#include "platform_window.h"   // Platform::Window::GetMonitorRect, SetFullscreenChordHandler
+#include "platform_window_hooks.h"   // Platform::Window::FixedDisplaySurface
 #include "render_backend.h"    // Render::SupportsExclusiveFullscreen
 #include "system/Filename.h"
 #include "ui/CheckElement.h"
@@ -114,6 +116,14 @@ bool Borderless() {
     return boot.ext.fullscreen_mode && boot.val.fullscreen_borderless != 0;
 }
 
+bool OwnsAltEnter() {
+    if (Platform::Window::FixedDisplaySurface()) return false;
+    if (Installed()) return Ext().fullscreen_mode;
+    // Inside Engine::Startup, as Borderless() above.
+    static const State boot = ResolveFromSettings();
+    return boot.ext.fullscreen_mode;
+}
+
 bool DesktopSize(void* monitor, int32_t* width, int32_t* height) {
     if (monitor == nullptr) return false;
     Platform::Rect r = {0, 0, 0, 0};
@@ -179,6 +189,41 @@ void CloseVideoRow(const UI::DialogInstance* dialog) {
     g_combo = nullptr;
     g_check = nullptr;
     g_committedFrom = -1;
+}
+
+namespace {
+
+// The pump's Alt+Enter (main thread, as Video::Device::SizeWindow's WM_SIZE and DX11's WM_ACTIVATE,
+// which write the same fields from the pump).
+void OnFullscreenChord() {
+    if (!Ext().fullscreen_mode || Platform::Window::FixedDisplaySurface()) return;
+    Video::Configuration* cfg = Video::Configuration::_singleton;
+    Video::Device* dev = Video::Device::_singleton;
+    if (cfg == nullptr || dev == nullptr) return;
+    // A reset is already pending (a resize, an Options apply): this press is dropped, not queued.
+    if (dev->settingsChanged != 0 || dev->adjustingDisplay != 0) return;
+    // The Options dialog is open on its Video tab's combo: it would go on showing the old choice.
+    if (g_dialog != nullptr) return;
+    if (cfg->fullscreen != 0) {
+        Platform::Rect display = {0, 0, 0, 0};
+        Platform::Window::GetPrimaryDisplayRect(&display);
+        WindowSizeForToggle(cfg->windowWidth, cfg->windowHeight, cfg->width, cfg->height,
+                            display.right - display.left, display.bottom - display.top, &cfg->windowWidth,
+                            &cfg->windowHeight);
+        cfg->fullscreen = 0;
+    } else {
+        cfg->fullscreen = 1;
+    }
+    dev->ApplyChangedSettings();
+    cfg->Save();
+    std::fprintf(stderr, "[FullscreenMode] Alt+Enter: VideoFullscreen=%d (window %dx%d)\n", cfg->fullscreen,
+                 cfg->windowWidth, cfg->windowHeight);
+}
+
+}  // namespace
+
+void InstallHotkey() {
+    Platform::Window::SetFullscreenChordHandler(&OnFullscreenChord);
 }
 
 }  // namespace FullscreenMode

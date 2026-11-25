@@ -41,6 +41,12 @@ bool RectTouchesAnyDisplay(const Rect& r, const Rect* displays, int count) {
     return false;
 }
 
+void FullscreenWindowSize(const Rect& display, int32_t* width, int32_t* height) {
+    if (display.right <= display.left || display.bottom <= display.top) return;
+    *width  = display.right - display.left;
+    *height = display.bottom - display.top;
+}
+
 
 namespace {
 float SafeDensity(float d) { return d > 0.0f ? d : 1.0f; }
