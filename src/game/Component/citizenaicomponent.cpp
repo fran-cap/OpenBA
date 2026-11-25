@@ -26,6 +26,8 @@
 // (class C), Ext::RestrictedFoods::g_on, Ext::RestrictedFoods::IsBlocked
 #include "ext/restricted_foods/restricted_foods.h"
 #include "ext/registry.h"                        // EXT SEAM (NOT RETAIL): Ext::Fix().stranded_wade
+// EXT SEAM (NOT RETAIL, docs/extensions/handins/CITIZENSKINS.md): SlotFor
+#include "ext/citizen_skins/citizen_skins.h"
 #include "ext/stranded_wade/stranded_wade.h"     // EXT SEAM (NOT RETAIL, docs/retail_bugs.md §19)
 #include "Component/CitizenComponent.h"   // ENDGAME B.3.8 CIT (TypeId)
 #include "Component/CitizenDescription.h" // B.4 W1 COMP-b: description fields by name
@@ -263,7 +265,10 @@ static void CitizenComp_SetupAgeMesh(CitizenComponent* citizen, float scale) {
     model->meshInstance._color[0] = scale;
     model->meshInstance._color[1] = scale;
     model->meshInstance._color[2] = scale;
-    model->meshInstance._color[3] = (float)idx;
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/CITIZENSKINS.md): ext.citizen_skins adds the citizen's
+    // strip (the set that scores highest for its name) to the variant while its joined texture is installed;
+    // otherwise exactly idx.
+    model->meshInstance._color[3] = (float)Ext::CitizenSkins::SlotFor(citizen->name._data, idx);
 }
 
 void CitizenComponent::SetupYoung() {

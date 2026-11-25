@@ -112,10 +112,13 @@ UNIT_TEST(ext_registry_table_shape) {
         // touch_pointer is class A but takes a touch screen's fingers from the mouse: OFF; the Android first run turns it on.
         // render_pipe_replay is class A but delays the drawn motion 8 ms and is still being looked at on Vulkan
         // and the phone: OFF, Experimental tab (ruling 2026-11-15, SMOOTHREPLAY).
+        // citizen_skins is class A but changes how every citizen looks and reads each mod's skin file: the
+        // player's call, OFF (CITIZENSKINS).
         // render_backend was OFF in the table until 1.0.3; ON since (maintainer ruling 2026-11-08).
         if (e.tier == Ext::Tier::Extension && std::strncmp(e.id, "unit_", 5) != 0)
             CHECK(e.defaultOn == (e.cls == Ext::Class::A ? (std::strcmp(e.id, "eye_camera") != 0 &&                                  std::strcmp(e.id, "show_grid") != 0 &&
                                   std::strcmp(e.id, "fps_counter") != 0 &&
+                                  std::strcmp(e.id, "citizen_skins") != 0 &&
                                   std::strcmp(e.id, "building_finder") != 0 &&
                                   std::strcmp(e.id, "storage_metrics") != 0 &&
                                   std::strcmp(e.id, "dynamic_professions") != 0 &&

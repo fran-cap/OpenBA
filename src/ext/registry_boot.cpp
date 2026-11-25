@@ -60,6 +60,7 @@
 #include "audio/SoundBuffer.h"  // the ext.seamless_loops seam (DESIGN.md hook rule 5)
 #include "graphics/SunLight.h"  // the ext.max_shadow_res seam (DESIGN.md hook rule 5)
 #include "graphics/FrameCopyImageBuffer.h"   // the ext.better_water scene depth seam (DESIGN.md hook rule 5)
+#include "ext/citizen_skins/citizen_skins.h"   // ext.citizen_skins: the joined strips across a device restart
 #include "ext/better_water/better_water.h"
 #include "ext/winter_ice/winter_ice.h"
 #include "ext/better_clouds/better_clouds.h"
@@ -139,6 +140,7 @@ void VideoLost() {
     MapOverlays::OnVideoLost();  // the map window's overlay image
     WinterIce::OnVideoLost();    // the ice textures and the ice program's twins
     BetterClouds::OnVideoLost(); // the sky's own programs back, our programs and twins forgotten, the noise released
+    CitizenSkins::OnVideoLost();   // the citizen strips: the reload gives vanilla's back
     LeafLod::OnVideoLost();     // the reduced canopies' buffers (built again as their meshes draw)
 }
 // Engine::MainLoop::_extVideoRestored: the same objects made again, after the reload.
@@ -147,6 +149,7 @@ void VideoRestored() {
     MapOverlays::OnVideoRestored();
     WinterIce::OnVideoRestored();
     BetterClouds::OnVideoRestored();
+    CitizenSkins::OnVideoRestored();   // the joined citizen strips and the patched character program again
 }
 }  // namespace
 

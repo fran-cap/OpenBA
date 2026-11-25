@@ -852,6 +852,17 @@ const Entry kEntries[] = {
       "Pushes back the fog that hazes the far map when the camera is zoomed far out, up to no fog at all. "
       "Set how far in Options > Enhanced > Fog distance.",
       0, [](State& s) -> bool& { return s.ext.no_fog; } },
+    // CITIZENSKINS (docs/extensions/handins/CITIZENSKINS.md): every mounted package's citizen skin strip is
+    // read, the strips are joined in one wider texture and each citizen wears the one that scores highest
+    // for its name, so several retexture mods show together instead of the last one winning. Class A: a
+    // picture-only change, no sim effect, nothing saved. OFF by default: how the citizens look is the
+    // player's choice. Read when a game starts.
+    { "citizen_skins", Tier::Extension, Class::A, false,
+      "Citizen skin sets",
+      "Shows the citizen skins of every mod that retextures them at once, up to 16 sets, instead of only the "
+      "last mod's; a mod can carry several. Each citizen keeps the same set for good. Restart the game "
+      "after changing it.",
+      0, [](State& s) -> bool& { return s.ext.citizen_skins; } },
     // SHOWGRID (docs/extensions/handins/SHOWGRID.md): a grid of tile outlines over the map, for planning with
     // the game paused. Class A: a picture-only change, no sim effect, nothing saved, live. OFF by default:
     // how the map looks is the player's choice (like no_fog).
