@@ -14,6 +14,7 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 1. Request a trader: a trading post no longer forgets its request during play. The request was filed under a number the game reassigns when other things on the map are removed; it is now filed under the post's place on the map. Saves from v1.0.4 load as before; saves made with this version do not load in v1.0.4 (`ext.trader_request`).
 2. Tool names: after loading a save, a citizen's panel no longer falls back to "iron" or "steel" for a tool whose name it showed before the save (`ext.tool_names`).
 3. Vulkan: fullscreen no longer opens a window larger than the screen on a display with Windows scaling above 100% (the menu was off the screen), or when the chosen resolution is not the desktop's. A Vulkan fullscreen now always covers the desktop.
+4. After changing the renderer in Options during play, clicking a building no longer breaks the picture (smoke, animals and icons drawn as large white or coloured sheets), and a change from DirectX 11 to Vulkan no longer crashes. Restarting the game was the way out before (`ext.terrain_late`, `ext.show_grid`, `ext.map_overlays`).
 
 ## v1.0.4 (2026-11-22)
 
