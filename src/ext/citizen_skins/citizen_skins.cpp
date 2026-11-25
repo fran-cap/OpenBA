@@ -142,6 +142,8 @@ std::vector<PackSkin> GatherPackages() {
     IO::FileSystem* fs = IO::FileSystem::_singleton;
     if (fs == nullptr) return found;
     RefSize ref;
+    size_t baseCount = 0;   // how many candidates the first package that has a citizen texture gave (vanilla's)
+    bool haveBase = false;
     for (int p = 0; p < fs->_packfiles.GetSize() && found.size() < kMaxCandidates; ++p) {
         IO::PackageFile* pack = fs->_packfiles.GetData()[p];
         if (pack == nullptr) continue;
@@ -193,6 +195,16 @@ std::vector<PackSkin> GatherPackages() {
             if (found.size() >= kMaxCandidates) break;
             if (entry.second.hasMale || entry.second.hasFemale) found.push_back(std::move(entry.second));
         }
+        if (!haveBase && !found.empty()) {
+            haveBase = true;
+            baseCount = found.size();
+        }
+    }
+    // Vanilla's own look is only the fallback: once a mod brings citizen textures, the village wears the mods'
+    // sets alone (a player who turns Cyberpunk on wants every citizen in Cyberpunk, not one in five in vanilla's
+    // clothes). The first strips are kept only to size-check the rest, which is done by now.
+    if (haveBase && found.size() > baseCount) {
+        found.erase(found.begin(), found.begin() + static_cast<std::ptrdiff_t>(baseCount));
     }
     return found;
 }

@@ -12,7 +12,8 @@ CitizenTexture` for the men, `CitizenTextureF` for the women). A mod that retext
 that file; the last package mounted wins and only its 8 colours are ever drawn.
 
 With the row on, every mounted package's copy is read. The strips become one wider texture side by side (the first
-package's, which is vanilla's, then each different mod's, at most 16 in all: up to 128 colours) and each citizen wears
+package's, which is vanilla's, then each different mod's, at most 16 in all: up to 128 colours; vanilla's own
+strip is left out as soon as any mod brings one, so a village with one skin mod on wears only that mod's sets) and each citizen wears
 the strip that scores highest for its name. The citizen's saved variant (0..7) is untouched; the strip is a function
 of the name and the sets, so a citizen keeps its look in every load and nothing is written to the save. Each set is
 identified by its pixels, not by its place in the mount order: every set scores `hash(name, identity)` and the
@@ -97,8 +98,9 @@ reading, the install and its undo, the device restart) needs the engine and was 
 
 ## 5. Not done
 
-- No setting for which mods take part or for a vanilla-only share: every different strip counts, the first
-  package's first. The game's own mod list is the choice.
+- No setting for which mods take part or for a vanilla share: every different mod strip counts and vanilla's is
+  used only when no mod has one. A mod that wants vanilla's look in the mix ships it as one of its sets (Vanilla
+  Citizen Colors does). The game's own mod list is the choice.
 - A package's own mip chain is not used: the chain is made from the top level.
 - 16 sets at most (the joined image is never wider than D3D11's 16384): more are left out (the first 16 in mount
   order). A wider layout would need the program to add a row offset too.
