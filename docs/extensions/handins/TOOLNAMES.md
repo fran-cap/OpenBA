@@ -28,7 +28,7 @@ A note is written as WHO, WHAT and how many uses:
 
 | field | what it holds |
 |---|---|
-| entity | the citizen's entity id (`ComponentEntity::_entityId`, stable across a save and a load; `ext.family_tree` finds a living citizen again by the same id) |
+| entity | the citizen's entity id (`ComponentEntity::_entityId`) as it is when the save is written. It is the entity's index in `EntityList`'s master array and moves during play (removing any entity puts the last one in the hole), so the id a note took at the pick-up is replaced just before a save: `BeforeSave` (`GameUpdateLoop::SerializeAllHead`, main thread, before the save worker starts) gives every living citizen's note the citizen's current id and drops the notes of citizens who are gone. `ext.family_tree` reads its hint at the save for the same reason |
 | gender, name | the citizen's, checked at the claim so a reused id is never mistaken for the citizen |
 | path | the item's template path (`Object::External::GetPath`), never an index: mods change the load order between sessions |
 | uses | the use count the pick-up posted |

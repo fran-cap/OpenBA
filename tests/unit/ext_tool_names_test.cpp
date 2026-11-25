@@ -164,6 +164,32 @@ UNIT_TEST(ext_tool_names_saved_records_of_citizens_who_are_gone_are_pruned) {
     CHECK(!TakeLoadFlag());                                // Clear forgets a pending load too
 }
 
+// An entity id is an index of the entity list and moves when another entity is removed: the note took the
+// id at the pick-up, the save must carry the one the citizen has when it is written.
+UNIT_TEST(ext_tool_names_a_refreshed_note_is_saved_under_the_new_entity_id) {
+    Clear();
+    int a = 0, b = 0, stranger = 0, item = 0;
+    Remember(&a, &item, 50, Who(7, "Anna", 0), "Mod/Tools/Wood.rsc");
+    Remember(&b, &item, 100, Who(9, "Bram", 1), "Mod/Tools/Iron.rsc");
+    Refresh(&a, Who(3, "Anna", 0));                        // Anna's entity moved from slot 7 to slot 3
+    Refresh(&b, Who(9, "Bram", 1));                        // Bram's did not
+    Refresh(&stranger, Who(5, "Cara", 0));                 // a citizen with no note gets none
+    CHECK_EQ(LiveCount(), 2u);
+    CHECK(Lookup(&a, 50) == &item);                        // the live note is the same note
+    const std::vector<uint8_t> bytes = Encoded();
+    Clear();
+    CHECK(ToolCodec()->decode(bytes.data(), bytes.size(), 1));
+    CHECK_EQ(SavedCount(), 2u);
+    // the first frame after the load: both citizens are found under the ids the save's entities carry
+    PruneSaved(std::vector<Citizen>{Who(3, "Anna", 0), Who(9, "Bram", 1)});
+    CHECK_EQ(SavedCount(), 2u);
+    std::string path;
+    CHECK(!Claim(Who(7, "Anna", 0), 50, path));            // not under the id of the pick-up
+    CHECK(Claim(Who(3, "Anna", 0), 50, path) && path == "Mod/Tools/Wood.rsc");
+    CHECK(Claim(Who(9, "Bram", 1), 100, path) && path == "Mod/Tools/Iron.rsc");
+    Clear();
+}
+
 UNIT_TEST(ext_tool_names_table_is_capped) {
     Clear();
     static int citizens[kMaxNotes + 8];
