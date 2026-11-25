@@ -1346,3 +1346,32 @@ run for this. With `ext.fullscreen_mode` on (the default; off under the faithful
 the extension's on every renderer (`src/ext/fullscreen_mode/fullscreen_mode.h`): DX11 makes the
 association again after the swap chain with `DXGI_MWA_NO_ALT_ENTER`. The game polls the keyboard, so it
 may also see the Enter press.
+
+## 19. After a renderer change, selecting a building broke the picture (or the game crashed) — FIXED
+
+**Where.** `ext.terrain_late` (`LateState`, `src/ext/terrain_late/terrain_late.cpp`; on by default since
+v1.0.4), `ext.show_grid` (`GridState`) and `ext.map_overlays` (`TerrainState`). The port's own
+extensions; retail has none of the three.
+
+**What.** Each row draws with a copy of a loaded material's `Video::RenderState`, made at run time with
+`RenderState::CreateNewObject` and kept in a static for the life of the process, found again by the
+source state's address. A video restart (a renderer change in Options, a display change, a lost device)
+goes through `Engine::MainLoop::OnVideoError` / `OnVideoRestart`, which destroy the video Externals the
+`ExternalFactory` knows and load each again by path, in place. The copy has no path and is not in the
+factory: it kept the device half of the device that went away, while its source came back at the same
+address, so the lookup still answered with it. From the next frame the terrain was bound with a state
+object of a dead device. Seen after a renderer change, where that object is the other backend's (a
+forced `DXGI_ERROR_DEVICE_RESET` on DirectX 11 alone still drew right):
+- Vulkan to DirectX 11: the terrain's bind did nothing on the device, so the terrain was drawn with
+  whatever state the draw before it left. With a building selected (its outline's mask and edge passes
+  are in the list) the smoke, animals and status icons came out as large white or coloured sheets and
+  the outline was missing; with nothing selected the picture looked right.
+- DirectX 11 to Vulkan: `Video::Context::BindResources` called `VideoDX11::RenderStateData::Bind` under
+  the Vulkan backend from `Ext::TerrainBatch::DrawRun`, an access violation on the render thread.
+The faithful profile never makes the copy and was not affected. A restart of the game cleared it.
+
+**Fix.** `Ext::KeptRenderState` (`src/ext/kept_render_state.h`) holds the three copies. On
+`MainLoop::_extVideoLost` each is destructed while its device still exists (as `OnVideoError` does to the
+factory's states) and the next draw makes it again in the same storage. Verified on the dual exe with
+`BANISHED_RENDER_SWITCH` and `BANISHED_PANEL_HOLD=StorageComponent`, settings profile: both directions
+draw the selected barn and everything around it as a run with no switch does, and the crash is gone.

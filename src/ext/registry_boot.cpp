@@ -65,6 +65,7 @@
 #include "ext/winter_ice/winter_ice.h"
 #include "ext/better_clouds/better_clouds.h"
 #include "ext/leaf_lod/leaf_lod.h"
+#include "ext/kept_render_state.h"   // the derived render states: MainLoop::_extVideoLost drops them
 #include "io/Persistence.h"
 #include "save/SaveLoad.h"      // the pseudo-mod seam Save::SaveLoad::_extExtraMods (DESIGN.md hook rule 5)
 #include "system/Configuration.h"
@@ -141,6 +142,7 @@ void VideoLost() {
     WinterIce::OnVideoLost();    // the ice textures and the ice program's twins
     BetterClouds::OnVideoLost(); // the sky's own programs back, our programs and twins forgotten, the noise released
     LeafLod::OnVideoLost();     // the reduced canopies' buffers (built again as their meshes draw)
+    KeptRenderState::OnVideoLost();   // terrain_late / show_grid / map_overlays: their derived render states
 }
 // Engine::MainLoop::_extVideoRestored: the same objects made again, after the reload.
 void VideoRestored() {
