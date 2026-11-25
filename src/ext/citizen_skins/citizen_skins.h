@@ -8,9 +8,10 @@
 // (Models/Citizen/MaterialInstance/ CitizenTexture, and CitizenTextureF for the women). A mod that retextures
 // the citizens ships its own copy of that file and the last one loaded replaces the others: only that mod's 8
 // colours are ever drawn. With the row on, every mounted package's copy is read, the strips are put side by
-// side in one wider texture (up to 16; vanilla's own only when no mod has one) and each citizen wears the strip that scores highest
-// for its name: 8 colours become 16, 24 ... 128. Drawing only: the citizen's saved variant (0..7) is
-// untouched, the strip is a function of the name, nothing is saved, the simulation does not know.
+// side in one wider texture (up to 16; vanilla's own only when no mod has one) and each citizen wears the
+// strip that scores highest for its name: 8 colours become 16, 24 ... 128. Drawing only: the citizen's
+// saved variant (0..7) is untouched, the strip is a function of the name, nothing is saved, the simulation
+// does not know.
 //
 // HOW. The character vertex program divides the texture coordinate by 8 (an `l(0.125)` immediate in its
 // compiled code); it becomes 1 / (8 N) and the mesh colour's fourth component (the citizen's variant, written

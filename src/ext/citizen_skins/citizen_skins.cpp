@@ -6,9 +6,10 @@
 // ORDER. Everything that can be checked is checked before anything is changed: the packages read, the strips
 // decoded, the chains built, the program's blobs patched on COPIES. Then the two textures are made, then each
 // program is written and made again. Those last steps can still fail on the device; when one does, the
-// programs already written get their own bytes back and both textures are made again from the first package's
-// strips alone (vanilla's), so the game is left in one consistent state, never half changed. A game without
-// the row, or one that could not join the strips, is exactly retail.
+// programs already written get their own bytes back and both textures are made again from the strips retail
+// itself draws (the own pair of the last package that has one, RetailStrips), so the game is left in one
+// consistent state, never half changed. A game without the row, or one that could not join the strips, is
+// exactly retail.
 // ============================================================================
 
 #include "ext/citizen_skins/citizen_skins.h"
@@ -65,7 +66,8 @@ bool g_done = false;          // the pass has run for this process (a failure is
 struct Kept {
     Chain male;
     Chain female;
-    Chain male1;      // the first package's strip alone: what the textures go back to when an install fails
+    // the strips retail draws (RetailStrips): what the textures go back to when an install fails
+    Chain male1;
     Chain female1;
     int sets = 1;
     std::vector<uint64_t> ids;   // one identity per set (SetIdentity)
@@ -124,6 +126,17 @@ bool LoadStrip(IO::PackageFile* pack, int index, const char* entry, Strip* out, 
     return true;
 }
 
+// The strips retail itself draws: the own pair (CitizenTexture, CitizenTextureF) of the last mounted
+// package that has one, per gender (the last package wins in retail; a package with only one of the two
+// leaves the other to an earlier one). Vanilla's own when no mod has one. What the textures go back to when
+// an install fails.
+struct RetailStrips {
+    Strip male;
+    Strip female;
+    bool hasMale = false;
+    bool hasFemale = false;
+};
+
 // The size of the first strips read (vanilla's): every later strip must be this size.
 struct RefSize {
     int maleW = 0;
@@ -132,17 +145,19 @@ struct RefSize {
     int femaleH = 0;
 };
 
-// Every mounted package that carries a citizen texture, in mount order (vanilla first). A package gives its
-// own pair (CitizenTexture, CitizenTextureF) first, then its numbered pairs (CitizenTexture2 +
-// CitizenTextureF2 ...) in number order: each pair is one candidate set. A numbered pair with only one of
-// the two wears the package's own for the other. A package's own pair is always read; at most kMaxSets
-// numbered pairs are read from one package and kMaxCandidates pairs in all.
-std::vector<PackSkin> GatherPackages() {
+// Every mounted package that carries a citizen texture, in mount order (vanilla first, and dropped from the
+// result once a mod has one: it is only the fallback). A package gives its own pair (CitizenTexture,
+// CitizenTextureF) first, then its numbered pairs (CitizenTexture2 + CitizenTextureF2 ...) in number order:
+// each pair is one candidate set. A numbered pair with only one of the two wears the package's own for the
+// other. A package's own pair is always read; at most kMaxSets numbered pairs are read from one package and
+// kMaxCandidates pairs in all. `retail` gets the strips retail draws (RetailStrips).
+std::vector<PackSkin> GatherPackages(RetailStrips* retail) {
     std::vector<PackSkin> found;
     IO::FileSystem* fs = IO::FileSystem::_singleton;
     if (fs == nullptr) return found;
     RefSize ref;
-    size_t baseCount = 0;   // how many candidates the first package that has a citizen texture gave (vanilla's)
+    // how many candidates the first package that has a citizen texture gave (vanilla's)
+    size_t baseCount = 0;
     bool haveBase = false;
     for (int p = 0; p < fs->_packfiles.GetSize() && found.size() < kMaxCandidates; ++p) {
         IO::PackageFile* pack = fs->_packfiles.GetData()[p];
@@ -172,9 +187,21 @@ std::vector<PackSkin> GatherPackages() {
                 }
             }
         }
+        // What retail draws is the own pair of the last package that has one (per gender): taken before the
+        // pairs are filled and moved out.
+        const auto own = byNumber.find(0);
+        if (own != byNumber.end() && retail != nullptr) {
+            if (own->second.hasMale) {
+                retail->male = own->second.male;
+                retail->hasMale = true;
+            }
+            if (own->second.hasFemale) {
+                retail->female = own->second.female;
+                retail->hasFemale = true;
+            }
+        }
         // First the halves a numbered pair lacks (copied from the package's own pair, which must still be
         // whole: nothing is moved out yet), then the pairs go to the list in number order.
-        const auto own = byNumber.find(0);
         if (own != byNumber.end()) {
             for (auto& entry : byNumber) {
                 if (entry.first == 0) continue;
@@ -200,10 +227,11 @@ std::vector<PackSkin> GatherPackages() {
             baseCount = found.size();
         }
     }
-    // Vanilla's own look is only the fallback: once a mod brings citizen textures, the village wears the mods'
-    // sets alone (a player who turns Cyberpunk on wants every citizen in Cyberpunk, not one in five in vanilla's
-    // clothes). The first strips are kept only to size-check the rest, which is done by now.
-    // Vanilla's strips still lend the half a mod lacks (a mod with only the men's texture wears vanilla's women).
+    // Vanilla's own look is only the fallback: once a mod brings citizen textures, the village wears the
+    // mods' sets alone (a player who turns Cyberpunk on wants every citizen in Cyberpunk, not one in five
+    // in vanilla's clothes). Vanilla's strips were the size reference for the rest, which is done by now.
+    // Vanilla's strips still lend the half a mod lacks (a mod with only the men's texture wears vanilla's
+    // women).
     if (haveBase && found.size() > baseCount) {
         const PackSkin base = found.front();
         found.erase(found.begin(), found.begin() + static_cast<std::ptrdiff_t>(baseCount));
@@ -225,7 +253,9 @@ std::vector<PackSkin> GatherPackages() {
 
 // ---- installing -------------------------------------------------------------------------------------------
 
-bool MakeTexture(const char* path, const Chain& chain) {
+// `wrapU`: the U address mode becomes WRAP (ImageBuffer: 0 = WRAP, 1 = CLAMP) instead of the texture's own,
+// which is CLAMP for the citizen strips (CitizenTexture.rsc).
+bool MakeTexture(const char* path, const Chain& chain, bool wrapU = false) {
     Object::ExternalFactory* const factory = Object::ExternalFactory::_singleton;
     if (factory == nullptr) return false;
     Video::ImageBuffer* tex = factory->FindOrLoadAs<Video::ImageBuffer>(System::Filename(path));
@@ -241,8 +271,9 @@ bool MakeTexture(const char* path, const Chain& chain) {
         std::memcpy(l.GetData(), chain.levels[i].data(), chain.levels[i].size());
     }
     const uint32_t flags = tex->_flags | Video::ImageBuffer::kMipmaps;
+    const Video::ImageBuffer::AddressMode addressU = wrapU ? 0 : tex->_addressU;
     const bool ok = tex->Create(0, tex->_kind, 5 /* BGRA8 */, flags, chain.width, chain.height, tex->_filter,
-                                tex->_addressU, tex->_addressV, tex->_addressW, &levels);
+                                addressU, tex->_addressV, tex->_addressW, &levels);
     if (!ok) {
         std::fprintf(stderr, "[CitizenSkins] %s: ImageBuffer::Create(%d x %d) failed\n", path, chain.width,
                      chain.height);
@@ -250,12 +281,16 @@ bool MakeTexture(const char* path, const Chain& chain) {
     return ok;
 }
 
-// Both textures back to the first package's strip alone (the divide in the program is 8 again by then).
-void RestoreTextures(const Kept& kept) {
-    const bool male = MakeTexture(kMaleTexture, kept.male1);
-    const bool female = MakeTexture(kFemaleTexture, kept.female1);
+// Both textures back to the strips retail draws (the divide in the program is 8 again by then). After a
+// device restart the citizens already carry `set * 8 + variant` in their mesh colour, which the program
+// then turns into a U of up to 16: WRAP brings that back to the cell of the variant (the strip's own CLAMP
+// would show the last cell), so a failed reinstall leaves every citizen in the first set's look, not in one
+// colour.
+void RestoreTextures(const Kept& kept, bool citizensHaveSlots) {
+    const bool male = MakeTexture(kMaleTexture, kept.male1, citizensHaveSlots);
+    const bool female = MakeTexture(kFemaleTexture, kept.female1, citizensHaveSlots);
     if (!male || !female) {
-        std::fprintf(stderr, "[CitizenSkins] the first package's strips could not be put back\n");
+        std::fprintf(stderr, "[CitizenSkins] the strips retail draws could not be put back\n");
     }
 }
 
@@ -315,10 +350,20 @@ bool Write(Video::VertexProgram* vp, const std::vector<std::vector<uint8_t>>& bl
     return true;
 }
 
+// Whether any variant of `vp` has the texture divide (an `l(0.125)` immediate): it is a program this
+// patches, or one that must not be left behind.
+bool CarriesTextureDivide(const Video::VertexProgram* vp) {
+    for (const std::vector<uint8_t>& blob : CurrentBlobs(vp)) {
+        if (CountEighths(blob.data(), blob.size()) > 0) return true;
+    }
+    return false;
+}
+
 // Texture and program for `sets` strips; the combined chains are those of `kept`. True with everything in
-// place; false with the game as vanilla's strips and the original program (or, when a restore itself fails,
-// as far as the log says).
-bool Install(const Kept& kept) {
+// place; false with the game as the strips retail draws and the original program (or, when a restore itself
+// fails, as far as the log says). `citizensHaveSlots`: citizens that already carry a set in their mesh colour
+// (a device restart), see RestoreTextures.
+bool Install(const Kept& kept, bool citizensHaveSlots) {
     std::vector<Video::VertexProgram*> programs;
     CollectPrograms(kMaleMaterial, &programs);
     CollectPrograms(kFemaleMaterial, &programs);
@@ -333,6 +378,12 @@ bool Install(const Kept& kept) {
         if (PatchedCopies(vp, kept.sets, &j.blobs)) {
             j.original = CurrentBlobs(vp);
             jobs.push_back(std::move(j));
+        } else if (CarriesTextureDivide(vp)) {
+            // a program with the divide that this cannot patch (a mod replaced it with another shape of it):
+            // the wide texture would be drawn with a divide by 8 for that gender. All or nothing.
+            std::fprintf(stderr, "[CitizenSkins] a character program has the texture divide but is not "
+                                 "the one this patches: left as it is\n");
+            return false;
         }
     }
     if (jobs.empty()) {
@@ -340,8 +391,8 @@ bool Install(const Kept& kept) {
         return false;
     }
     if (!MakeTexture(kMaleTexture, kept.male) || !MakeTexture(kFemaleTexture, kept.female)) {
-        std::fprintf(stderr, "[CitizenSkins] a texture was not made: the first package's strips again\n");
-        RestoreTextures(kept);
+        std::fprintf(stderr, "[CitizenSkins] a texture was not made: the strips retail draws again\n");
+        RestoreTextures(kept, citizensHaveSlots);
         return false;
     }
     size_t written = 0;
@@ -353,7 +404,7 @@ bool Install(const Kept& kept) {
     if (!ok) {
         // the programs touched so far (the one that failed included) get their own bytes back
         for (size_t i = 0; i < written; ++i) Write(jobs[i].vp, jobs[i].original);
-        RestoreTextures(kept);
+        RestoreTextures(kept, citizensHaveSlots);
         return false;
     }
     for (int i = 0; i < kept.sets && i < kMaxSets && i < static_cast<int>(kept.ids.size()); ++i) {
@@ -378,7 +429,8 @@ void OnGameStart() {
     if (g_done) return;
     if (Video::Device::_singleton == nullptr) return;   // not tried: the next game start does
     g_done = true;
-    const std::vector<PackSkin> packs = GatherPackages();
+    RetailStrips retail;
+    const std::vector<PackSkin> packs = GatherPackages(&retail);
     std::vector<std::string> notes;
     const Sets sets = ChooseSets(packs, &notes);
     for (const std::string& note : notes) std::fprintf(stderr, "[CitizenSkins] %s\n", note.c_str());
@@ -386,20 +438,23 @@ void OnGameStart() {
     std::fprintf(stderr, "[CitizenSkins] %zu citizen texture pair(s) found, %d different set(s)\n",
                  packs.size(), n);
     if (n < 2) return;
-    // The first package's strips alone: what the textures go back to when an install fails.
+    // The strips retail draws: what the textures go back to when an install fails.
     Chain male1;
     Chain female1;
     std::string why;
-    if (!BuildChain({sets.male[0]}, &male1, &why) || !BuildChain({sets.female[0]}, &female1, &why)) {
-        std::fprintf(stderr, "[CitizenSkins] the first strips do not make a chain: %s\n", why.c_str());
+    if (!retail.hasMale || !retail.hasFemale || !BuildChain({&retail.male}, &male1, &why) ||
+        !BuildChain({&retail.female}, &female1, &why)) {
+        std::fprintf(stderr, "[CitizenSkins] the strips retail draws do not make a chain: %s\n", why.c_str());
         return;
     }
-    // The device may refuse a very wide image: try all the sets, then the first 8, so the worst case is fewer
-    // sets, never a broken citizen. (A shorter list drops the sets that come last in the mount order.)
-    const int attempts[2] = {n, std::min(n, 8)};
-    for (int a = 0; a < 2; ++a) {
+    // The device may refuse a very wide image (a texture limit under 16384; no backend answers its limit
+    // through the interface the extensions use): try all the sets, then the first 8, 4 and 2, so the worst
+    // case is fewer sets, never a broken citizen. (A shorter list drops the sets that come last in the
+    // mount order.)
+    const int attempts[4] = {n, std::min(n, 8), std::min(n, 4), std::min(n, 2)};
+    for (int a = 0; a < 4; ++a) {
         const int count = attempts[a];
-        if (a == 1 && count == attempts[0]) break;   // nothing smaller to try
+        if (a > 0 && count == attempts[a - 1]) continue;   // not smaller than the one just refused
         const std::vector<const Strip*> male(sets.male.begin(), sets.male.begin() + count);
         const std::vector<const Strip*> female(sets.female.begin(), sets.female.begin() + count);
         auto kept = std::make_unique<Kept>();
@@ -411,12 +466,16 @@ void OnGameStart() {
             std::fprintf(stderr, "[CitizenSkins] the strips do not join: %s\n", why.c_str());
             return;
         }
-        if (Install(*kept)) {
+        if (Install(*kept, false)) {
             g_kept = std::move(kept);
             return;
         }
-        if (a == 0 && attempts[1] != attempts[0]) {
-            std::fprintf(stderr, "[CitizenSkins] %d strips did not install: trying %d\n", count, attempts[1]);
+        for (int b = a + 1; b < 4; ++b) {
+            if (attempts[b] != count) {
+                std::fprintf(stderr, "[CitizenSkins] %d strips did not install: trying %d\n", count,
+                             attempts[b]);
+                break;
+            }
         }
     }
 }
@@ -437,8 +496,11 @@ void OnVideoLost() {
 void OnVideoRestored() {
     const std::lock_guard<std::mutex> lock(g_mutex);
     if (!g_kept) return;
-    if (!Enabled()) return;   // switched off since: the reload's own (retail) texture and program stay
-    if (!Install(*g_kept)) {
+    // Installed means installed until the game is closed (the row's text says so), also when the row was
+    // switched off since: the citizens already carry `set * 8 + variant`, which only the patched program
+    // turns into the right cell. A strip's U address mode is CLAMP, so the reload's own retail program
+    // would show every citizen of a later set in the last cell.
+    if (!Install(*g_kept, true)) {
         std::fprintf(stderr, "[CitizenSkins] could not install the strips again after the device restart\n");
     }
 }

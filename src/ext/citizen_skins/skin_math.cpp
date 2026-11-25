@@ -302,6 +302,12 @@ bool BuildChain(const std::vector<const Strip*>& strips, Chain* out, std::string
                 dst[x * 4 + 0] = src[x * 4 + 2];   // BGRA
                 dst[x * 4 + 1] = src[x * 4 + 1];
                 dst[x * 4 + 2] = src[x * 4 + 0];
+                // Opaque whatever the strip says. The citizens' pixel program is the one NormalSkin shares
+                // with Normal.ps (OpaqueMaterial.srsl): its `ps` lights color.xyz and writes alpha 0
+                // itself, so a strip's alpha is never drawn; only the `psalpha` variant clips on it (below
+                // 0.5), and a citizen strip with a transparent pixel would then show a hole, not another
+                // colour. A BC3 strip's own alpha (decoded by the reader) is therefore dropped: every set
+                // is solid.
                 dst[x * 4 + 3] = 255;
             }
         }
@@ -461,7 +467,7 @@ int SetForName(const char* name, const uint64_t* ids, int sets) {
 }
 
 uint64_t StripHash(const Strip& s) {
-    uint64_t h = 1469598103934665603ull;
+    uint64_t h = 14695981039346656037ull;   // the FNV-1a offset basis
     for (uint8_t b : s.rgba) {
         h ^= b;
         h *= 1099511628211ull;

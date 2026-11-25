@@ -28,7 +28,7 @@ passes it (the mods' pairs, in mount order; vanilla's when there is no mod):
   vanilla's); without both the row does nothing.
 - A package that carries only one of the two textures wears the first package's for the other.
 - Two packages with the same pixels count once.
-- A strip not of the first package's size is left out (logged).
+- A strip not of the first package's size (vanilla's) is left out (logged).
 - At most 16 sets in all, and fewer when the joined image would be wider than 16384 pixels (the wider of the two
   first strips counts). With fewer than two different sets the row does nothing.
 
@@ -55,7 +55,9 @@ no leading zero.
 - **The shader.** The character vertex program (`OpaqueMaterial.srsl:NormalSkin_charactervs`, used by the two citizen
   materials only in retail) divides the texture coordinate by 8: an `l(0.125)` immediate in its compiled code, once
   in each of its 4 variants. It becomes `l(1 / (8 N))` (`PatchVertexBlob`, the DXBC checksum made again) and the
-  program is created again from its bytes. All of its variants must be exactly that program, or none is patched. The
+  program is created again from its bytes. All of its variants must be exactly that program, or none is patched, and a
+  character program that carries the `l(0.125)` but cannot be patched (more than one, a checksum that is not its own)
+  stops the whole install: no gender is left with the wide texture and a divide by 8. The
   same bytes feed every backend. The program belongs to the material, so a mesh that a mod draws with the same
   material and that does not get a strip number from the seam below would show the first 1/N of its texture; retail
   draws nothing else with it.
@@ -65,10 +67,10 @@ no leading zero.
 - **Order.** Everything that can be checked is checked before anything is changed: the strips decoded, the chains
   built, the blobs patched on copies. Then the two textures are made, then each program is written and made again.
   If the device refuses one of those steps, the programs already written get their own bytes back and both textures
-  are made again from the first package's strip alone (the first mod's when there is one: what the game itself
-  drew), so the game is left as it was, never half changed;
-  then the first 8 sets are tried. If a restore itself fails, the log says so. A game without the row, or one that
-  could not join the strips, is exactly retail.
+  are made again from the strips retail itself draws (`RetailStrips`: per gender the own pair `CitizenTexture` /
+  `CitizenTextureF` of the last mounted package that has one, as in retail where the last package wins), so the
+  game is left as it was, never half changed; then fewer sets are tried (the first 8, 4 and 2). If a restore itself
+  fails, the log says so. A game without the row, or one that could not join the strips, is exactly retail.
 
 ## 3. Hooks
 
@@ -77,8 +79,11 @@ no leading zero.
 - `CitizenComp_SetupAgeMesh`: `Ext::CitizenSkins::SlotFor(name, variant)`. With the row off, or fewer than two sets
   installed, it is one atomic load and returns the variant: exactly retail's value (hook rule 4).
 - `Engine::MainLoop::_extVideoLost` / `_extVideoRestored` (`registry_boot.cpp`): a device restart reloads the vanilla
-  texture and program from their files; the joined ones are installed again from what was kept, unless the row has
-  been switched off since.
+  texture and program from their files; the joined ones are installed again from what was kept, also when the row has
+  been switched off since: the citizens already carry `set * 8 + variant` in their mesh colour, and the citizen
+  texture's U address mode is CLAMP (`CitizenTexture.rsc`), so retail's program on a reloaded retail strip would show
+  every citizen of a later set in the strip's last cell. If that reinstall fails, the textures come back as the
+  strips retail draws with WRAP in U, so the cell is the citizen's variant in the first set's look.
 
 No game content ships (hook rule 7): the extension reads the packages the player already has and patches the bytes of
 one program in memory; the icon is drawn by `tools/ext_icons/citizenskins.py`.
@@ -109,7 +114,15 @@ reading, the install and its undo, the device restart) needs the engine and was 
 - A package's own mip chain is not used: the chain is made from the top level.
 - 16 sets at most (the joined image is never wider than D3D11's 16384): more are left out (the first 16 in mount
   order). A wider layout would need the program to add a row offset too.
-- If the device refuses the wide image, the first 8 sets are tried; failing that the first package's strips stay.
+- If the device refuses the wide image (a texture limit under 16384: no backend answers its limit through the
+  interface the extensions use, so it is found by trying), the first 8, 4 and 2 sets are tried in turn; failing all
+  of them the strips retail draws stay.
+- A strip's alpha is dropped: `BuildChain` writes 255. The citizens' pixel program is the one `NormalSkin` shares with
+  `Normal.ps` (`OpaqueMaterial.srsl`), whose `ps` lights `color.xyz` and writes alpha 0 itself; only its `psalpha`
+  variant clips on the texture's alpha, and there a transparent pixel of a strip would be a hole, not another colour.
+- A mod's own material drawn with the character vertex program (the program belongs to the material) would sample
+  only the first 1/N of its texture: the program divides every texture's U, and only the citizens get the set number
+  from the seam. Retail draws nothing else with it; accepted for an off-by-default row.
 - Uncompressed, a 16-set texture is about 11 MB per gender in video memory (8 sets: about 5.6 MB).
-- Switching the row off while the game runs does not give back the last mod's texture until the files are loaded
-  again (a display change) or the game is restarted.
+- Switching the row off while the game runs does not give back the last mod's texture: what is installed stays
+  until the game is closed, a display change included (the strips are installed again). Restart the game.

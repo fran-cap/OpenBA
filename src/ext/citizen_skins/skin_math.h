@@ -15,8 +15,9 @@
 //                       (highest random weight), nothing random, nothing saved; taking a set out of the
 //                       list only moves the citizens who wore it
 //   SetIdentity         a set's own number, from its pixels (not its place in the list)
-//   ChooseSets          which packages' strips become sets: the first package's are set 0, a package that
-//                       only has one of the two wears the first's for the other, equal pixels count once,
+//   ChooseSets          which packages' strips become sets: the first package's (the first mod's, once a mod
+//                       has a citizen texture) are set 0, a package that only has one of the two wears the
+//                       first's for the other, equal pixels count once,
 //                       other sizes are left out, and no more than the limit or the image width allows
 //   ParseStripName      a package entry's name -> male or female, and which set of the mod's it is (0 = the
 //                       mod's own pair; 2..99 = a numbered extra pair: CitizenTexture2 + CitizenTextureF2)
@@ -33,7 +34,10 @@ namespace CitizenSkins {
 
 constexpr int kCells = 8;      // the colours in one strip
 constexpr int kMaxSets = 16;   // strips side by side: 128 colours, a 16384 x 128 image
-constexpr int kMaxTextureSide = 16384;   // D3D11's 2D texture limit: the joined image is never wider
+// D3D11's 2D texture limit: the joined image is never wider. A device with a smaller limit refuses the widest
+// image: OnGameStart then tries fewer sets (16, 8, 4, 2), because no backend answers its limit through the
+// interface the extensions use.
+constexpr int kMaxTextureSide = 16384;
 // A mod's file says how big its strip is, so the size is bounded before anything is allocated: one strip is
 // at most 2 M pixels (vanilla's is 128 K; 8 MB decoded) and the joined image at most 16 M (64 MB).
 constexpr int kMaxStripPixels = 2 * 1024 * 1024;
@@ -65,7 +69,8 @@ struct Chain {
     std::vector<std::vector<uint8_t>> levels;   // BGRA8, level 0 first
 };
 
-// The strips side by side (all one size; an alpha of 255 everywhere). False for none, for strips of different
+// The strips side by side (all one size; an alpha of 255 everywhere: the citizens' pixel program does not
+// draw a strip's alpha, see BuildChain). False for none, for strips of different
 // sizes, and for a joined image wider than kMaxTextureSide or over kMaxChainPixels.
 bool BuildChain(const std::vector<const Strip*>& strips, Chain* out, std::string* why);
 
@@ -108,7 +113,8 @@ struct PackSkin {
 // A hash of a strip's pixels and size (what makes two strips "the same" and gives a set its identity).
 uint64_t StripHash(const Strip& s);
 
-// The sets that come of the packages, in order: set 0 is the first package's pair, which must have both
+// The sets that come of the packages, in order: set 0 is the first package's pair (the packages given are the
+// mods' alone once any mod has a citizen texture: vanilla's is only the fallback), which must have both
 // strips (else none: the feature is off). Later packages follow in the given order; a package with only one
 // of the two wears the first package's for the other; a pair whose pixels are already taken adds nothing; a
 // pair that is not the first package's size is left out; and the list stops at kMaxSets, or fewer when the

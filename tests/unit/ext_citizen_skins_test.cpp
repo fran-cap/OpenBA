@@ -525,6 +525,18 @@ UNIT_TEST(ext_citizen_skins_choose_leaves_out_other_sizes_and_stops_at_the_limit
     CHECK(ChooseSets(wideFemale, nullptr).male.size() == 4);
 }
 
+// The strip hash feeds every set identity, so every citizen's look: its start is the FNV-1a offset basis
+// (14695981039346656037), and a change of it after a release would reshuffle every village.
+UNIT_TEST(ext_citizen_skins_the_strip_hash_is_fnv1a_and_pinned) {
+    Strip s;
+    s.width = 1;
+    s.height = 1;
+    s.rgba = {1, 2, 3, 4};
+    CHECK(StripHash(s) == 0xbe7a5e765165785cull);
+    Strip empty;
+    CHECK(StripHash(empty) == 14695981039346656037ull);   // no bytes, no size: the basis itself
+}
+
 UNIT_TEST(ext_citizen_skins_the_pick_is_pinned) {
     // Pinned values: if the hash ever changed, every village's look would change with it. (Computed apart
     // from the code with the same arithmetic.)
