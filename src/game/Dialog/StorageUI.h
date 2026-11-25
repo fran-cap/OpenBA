@@ -42,10 +42,15 @@ public:
 
     // 0x140021390 minus the free: ~Array on +0x30 (MemFree the data, zero the
     // header), then ~DialogController (and so ~Internal: RemoveObject).
-    ~StorageUI() override = default;                              // [0] 0x140021390
+    // [0] 0x140021390 (the body is storageui.cpp's: one EXT SEAM line)
+    ~StorageUI() override;
     void Persist(IO::Stream&/*stream*/) override {}   // [3] 0x1400b8ca0  RET 0 in retail
     void OnCreated() override;   // [4] 0x1400b8820
     void OnUpdateLayout() override;   // [7] 0x1400b8450
+    // [9] inherited from DialogController in retail; overridden only to give ext.storage_filter's
+    // tab its events
+    void OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId a, int32_t b, int32_t c,
+                        int32_t d, int32_t e, void* userData) override;
     // [8] inherited: DialogController::OnUpdate (table slot 0x14003a96c jumps to the import);
     // the refresh is slot 7, which DialogInstance::ComputeLayout dispatches every frame
 

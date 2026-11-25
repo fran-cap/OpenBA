@@ -74,6 +74,8 @@
 #include "Component/find_components3.h"   // PERF: PickBestDropTarget's three component scans in one walk
 #include "Object/type_cache.h"   // PERF (TYPECACHE): Type() through the vptr cache
 #include "ext/winter_ice/walk_type.h"   // EXT SEAM (NOT RETAIL, WINTERICE.md 5.2): ext.walk_on_ice, a frozen lake cell reads as type 9
+// EXT SEAM (NOT RETAIL, STORAGEFILTER.md): ext.storage_filter, the per-item cap in CanAdd
+#include "ext/storage_filter/storage_filter.h"
 
 namespace {
 
@@ -151,6 +153,11 @@ bool StorageComponent::CanAdd(const ComponentDescription* material, int count) {
     const RawMaterialDescription* raw = FindSubDescription<RawMaterialDescription>(material);
     const int unitWeight = raw->_weight;   // 0x14012cd80 reads +0x48 through the narrowed (or 0) pointer with no test (B6 14d G54)
     const int need = unitWeight * count + stored;
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/STORAGEFILTER.md): ext.storage_filter (class C). A
+    // building can take an item only up to a number of units; this only ever takes away from retail's answer.
+    if (Ext::StorageFilter::OverCap(this, raw, count)) {
+        return false;
+    }
     return need <= capacity;
 }
 

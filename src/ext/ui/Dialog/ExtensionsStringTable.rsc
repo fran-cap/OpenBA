@@ -150,6 +150,12 @@ StringTable resource
 		{ String _name = "TraderRequestAny";		String _text = "Any trader (1x)"; }
 		{ String _name = "TraderRequestOnce";		String _text = "Next visit"; }
 		{ String _name = "TraderRequestAlways";		String _text = "Every visit"; }
+		// ext.storage_filter's tab in a storage building's window (StorageFilterTab.rsc)
+		{ String _name = "StorageFilterTab";		String _text = "Accepts"; }
+		{ String _name = "StorageFilterHint";		String _text = "Checked items are delivered here, up to the number (0 = no limit)."; }
+		{ String _name = "StorageFilterParam";		String _text = "@0"; }
+		{ String _name = "StorageFilterCheckTip";	String _text = "Deliver this item to this building"; }
+		{ String _name = "StorageFilterCapTip";	String _text = "The most units of this item delivered here. 0 means no limit."; }
 		{ String _name = "ItemPriorityShowAllTip";	String _text = "Unchecked: only items your town has made or stored, and the ranked ones."; }
 
 		// ext.family_tree's page in it (FamilyTreePage.rsc); the rows' texts are set by the controller through FamilyParam

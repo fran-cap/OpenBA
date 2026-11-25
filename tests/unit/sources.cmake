@@ -108,6 +108,8 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/ext/item_limits/save_state.cpp              #   its class C codec
   ${CMAKE_SOURCE_DIR}/src/ext/trader_request/trader_request.cpp       # ext_trader_request_test.cpp (TRADERREQUEST)
   ${CMAKE_SOURCE_DIR}/src/ext/trader_request/save_state.cpp           #   its class C codec
+  ${CMAKE_SOURCE_DIR}/src/ext/storage_filter/storage_filter.cpp       # ext_storage_filter_test.cpp (STORAGEFILTER)
+  ${CMAKE_SOURCE_DIR}/src/ext/storage_filter/save_state.cpp           #   its class C codec
   ${CMAKE_SOURCE_DIR}/src/ext/tool_names/tool_names.cpp                # ext_tool_names_test.cpp (TOOLNAMES): the note table and its class C codec
   ${CMAKE_SOURCE_DIR}/src/ext/state_codecs.cpp                       # savetail.cpp's FindCodec (the class C codec table)
   ${CMAKE_SOURCE_DIR}/src/ext/host_codecs.cpp                        # savetail.cpp's FindHostCodec (the host codec table, EXTHOSTS)

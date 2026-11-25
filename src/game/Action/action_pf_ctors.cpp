@@ -49,6 +49,8 @@
 #include "Action/PathSearch.h"   // RawArray (the drop-target lists)
 #include "Game/Map.h"
 #include "Object/factory_registration.h"           // ::Object::GetTypeIdByName
+// EXT SEAM (NOT RETAIL, docs/extensions/handins/STORAGEFILTER.md)
+#include "ext/storage_filter/storage_filter.h"
 
 // ============================================================
 // FUN_1400c4f10 — action-stack: walk the chain from the entry the cursor holds; each node
@@ -172,6 +174,12 @@ bool StorageComponent::AcceptsMaterial(const ComponentDescription* material) con
                 found = static_cast<const RawMaterialDescription*>(match);
             break;
         }
+    }
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/STORAGEFILTER.md): ext.storage_filter (class C). A
+    // building can turn away an item its flags allow; the flags still rule, so this only ever takes away
+    // from retail's answer.
+    if (Ext::StorageFilter::Refuses(this, found)) {
+        return false;
     }
     return (rawMaterialFlags & found->_flags) != 0;
 }

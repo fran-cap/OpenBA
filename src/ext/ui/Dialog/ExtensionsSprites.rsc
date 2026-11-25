@@ -99,6 +99,7 @@ SpriteSheet resource
 		{ String _name = "ExtensionsEntry_building_finder";	String _source = "Sprite/Extensions/Entry_building_finder.png"; }
 		{ String _name = "ExtensionsEntry_storage_metrics";	String _source = "Sprite/Extensions/Entry_storage_metrics.png"; }
 		{ String _name = "ExtensionsGlyph_storage_metrics_tab";	String _source = "Sprite/Extensions/Glyph_storage_metrics_tab.png"; }
+		{ String _name = "ExtensionsGlyph_storage_filter_tab";	String _source = "Sprite/Extensions/Glyph_storage_filter_tab.png"; }
 		{ String _name = "ExtensionsEntry_dynamic_professions";	String _source = "Sprite/Extensions/Entry_dynamic_professions.png"; }
 		{ String _name = "ExtensionsEntry_tool_names";	String _source = "Sprite/Extensions/Entry_tool_names.png"; }
 		{ String _name = "ExtensionsEntry_high_limits";	String _source = "Sprite/Extensions/Entry_high_limits.png"; }
@@ -106,6 +107,7 @@ SpriteSheet resource
 		{ String _name = "ExtensionsEntry_item_priority";	String _source = "Sprite/Extensions/Entry_item_priority.png"; }
 		{ String _name = "ExtensionsEntry_item_limits";	String _source = "Sprite/Extensions/Entry_item_limits.png"; }
 		{ String _name = "ExtensionsEntry_trader_request";	String _source = "Sprite/Extensions/Entry_trader_request.png"; }
+		{ String _name = "ExtensionsEntry_storage_filter";	String _source = "Sprite/Extensions/Entry_storage_filter.png"; }
 		{ String _name = "ExtensionsEntry_family_tree";	String _source = "Sprite/Extensions/Entry_family_tree.png"; }
 		{ String _name = "ExtensionsEntry_map_overlays";	String _source = "Sprite/Extensions/Entry_map_overlays.png"; }
 		{ String _name = "ExtensionsEntry_river_channel";	String _source = "Sprite/Extensions/Entry_river_channel.png"; }

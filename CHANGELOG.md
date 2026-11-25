@@ -6,6 +6,9 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 
 ## Unreleased
 
+**Extensions:**
+1. Storage filter: a storage building's window (barn, yard, cart, a mod's storage) gets an Accepts tab with a check box and a number for each item it can store. An unchecked item, or one at its number, is no longer delivered there; what is inside stays and citizens still take it; 0 means no limit. The choices are recorded in the save (`ext.storage_filter`, off by default).
+
 **Fixes:**
 1. Request a trader: a trading post no longer forgets its request during play. The request was filed under a number the game reassigns when other things on the map are removed; it is now filed under the post's place on the map. Saves from v1.0.4 load as before; saves made with this version do not load in v1.0.4 (`ext.trader_request`).
 2. Tool names: after loading a save, a citizen's panel no longer falls back to "iron" or "steel" for a tool whose name it showed before the save (`ext.tool_names`).

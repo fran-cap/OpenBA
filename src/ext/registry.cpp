@@ -626,6 +626,16 @@ const Entry kEntries[] = {
       "Lets a trading post ask for one trader, for the next visit or every visit, from its Orders tab. "
       "A requested trader's goods cost double. Play diverges; the requests are recorded in the save.",
       2, [](State& s) -> bool& { return s.ext.trader_request; } },
+    // STORAGEFILTER (docs/extensions/handins/STORAGEFILTER.md): a storage building can refuse
+    // items its flags allow or take them only up to a cap, set from a tab of its panel; citizens
+    // still take what is inside. Class C: the refusals are the town's own state, recorded in the
+    // save's tail (src/ext/storage_filter/save_state.cpp).
+    { "storage_filter", Tier::Extension, Class::C, false,
+      "Storage filter",
+      "Lets a storage building refuse items its flags would allow, or take them only up to a number, from "
+      "a tab of its panel. A refused item, or one at its number, is no longer delivered there; stock "
+      "already inside stays and citizens still take it. Play diverges; the choices are recorded in the save.",
+      1, [](State& s) -> bool& { return s.ext.storage_filter; } },
 
     // TERRAINEDIT (docs/extensions/handins/TERRAINEDIT.md): a brush tool, started from the Terrain page of
     // the extension window, that edits the terrain under the mouse. Class B: play diverges (the map is no

@@ -162,6 +162,9 @@ struct Extensions {
     // class C: src/ext/trader_request/ (docs/extensions/handins/TRADERREQUEST.md); a trading post asks for one
     // trader, whose goods then cost double
     bool trader_request = false;
+    // class C: src/ext/storage_filter/ (docs/extensions/handins/STORAGEFILTER.md); a storage building can
+    // refuse items its flags allow, set from a tab of its panel
+    bool storage_filter = false;
     // class B: src/ext/river_channel/ (docs/extensions/handins/RIVERCHANNEL.md); a new map's thin rivers get
     // a channel at least two tiles wide
     bool river_channel = false;

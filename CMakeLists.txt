@@ -319,6 +319,7 @@ set(EXT_RSC_SOURCES
   ${CMAKE_SOURCE_DIR}/src/ext/ui/Dialog/ItemPriorityPage.rsc
   ${CMAKE_SOURCE_DIR}/src/ext/ui/Dialog/ItemLimitsPanel.rsc
   ${CMAKE_SOURCE_DIR}/src/ext/ui/Dialog/TraderRequestPanel.rsc
+  ${CMAKE_SOURCE_DIR}/src/ext/ui/Dialog/StorageFilterTab.rsc
   ${CMAKE_SOURCE_DIR}/src/ext/ui/Dialog/TerrainEditPage.rsc
   ${CMAKE_SOURCE_DIR}/src/ext/ui/Dialog/TouchControls.rsc
   ${CMAKE_SOURCE_DIR}/src/ext/ui/Dialog/TouchPointer.rsc

@@ -35,6 +35,8 @@
 #include "Component/StorageComponent.h"
 #include "Entity/ComponentEntity.h"   // X::TypeId() (B.3.8 callers)
 #include "Dialog/exe_bodies.h"
+// EXT SEAM (NOT RETAIL, docs/extensions/handins/STORAGEFILTER.md)
+#include "ext/storage_filter/storage_filter.h"
 #include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
 
 // One entry of OnUpdateLayout's temporary list (stride 0x18, built by the
@@ -132,6 +134,26 @@ void StorageUI::OnCreated() {
 
     // Slot 7 (vtable +0x38), virtual as retail
     OnUpdateLayout();
+
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/STORAGEFILTER.md): ext.storage_filter (class C) adds its
+    // Accepts tab to the building's window
+    Ext::StorageFilter::PanelOpened(this);
+}
+
+// ~StorageUI: retail's body is ~Array on +0x30 and ~DialogController (the member and the
+// base destroy themselves).
+StorageUI::~StorageUI() {
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/STORAGEFILTER.md): the window's tab is forgotten
+    Ext::StorageFilter::PanelGone(this);
+}
+
+// [9] inherited in retail. The Accepts tab's check boxes are this window's elements, so their
+// events come here.
+void StorageUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId a, int32_t b, int32_t c,
+                               int32_t d, int32_t e, void* userData) {
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/STORAGEFILTER.md): ext.storage_filter (class C)
+    if (Ext::StorageFilter::PanelEvent(this, a, b)) return;
+    UI::DialogController::OnElementEvent(element, a, b, c, d, e, userData);
 }
 
 // ============================================================
@@ -148,6 +170,8 @@ void StorageUI::OnCreated() {
 // [7] 0x1400b8450
 void StorageUI::OnUpdateLayout() {
     if (!SA_DialogEntityAlive(this)) return;
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/STORAGEFILTER.md): ext.storage_filter (class C)
+    Ext::StorageFilter::PanelLayout(this);
 
     // The entity from the data source (IsA ComponentEntity)
     Object::Base* dataSource = _dataSource;
