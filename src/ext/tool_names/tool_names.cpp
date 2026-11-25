@@ -160,6 +160,14 @@ bool TakeLoadFlag() {
     return was;
 }
 
+void Refresh(const void* citizen, const Citizen& who) {
+    std::lock_guard<std::mutex> guard(g_lock);
+    const auto it = g_live.find(citizen);
+    if (it != g_live.end()) {
+        it->second.who = who;
+    }
+}
+
 void Forget(const void* citizen) {
     std::lock_guard<std::mutex> guard(g_lock);
     g_live.erase(citizen);

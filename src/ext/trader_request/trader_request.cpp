@@ -13,7 +13,7 @@ namespace {
 
 std::vector<Request> g_requests;
 
-int IndexOf(int32_t post) {
+int IndexOf(const PostKey& post) {
     for (std::size_t i = 0; i < g_requests.size(); ++i) {
         if (g_requests[i].post == post) {
             return static_cast<int>(i);
@@ -40,7 +40,7 @@ bool TraderIsValid(const std::string& trader) {
     return true;
 }
 
-bool RequestOf(int32_t post, Request& out) {
+bool RequestOf(const PostKey& post, Request& out) {
     const int i = IndexOf(post);
     if (i < 0) {
         return false;
@@ -49,8 +49,8 @@ bool RequestOf(int32_t post, Request& out) {
     return true;
 }
 
-bool SetRequest(int32_t post, const std::string& trader, uint8_t mode) {
-    if (post < 0 || !TraderIsValid(trader) || (mode != kModeOnce && mode != kModeAlways)) {
+bool SetRequest(const PostKey& post, const std::string& trader, uint8_t mode) {
+    if (!PostKeyIsValid(post) || !TraderIsValid(trader) || (mode != kModeOnce && mode != kModeAlways)) {
         return false;
     }
     const int i = IndexOf(post);
@@ -74,7 +74,7 @@ bool SetRequest(int32_t post, const std::string& trader, uint8_t mode) {
     return true;
 }
 
-bool ClearRequest(int32_t post) {
+bool ClearRequest(const PostKey& post) {
     const int i = IndexOf(post);
     if (i < 0) {
         return false;
@@ -92,7 +92,7 @@ void ResetState() {
     PanelsForget();
 }
 
-int TakeArrival(int32_t post, const std::vector<std::string>& traders) {
+int TakeArrival(const PostKey& post, const std::vector<std::string>& traders) {
     const int i = IndexOf(post);
     if (i < 0) {
         return -1;

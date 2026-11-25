@@ -100,7 +100,8 @@
 #include "ext/savetail.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/EXTSAVE.md): the block-1 tail manifest
 #include "ext/async_save_compress/async_save_compress.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/HITCH_SAVE.md): ext.async_save_compress, the save arm
 #include "ext/radius_all/radius_all.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/RADIUSALL.md): ext.radius_all, its circles out of a save
-#include "ext/rock_seat/rock_seat.h"   // FIX rock_seat (NOT RETAIL, docs/extensions/handins/ROCKSEAT.md): the post-load seat
+#include "ext/tool_names/tool_names.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/TOOLNAMES.md): ext.tool_names, the ids of its notes at a save
+#include "ext/rock_seat/rock_seat.h"  // FIX rock_seat (NOT RETAIL, docs/extensions/handins/ROCKSEAT.md): the post-load seat
 #include <string>
 #include <vector>
 #include "load_time.h"   // [LoadTime] stamps (NOT RETAIL, print-only; block LOADSTAMP)
@@ -594,6 +595,11 @@ void GameUpdateLoop::SerializeAllHead(IO::Stream& stream, SerializeScope& scope)
     // which WorldGeometry serialises: they are taken out before a save is written (a no-op with none shown).
     if (IsSaving(&stream)) {
         Ext::RadiusAll::BeforeSave();
+    }
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/TOOLNAMES.md): ext.tool_names (class C), its notes take
+    // each citizen's entity id as it is at the save (an id moves when another entity is removed)
+    if (IsSaving(&stream) && Ext::Ext().tool_names) {
+        Ext::ToolNames::BeforeSave();
     }
 
     extFactory->EnableReferenceMode(true);
