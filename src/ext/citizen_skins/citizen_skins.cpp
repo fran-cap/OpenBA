@@ -73,6 +73,15 @@ struct Kept {
     std::vector<uint64_t> ids;   // one identity per set (SetIdentity)
 };
 std::unique_ptr<Kept> g_kept;
+// The character programs this patched, with the bytes they had before (a later game start may have to put them back).
+struct Original {
+    Video::VertexProgram* vp;
+    std::vector<std::vector<uint8_t>> blobs;
+};
+std::vector<Original> g_originals;
+// The two textures Install made (identity check: a texture of the same size that is not ours is not "installed").
+const Video::ImageBuffer* g_maleTexture = nullptr;
+const Video::ImageBuffer* g_femaleTexture = nullptr;
 
 // ---- reading the packages ---------------------------------------------------------------------------------
 
@@ -359,6 +368,14 @@ bool CarriesTextureDivide(const Video::VertexProgram* vp) {
     return false;
 }
 
+// The texture object the game has for `path` (null when it is not one).
+const Video::ImageBuffer* TextureOf(const char* path) {
+    Object::ExternalFactory* const factory = Object::ExternalFactory::_singleton;
+    if (factory == nullptr) return nullptr;
+    Video::ImageBuffer* tex = factory->FindOrLoadAs<Video::ImageBuffer>(System::Filename(path));
+    return Object::IsDerivedFromNullSafe(tex, Video::ImageBuffer::TypeId()) ? tex : nullptr;
+}
+
 // Texture and program for `sets` strips; the combined chains are those of `kept`. True with everything in
 // place; false with the game as the strips retail draws and the original program (or, when a restore itself
 // fails, as far as the log says). `citizensHaveSlots`: citizens that already carry a set in their mesh colour
@@ -386,6 +403,11 @@ bool Install(const Kept& kept, bool citizensHaveSlots, bool again = false) {
             return false;
         }
     }
+    if (programs.empty()) {
+        // the character material is not loaded yet: a texture alone would meet the original divide later
+        std::fprintf(stderr, "[CitizenSkins] no character program found: left as it is\n");
+        return false;
+    }
     // `again` (CheckInstalled): programs that are already patched are not in `jobs`, and a texture the loader made
     // again may be all that is left to do
     if (jobs.empty() && !again) {
@@ -409,6 +431,18 @@ bool Install(const Kept& kept, bool citizensHaveSlots, bool again = false) {
         RestoreTextures(kept, citizensHaveSlots);
         return false;
     }
+    for (Job& j : jobs) {
+        bool known = false;
+        for (Original& o : g_originals) {
+            if (o.vp == j.vp) {
+                o.blobs = j.original;
+                known = true;
+            }
+        }
+        if (!known) g_originals.push_back({j.vp, j.original});
+    }
+    g_maleTexture = TextureOf(kMaleTexture);
+    g_femaleTexture = TextureOf(kFemaleTexture);
     for (int i = 0; i < kept.sets && i < kMaxSets && i < static_cast<int>(kept.ids.size()); ++i) {
         g_ids[i].store(kept.ids[static_cast<size_t>(i)], std::memory_order_relaxed);
     }
@@ -419,12 +453,26 @@ bool Install(const Kept& kept, bool citizensHaveSlots, bool again = false) {
 }
 
 // Whether a texture is the joined image of `width` x `height` (the loader may have made it again from the packages).
-bool TextureIs(const char* path, int width, int height) {
-    Object::ExternalFactory* const factory = Object::ExternalFactory::_singleton;
-    if (factory == nullptr) return false;
-    Video::ImageBuffer* tex = factory->FindOrLoadAs<Video::ImageBuffer>(System::Filename(path));
-    if (!Object::IsDerivedFromNullSafe(tex, Video::ImageBuffer::TypeId())) return false;
-    return tex->_width == width && tex->_height == height;
+// It must be the object Install made (`installed`) and still have that size.
+bool TextureIs(const char* path, const Video::ImageBuffer* installed, int width, int height) {
+    const Video::ImageBuffer* tex = TextureOf(path);
+    return tex != nullptr && tex == installed && tex->_width == width && tex->_height == height;
+}
+
+// Every piece back to the game's own: the programs this patched get their bytes back, the textures the strips
+// retail draws, and no sets are handed out. Used where the pieces are only partly ours, so the program and the
+// texture always agree.
+void BackToRetail(const Kept& kept, const std::vector<Video::VertexProgram*>& programs) {
+    for (Video::VertexProgram* vp : programs) {
+        if (CarriesTextureDivide(vp)) continue;   // already the game's own
+        for (const Original& o : g_originals) {
+            if (o.vp == vp) Write(vp, o.blobs);
+        }
+    }
+    RestoreTextures(kept, false);
+    g_maleTexture = TextureOf(kMaleTexture);
+    g_femaleTexture = TextureOf(kFemaleTexture);
+    g_sets.store(1, std::memory_order_release);
 }
 
 // A game start after the first one in this process (g_kept is set, g_mutex held). Loading a game may make the
@@ -442,22 +490,24 @@ void CheckInstalled(bool repair) {
     for (const Video::VertexProgram* vp : programs) {
         if (CarriesTextureDivide(vp)) ++original;
     }
-    const bool maleOk = TextureIs(kMaleTexture, kept.male.width, kept.male.height);
-    const bool femaleOk = TextureIs(kFemaleTexture, kept.female.width, kept.female.height);
+    const bool maleOk = TextureIs(kMaleTexture, g_maleTexture, kept.male.width, kept.male.height);
+    const bool femaleOk = TextureIs(kFemaleTexture, g_femaleTexture, kept.female.width, kept.female.height);
     std::fprintf(stderr,
                  "[CitizenSkins] game start with the strips installed before: %zu character program(s), %d with the "
-                 "original divide; textures %s (%d x %d wanted)\n",
-                 programs.size(), original, (maleOk && femaleOk) ? "as installed" : "not as installed",
-                 kept.male.width, kept.male.height);
+                 "original divide; male texture %s (%d x %d wanted), female texture %s (%d x %d wanted)\n",
+                 programs.size(), original, maleOk ? "as installed" : "not as installed", kept.male.width,
+                 kept.male.height, femaleOk ? "as installed" : "not as installed", kept.female.width,
+                 kept.female.height);
     if (!programs.empty() && original == 0 && maleOk && femaleOk) return;   // still all ours
     if (!repair) {
-        g_sets.store(1, std::memory_order_release);
+        BackToRetail(kept, programs);
         return;
     }
-    if (Install(kept, true, true)) {
+    // before any citizen exists: citizensHaveSlots is false
+    if (Install(kept, false, true)) {
         std::fprintf(stderr, "[CitizenSkins] the strips were made again for this game\n");
     } else {
-        g_sets.store(1, std::memory_order_release);
+        BackToRetail(kept, programs);
         std::fprintf(stderr, "[CitizenSkins] the strips could not be made again: this game uses the strips retail "
                              "draws\n");
     }

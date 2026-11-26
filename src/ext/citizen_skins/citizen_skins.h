@@ -19,7 +19,7 @@
 // program.
 //
 // WHEN. OnGameStart (loader thread, the head of GameUpdateLoop::Load, before any citizen exists) builds and
-// builds and installs everything the first time the row is on in a process, checks at every later game start
+// installs everything the first time the row is on in a process, checks at every later game start
 // that the game's pieces are still the installed ones and makes again what a load gave back (CheckInstalled),
 // and OnVideoRestored installs again after a video device restart (unless the
 // row has been switched off since). The row is read at those places: switching it on takes effect at the

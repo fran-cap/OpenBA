@@ -129,6 +129,8 @@ reading, the install and its undo, the device restart) needs the engine and was 
 - A second game loaded in one run (quit to the menu, then start or load another): loading may make the character material,
   its programs or a texture again from the packages, which gives the game's own program and strips back while citizens
   keep getting `set * 8 + variant` (a citizen then reads the wrong part of the texture: stripes, a brown head). Every game
-  start after the first checks the two programs (an original divide left in one) and the two textures (the joined size),
+  start after the first checks the two programs (an original divide left in one) and the two textures (the object Install made, at the joined size),
   makes again whatever is not the installed one, and logs `[CitizenSkins] game start with the strips installed before: ...`.
+  When the pieces are only partly ours and cannot be made again (or the row is off), every program this patched gets its
+  original bytes back and both textures the strips retail draws, so the program and the texture always agree.
   The sets are the ones built the first time: changing the mods between two games still needs a restart.
