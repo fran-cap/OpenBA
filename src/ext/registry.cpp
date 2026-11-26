@@ -1022,11 +1022,13 @@ const Entry kEntries[] = {
     // gains a borderless fullscreen (a windowed swap chain in a popup over the monitor, at the desktop's
     // size; alt-tab leaves it on screen). Class A: the window only, nothing saved in a town. ON by default:
     // with ext.fullscreen_borderless at 0 the combo's Exclusive is retail's checkbox ticked, so nothing changes
-    // until the player picks Borderless. Offered only by a renderer with an exclusive mode (DX11).
+    // until the player picks Borderless. The combo is offered only by a renderer with an exclusive mode
+    // (DX11); Alt+Enter (fullscreen <-> a window that fits the display) works on every renderer.
     { "fullscreen_mode", Tier::Extension, Class::A, true,
       "Fullscreen mode",
       "The Video tab's Fullscreen setting becomes Off / Exclusive / Borderless. Borderless covers the "
-      "screen at the desktop's resolution and stays on screen when you switch to another window.",
+      "screen at the desktop's resolution and stays on screen when you switch to another window. "
+      "Alt+Enter switches between fullscreen and a window.",
       0, [](State& s) -> bool& { return s.ext.fullscreen_mode; } },
     // RENDERBACKEND (src/ext/render_backend/render_backend.h): the dual Windows exe carries DirectX 11 and
     // Vulkan behind retail's one renderer slot; the row lists both in the Video tab's Renderer combo and

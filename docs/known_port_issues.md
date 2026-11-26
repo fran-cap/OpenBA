@@ -1224,6 +1224,21 @@ purpose or not yet closed, as of P6 (2026-10-25).
   `docs/android/P13_MEM.md`, `src/render/common/etc2/`): the same bytes as BC, a lossy re-encode (35.7 dB
   PSNR against the BC decode over 40 real levels; no artefact seen on the S10 screenshots), cached in the
   derived-data cache. A device with neither BC nor ETC2 still decodes to RGBA8.
+- **Fullscreen opened a window of the picked mode's size, not the display's — FIXED.** The backend sets
+  no display mode: its fullscreen is `Device::AdjustDisplay`'s borderless window at the desktop's origin,
+  sized to the back buffer, which was the picked mode's size. On a Windows display scaled above 100% the
+  process is DPI-unaware (as retail), so the desktop it sees is smaller than the mode
+  `GetDefaultResolution` picks from the physical display mode (a 4K panel at 150%: a 3840 x 2160 window
+  on a 2560 x 1440 desktop, which Windows then draws 1.5 times larger): the main menu was off the screen
+  at the first start, the default renderer being Vulkan since 1.0.3. The same happened at 100% with a
+  mode larger than the desktop picked in Options, and a smaller mode gave a small window in the corner.
+  Now the fullscreen back buffer is the primary display's rect (`TakeFullscreenSize`, `device.cpp`;
+  `Platform::Window::FullscreenWindowSize`), at boot and on a settings change; Android is untouched
+  (`FixedDisplaySurface`). Reproduced and verified on a 2560 x 1440 desktop at 100% with fullscreen
+  3840 x 2160: window `(0,0)-(3840,2160)` before, `(0,0)-(2560,1440)` after. Not run on a scaled
+  display or on Linux. **Left:** in a Vulkan fullscreen the Resolution row changes nothing (as DX11's
+  Borderless); a windowed game on a scaled display can still open larger than the desktop from the
+  mode's size, on either renderer, as retail's does.
 
 ## 15. `ResourceLimitUI` accepted a config's resource index only below 11 — FIXED
 
@@ -1307,3 +1322,56 @@ entry "is about to be loaded anyway" holds only for entries the save refers to.
 **Fix.** Load only what the stream resolves, with the first parse of a lazily loaded resource done with
 reference mode off, as retail's order of loads gives it; the table does not say which entries are
 referred to, so the preload cannot simply be narrowed. Not done.
+
+## 18. A fullscreen entered from a maximised window covered only the work area — FIXED
+
+**Where.** `Platform::Window::SetWindowPos` (`src/platform/sdl/display_sdl.cpp`), the body behind
+`Video::Device::AdjustDisplay` (0x1800f7e20).
+
+**What.** Retail's fullscreen branch makes the window a popup and calls `SetWindowPos` with the back
+buffer's size; Win32 sizes a maximised window at once. SDL holds a size request for a maximised window
+back until it is restored, so a fullscreen chosen while the window was maximised came out borderless at
+the work area's size (2560 x 1400 on a 2560 x 1440 desktop) with the taskbar showing. Seen on the Vulkan
+backend, whose fullscreen is that window; DX11's exclusive mode hid it.
+
+**Fix.** The fullscreen branch (`ZOrder::Top`) restores a maximised window before placing it. The window
+comes back from fullscreen not maximised (retail's stayed flagged maximised). Verified on Vulkan:
+`(0,0)-(2560,1440)`, the game's window on top over the taskbar strip.
+
+**Alt+Enter, for the record.** Retail has no handling of the chord. Its `MakeWindowAssociation(hwnd,
+DXGI_MWA_NO_WINDOW_CHANGES)` (CreateDevice step 13) runs before the swap chain exists and does not stop
+DXGI answering Alt+Enter: in the port's DX11 run the window jumps to the display's size and the WM_SIZE
+that follows puts it back (`[ResizeTrace]` pairs, 2560 x 1440 then 2560 x 1377). Retail itself was not
+run for this. With `ext.fullscreen_mode` on (the default; off under the faithful profile) the chord is
+the extension's on every renderer (`src/ext/fullscreen_mode/fullscreen_mode.h`): DX11 makes the
+association again after the swap chain with `DXGI_MWA_NO_ALT_ENTER`. The game polls the keyboard, so it
+may also see the Enter press.
+
+## 19. After a renderer change, selecting a building broke the picture (or the game crashed) — FIXED
+
+**Where.** `ext.terrain_late` (`LateState`, `src/ext/terrain_late/terrain_late.cpp`; on by default since
+v1.0.4), `ext.show_grid` (`GridState`) and `ext.map_overlays` (`TerrainState`). The port's own
+extensions; retail has none of the three.
+
+**What.** Each row draws with a copy of a loaded material's `Video::RenderState`, made at run time with
+`RenderState::CreateNewObject` and kept in a static for the life of the process, found again by the
+source state's address. A video restart (a renderer change in Options, a display change, a lost device)
+goes through `Engine::MainLoop::OnVideoError` / `OnVideoRestart`, which destroy the video Externals the
+`ExternalFactory` knows and load each again by path, in place. The copy has no path and is not in the
+factory: it kept the device half of the device that went away, while its source came back at the same
+address, so the lookup still answered with it. From the next frame the terrain was bound with a state
+object of a dead device. Seen after a renderer change, where that object is the other backend's (a
+forced `DXGI_ERROR_DEVICE_RESET` on DirectX 11 alone still drew right):
+- Vulkan to DirectX 11: the terrain's bind did nothing on the device, so the terrain was drawn with
+  whatever state the draw before it left. With a building selected (its outline's mask and edge passes
+  are in the list) the smoke, animals and status icons came out as large white or coloured sheets and
+  the outline was missing; with nothing selected the picture looked right.
+- DirectX 11 to Vulkan: `Video::Context::BindResources` called `VideoDX11::RenderStateData::Bind` under
+  the Vulkan backend from `Ext::TerrainBatch::DrawRun`, an access violation on the render thread.
+The faithful profile never makes the copy and was not affected. A restart of the game cleared it.
+
+**Fix.** `Ext::KeptRenderState` (`src/ext/kept_render_state.h`) holds the three copies. On
+`MainLoop::_extVideoLost` each is destructed while its device still exists (as `OnVideoError` does to the
+factory's states) and the next draw makes it again in the same storage. Verified on the dual exe with
+`BANISHED_RENDER_SWITCH` and `BANISHED_PANEL_HOLD=StorageComponent`, settings profile: both directions
+draw the selected barn and everything around it as a run with no switch does, and the crash is gone.

@@ -17,6 +17,7 @@
 #include "ext/draw_gather/draw_gather.h"   // ext.draw_gather: its engine seams follow the toggle
 #include "ext/draw_batch/draw_batch.h"     // ext.draw_batch: the Renderer::_extDrawItemList seam follows the toggle
 #include "ext/background_save/background_save.h"   // ext.background_save: the Save::SaveLoad seam follows the toggle
+#include "ext/fullscreen_mode/fullscreen_mode.h"   // ext.fullscreen_mode: the pump's Alt+Enter handler, at boot
 #include "ext/render_pipe/render_pipe.h"   // ext.render_pipe: the MainLoop::_extFrame seam follows the toggle
 #include "ext/ambient_occlusion/ambient_occlusion.h"      // ext.ambient_occlusion: the readable depth + the arm follow the toggle
 #include "ext/better_trees/better_trees.h"   // ext.better_trees: the render-side seams follow the toggle
@@ -65,6 +66,7 @@
 #include "ext/winter_ice/winter_ice.h"
 #include "ext/better_clouds/better_clouds.h"
 #include "ext/leaf_lod/leaf_lod.h"
+#include "ext/kept_render_state.h"   // the derived render states: MainLoop::_extVideoLost drops them
 #include "io/Persistence.h"
 #include "save/SaveLoad.h"      // the pseudo-mod seam Save::SaveLoad::_extExtraMods (DESIGN.md hook rule 5)
 #include "system/Configuration.h"
@@ -142,6 +144,7 @@ void VideoLost() {
     BetterClouds::OnVideoLost(); // the sky's own programs back, our programs and twins forgotten, the noise released
     CitizenSkins::OnVideoLost();   // the citizen strips: the reload gives vanilla's back
     LeafLod::OnVideoLost();     // the reduced canopies' buffers (built again as their meshes draw)
+    KeptRenderState::OnVideoLost();   // terrain_late / show_grid / map_overlays: their derived render states
 }
 // Engine::MainLoop::_extVideoRestored: the same objects made again, after the reload.
 void VideoRestored() {
@@ -282,6 +285,9 @@ void InitFromSettings() {
     BetterTrees::Sync();
     // ext.background_save (class A, live): the Save::SaveLoad::_extSaveStart / _extSavePoll seam.
     Ext::BackgroundSave::Sync();
+    // ext.fullscreen_mode (class A, live): Alt+Enter, the pump's chord handler. Installed once (the handler
+    // reads the row); under the faithful profile it stays null and the pump pays one null test.
+    if (CurrentProfile() != Profile::Faithful) Ext::FullscreenMode::InstallHotkey();
     // ext.max_shadow_res (class A, live): the Graphics::SunLight seam follows the
     // row's live bool (a toggle rebuilds the map through Device::settingsChanged).
     // Installed once, like the save seam above: the profile is fixed for the run,

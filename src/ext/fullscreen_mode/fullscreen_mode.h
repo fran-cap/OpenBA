@@ -29,6 +29,14 @@
 // SetFullscreenState(FALSE) first when leaving exclusive), DeviceData_OnActivate (no drop to a
 // window). A backend without an exclusive mode (Render::SupportsExclusiveFullscreen false: Vulkan,
 // Metal) is not offered the row: its fullscreen is already a popup window, and retail's checkbox stays.
+//
+// ALT+ENTER (every backend, while the row is on). Retail has no handling of its own: its DXGI factory is
+// told DXGI_MWA_NO_WINDOW_CHANGES before the swap chain exists, which does not stop DXGI answering the
+// chord, and the game's WM_SIZE then undoes what DXGI did (seen in the port's DX11 run: the window jumps
+// and returns). Here it flips VideoFullscreen and applies it as the Options dialog
+// does (Video::Device::ApplyChangedSettings, then the configuration is saved): Off <-> the fullscreen the
+// combo last chose. The window it opens is one that fits the display (toggle_size.h). Not offered where
+// the surface is the whole screen (Platform::Window::FixedDisplaySurface: Android).
 #pragma once
 
 #include <cstdint>
@@ -72,6 +80,18 @@ void RollbackVideoRow(const UI::DialogInstance* dialog);
 
 // OnClosed: forget the combo (the dialog's teardown deletes it). No-op for any other dialog.
 void CloseVideoRow(const UI::DialogInstance* dialog);
+
+// ---- Alt+Enter --------------------------------------------------------------------------------------
+
+// Ext::InitFromSettings: hands the pump the chord's handler (Platform::Window::SetFullscreenChordHandler).
+// Installed once whatever the row says: the handler reads the row when the chord arrives, so a live
+// toggle of the row needs no second call.
+void InstallHotkey();
+
+// The row is on (at boot: as settings.cfg and the command line resolve it) and the window can change:
+// DX11's CreateDevice then tells DXGI to leave Alt+Enter to the window (DXGI_MWA_NO_ALT_ENTER, after
+// the swap chain is made). Off, DXGI keeps answering the chord as it does in retail.
+bool OwnsAltEnter();
 
 }  // namespace FullscreenMode
 }  // namespace Ext

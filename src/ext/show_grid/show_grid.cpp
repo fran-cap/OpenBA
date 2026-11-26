@@ -12,6 +12,7 @@
 
 #include "ext/show_grid/show_grid.h"
 #include "ext/show_grid/show_grid_math.h"
+#include "ext/kept_render_state.h"
 #include "ext/registry.h"
 
 #include "video/Context.h"
@@ -112,29 +113,24 @@ struct Ground {
 // The tile overlay's render state lets its quads show through everything (the placement tiles are meant to be
 // seen under a building ghost): with it the grid's lines would lie over roofs and trees. The grid's own state
 // is a copy of it with the depth test on and depth writes off, so a building, a tree or a cliff in front of a
-// line hides it. Made once for the loaded overlay material (and again if the material is loaded anew). Null
-// when the material has no state to copy.
+// line hides it. Made once for the loaded overlay material (and again if the material is loaded anew, or
+// after a video restart: kept_render_state.h). Null when the material has no state to copy.
 const Video::RenderState* GridState(const Graphics::MaterialInstance* instance) {
-    static const Video::RenderState* source = nullptr;
-    static Video::RenderState* ours = nullptr;
+    static KeptRenderState ours;
     const Graphics::Material* material = instance->_material.Get();
     if (material == nullptr || material->_passes._size <= 0) return nullptr;
     const Video::VideoProgram* pass0 = material->_passes.GetData()[0].Get();
     if (pass0 == nullptr) return nullptr;
     const Video::RenderState* overlay = pass0->_renderState.Get();
     if (overlay == nullptr) return nullptr;
-    if (overlay == source && ours != nullptr) return ours;
-    Video::RenderState* state = static_cast<Video::RenderState*>(Video::RenderState::CreateNewObject());
-    if (state == nullptr) return nullptr;
-    Video::RenderState::Depth depth = overlay->_depth;
-    depth.test = true;
-    depth.write = false;
-    depth.func = 4;   // the engine's default: less or equal
-    state->Initialize(overlay->_alphaBlend, depth, overlay->_stencil, overlay->_cullMode, overlay->_fillMode,
-                      overlay->_scissorEnable);
-    ours = state;   // kept for the life of the process, like the other leaked statics
-    source = overlay;
-    return ours;
+    return ours.For(overlay, [](Video::RenderState& state, const Video::RenderState& from) {
+        Video::RenderState::Depth depth = from._depth;
+        depth.test = true;
+        depth.write = false;
+        depth.func = 4;   // the engine's default: less or equal
+        state.Initialize(from._alphaBlend, depth, from._stencil, from._cullMode, from._fillMode,
+                         from._scissorEnable);
+    });
 }
 
 // Vertices per BeginVertices: whole triangles, 1.2 MB of the context's 8 MB stream (map_overlays' batch). A wide

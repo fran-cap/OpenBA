@@ -177,6 +177,12 @@ using MessageHandler = int64_t (*)(void* window, uint32_t message, uint64_t wPar
 using MessageObserver = void (*)(void* window, uint32_t message, uint64_t wParam,
                                  int64_t lParam);
 void SetMessageObserver(MessageObserver observer);
+// NOT RETAIL (ext.fullscreen_mode, src/ext/fullscreen_mode/fullscreen_mode.h): Alt+Enter. With a
+// handler set, the pump calls it on the main thread for an Enter / keypad Enter press (not a
+// repeat) with Alt held and neither Control nor the GUI key, and the event goes no further.
+// nullptr (the default: the key event is not looked at, as before) removes it.
+using FullscreenChordHandler = void (*)();
+void SetFullscreenChordHandler(FullscreenChordHandler handler);
 
 // ---------------------------------------------------------------------------
 // SDL step W6: the fatal error box (System::Error::Display's MessageBoxW(nullptr, text,

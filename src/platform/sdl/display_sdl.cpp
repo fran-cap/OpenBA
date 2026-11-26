@@ -187,6 +187,14 @@ void SetWindowPos(void* /*window*/, ZOrder insertAfter, int32_t x, int32_t y,
     SDL_Window* w = Sdl::GameWindow();
     if (w == nullptr) return;
     if (insertAfter == ZOrder::NoTopmost) SDL_SetWindowAlwaysOnTop(w, false);
+    // The fullscreen branch (the borderless window over the monitor) from a MAXIMISED window: SDL
+    // would hold the size back until a restore, leaving a "fullscreen" of the work area with the
+    // taskbar showing, where retail's SetWindowPos sized the window at once. Restored first, so
+    // the request below applies; the window comes back from fullscreen not maximised.
+    if (insertAfter == ZOrder::Top && (SDL_GetWindowFlags(w) & SDL_WINDOW_MAXIMIZED) != 0) {
+        SDL_RestoreWindow(w);
+        SDL_SyncWindow(w);
+    }
     // The engine's outer rect is in pixels; SDL takes points, and the frame it reports is
     // already in points.
     const float d = PixelDensity(w);

@@ -51,6 +51,7 @@
 #include "ext/map_overlays/map_overlays.h"
 #include "ext/map_overlays/overlay_render.h"
 #include "ext/map_overlays/overlay_render_math.h"
+#include "ext/kept_render_state.h"
 
 #include "video/ImageBuffer.h"
 #include "video/Device.h"
@@ -305,28 +306,24 @@ void GroundOf(const WorldGeometry& terrain, TerrainCache& cache) {
 
 // The overlay material's render state with the depth test on and depth writes off: show_grid's GridState
 // (the tile overlay's own state shows through everything, which over a whole town would lie on the roofs).
-// Made once for the loaded material, again if the material is loaded anew.
+// Made once for the loaded material, again if the material is loaded anew or after a video restart
+// (kept_render_state.h).
 const Video::RenderState* TerrainState(const Graphics::MaterialInstance* instance) {
-    static const Video::RenderState* source = nullptr;
-    static Video::RenderState* ours = nullptr;
+    static KeptRenderState ours;
     const Graphics::Material* material = instance->_material.Get();
     if (material == nullptr || material->_passes._size <= 0) return nullptr;
     const Video::VideoProgram* pass0 = material->_passes.GetData()[0].Get();
     if (pass0 == nullptr) return nullptr;
     const Video::RenderState* overlay = pass0->_renderState.Get();
     if (overlay == nullptr) return nullptr;
-    if (overlay == source && ours != nullptr) return ours;
-    Video::RenderState* state = static_cast<Video::RenderState*>(Video::RenderState::CreateNewObject());
-    if (state == nullptr) return nullptr;
-    Video::RenderState::Depth depth = overlay->_depth;
-    depth.test = true;
-    depth.write = false;
-    depth.func = 4;   // the engine's default: less or equal
-    state->Initialize(overlay->_alphaBlend, depth, overlay->_stencil, overlay->_cullMode, overlay->_fillMode,
-                      overlay->_scissorEnable);
-    ours = state;   // kept for the life of the process
-    source = overlay;
-    return ours;
+    return ours.For(overlay, [](Video::RenderState& state, const Video::RenderState& from) {
+        Video::RenderState::Depth depth = from._depth;
+        depth.test = true;
+        depth.write = false;
+        depth.func = 4;   // the engine's default: less or equal
+        state.Initialize(from._alphaBlend, depth, from._stencil, from._cullMode, from._fillMode,
+                         from._scissorEnable);
+    });
 }
 
 // The game's tile overlay material (Terrain/Selection.rsc).

@@ -91,6 +91,28 @@ UNIT_TEST(display_geometry_probe_off_every_display_is_null) {
     CHECK(!RectTouchesAnyDisplay(R(100, 100, 900, 700), displays, 0));
 }
 
+// The Vulkan backend's fullscreen window is the display's size, whatever mode is picked. A 4K panel
+// at 150% is a 2560 x 1440 desktop to this DPI-unaware process while the picked mode stays
+// 3840 x 2160: a window of the mode's size was a third off the screen.
+UNIT_TEST(display_geometry_fullscreen_window_is_the_display_size) {
+    int32_t w = 3840, h = 2160;
+    Platform::Window::FullscreenWindowSize(R(0, 0, 2560, 1440), &w, &h);
+    CHECK_EQ(w, 2560);
+    CHECK_EQ(h, 1440);
+    // A smaller picked mode grows to the display too; a display left of the origin is its size.
+    w = 1280;
+    h = 720;
+    Platform::Window::FullscreenWindowSize(R(-1920, 0, 0, 1080), &w, &h);
+    CHECK_EQ(w, 1920);
+    CHECK_EQ(h, 1080);
+    // No display found (a zeroed rect): the mode's size stays.
+    w = 1024;
+    h = 768;
+    Platform::Window::FullscreenWindowSize(R(0, 0, 0, 0), &w, &h);
+    CHECK_EQ(w, 1024);
+    CHECK_EQ(h, 768);
+}
+
 // AdjustDisplay's probe as retail builds it: `bottom` takes the X offset (0x1800f7f9c,
 // EDI not ESI). With a far-right saved X and a small Y on a single display the probe
 // collapses to an empty rect and reads "off every monitor", so the window is centred.

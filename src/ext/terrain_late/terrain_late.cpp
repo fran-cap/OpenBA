@@ -15,6 +15,7 @@
 #include "video/RenderState.h"
 #include "video/VideoProgram.h"
 
+#include "ext/kept_render_state.h"
 #include "ext/registry.h"
 #include "ext/terrain_late/terrain_late.h"
 #include "ext/terrain_late/terrain_late_rules.h"
@@ -98,20 +99,15 @@ bool IsTerrainItem(const RendererDrawItem& item) {
 }
 
 // The less-test copy of the terrain's state, made once per source state on the drawing thread (as
-// show_grid's GridState) and kept for the life of the process.
+// show_grid's GridState) and made again after a video restart (kept_render_state.h).
 const Video::RenderState* LateState(const Video::RenderState* source) {
-    static const Video::RenderState* s_source = nullptr;
-    static Video::RenderState*       s_late   = nullptr;
-    if (source == s_source && s_late != nullptr) return s_late;
-    Video::RenderState* state = static_cast<Video::RenderState*>(Video::RenderState::CreateNewObject());
-    if (state == nullptr) return nullptr;
-    Video::RenderState::Depth depth = source->_depth;
-    depth.func = LateDepthFunc(depth.func);
-    state->Initialize(source->_alphaBlend, depth, source->_stencil, source->_cullMode, source->_fillMode,
-                      source->_scissorEnable);
-    s_late   = state;
-    s_source = source;
-    return s_late;
+    static KeptRenderState s_late;
+    return s_late.For(source, [](Video::RenderState& ours, const Video::RenderState& from) {
+        Video::RenderState::Depth depth = from._depth;
+        depth.func = LateDepthFunc(depth.func);
+        ours.Initialize(from._alphaBlend, depth, from._stencil, from._cullMode, from._fillMode,
+                        from._scissorEnable);
+    });
 }
 
 }  // namespace
