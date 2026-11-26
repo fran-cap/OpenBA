@@ -83,6 +83,8 @@
 #include "ext/savetail.h"
 #include "ext/show_grid/show_grid.h"   // EXT SEAM (NOT RETAIL, SHOWGRID.md): Ext::ShowGrid::OnGameStart
 #include "ext/map_overlays/map_overlays.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/MAPOVERLAYS.md): Ext::MapOverlays::OnGameStart
+// EXT SEAM (NOT RETAIL, docs/extensions/handins/CITIZENSKINS.md): Ext::CitizenSkins::OnGameStart
+#include "ext/citizen_skins/citizen_skins.h"
 #include "ext/better_clouds/better_clouds.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/BETTERCLOUDS.md): Ext::BetterClouds::SkyLoaded
 #include "ext/fast_paths/fast_paths.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/FASTPATHS.md): Ext::FastPaths::SelectForGame
 #include "ext/path_workers/path_workers.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/PATHWORKERS.md): Ext::PathWorkers::SelectForGame
@@ -747,6 +749,10 @@ void GameUpdateLoop::Load() {
     // re-reads it (src/ext/fast_paths/fast_paths.h).
     Ext::FastPaths::SelectForGame();
     Ext::PathWorkers::SelectForGame();   // ext.path_workers (class B), the same rule
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/CITIZENSKINS.md): ext.citizen_skins (class A) joins the
+    // mounted citizen skin strips and patches the character program, once per process, before any citizen
+    // exists.
+    Ext::CitizenSkins::OnGameStart();
 
     // Steps 1-4: resource Finds (Diseases/Profession/Material/Help).
     //   step 1 Diseases    → +0xA8 (unblocks citizen illness)

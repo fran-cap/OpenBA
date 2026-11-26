@@ -90,6 +90,7 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/ext/ambient_occlusion/ao_math.cpp   # ext_ambient_occlusion_test.cpp (block AOCORE)
   ${CMAKE_SOURCE_DIR}/src/ext/seamless_loops/seamless_loops.cpp   # ext_seamless_loops_test.cpp (block SEAMLESS)
   ${CMAKE_SOURCE_DIR}/src/ext/better_water/shore_strip.cpp   # ext_better_water_test.cpp (block BETTERWATER, Fancy)
+  ${CMAKE_SOURCE_DIR}/src/ext/citizen_skins/skin_math.cpp   # ext_citizen_skins_test.cpp (CITIZENSKINS)
   ${CMAKE_SOURCE_DIR}/src/ext/better_clouds/cloud_params.cpp   # ext_better_clouds_test.cpp (BETTERCLOUDS)
   ${CMAKE_SOURCE_DIR}/src/ext/better_clouds/cloud_noise.cpp    #   the noise texture
   ${CMAKE_SOURCE_DIR}/src/ext/better_clouds/sky_fit.cpp        #   the program fit test

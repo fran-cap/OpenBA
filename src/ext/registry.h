@@ -103,6 +103,7 @@ struct Fixes {
 struct Extensions {
     bool eye_camera = false;   // class A: src/ext/eye_camera/ (docs/extensions/handins/EYECAM.md)
     bool no_fog = false;       // class A: src/ext/no_fog/ (docs/extensions/handins/NOFOG.md)
+    bool citizen_skins = false;   // class A: src/ext/citizen_skins/ (docs/extensions/handins/CITIZENSKINS.md)
     bool show_grid = false;    // class A: src/ext/show_grid/ (docs/extensions/handins/SHOWGRID.md)
     bool fps_counter = false;  // class A: src/ext/fps_counter/, FrameLimiter::g_extGameFrame (docs/extensions/handins/FPSCOUNTER.md)
     // class A: src/ext/building_finder/ (docs/extensions/handins/BUILDINGFINDER.md)
