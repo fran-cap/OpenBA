@@ -363,7 +363,7 @@ bool CarriesTextureDivide(const Video::VertexProgram* vp) {
 // place; false with the game as the strips retail draws and the original program (or, when a restore itself
 // fails, as far as the log says). `citizensHaveSlots`: citizens that already carry a set in their mesh colour
 // (a device restart), see RestoreTextures.
-bool Install(const Kept& kept, bool citizensHaveSlots) {
+bool Install(const Kept& kept, bool citizensHaveSlots, bool again = false) {
     std::vector<Video::VertexProgram*> programs;
     CollectPrograms(kMaleMaterial, &programs);
     CollectPrograms(kFemaleMaterial, &programs);
@@ -386,7 +386,9 @@ bool Install(const Kept& kept, bool citizensHaveSlots) {
             return false;
         }
     }
-    if (jobs.empty()) {
+    // `again` (CheckInstalled): programs that are already patched are not in `jobs`, and a texture the loader made
+    // again may be all that is left to do
+    if (jobs.empty() && !again) {
         std::fprintf(stderr, "[CitizenSkins] no character program with the texture divide: left as it is\n");
         return false;
     }
@@ -416,6 +418,51 @@ bool Install(const Kept& kept, bool citizensHaveSlots) {
     return true;
 }
 
+// Whether a texture is the joined image of `width` x `height` (the loader may have made it again from the packages).
+bool TextureIs(const char* path, int width, int height) {
+    Object::ExternalFactory* const factory = Object::ExternalFactory::_singleton;
+    if (factory == nullptr) return false;
+    Video::ImageBuffer* tex = factory->FindOrLoadAs<Video::ImageBuffer>(System::Filename(path));
+    if (!Object::IsDerivedFromNullSafe(tex, Video::ImageBuffer::TypeId())) return false;
+    return tex->_width == width && tex->_height == height;
+}
+
+// A game start after the first one in this process (g_kept is set, g_mutex held). Loading a game may make the
+// character material, its programs or a texture again from the packages, which gives the game's own program and
+// strips back while citizens keep getting `set * 8 + variant`: a citizen then reads the wrong part of the texture
+// (the program divides by 8, or the strip is not the wide image). So the two pieces are checked one by one and
+// whatever is not ours is made again; `repair` false (the row is off now) only stops handing out sets when the
+// game is back to its own pieces.
+void CheckInstalled(bool repair) {
+    const Kept& kept = *g_kept;
+    std::vector<Video::VertexProgram*> programs;
+    CollectPrograms(kMaleMaterial, &programs);
+    CollectPrograms(kFemaleMaterial, &programs);
+    int original = 0;
+    for (const Video::VertexProgram* vp : programs) {
+        if (CarriesTextureDivide(vp)) ++original;
+    }
+    const bool maleOk = TextureIs(kMaleTexture, kept.male.width, kept.male.height);
+    const bool femaleOk = TextureIs(kFemaleTexture, kept.female.width, kept.female.height);
+    std::fprintf(stderr,
+                 "[CitizenSkins] game start with the strips installed before: %zu character program(s), %d with the "
+                 "original divide; textures %s (%d x %d wanted)\n",
+                 programs.size(), original, (maleOk && femaleOk) ? "as installed" : "not as installed",
+                 kept.male.width, kept.male.height);
+    if (!programs.empty() && original == 0 && maleOk && femaleOk) return;   // still all ours
+    if (!repair) {
+        g_sets.store(1, std::memory_order_release);
+        return;
+    }
+    if (Install(kept, true, true)) {
+        std::fprintf(stderr, "[CitizenSkins] the strips were made again for this game\n");
+    } else {
+        g_sets.store(1, std::memory_order_release);
+        std::fprintf(stderr, "[CitizenSkins] the strips could not be made again: this game uses the strips retail "
+                             "draws\n");
+    }
+}
+
 }  // namespace
 
 bool Enabled() {
@@ -424,9 +471,17 @@ bool Enabled() {
 }
 
 void OnGameStart() {
-    if (!Enabled()) return;
+    if (!Enabled()) {
+        // the row is off now: installed stays installed, unless the loader gave the game's own pieces back
+        const std::lock_guard<std::mutex> lock(g_mutex);
+        if (g_kept && g_sets.load(std::memory_order_acquire) > 1) CheckInstalled(false);
+        return;
+    }
     const std::lock_guard<std::mutex> lock(g_mutex);
-    if (g_done) return;
+    if (g_done) {
+        if (g_kept) CheckInstalled(true);
+        return;
+    }
     if (Video::Device::_singleton == nullptr) return;   // not tried: the next game start does
     g_done = true;
     RetailStrips retail;

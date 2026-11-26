@@ -16,6 +16,7 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 2. Tool names: after loading a save, a citizen's panel no longer falls back to "iron" or "steel" for a tool whose name it showed before the save (`ext.tool_names`).
 3. Vulkan: fullscreen no longer opens a window larger than the screen on a display with Windows scaling above 100% (the menu was off the screen), or when the chosen resolution is not the desktop's. A Vulkan fullscreen now always covers the desktop.
 4. After changing the renderer in Options during play, clicking a building no longer breaks the picture (smoke, animals and icons drawn as large white or coloured sheets), and a change from DirectX 11 to Vulkan no longer crashes. Restarting the game was the way out before (`ext.terrain_late`, `ext.show_grid`, `ext.map_overlays`).
+5. Citizen skin sets: a second game loaded in one run (quit to the menu, then start another) no longer draws citizens with stripes and the wrong heads: the strips are checked at each game start and made again when the load gave the game's own pieces back (`ext.citizen_skins`).
 
 ## v1.0.4 (2026-11-22)
 

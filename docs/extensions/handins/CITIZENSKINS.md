@@ -126,3 +126,9 @@ reading, the install and its undo, the device restart) needs the engine and was 
 - Uncompressed, a 16-set texture is about 11 MB per gender in video memory (8 sets: about 5.6 MB).
 - Switching the row off while the game runs does not give back the last mod's texture: what is installed stays
   until the game is closed, a display change included (the strips are installed again). Restart the game.
+- A second game loaded in one run (quit to the menu, then start or load another): loading may make the character material,
+  its programs or a texture again from the packages, which gives the game's own program and strips back while citizens
+  keep getting `set * 8 + variant` (a citizen then reads the wrong part of the texture: stripes, a brown head). Every game
+  start after the first checks the two programs (an original divide left in one) and the two textures (the joined size),
+  makes again whatever is not the installed one, and logs `[CitizenSkins] game start with the strips installed before: ...`.
+  The sets are the ones built the first time: changing the mods between two games still needs a restart.
