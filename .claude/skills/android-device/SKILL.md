@@ -105,6 +105,9 @@ alone: orphans kept driving the phone.
 - A/B as ABBA pairs; a single pair is noise. Which limit: the S25 is CPU-limited in ordinary play and
   GPU-pixel-bound at far zoom at render scale 100; the S10 is CPU / memory-bound (`docs/android/P13_RENDER.md`
   §3.4 for the GPU-busy check). A pure GPU win may not move S25 fps.
+- GPU load: kgsl `gpu_busy_percentage` with `clock_mhz` against `max_gpuclk` (busy % alone misleads: the
+  governor holds a low clock). A RenderDoc frame (debug apk): `tools/trace_oracle/android_capture.sh`, replay
+  with `gpu_timing.py --android S`; on Adreno it gives pass structure, not per-draw GPU time.
 - S10 = the weak-device check: Vulkan 1.1 fallback (Adreno 640, no BC: ETC2 transcode at load,
   AO "not supported"; `docs/known_port_issues.md`), no ADPF, the gold-cluster pin.
 

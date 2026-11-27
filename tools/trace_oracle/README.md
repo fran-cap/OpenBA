@@ -22,6 +22,7 @@ samplers it bound, per draw.
 | `capture_arm.sh <tag> [--frame N] [--expect-log RE] -- ENV=V ...` | Capture one in-game frame under RenderDoc for an arbitrary arm. Generalises `tools/dx11_state_diff/capture.sh`, whose arms are hard-wired to the DX11 A/B seam. **`--expect-log` is how you find out the arm actually armed** — without it a run that silently did nothing produces a clean comparison. |
 | `tools/dx11_state_diff/dump_state.py <cap.rdc> -o t.jsonl` | Unchanged, and re-verified working on this tip. Walks every draw, records the full D3D11 pipeline state, and replaces every RenderDoc `ResourceId` with a content-derived key (shaders by sha1 of DXBC, textures by desc + mip-0 hash, buffers by length) so records compare across two processes. |
 | `trace_oracle.py --test A.jsonl B.jsonl [--control C.jsonl C2.jsonl]` | The verdict engine: six screens, scored separately. |
+| `android_capture.sh [--serial S] [--wait SECS] --out F.rdc BANISHED_*=V ...` | One in-game Vulkan frame from the attached Android device (debug apk), unattended. The header lists the three device fixes the RenderDoc GUI does not make. Replay with `gpu_timing.py F.rdc out.json --android S`: on Adreno (a tiler) the per-draw ms read ~0, so the capture gives structure, not GPU cost; GPU load comes from kgsl sysfs on a live run. |
 | `trace_selftest.py <real-trace.jsonl>` | The control harness. Run it after ANY change to either tool, and on YOUR OWN trace before trusting the oracle's silence. |
 
 ## THE MEASURED NOISE FLOOR — read this before quoting any screen

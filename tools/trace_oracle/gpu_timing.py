@@ -1,4 +1,4 @@
-"""gpu_timing.py <capture.rdc> [out.json]
+"""gpu_timing.py <capture.rdc> [out.json] [--android SERIAL]
 
 Full-precision GPU duration per draw from a RenderDoc capture (EventGPUDuration
 counter, replayed), grouped by pass (clear / output-set boundaries) and, inside a
@@ -11,14 +11,46 @@ if mp:
     os.add_dll_directory(mp)
 import renderdoc as rd
 
-cap_path = sys.argv[1]
-out_path = sys.argv[2] if len(sys.argv) > 2 else cap_path + ".timing.json"
+args = sys.argv[1:]
+serial = None
+if "--android" in args:
+    # --android SERIAL: replay on that adb device (an Android capture, android_capture.sh).
+    # The pass structure is the useful part there: on a tiler GPU (Adreno) the per-draw
+    # timestamps read ~0, so the ms columns are not GPU cost.
+    i = args.index("--android")
+    serial = args[i + 1]
+    del args[i:i + 2]
+cap_path = args[0]
+out_path = args[1] if len(args) > 1 else cap_path + ".timing.json"
 
-cap = rd.OpenCaptureFile()
-assert cap.OpenFile(cap_path, "", None) == rd.ResultCode.Succeeded
-assert cap.LocalReplaySupport()
-res, ctrl = cap.OpenCapture(rd.ReplayOptions(), None)
-assert res == rd.ResultCode.Succeeded, res
+if serial:
+    rd.InitialiseReplay(rd.GlobalEnvironment(), [])
+    dpc = rd.GetDeviceProtocolController("adb")
+    dpc.GetDevices()
+    url = dpc.GetProtocolName() + "://" + serial
+    print("StartRemoteServer:", dpc.StartRemoteServer(url), file=sys.stderr)
+    res, remote = None, None
+    for _ in range(30):
+        res, remote = rd.CreateRemoteServerConnection(url)
+        if res == rd.ResultCode.Succeeded:
+            break
+        time.sleep(2)
+    assert remote is not None and res == rd.ResultCode.Succeeded, res
+    rpath = remote.CopyCaptureToRemote(cap_path, None)
+    res, ctrl = remote.OpenCapture(rd.RemoteServer.NoPreference, rpath, rd.ReplayOptions(), None)
+    assert res == rd.ResultCode.Succeeded, res
+
+    class _Remote:
+        def Shutdown(self):
+            remote.CloseCapture(ctrl)
+            remote.ShutdownConnection()
+    cap = _Remote()
+else:
+    cap = rd.OpenCaptureFile()
+    assert cap.OpenFile(cap_path, "", None) == rd.ResultCode.Succeeded
+    assert cap.LocalReplaySupport()
+    res, ctrl = cap.OpenCapture(rd.ReplayOptions(), None)
+    assert res == rd.ResultCode.Succeeded, res
 sf = ctrl.GetStructuredFile()
 
 # ---- counters: run the GPU duration counter 3 times, keep the per-event minimum
@@ -132,4 +164,6 @@ for r in sorted((r for r in rows if r["draw"]), key=lambda r: -r["ms"])[:25]:
 json.dump({"capture": cap_path, "unit": "ms", "total_ms": total, "rows": rows,
            "passes": [{k: v for k, v in p.items() if k != "rows"} for p in passes]},
           open(out_path, "w"), indent=1)
-ctrl.Shutdown(); cap.Shutdown()
+if not serial:
+    ctrl.Shutdown()
+cap.Shutdown()
