@@ -19,8 +19,10 @@
 // program.
 //
 // WHEN. OnGameStart (loader thread, the head of GameUpdateLoop::Load, before any citizen exists) builds and
-// installs everything once per process and OnVideoRestored again after a video device restart (unless the
-// row has been switched off since). The row is read at those two places: switching it on takes effect at the
+// installs everything the first time the row is on in a process, checks at every later game start that the
+// game's pieces are still the installed ones and makes again what a load gave back (CheckInstalled), and
+// OnVideoRestored installs again after a video device restart (not in a game that went back to the strips
+// retail draws at its start). The row is read at those places: switching it on takes effect at the
 // next game start, switching it off at the next device restart or the next run of the game; the Extensions
 // row says to restart the game after changing it.
 // ============================================================================
@@ -33,8 +35,8 @@ namespace CitizenSkins {
 bool Enabled();
 
 // Loader thread, GameUpdateLoop::Load before the entities: the combined textures and the patched program
-// installed (once per process); a no-op while the row is off or when fewer than two different skin sets are
-// mounted.
+// installed (built once per process, checked and made again at each later game start); a no-op while the row is
+// off or when fewer than two different skin sets are mounted.
 void OnGameStart();
 
 // The mesh colour number a citizen wears: its variant (0..7) with its strip's first cell added. The variant
