@@ -788,6 +788,9 @@ void NewGameDialog::OnUpdateLayout() {
 
     // Element slot 8: Enable(bool)
     buttonOk->Enable(len > 0 ? 1 : 0);
+
+    // NOT RETAIL: ext.custom_maps reads the system file picker's answer here, once a frame (new_game_map.h).
+    ::Ext::CustomMaps::NewGameMapUpdate(this);
 }
 
 

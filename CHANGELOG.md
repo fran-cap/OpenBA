@@ -16,6 +16,7 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 2. Tool names: after loading a save, a citizen's panel no longer falls back to "iron" or "steel" for a tool whose name it showed before the save (`ext.tool_names`).
 3. Vulkan: fullscreen no longer opens a window larger than the screen on a display with Windows scaling above 100% (the menu was off the screen), or when the chosen resolution is not the desktop's. A Vulkan fullscreen now always covers the desktop.
 4. After changing the renderer in Options during play, clicking a building no longer breaks the picture (smoke, animals and icons drawn as large white or coloured sheets), and a change from DirectX 11 to Vulkan no longer crashes. Restarting the game was the way out before (`ext.terrain_late`, `ext.show_grid`, `ext.map_overlays`).
+5. Custom maps on Linux, macOS and Android: New Game now has the Load custom map button there too. It lists the maps in the Maps folder beside your saves (`~/.local/share/Banished/Maps` on Linux, `~/Documents/Banished/Maps` on macOS), and Browse opens the system's file picker on every platform (on Android, the phone's own file picker; the chosen map is copied into the game's Maps folder). The game no longer stops while the file picker is open. A Linux desktop with no file picker (neither the desktop portal nor zenity) gets a message naming the Maps folder instead (`ext.custom_maps`).
 ## v1.0.4 (2026-11-22)
 
 **Major Changes:**

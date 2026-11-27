@@ -78,8 +78,10 @@ enum class Phase {
 //   <id>   click element id <id> on the most recently opened ModDialog
 //   d<id>  click element id <id> on the most recently opened ModDetailsDialog
 //   m<id>  click element id <id> on the MainMenuDialog (e.g. m7 re-opens Mods)
-// Only the mod dialogs and the MainMenuDialog are addressable; add a *_LastOpened() per
-// dialog type to extend it.
+//   n<id>  click element id <id> on the NewGameDialog MainMenuDialog::OpenNewGame built
+//          (e.g. n20, ext.custom_maps' Load custom map button)
+// Only the mod dialogs, the New Game dialog and the MainMenuDialog are addressable; add a
+// *_LastOpened() per dialog type to extend it.
 char  s_menuClicks[256] = {0};
 char* s_menuClickCursor = nullptr;
 
@@ -335,6 +337,11 @@ void TickMenu(MenuDialogLoopT* menuDLT) {
             int id = HarnessAtoi(tok + 1);
             fprintf(stderr, "[AutoStart] AUTOMENU_CLICKS: MainMenuDialog=%p id=%d\n", (void*)mainMenu, id);
             if (mainMenu) InjectClick(mainMenu, UI::EventId::Activated, id);
+        } else if (tok[0] == 'n') {
+            NewGameDialog* dlg = g_StandaloneNewGameDialog;
+            int id = HarnessAtoi(tok + 1);
+            fprintf(stderr, "[AutoStart] AUTOMENU_CLICKS: NewGameDialog=%p id=%d\n", static_cast<void*>(dlg), id);
+            if (dlg) InjectClick(dlg, UI::EventId::Activated, id);
         } else if (tok[0] == 'd') {
             ModDetailsDialog* dlg = ModDetailsDialog_LastOpened();
             int id = HarnessAtoi(tok + 1);

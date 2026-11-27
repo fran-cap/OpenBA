@@ -1584,6 +1584,24 @@ UNIT_TEST(ext_custom_maps_row_texts) {
     CHECK(CM::CutText(std::string("ab") + "Ã©" + "cd", 3) == "ab...");
 }
 
+UNIT_TEST(ext_custom_maps_a_picked_uri_gets_a_safe_file_name) {
+    // Android's document picker: the name is the URI's last part, %XX decoded, after the volume's "primary:"
+    CHECK(CM::PickedFileName("content://com.android.externalstorage.documents/document/"
+                             "primary%3ADownload%2FIsland%20map.bmap", "x") == "Island map.bmap");
+    // the downloads provider names a number, not a file: the map's own name is used
+    CHECK(CM::PickedFileName("content://com.android.providers.downloads.documents/document/msf%3A1234",
+                             "Caldera") == "Caldera.bmap");
+    // a case other than lower is kept
+    CHECK(CM::PickedFileName("content://p/document/A.BMAP", "x") == "A.BMAP");
+    // never a path, never hidden, never empty
+    CHECK(CM::PickedFileName("content://p/document/%2E%2E%2Fevil.bmap", "x") == "evil.bmap");
+    CHECK(CM::PickedFileName("content://p/document/.bmap", "") == "map.bmap");
+    CHECK(CM::PickedFileName("content://p/document/1", "a/b:c") == "a_b_c.bmap");
+    CHECK(CM::PickedFileName("content://p/document/1", "..hidden ") == "hidden.bmap");
+    // %25 decodes to '%', a stray '%' with no two hex digits after it stays; '%' is then no file-name character
+    CHECK(CM::PickedFileName("content://p/document/100%25%2.bmap", "x") == "100__2.bmap");
+}
+
 UNIT_TEST(ext_custom_maps_list_keeps_author_and_mod_names) {
     namespace fs = std::filesystem;
     const fs::path dir = fs::temp_directory_path() / "openba_custom_maps_list_author_test";

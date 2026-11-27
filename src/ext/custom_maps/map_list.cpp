@@ -157,5 +157,71 @@ std::string DateText(int64_t seconds) {
     return text;
 }
 
+namespace {
+
+int HexDigit(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
+
+std::string PercentDecode(const std::string& text) {
+    std::string out;
+    out.reserve(text.size());
+    for (size_t i = 0; i < text.size(); ++i) {
+        if (text[i] == '%' && i + 2 < text.size()) {
+            const int hi = HexDigit(text[i + 1]);
+            const int lo = HexDigit(text[i + 2]);
+            if (hi >= 0 && lo >= 0) {
+                out.push_back(static_cast<char>(hi * 16 + lo));
+                i += 2;
+                continue;
+            }
+        }
+        out.push_back(text[i]);
+    }
+    return out;
+}
+
+// After the last '/', '\\' or ':' (a decoded content URI's "primary:Download/x.bmap").
+std::string LastPart(const std::string& text) {
+    const size_t cut = text.find_last_of("/\\:");
+    return cut == std::string::npos ? text : text.substr(cut + 1);
+}
+
+bool EndsWithBmap(const std::string& name) {
+    if (name.size() <= 5) return false;
+    std::string tail = name.substr(name.size() - 5);
+    for (char& c : tail) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    return tail == ".bmap";
+}
+
+// Keeps letters, digits, UTF-8 bytes and a few marks; every other character becomes '_'. No leading dot or
+// space, no trailing space.
+std::string SafeFileName(const std::string& name) {
+    std::string out;
+    for (char c : name) {
+        const unsigned char u = static_cast<unsigned char>(c);
+        const bool keep = u >= 0x80 || std::isalnum(u) != 0 || c == ' ' || c == '-' || c == '_' || c == '.' ||
+                          c == '(' || c == ')' || c == ',' || c == '\'';
+        out.push_back(keep ? c : '_');
+    }
+    while (!out.empty() && (out.front() == '.' || out.front() == ' ')) out.erase(out.begin());
+    while (!out.empty() && out.back() == ' ') out.pop_back();
+    return out;
+}
+
+}  // namespace
+
+std::string PickedFileName(const std::string& picked, const std::string& mapName) {
+    const std::string decoded = LastPart(PercentDecode(LastPart(picked)));
+    std::string name = SafeFileName(decoded);
+    if (EndsWithBmap(name)) return name;
+    name = SafeFileName(mapName);
+    if (name.empty()) name = "map";
+    return name + ".bmap";
+}
+
 }  // namespace CustomMaps
 }  // namespace Ext
