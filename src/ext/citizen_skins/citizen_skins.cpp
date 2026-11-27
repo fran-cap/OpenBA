@@ -73,12 +73,18 @@ struct Kept {
     std::vector<uint64_t> ids;   // one identity per set (SetIdentity)
 };
 std::unique_ptr<Kept> g_kept;
-// The character programs this patched, with the bytes they had before (a later game start may have to put them back).
+// The character programs this patched, with the bytes they had before (a later game start may have to put them back)
+// and the bytes this wrote. An External carries no count, so `vp` may be a freed program whose address a later load
+// reused: the original bytes go back only while the program still holds exactly the patched ones.
 struct Original {
     Video::VertexProgram* vp;
-    std::vector<std::vector<uint8_t>> blobs;
+    std::vector<std::vector<uint8_t>> blobs;     // before the patch
+    std::vector<std::vector<uint8_t>> patched;   // as this wrote them
 };
 std::vector<Original> g_originals;
+// A game that went back to the strips retail draws (BackToRetail): its citizens carry no set, so a device restart
+// does not install the sets again during it. Cleared by the next install that succeeds.
+bool g_retailThisGame = false;
 // The two textures Install made (identity check: a texture of the same size that is not ours is not "installed").
 const Video::ImageBuffer* g_maleTexture = nullptr;
 const Video::ImageBuffer* g_femaleTexture = nullptr;
@@ -436,11 +442,13 @@ bool Install(const Kept& kept, bool citizensHaveSlots, bool again = false) {
         for (Original& o : g_originals) {
             if (o.vp == j.vp) {
                 o.blobs = j.original;
+                o.patched = j.blobs;
                 known = true;
             }
         }
-        if (!known) g_originals.push_back({j.vp, j.original});
+        if (!known) g_originals.push_back({j.vp, j.original, j.blobs});
     }
+    g_retailThisGame = false;
     g_maleTexture = TextureOf(kMaleTexture);
     g_femaleTexture = TextureOf(kFemaleTexture);
     for (int i = 0; i < kept.sets && i < kMaxSets && i < static_cast<int>(kept.ids.size()); ++i) {
@@ -466,13 +474,15 @@ void BackToRetail(const Kept& kept, const std::vector<Video::VertexProgram*>& pr
     for (Video::VertexProgram* vp : programs) {
         if (CarriesTextureDivide(vp)) continue;   // already the game's own
         for (const Original& o : g_originals) {
-            if (o.vp == vp) Write(vp, o.blobs);
+            // the same address with other bytes is another program (see Original)
+            if (o.vp == vp && CurrentBlobs(vp) == o.patched) Write(vp, o.blobs);
         }
     }
     RestoreTextures(kept, false);
     g_maleTexture = TextureOf(kMaleTexture);
     g_femaleTexture = TextureOf(kFemaleTexture);
     g_sets.store(1, std::memory_order_release);
+    g_retailThisGame = true;
 }
 
 // A game start after the first one in this process (g_kept is set, g_mutex held). Loading a game may make the
@@ -601,6 +611,9 @@ void OnVideoLost() {
 void OnVideoRestored() {
     const std::lock_guard<std::mutex> lock(g_mutex);
     if (!g_kept) return;
+    // This game went back to the strips retail draws at its start (BackToRetail): its citizens carry no set, and
+    // the reload's own program and strips are what it draws.
+    if (g_retailThisGame) return;
     // Installed means installed until the game is closed (the row's text says so), also when the row was
     // switched off since: the citizens already carry `set * 8 + variant`, which only the patched program
     // turns into the right cell. A strip's U address mode is CLAMP, so the reload's own retail program

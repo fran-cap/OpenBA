@@ -9,15 +9,13 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 **Extensions:**
 1. Storage filter: a storage building's window (barn, yard, cart, a mod's storage) gets an Accepts tab with a check box and a number for each item it can store. An unchecked item, or one at its number, is no longer delivered there; what is inside stays and citizens still take it; 0 means no limit. The choices are recorded in the save (`ext.storage_filter`, off by default).
 2. Alt+Enter switches between fullscreen and a window that fits the screen, on every renderer (`ext.fullscreen_mode`).
-3. Citizen skin sets: every skin or clothes mod's citizen textures are used together, 16 different sets in all (vanilla's own only when no mod has one), instead of only the last mod loaded (a mod can carry several: `CitizenTexture2` with `CitizenTextureF2`, and so on); each citizen wears one set for good, picked from its name, so taking a mod out or putting one in only changes the citizens who wore it or would now wear it. Drawing only, nothing is recorded in the save; restart the game after changing it (`ext.citizen_skins`, off by default).
+3. Citizen skin sets: every skin or clothes mod's citizen textures are used together, 16 different sets in all (vanilla's own only when no mod has one), instead of only the last mod loaded (a mod can carry several: `CitizenTexture2` with `CitizenTextureF2`, and so on); each citizen wears one set for good, picked from its name, so taking a mod out or putting one in only changes the citizens who wore it or would now wear it. Drawing only, nothing is recorded in the save; a second game started in the same run wears the same sets; restart the game after changing it (`ext.citizen_skins`, off by default).
 
 **Fixes:**
 1. Request a trader: a trading post no longer forgets its request during play. The request was filed under a number the game reassigns when other things on the map are removed; it is now filed under the post's place on the map. Saves from v1.0.4 load as before; saves made with this version do not load in v1.0.4 (`ext.trader_request`).
 2. Tool names: after loading a save, a citizen's panel no longer falls back to "iron" or "steel" for a tool whose name it showed before the save (`ext.tool_names`).
 3. Vulkan: fullscreen no longer opens a window larger than the screen on a display with Windows scaling above 100% (the menu was off the screen), or when the chosen resolution is not the desktop's. A Vulkan fullscreen now always covers the desktop.
 4. After changing the renderer in Options during play, clicking a building no longer breaks the picture (smoke, animals and icons drawn as large white or coloured sheets), and a change from DirectX 11 to Vulkan no longer crashes. Restarting the game was the way out before (`ext.terrain_late`, `ext.show_grid`, `ext.map_overlays`).
-5. Citizen skin sets: a second game loaded in one run (quit to the menu, then start another) no longer draws citizens with stripes and the wrong heads: the strips are checked at each game start and made again when the load gave the game's own pieces back (`ext.citizen_skins`).
-
 ## v1.0.4 (2026-11-22)
 
 **Major Changes:**
