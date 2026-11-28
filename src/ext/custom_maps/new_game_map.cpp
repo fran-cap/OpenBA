@@ -126,20 +126,28 @@ void ShowPending(NewGameDialog* dialog) {
     LockSize(dialog, map);
 }
 
-// The game's own user folder, <Documents>\Banished (where its saves and screenshots go), when it exists; else
-// an empty path.
-std::filesystem::path BanishedDir() {
+// The game's own user folder, <Documents>\Banished (where its saves and screenshots go), whether or not it
+// exists; an empty path when the platform names no Documents folder. Joined with std::filesystem, not a
+// "\\Banished" suffix: on Linux, macOS and Android a backslash is a character of the name, and the folder
+// would never be found.
+std::filesystem::path UserRoot() {
     std::string base;
     if (const char* user = Platform::UserDirOverride()) {
-        base = user;
-    } else if (Platform::DocumentsDir(base)) {
-        base += "\\Banished";
+        return std::filesystem::u8path(user);
     }
-    if (base.empty()) {
-        return std::filesystem::path();
+    if (Platform::DocumentsDir(base) && !base.empty()) {
+        return std::filesystem::u8path(base) / "Banished";
+    }
+    return std::filesystem::path();
+}
+
+// UserRoot when it exists; else an empty path.
+std::filesystem::path BanishedDir() {
+    const std::filesystem::path root = UserRoot();
+    if (root.empty()) {
+        return root;
     }
     std::error_code ec;
-    const std::filesystem::path root = std::filesystem::u8path(base);
     return std::filesystem::is_directory(root, ec) ? root : std::filesystem::path();
 }
 
@@ -156,16 +164,19 @@ std::filesystem::path MapsDir() {
     return std::filesystem::is_directory(maps, ec) ? maps : root;
 }
 
-// The system's file picker, opened in the maps folder. False when the player cancels.
-bool PickFile(std::filesystem::path& out) {
-    std::string chosen;
-    if (!Platform::PickOpenFile("Load custom map", "Banished maps (*.bmap)", "*.bmap", MapsDir().u8string(),
-                                chosen)) {
-        return false;
+// The folder the row names when there are no maps and no system file picker: <Documents>\Banished\Maps, in
+// the platform's own spelling, so the player can find it in a file manager.
+std::string MapsHint() {
+    const std::filesystem::path root = UserRoot();
+    if (root.empty()) {
+        return "the Maps folder beside your saves";
     }
-    out = std::filesystem::u8path(chosen);
-    return true;
+    return (root / "Maps").make_preferred().u8string();
 }
+
+// Whether the system's file picker was opened from this New Game dialog and its answer is still to come.
+// The dialog that opened it reads the answer (NewGameMapUpdate); a new dialog drops what an old one left.
+bool g_pickWaiting = false;
 
 // Reads, checks and picks `path` for the next new game; the row shows the result (or what is wrong
 // with the file).
@@ -188,6 +199,63 @@ void UseFile(NewGameDialog* dialog, const std::filesystem::path& path) {
     }
     SetPending(std::move(map));
     ShowPending(dialog);
+}
+
+// The file the system's picker handed back. A path is used where it is. Anything else (Android's
+// content:// URI, which only the system can open) is read through the platform, checked, and copied into
+// the maps folder, so it is a file of the player's from then on, listed in the Custom map picker.
+void UsePicked(NewGameDialog* dialog, const std::string& picked) {
+    std::error_code ec;
+    const std::filesystem::path asPath = std::filesystem::u8path(picked);
+    if (std::filesystem::is_regular_file(asPath, ec)) {
+        UseFile(dialog, asPath);
+        return;
+    }
+    std::vector<uint8_t> bytes;
+    std::string why;
+    if (!Platform::ReadPickedFile(picked, bytes, why)) {
+        std::fprintf(stderr, "[CustomMaps] New Game: cannot read %s: %s\n", picked.c_str(), why.c_str());
+        ShowName(dialog, "Cannot read that file");
+        return;
+    }
+    Map map;
+    if (bytes.size() > kMaxMapFile || Parse(bytes.data(), bytes.size(), map) != Status::Ok) {
+        std::fprintf(stderr, "[CustomMaps] New Game: %s is not a map file (%zu bytes)\n", picked.c_str(),
+                     bytes.size());
+        ShowName(dialog, "Cannot use that file: not a map file");
+        return;
+    }
+    const std::filesystem::path root = UserRoot();
+    if (root.empty()) {
+        ShowName(dialog, "Cannot use that file: no folder to keep it in");
+        return;
+    }
+    const std::filesystem::path folder = root / "Maps";
+    std::filesystem::create_directories(folder, ec);
+    // A file of that name already in the folder is kept: the same bytes are used where they are, other bytes
+    // get "name (2).bmap", "name (3).bmap" ...
+    const std::string fileName = PickedFileName(picked, map.name);
+    const std::string stem = fileName.substr(0, fileName.size() - 5);
+    std::filesystem::path target = folder / std::filesystem::u8path(fileName);
+    for (int n = 2; std::filesystem::exists(target, ec) && n < 100; ++n) {
+        std::ifstream existing(target, std::ios::binary);
+        const std::vector<uint8_t> old((std::istreambuf_iterator<char>(existing)), std::istreambuf_iterator<char>());
+        if (old == bytes) {
+            UseFile(dialog, target);
+            return;
+        }
+        target = folder / std::filesystem::u8path(stem + " (" + std::to_string(n) + ").bmap");
+    }
+    std::ofstream out(target, std::ios::binary | std::ios::trunc);
+    out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+    out.close();
+    if (!out) {
+        std::fprintf(stderr, "[CustomMaps] New Game: cannot write %s\n", target.string().c_str());
+        ShowName(dialog, "Cannot copy that file into the Maps folder");
+        return;
+    }
+    std::fprintf(stderr, "[CustomMaps] New Game: copied the picked map to %s\n", target.string().c_str());
+    UseFile(dialog, target);
 }
 
 }  // namespace
@@ -249,9 +317,10 @@ bool AddTableRow(NewGameDialog* dialog) {
 
 void NewGameMapOpened(NewGameDialog* dialog) {
     if (dialog == nullptr || !::Ext::Ext().custom_maps || !ResourceUsable()) return;
-    // The row is on by default, and a map can only be picked where the platform has a file dialog: without
-    // one the row would be a button that says "Not available", so it is not added.
-    if (!Platform::CanPickFile()) return;
+    // An answer a closed New Game dialog was waiting for is not this dialog's.
+    g_pickWaiting = false;
+    // The row is added on every platform: the Custom map picker is the game's own UI and needs no system file
+    // dialog. Only Browse does (platform_pick_file.h).
     if (AddTableRow(dialog)) {
         UI::Element* load  = Find(dialog, "buttonLoadMap");
         UI::Element* clear = Find(dialog, "buttonClearMap");
@@ -304,16 +373,18 @@ bool NewGameMapButton(NewGameDialog* dialog, int32_t id) {
         ShowPending(dialog);
         return true;
     }
-    // The maps folder when it holds maps: the Load screen's look (map_picker.h). Else, or when the picker
-    // cannot open, the system's file picker.
-    if (Platform::CanPickFile()) {
-        const std::filesystem::path folder = MapsDir();
-        if (!folder.empty()) {
-            std::vector<ListedMap> maps = ScanMaps(folder);
-            std::fprintf(stderr, "[CustomMaps] New Game: %zu map(s) in %s\n", maps.size(),
-                         folder.string().c_str());
-            if (!maps.empty() && OpenMapPicker(dialog, std::move(maps))) return true;
-        }
+    // The maps folder when it holds maps: the Load screen's look (map_picker.h), on every platform. Else, or
+    // when the picker cannot open, the system's file picker where there is one; where there is none the row
+    // names the folder the maps go in.
+    const std::filesystem::path folder = MapsDir();
+    if (!folder.empty()) {
+        std::vector<ListedMap> maps = ScanMaps(folder);
+        std::fprintf(stderr, "[CustomMaps] New Game: %zu map(s) in %s\n", maps.size(), folder.string().c_str());
+        if (!maps.empty() && OpenMapPicker(dialog, std::move(maps))) return true;
+    }
+    if (!Platform::CanPickFile()) {
+        ShowName(dialog, "No maps found. Put .bmap files in " + MapsHint());
+        return true;
     }
     BrowseForMap(dialog);
     return true;
@@ -327,13 +398,35 @@ void MapChosen(NewGameDialog* dialog, const std::filesystem::path& file) {
 bool BrowseForMap(NewGameDialog* dialog) {
     if (dialog == nullptr) return false;
     if (!Platform::CanPickFile()) {
-        ShowName(dialog, "Not available on this platform yet");
+        ShowName(dialog, "No maps found. Put .bmap files in " + MapsHint());
         return false;
     }
-    std::filesystem::path path;
-    if (!PickFile(path)) return false;   // cancelled: nothing changes
-    UseFile(dialog, path);
+    if (!Platform::BeginPickOpenFile("Load custom map", "Banished maps (*.bmap)", "bmap",
+                                     MapsDir().u8string())) {
+        ShowName(dialog, "A file dialog is already open");
+        return false;
+    }
+    g_pickWaiting = true;
+    ShowName(dialog, "Choosing a file...");
+    std::fprintf(stderr, "[CustomMaps] New Game: the system's file picker opened\n");
     return true;
+}
+
+void NewGameMapUpdate(NewGameDialog* dialog) {
+    if (dialog == nullptr || !g_pickWaiting) return;
+    std::string answer;
+    const Platform::PickState state = Platform::PollPickedFile(answer);
+    if (state == Platform::PickState::Open || state == Platform::PickState::None) return;
+    g_pickWaiting = false;
+    if (state == Platform::PickState::Picked) {
+        std::fprintf(stderr, "[CustomMaps] New Game: the file picker chose %s\n", answer.c_str());
+        UsePicked(dialog, answer);
+    } else if (state == Platform::PickState::Failed) {
+        std::fprintf(stderr, "[CustomMaps] New Game: the file picker failed: %s\n", answer.c_str());
+        ShowName(dialog, "No file picker on this system. Put .bmap files in " + MapsHint());
+    } else {
+        ShowPending(dialog);   // cancelled: the row shows what was picked before
+    }
 }
 
 }  // namespace CustomMaps

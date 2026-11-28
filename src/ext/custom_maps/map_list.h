@@ -59,6 +59,13 @@ std::string ModsText(const std::vector<std::string>& mods, size_t maxBytes);
 // 3 bytes longer).
 std::string CutText(const std::string& text, size_t maxBytes);
 
+// The file name a map chosen in the system's file picker is copied under in the maps folder, when the picker
+// handed back something that is not a path (Android's content:// URIs). The last part of `picked`, with its
+// %XX escapes decoded ("content://.../document/primary%3ADownload%2FIsland%20map.bmap" -> "Island map.bmap");
+// when that is not a .bmap name, `mapName` with ".bmap". A character a file name cannot hold becomes '_';
+// never empty, never a hidden file, never a path.
+std::string PickedFileName(const std::string& picked, const std::string& mapName);
+
 // "11/12/2026 11:15 PM" in the local time zone, as the Load screen shows a save's date. "" for a time before
 // 1970 or one the platform cannot convert.
 std::string DateText(int64_t seconds);

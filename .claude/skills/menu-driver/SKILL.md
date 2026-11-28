@@ -72,6 +72,7 @@ interval apart:
 | `<id>` | the last-opened ModDialog |
 | `d<id>` | ModDetailsDialog |
 | `m<id>` | the MainMenuDialog again |
+| `n<id>` | the NewGameDialog (after button 0; `n20` is ext.custom_maps' Load custom map) |
 
 ## Pause menu (in game)
 `BANISHED_PAUSEMENU=600 BANISHED_PAUSEMENU_QUIT=120 BANISHED_PAUSEMENU_BUTTON=7

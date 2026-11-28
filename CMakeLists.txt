@@ -521,9 +521,12 @@ if(NOT EXISTS ${CMAKE_SOURCE_DIR}/third_party/SDL/CMakeLists.txt)
   message(FATAL_ERROR "third_party/SDL is empty: run `git submodule update --init`")
 endif()
 foreach(_sdl_opt SDL_SHARED SDL_TEST_LIBRARY SDL_TESTS SDL_EXAMPLES SDL_GPU SDL_RENDER SDL_CAMERA
-                 SDL_JOYSTICK SDL_HAPTIC SDL_HIDAPI SDL_SENSOR SDL_POWER SDL_DIALOG SDL_TRAY)
+                 SDL_JOYSTICK SDL_HAPTIC SDL_HIDAPI SDL_SENSOR SDL_POWER SDL_TRAY)
   set(${_sdl_opt} OFF CACHE BOOL "Banished: SDL3 vendored build option" FORCE)
 endforeach()
+# The system's file dialog (src/platform/sdl/pick_file_sdl.cpp: ext.custom_maps' Browse button) on
+# every platform: GetOpenFileNameW, Android's document picker, the Linux portal or zenity, NSOpenPanel.
+set(SDL_DIALOG ON CACHE BOOL "Banished: SDL3 vendored build option" FORCE)
 set(SDL_STATIC ON CACHE BOOL "Banished: SDL3 vendored build option" FORCE)
 if(ANDROID)
   # SDL's Android Java glue (SDLActivity -> HIDDeviceManager) calls into the joystick / HIDAPI
@@ -580,9 +583,8 @@ target_link_options(OpenBA PRIVATE ${FLAVOUR_FLAGS} ${PGO_LINK_FLAGS} ${LTO_FLAG
 # shell32: SHGetFolderPathW (Platform::DocumentsDir). No ole32 of ours since Phase D.4 SDL-5 D2;
 # SDL3's own system libraries still bring it.
 # gdi32: the run-time font rasteriser (src/platform/win/font_raster_win.cpp, KITFREE RSCFONT).
-# comdlg32: GetOpenFileNameW (ext.custom_maps: the New Game dialog's Load custom map button).
 # winhttp: Platform::Net::HttpsGet (src/platform/win/net_win.cpp, ext.update_check), a system DLL.
-target_link_libraries(OpenBA PRIVATE user32 dbghelp shell32 gdi32 comdlg32 winhttp)
+target_link_libraries(OpenBA PRIVATE user32 dbghelp shell32 gdi32 winhttp)
 # SDL3 static: the target carries its include directory and its system libraries
 target_link_libraries(OpenBA PRIVATE SDL3::SDL3-static)
 # The backend's own link libraries (dx11: none; vulkan: dxbc_spv, the loader is opened by SDL).

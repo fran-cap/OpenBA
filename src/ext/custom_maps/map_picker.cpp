@@ -36,6 +36,7 @@
 #include "ext/custom_maps/new_game_map.h"
 #include "ext/custom_maps/png.h"
 #include "ext/resources/text_provider.h"
+#include "platform_pick_file.h"
 
 #include <cstdint>
 #include <cstdio>
@@ -174,7 +175,12 @@ public:
         _buttonBrowse = FindIn<UI::ButtonElement>(this, "buttonBrowse");
         _table        = FindIn<UI::TableElement>(this, "tableSaveList");
         if (_buttonLoad != nullptr) _buttonLoad->SetElementId(kLoadId);
-        if (_buttonBrowse != nullptr) _buttonBrowse->SetElementId(kBrowseId);
+        if (_buttonBrowse != nullptr) {
+            _buttonBrowse->SetElementId(kBrowseId);
+            // Browse is the system's file picker: hidden where the platform has none (every platform but
+            // Windows so far), so the picker is the maps folder only.
+            if (!Platform::CanPickFile()) _buttonBrowse->Hide(true);
+        }
         if (_buttonCancel != nullptr) {
             _buttonCancel->SetElementId(kCancelId);
             _buttonCancel->_keyIndex = 8;   // Esc, as the Load screen
